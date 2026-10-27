@@ -1,43 +1,23 @@
 // Panel state machine: handoff intake, key and consent gates, cached or live
 // analysis with streamed guides, disagree flows, and the cost footer.
-import './components/booking_grid';
-import './components/compare_table';
-import './components/key_setup';
-import './components/scan_list';
-import './components/source_chips';
-import './components/trip_board';
-import './components/trip_card';
-import type { BookingGridElement } from './components/booking_grid';
-import type { CompareTableElement } from './components/compare_table';
-import type {
-  ScanGuideDetail,
-  ScanItemView,
-  ScanListElement,
-  ScanPinDetail,
-  ScanPinSelectedDetail,
-} from './components/scan_list';
+import { useSyncExternalStore } from 'react';
+import { createRoot } from 'react-dom/client';
+import { flushSync } from 'react-dom';
+import { BookingGrid } from './components/booking_grid';
+import { CompareTable, type DuelTableState } from './components/compare_table';
+import type { ScanItemView } from './components/scan_list';
+import { ScanList } from './components/scan_list';
 import type {
   AlternateCardView,
   AlternatesView,
+  CardState,
   CompareOptionView,
-  TripAlternatesDetail,
-  TripCompareDetail,
-  TripPinAlternateDetail,
-  TripPlanInsteadDetail,
 } from './components/trip_card';
-import type {
-  ConsentDecisionDetail,
-  KeySaveRequestDetail,
-  KeySetupElement,
-  SessionOnlyChangeDetail,
-} from './components/key_setup';
-import type { SourceChipsElement } from './components/source_chips';
-import type {
-  BoardItemView,
-  TripBoardElement,
-  TripRemovePinDetail,
-} from './components/trip_board';
-import type { TripCardElement } from './components/trip_card';
+import { TripCard } from './components/trip_card';
+import { KeySetup, type NanoSectionState } from './components/key_setup';
+import { SourceChips } from './components/source_chips';
+import type { BoardItemView, TripRemovePinDetail } from './components/trip_board';
+import { TripBoard } from './components/trip_board';
 import { prefersReducedMotion } from './utils/dom';
 import {
   clearBoard,
@@ -97,7 +77,9 @@ import {
   type Usage,
 } from './providers/index';
 import { msg } from './utils/i18n';
+import { createStore } from './utils/store';
 import './styles/sidepanel.css';
+import './components/shared_styles.css';
 import './components/shared_styles.css';
 
 const SKELETON_DELAY_MS = 200;
@@ -224,27 +206,8 @@ type PendingRun =
   | { kind: 'itinerary' };
 
 let initialized = false;
-let pageTitle: HTMLElement;
-let previewHeading: HTMLElement;
-let previewFrame: HTMLElement;
-let statusRegion: HTMLElement;
-let alertRegion: HTMLElement;
-let resultSlot: HTMLElement;
-let linksSlot: HTMLElement;
-let guideSlot: HTMLElement;
-let searchLine: HTMLElement;
-let guideContent: HTMLElement;
-let sourcesSlot: HTMLElement;
-let sourcesHeading: HTMLElement;
-let privacyLine: HTMLElement;
-let linksNoteSummary: HTMLElement;
-let linksNoteBody: HTMLElement;
-let costLine: HTMLElement;
-let tripCard: TripCardElement;
-let scanList: ScanListElement;
 let scanPlaces: ScannedPlace[] = [];
 let scanThumbs: Array<string | null> = [];
-let duelTable: CompareTableElement;
 let currentCompareOptions: BoardPin[] = [];
 let currentAlternates: { intent: AlternateIntent; alternatives: PlaceAlternate[] } | null = null;
 let alternatesLoading: AlternateIntent | null = null;
@@ -253,13 +216,104 @@ let duelRunId = 0;
 let alternatesRunId = 0;
 let duelController: AbortController | null = null;
 let alternatesController: AbortController | null = null;
-let keySetup: KeySetupElement;
-let bookingGrid: BookingGridElement;
-let sourceChips: SourceChipsElement;
-let boardSlot: HTMLElement;
-let tripBoard: TripBoardElement;
 let failedPin: Omit<BoardPin, 'addedAt'> | null = null;
 let failedRemove: TripRemovePinDetail | null = null;
+
+interface PreviewOverlay {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+type PreviewState =
+  | { kind: 'placeholder' }
+  | { kind: 'image'; src: string; frame: boolean; identified: string | null; overlay: PreviewOverlay | null }
+  | { kind: 'crop'; src: string; identified: string | null };
+
+interface ResultSlotState {
+  card: CardState | null;
+  scan: { loading: boolean; items: ScanItemView[] } | null;
+  key: { orphaned: boolean } | null;
+  consent: boolean;
+  video: { rung2: boolean } | null;
+}
+
+interface KeyFormState {
+  pending: boolean;
+  error: string | null;
+  sessionOnly: boolean;
+  nano: NanoSectionState;
+  nanoInstead: boolean;
+  nanoProgress: number | null;
+  resetKey: number;
+}
+
+interface PanelState {
+  status: string;
+  statusSeq: number;
+  alert: string;
+  alertSeq: number;
+  preview: PreviewState;
+  result: ResultSlotState;
+  resultBusy: boolean;
+  links: string | null;
+  guideVisible: boolean;
+  guideBusy: boolean;
+  searching: boolean;
+  sources: GuideSource[];
+  duel: DuelTableState | null;
+  boardItems: BoardItemView[];
+  boardCanPlan: boolean;
+  boardNotice: { text: string | null; retry: boolean };
+  privacy: string;
+  cost: string;
+  keyForm: KeyFormState;
+}
+
+const blankResultSlot = (): ResultSlotState => ({
+  card: null,
+  scan: null,
+  key: null,
+  consent: false,
+  video: null,
+});
+
+const store = createStore<PanelState>({
+  status: '',
+  statusSeq: 0,
+  alert: '',
+  alertSeq: 0,
+  preview: { kind: 'placeholder' },
+  result: blankResultSlot(),
+  resultBusy: false,
+  links: null,
+  guideVisible: false,
+  guideBusy: false,
+  searching: false,
+  sources: [],
+  duel: null,
+  boardItems: [],
+  boardCanPlan: false,
+  boardNotice: { text: null, retry: false },
+  privacy: '',
+  cost: '',
+  keyForm: {
+    pending: false,
+    error: null,
+    sessionOnly: false,
+    nano: 'hidden',
+    nanoInstead: false,
+    nanoProgress: null,
+    resetKey: 0,
+  },
+});
+
+const setKeyForm = (patch: Partial<KeyFormState>): void => {
+  store.set({ keyForm: { ...store.get().keyForm, ...patch } });
+};
+
+const guideContentEl = (): HTMLElement | null => document.getElementById('guide-content');
 
 let highestRequestId = '';
 let highestStatusRank = -1;
@@ -286,20 +340,14 @@ let staleTimer: ReturnType<typeof setTimeout> | undefined;
 let userScrolled = false;
 const lookAgainUsed = new Set<string>();
 
-const req = <T extends HTMLElement>(id: string): T => {
-  const el = document.getElementById(id);
-  if (!el) {
-    throw new Error(`panel shell is missing #${id}`);
-  }
-  return el as T;
-};
-
 const announceStatus = (key: string, subs?: string | string[]): void => {
-  statusRegion.textContent = msg(key, subs);
+  const state = store.get();
+  store.set({ status: msg(key, subs), statusSeq: state.statusSeq + 1 });
 };
 
 const announceAlert = (key: string, subs?: string | string[]): void => {
-  alertRegion.textContent = msg(key, subs);
+  const state = store.get();
+  store.set({ alert: msg(key, subs), alertSeq: state.alertSeq + 1 });
 };
 
 const composedActiveElement = (): Element | null => document.activeElement;
@@ -314,11 +362,15 @@ const isTyping = (): boolean => {
   );
 };
 
+const focusSelector = (selector: string): void => {
+  (document.querySelector(selector) as HTMLElement | null)?.focus();
+};
+
 const focusResultHeading = (): void => {
   if (isTyping()) {
     return;
   }
-  tripCard.focusHeading();
+  focusSelector('#result-slot h2');
 };
 
 // Every result-slot swap runs through here so a swap that removes the
@@ -327,69 +379,49 @@ const swapResultSlot = (build: () => void): void => {
   const before = composedActiveElement();
   build();
   if (before && !before.isConnected) {
-    previewHeading.focus({ preventScroll: true });
+    document.getElementById('preview-heading')?.focus({ preventScroll: true });
   }
 };
 
 const updatePreview = (srcUrl: string | null, kind: 'image' | 'frame' = 'image'): void => {
-  previewFrame.replaceChildren();
   if (srcUrl && isAllowedPreviewUrl(srcUrl)) {
-    const img = document.createElement('img');
-    img.referrerPolicy = 'no-referrer';
-    img.alt = msg(kind === 'frame' ? 'previewAltFrame' : 'previewAltImage');
-    img.onerror = () => {
-      showPreviewPlaceholder();
-    };
-    img.src = srcUrl;
-    previewFrame.append(img);
+    store.set({
+      preview: { kind: 'image', src: srcUrl, frame: kind === 'frame', identified: null, overlay: null },
+    });
   } else {
     showPreviewPlaceholder();
   }
 };
 
 const showPreviewPlaceholder = (): void => {
-  previewFrame.replaceChildren();
-  const text = document.createElement('span');
-  text.textContent = msg('previewUnavailable');
-  previewFrame.append(text);
+  store.set({ preview: { kind: 'placeholder' } });
 };
 
 const setPreviewIdentified = (placeName: string): void => {
-  const img = previewFrame.querySelector('img');
-  if (img) {
-    img.alt = msg('previewAltIdentified', placeName);
+  const preview = store.get().preview;
+  if (preview.kind === 'image' || preview.kind === 'crop') {
+    store.set({ preview: { ...preview, identified: placeName } });
   }
 };
 
 const clearContentSlots = (): void => {
-  linksSlot.hidden = true;
-  linksSlot.replaceChildren();
-  guideSlot.hidden = true;
-  searchLine.hidden = true;
-  guideContent.replaceChildren();
-  guideContent.removeAttribute('aria-busy');
-  sourcesSlot.hidden = true;
-  sourceChips.setSources([]);
-  if (sourceChips.isConnected) {
-    sourceChips.remove();
-  }
-  if (duelTable.isConnected) {
-    duelTable.remove();
-  }
+  guideContentEl()?.replaceChildren();
+  store.set({
+    links: null,
+    guideVisible: false,
+    guideBusy: false,
+    searching: false,
+    sources: [],
+    duel: null,
+  });
 };
 
 const showLinks = (destination: string): void => {
-  linksSlot.replaceChildren(bookingGrid);
-  bookingGrid.setDestination(destination);
-  linksSlot.hidden = false;
+  store.set({ links: destination });
 };
 
 const showSources = (sources: GuideSource[]): void => {
-  if (!sourceChips.isConnected) {
-    sourcesSlot.append(sourceChips);
-  }
-  sourceChips.setSources(sources);
-  sourcesSlot.hidden = sources.length === 0;
+  store.set({ sources: [...sources] });
 };
 
 type PrivacyMode =
@@ -415,11 +447,11 @@ const updatePrivacy = (mode: PrivacyMode): void => {
     names: 'privacyNames',
     'local-only': 'privacyLocal',
   };
-  privacyLine.textContent = msg(keys[mode]);
+  store.set({ privacy: msg(keys[mode]) });
 };
 
 const clearCost = (): void => {
-  costLine.textContent = '';
+  store.set({ cost: '' });
 };
 
 const priceAndRecord = async (provider: Provider): Promise<void> => {
@@ -430,15 +462,14 @@ const priceAndRecord = async (provider: Provider): Promise<void> => {
     rates.outputUsdPerMTok === 0 &&
     runUsage.flatFeesUsd === 0
   ) {
-    costLine.textContent = msg('nanoFreeLine');
+    store.set({ cost: msg('nanoFreeLine') });
     return;
   }
   const usd = estimateCostUsd(runUsage, provider.getRates());
   if (usd === null) {
-    costLine.textContent = msg('costLineTokens', [
-      String(runUsage.inputTokens),
-      String(runUsage.outputTokens),
-    ]);
+    store.set({
+      cost: msg('costLineTokens', [String(runUsage.inputTokens), String(runUsage.outputTokens)]),
+    });
     return;
   }
   let monthTotal = usd;
@@ -447,7 +478,7 @@ const priceAndRecord = async (provider: Provider): Promise<void> => {
   } catch {
     // The run figure still renders; only the monthly total is stale.
   }
-  costLine.textContent = msg('costLine', [formatUsd(usd), formatUsd(monthTotal)]);
+  store.set({ cost: msg('costLine', [formatUsd(usd), formatUsd(monthTotal)]) });
 };
 
 const cancelSkeleton = (): void => {
@@ -466,8 +497,7 @@ const showSkeleton = (id: string): void => {
       return;
     }
     swapResultSlot(() => {
-      resultSlot.replaceChildren(tripCard);
-      tripCard.setCard({ view: 'loading' });
+      store.set({ result: { ...blankResultSlot(), card: { view: 'loading' } } });
     });
     currentView = 'loading';
     skeletonShownAt = Date.now();
@@ -492,8 +522,7 @@ const showScanSkeleton = (): void => {
   clearContentSlots();
   currentView = 'scan';
   swapResultSlot(() => {
-    resultSlot.replaceChildren(scanList);
-    scanList.setLoading();
+    store.set({ result: { ...blankResultSlot(), scan: { loading: true, items: [] } } });
   });
 };
 
@@ -501,8 +530,12 @@ const showIdle = (): void => {
   cancelSkeleton();
   currentView = 'idle';
   swapResultSlot(() => {
-    resultSlot.replaceChildren(tripCard);
-    tripCard.setCard({ view: 'idle', hint: msg('panelIdle'), shortcut: shortcutText });
+    store.set({
+      result: {
+        ...blankResultSlot(),
+        card: { view: 'idle', hint: msg('panelIdle'), shortcut: shortcutText },
+      },
+    });
   });
   clearContentSlots();
   updatePrivacy('idle');
@@ -514,16 +547,12 @@ const showOnboarding = (orphaned: boolean): void => {
   currentView = 'onboarding';
   clearContentSlots();
   swapResultSlot(() => {
-    resultSlot.replaceChildren();
-    if (orphaned) {
-      const notice = document.createElement('p');
-      notice.className = 'key-notice';
-      notice.textContent = msg('keyReenterNotice');
-      resultSlot.append(notice);
-    }
-    keySetup.showSetup();
-    keySetup.setSessionOnly(runSettings?.sessionOnly ?? false);
-    resultSlot.append(keySetup);
+    store.set({ result: { ...blankResultSlot(), key: { orphaned } } });
+    setKeyForm({
+      nano: 'hidden',
+      nanoProgress: null,
+      sessionOnly: runSettings?.sessionOnly ?? false,
+    });
   });
   updatePrivacy('idle');
   clearCost();
@@ -536,26 +565,29 @@ const showOnboarding = (orphaned: boolean): void => {
 const refreshNanoSection = async (instead: boolean): Promise<void> => {
   const state = await nanoAvailability();
   if (state === 'readily' || state === 'downloadable' || state === 'downloading') {
-    keySetup.setNano(state === 'readily' ? 'ready' : 'downloadable', { instead });
+    setKeyForm({
+      nano: state === 'readily' ? 'ready' : 'downloadable',
+      nanoInstead: instead,
+    });
   } else {
-    keySetup.setNano('hidden');
+    setKeyForm({ nano: 'hidden' });
   }
 };
 
 const runNanoDownload = async (onDone: () => Promise<void>): Promise<void> => {
-  keySetup.setNano('downloading');
+  setKeyForm({ nano: 'downloading' });
   announceStatus('nanoDownloadStart');
   let announcedMid = false;
   try {
     await downloadNanoModel((frac) => {
-      keySetup.setNanoProgress(frac);
+      setKeyForm({ nanoProgress: frac });
       if (!announcedMid && frac >= 0.5) {
         announcedMid = true;
         announceStatus('nanoDownloadMid');
       }
     });
   } catch {
-    keySetup.setNano('failed');
+    setKeyForm({ nano: 'failed' });
     announceAlert('nanoDownloadFail');
     return;
   }
@@ -568,7 +600,7 @@ const runNanoDownload = async (onDone: () => Promise<void>): Promise<void> => {
 const enableNanoAndResume = async (): Promise<void> => {
   const state = await nanoAvailability();
   if (state === 'unavailable') {
-    keySetup.setNano('hidden');
+    setKeyForm({ nano: 'hidden' });
     announceAlert('nanoUnavailable');
     return;
   }
@@ -585,10 +617,12 @@ const showNanoDownload = (): void => {
   cancelSkeleton();
   currentView = 'nano';
   swapResultSlot(() => {
-    resultSlot.replaceChildren(keySetup);
-    keySetup.showSetup();
-    keySetup.setSessionOnly(runSettings?.sessionOnly ?? false);
-    keySetup.setNano('downloading');
+    store.set({ result: { ...blankResultSlot(), key: { orphaned: false } } });
+    setKeyForm({
+      nano: 'downloading',
+      nanoInstead: false,
+      sessionOnly: runSettings?.sessionOnly ?? false,
+    });
   });
 };
 
@@ -616,11 +650,10 @@ const showConsent = (focusGate: boolean): void => {
   currentView = 'consent';
   clearContentSlots();
   swapResultSlot(() => {
-    resultSlot.replaceChildren(keySetup);
-    keySetup.showConsent();
+    store.set({ result: { ...blankResultSlot(), consent: true } });
   });
   if (focusGate && !isTyping()) {
-    keySetup.focusConsentHeading();
+    focusSelector('#result-slot h2');
   }
 };
 
@@ -631,35 +664,11 @@ const showVideoConfirm = (rung2: boolean, focusGate: boolean): void => {
   cancelSkeleton();
   currentView = 'video-confirm';
   clearContentSlots();
-  const heading = document.createElement('h2');
-  heading.tabIndex = -1;
-  heading.textContent = msg('videoConfirmTitle');
-  const body = document.createElement('p');
-  body.textContent = msg('videoConfirmBody');
-  const actions = document.createElement('div');
-  actions.className = 'confirm-actions';
-  const agree = document.createElement('button');
-  agree.type = 'button';
-  agree.className = 'primary';
-  agree.textContent = msg('videoConfirmAgree');
-  agree.addEventListener('click', () => void onVideoConfirmAgree());
-  const cancel = document.createElement('button');
-  cancel.type = 'button';
-  cancel.textContent = msg('videoConfirmCancel');
-  cancel.addEventListener('click', () => onVideoConfirmCancel());
-  actions.append(agree, cancel);
-  const parts: HTMLElement[] = [heading, body];
-  if (rung2) {
-    const note = document.createElement('p');
-    note.textContent = msg('videoConfirmRung2Note');
-    parts.push(note);
-  }
-  parts.push(actions);
   swapResultSlot(() => {
-    resultSlot.replaceChildren(...parts);
+    store.set({ result: { ...blankResultSlot(), video: { rung2 } } });
   });
   if (focusGate && !isTyping()) {
-    heading.focus();
+    focusSelector('#result-slot h2');
   }
 };
 
@@ -810,8 +819,7 @@ const renderResultHeader = async (place: PlaceResult, announce: boolean): Promis
   currentOnDevice = activeProvider?.capabilities.onDevice === true;
   const props = await resultCardProps(place);
   swapResultSlot(() => {
-    resultSlot.replaceChildren(tripCard);
-    tripCard.setCard(props);
+    store.set({ result: { ...blankResultSlot(), card: props } });
   });
   showLinks(currentDestination);
   setPreviewIdentified(place.placeName);
@@ -827,16 +835,20 @@ const renderNoPlace = async (request: TripRequest, origin: 'gesture' | 'panel'):
   currentAlternates = null;
   const signals = request.signals ?? EMPTY_SIGNALS;
   swapResultSlot(() => {
-    resultSlot.replaceChildren(tripCard);
-    tripCard.setCard({
-      view: 'no-place',
-      showLookAgain: !lookAgainUsed.has(currentCacheKey),
-      fallback: fallbackFor(signals),
+    store.set({
+      result: {
+        ...blankResultSlot(),
+        card: {
+          view: 'no-place',
+          showLookAgain: !lookAgainUsed.has(currentCacheKey),
+          fallback: fallbackFor(signals),
+        },
+      },
     });
   });
   clearContentSlots();
   announceStatus('statusNoPlace');
-  if (origin === 'panel' && tripCard.isConnected) {
+  if (origin === 'panel') {
     focusResultHeading();
   }
 };
@@ -854,20 +866,23 @@ const renderErrorCard = (
   currentView = 'error';
   currentAlternates = null;
   swapResultSlot(() => {
-    resultSlot.replaceChildren(tripCard);
-    tripCard.setCard({
-      view: 'error',
-      title: msg(titleKey),
-      body: msg(bodyKey),
-      showRetry,
-      fallback,
-      showFetchRetry,
-      showNanoInstead,
+    store.set({
+      result: {
+        ...blankResultSlot(),
+        card: {
+          view: 'error',
+          title: msg(titleKey),
+          body: msg(bodyKey),
+          showRetry,
+          fallback,
+          showFetchRetry,
+          showNanoInstead,
+        },
+        key: withKeySetup ? { orphaned: false } : null,
+      },
     });
     if (withKeySetup) {
-      keySetup.showSetup();
-      keySetup.setSessionOnly(runSettings?.sessionOnly ?? false);
-      resultSlot.append(keySetup);
+      setKeyForm({ nano: 'hidden', nanoProgress: null, sessionOnly: runSettings?.sessionOnly ?? false });
     }
   });
 };
@@ -984,10 +999,13 @@ interface StreamArgs {
 
 const streamGuideRun = async (args: StreamArgs): Promise<RunOutcome> => {
   const { provider, key, destination, signal, cacheKey, privacy, origin } = args;
-  const renderer = createGuideRenderer(guideContent, msg('truncatedNotice'));
-  guideSlot.hidden = false;
+  const content = guideContentEl();
+  if (!content) {
+    return 'error';
+  }
+  const renderer = createGuideRenderer(content, msg('truncatedNotice'));
+  store.set({ guideVisible: true, guideBusy: true });
   userScrolled = false;
-  guideContent.setAttribute('aria-busy', 'true');
   let guideSource = '';
   const sources: GuideSource[] = [];
   let searchedWeb = false;
@@ -1015,8 +1033,7 @@ const streamGuideRun = async (args: StreamArgs): Promise<RunOutcome> => {
         }
       } else if (event.type === 'searching') {
         searchedWeb = true;
-        searchLine.textContent = msg('statusSearchingWeb');
-        searchLine.hidden = false;
+        store.set({ searching: true });
         announceStatus('statusSearchingWeb');
       } else if (event.type === 'sources') {
         sources.push(...event.sources);
@@ -1027,16 +1044,14 @@ const streamGuideRun = async (args: StreamArgs): Promise<RunOutcome> => {
       }
     }
   } catch (err) {
-    guideContent.removeAttribute('aria-busy');
-    searchLine.hidden = true;
-    resultSlot.removeAttribute('aria-busy');
+    store.set({ guideBusy: false, searching: false, resultBusy: false });
     if (err instanceof ProviderError && err.code === 'aborted') {
       return 'aborted';
     }
     const notice = document.createElement('p');
     notice.className = 'guide-interrupted';
     notice.textContent = msg('guideInterrupted');
-    guideContent.append(notice);
+    content.append(notice);
     recordPartialUsage(err, provider);
     showProviderError(err, activeRequest, privacy);
     analysisInFlight = false;
@@ -1050,9 +1065,7 @@ const streamGuideRun = async (args: StreamArgs): Promise<RunOutcome> => {
     guideSource = guideSource.slice(findGuideStart(guideSource));
   }
   renderer.finish();
-  guideContent.removeAttribute('aria-busy');
-  searchLine.hidden = true;
-  resultSlot.removeAttribute('aria-busy');
+  store.set({ guideBusy: false, searching: false, resultBusy: false });
   if (cacheKey && currentPlace) {
     await setCacheEntry(cacheKey, {
       place: currentPlace,
@@ -1181,15 +1194,19 @@ const renderCached = async (entry: CacheEntry, origin: 'gesture' | 'panel'): Pro
   if (!entry.place.identified) {
     currentView = 'no-place';
     swapResultSlot(() => {
-      resultSlot.replaceChildren(tripCard);
-      tripCard.setCard({
-        view: 'no-place',
-        showLookAgain: !lookAgainUsed.has(currentCacheKey),
-        fallback: activeRequest ? fallbackFor(activeRequest.signals ?? EMPTY_SIGNALS) : null,
+      store.set({
+        result: {
+          ...blankResultSlot(),
+          card: {
+            view: 'no-place',
+            showLookAgain: !lookAgainUsed.has(currentCacheKey),
+            fallback: activeRequest ? fallbackFor(activeRequest.signals ?? EMPTY_SIGNALS) : null,
+          },
+        },
       });
     });
     clearContentSlots();
-    costLine.textContent = msg('costLineCache');
+    store.set({ cost: msg('costLineCache') });
     updatePrivacy('cache');
     announceStatus('statusNoPlace');
     if (origin === 'panel') {
@@ -1207,21 +1224,23 @@ const renderCached = async (entry: CacheEntry, origin: 'gesture' | 'panel'): Pro
   currentOnDevice = entry.onDevice === true;
   const props = await resultCardProps(entry.place);
   swapResultSlot(() => {
-    resultSlot.replaceChildren(tripCard);
-    tripCard.setCard(props);
+    store.set({ result: { ...blankResultSlot(), card: props } });
   });
   showLinks(currentDestination);
-  const renderer = createGuideRenderer(guideContent, msg('truncatedNotice'));
-  guideSlot.hidden = false;
-  renderer.push(entry.guide);
-  renderer.finish();
+  const content = guideContentEl();
+  if (content) {
+    const renderer = createGuideRenderer(content, msg('truncatedNotice'));
+    renderer.push(entry.guide);
+    renderer.finish();
+  }
+  store.set({ guideVisible: true });
   if (entry.sources.length > 0) {
     showSources(entry.sources);
   } else {
-    sourcesSlot.hidden = true;
+    store.set({ sources: [] });
   }
   setPreviewIdentified(entry.place.placeName);
-  costLine.textContent = msg('costLineCache');
+  store.set({ cost: msg('costLineCache') });
   updatePrivacy('cache');
   announceStatus('statusCacheHit', entry.place.placeName);
   if (origin === 'panel') {
@@ -1403,14 +1422,13 @@ const runScan = async (
   const views = await scanItemViews(scanPlaces, scanThumbs);
   currentView = 'scan';
   swapResultSlot(() => {
-    resultSlot.replaceChildren(scanList);
-    scanList.setResults(views);
+    store.set({ result: { ...blankResultSlot(), scan: { loading: false, items: views } } });
   });
   await priceAndRecord(provider);
   updatePrivacy(privacy);
   announceStatus('scanFound', String(scanPlaces.length));
   if (origin === 'panel') {
-    scanList.focusHeading();
+    document.getElementById('scan-heading')?.focus();
   }
   analysisInFlight = false;
 };
@@ -1512,19 +1530,24 @@ const refreshScanPins = async (): Promise<void> => {
   if (currentView !== 'scan') {
     return;
   }
-  scanList.setResults(await scanItemViews(scanPlaces, scanThumbs));
+  store.set({
+    result: {
+      ...blankResultSlot(),
+      scan: { loading: false, items: await scanItemViews(scanPlaces, scanThumbs) },
+    },
+  });
 };
 
-const onScanGuide = async (detail: ScanGuideDetail): Promise<void> => {
+const onScanGuide = async (index: number): Promise<void> => {
   const request = activeRequest;
   if (!request) {
     return;
   }
-  await runScanGuide(request, detail.index, 'panel');
+  await runScanGuide(request, index, 'panel');
 };
 
-const onScanPin = async (detail: ScanPinDetail): Promise<void> => {
-  const pin = scanPinFor(detail.index);
+const onScanPin = async (index: number): Promise<void> => {
+  const pin = scanPinFor(index);
   if (!pin) {
     return;
   }
@@ -1532,8 +1555,8 @@ const onScanPin = async (detail: ScanPinDetail): Promise<void> => {
   await refreshScanPins();
 };
 
-const onScanPinSelected = async (detail: ScanPinSelectedDetail): Promise<void> => {
-  for (const index of detail.indices) {
+const onScanPinSelected = async (indices: number[]): Promise<void> => {
+  for (const index of indices) {
     const pin = scanPinFor(index);
     if (pin) {
       await attemptPin(pin);
@@ -1768,35 +1791,32 @@ const samCropAttempt = async (
 // The overlay is a static box (no draw animation in either motion mode);
 // reduced motion additionally skips the dwell and swaps instantly.
 const showSamOverlay = (box: SamPixelBox, width: number, height: number): void => {
-  const img = previewFrame.querySelector('img');
-  if (!img) {
+  const frame = document.getElementById('preview-frame');
+  const img = frame?.querySelector('img');
+  if (!frame || !img) {
     return;
   }
-  const frameRect = previewFrame.getBoundingClientRect();
+  const preview = store.get().preview;
+  if (preview.kind !== 'image') {
+    return;
+  }
+  const frameRect = frame.getBoundingClientRect();
   const imgRect = img.getBoundingClientRect();
-  const overlay = document.createElement('div');
-  overlay.className = 'sam-box';
-  overlay.setAttribute('aria-hidden', 'true');
-  overlay.style.left = `${imgRect.left - frameRect.left + (box.x1 / width) * imgRect.width}px`;
-  overlay.style.top = `${imgRect.top - frameRect.top + (box.y1 / height) * imgRect.height}px`;
-  overlay.style.width = `${((box.x2 - box.x1) / width) * imgRect.width}px`;
-  overlay.style.height = `${((box.y2 - box.y1) / height) * imgRect.height}px`;
-  previewFrame.append(overlay);
+  store.set({
+    preview: {
+      ...preview,
+      overlay: {
+        left: imgRect.left - frameRect.left + (box.x1 / width) * imgRect.width,
+        top: imgRect.top - frameRect.top + (box.y1 / height) * imgRect.height,
+        width: ((box.x2 - box.x1) / width) * imgRect.width,
+        height: ((box.y2 - box.y1) / height) * imgRect.height,
+      },
+    },
+  });
 };
 
 const showSamCrop = (dataUrl: string): void => {
-  previewFrame.replaceChildren();
-  const img = document.createElement('img');
-  img.referrerPolicy = 'no-referrer';
-  img.alt = msg('previewAltCrop');
-  img.onerror = () => {
-    showPreviewPlaceholder();
-  };
-  img.src = dataUrl;
-  const caption = document.createElement('p');
-  caption.className = 'preview-caption';
-  caption.textContent = msg('samZoomCaption');
-  previewFrame.append(img, caption);
+  store.set({ preview: { kind: 'crop', src: dataUrl, identified: null } });
 };
 
 const lookAgain = async (): Promise<void> => {
@@ -1806,7 +1826,7 @@ const lookAgain = async (): Promise<void> => {
   }
   lookAgainUsed.add(currentCacheKey);
   analysisInFlight = true;
-  resultSlot.setAttribute('aria-busy', 'true');
+  store.set({ resultBusy: true });
   announceStatus('statusAnalyzing');
   try {
     const { provider, settings } = await getActiveProvider();
@@ -1847,7 +1867,7 @@ const lookAgain = async (): Promise<void> => {
       rejectedPlace: currentPlace?.placeName || undefined,
     });
   } finally {
-    resultSlot.removeAttribute('aria-busy');
+    store.set({ resultBusy: false });
   }
 };
 
@@ -1857,7 +1877,7 @@ const reanalyze = async (): Promise<void> => {
     return;
   }
   analysisInFlight = true;
-  resultSlot.setAttribute('aria-busy', 'true');
+  store.set({ resultBusy: true });
   announceStatus('statusAnalyzing');
   try {
     const { provider, settings } = await getActiveProvider();
@@ -1885,7 +1905,7 @@ const reanalyze = async (): Promise<void> => {
       rejectedPlace: currentPlace.placeName,
     });
   } finally {
-    resultSlot.removeAttribute('aria-busy');
+    store.set({ resultBusy: false });
   }
 };
 
@@ -2052,7 +2072,7 @@ const refreshResultCard = async (): Promise<void> => {
   if (currentView !== 'result' || !currentPlace) {
     return;
   }
-  tripCard.setCard(await resultCardProps(currentPlace));
+  store.set({ result: { ...blankResultSlot(), card: await resultCardProps(currentPlace) } });
 };
 
 const runDuel = async (
@@ -2079,11 +2099,7 @@ const runDuel = async (
     announceStatus('statusConsentNeeded');
     return;
   }
-  if (!duelTable.isConnected) {
-    guideSlot.append(duelTable);
-  }
-  guideSlot.hidden = false;
-  duelTable.setLoading(aTitle, bTitle);
+  store.set({ guideVisible: true, duel: { mode: 'loading', a: aTitle, b: bTitle } });
   announceStatus('duelStatus', [a.name, b.name]);
   let result;
   try {
@@ -2100,7 +2116,7 @@ const runDuel = async (
     }
     recordPartialUsage(err, provider);
     updatePrivacy(auxPrivacy(provider, 'names'));
-    duelTable.setError();
+    store.set({ duel: { mode: 'error', a: aTitle, b: bTitle } });
     if (err instanceof ProviderError && err.code === 'no_key') {
       announceAlert('statusKeyNeeded');
     } else if (err instanceof ProviderError && err.code === 'consent_required') {
@@ -2119,14 +2135,16 @@ const runDuel = async (
   runUsage = addUsage(runUsage, result.usage);
   currentSources = [...result.sources];
   showSources(result.sources);
-  duelTable.setResults(aTitle, bTitle, result.criteria, result.verdict);
+  store.set({
+    duel: { mode: 'ready', a: aTitle, b: bTitle, rows: result.criteria, verdict: result.verdict },
+  });
   await priceAndRecord(provider);
   updatePrivacy(auxPrivacy(provider, 'names'));
   announceStatus('duelReady');
 };
 
-const onCompare = async (detail: TripCompareDetail): Promise<void> => {
-  const snapshot = currentCompareOptions[Number(detail.value)];
+const onCompare = async (value: string): Promise<void> => {
+  const snapshot = currentCompareOptions[Number(value)];
   const current = currentPlace;
   // The picker snapshot re-verifies against the live board: a pin removed
   // since render (another tab, a race) misses and goes stale, never duels
@@ -2244,12 +2262,12 @@ const runAlternates = async (intent: AlternateIntent): Promise<void> => {
   announceStatus('alternatesReady', String(result.alternatives.length));
 };
 
-const onAlternates = async (detail: TripAlternatesDetail): Promise<void> => {
-  await runAlternates(detail.intent);
+const onAlternates = async (intent: AlternateIntent): Promise<void> => {
+  await runAlternates(intent);
 };
 
-const onPinAlternate = async (detail: TripPinAlternateDetail): Promise<void> => {
-  const target = currentAlternates?.alternatives[detail.index];
+const onPinAlternate = async (index: number): Promise<void> => {
+  const target = currentAlternates?.alternatives[index];
   if (!target) {
     return;
   }
@@ -2259,8 +2277,8 @@ const onPinAlternate = async (detail: TripPinAlternateDetail): Promise<void> => 
   });
 };
 
-const onPlanInstead = async (detail: TripPlanInsteadDetail): Promise<void> => {
-  const target = currentAlternates?.alternatives[detail.index];
+const onPlanInstead = async (index: number): Promise<void> => {
+  const target = currentAlternates?.alternatives[index];
   if (!target || currentView !== 'result') {
     return;
   }
@@ -2287,7 +2305,7 @@ const onPlanInstead = async (detail: TripPlanInsteadDetail): Promise<void> => {
   currentDestination = destination;
   currentSources = [];
   showSources([]);
-  guideContent.replaceChildren();
+  guideContentEl()?.replaceChildren();
   showLinks(destination);
   announceStatus('statusAnalyzing');
   const controller = new AbortController();
@@ -2324,7 +2342,7 @@ const boardItemViews = (pins: BoardPin[]): BoardItemView[] =>
 
 const renderBoard = async (): Promise<BoardPin[]> => {
   const pins = await listPins();
-  tripBoard.setBoard(boardItemViews(pins), pins.length >= 2);
+  store.set({ boardItems: boardItemViews(pins), boardCanPlan: pins.length >= 2 });
   return pins;
 };
 
@@ -2352,18 +2370,21 @@ const attemptPin = async (pin: Omit<BoardPin, 'addedAt'>, withoutThumb = false):
     outcome = await pinPlace(candidate);
   } catch {
     failedPin = pin;
-    tripBoard.setNotice(msg('boardNoticePinFail', pin.place.placeName), true);
+    store.set({ boardNotice: { text: msg('boardNoticePinFail', pin.place.placeName), retry: true } });
     announceAlert('alertPinFail', pin.place.placeName);
     return;
   }
   failedPin = null;
-  tripBoard.setNotice(null, false);
+  store.set({ boardNotice: { text: null, retry: false } });
   if (outcome.status === 'duplicate') {
     await syncPinButton();
     announceStatus('statusPinDuplicate', pin.place.placeName);
     return;
   }
-  tripBoard.setBoard(boardItemViews(outcome.pins), outcome.pins.length >= 2);
+  store.set({
+    boardItems: boardItemViews(outcome.pins),
+    boardCanPlan: outcome.pins.length >= 2,
+  });
   await syncPinButton();
   if (outcome.evicted) {
     announceStatus('statusPinnedEvicted', [pin.place.placeName, outcome.evicted.place.placeName]);
@@ -2396,12 +2417,14 @@ const onRemovePin = async (detail: TripRemovePinDetail): Promise<void> => {
     pins = await removePin(detail.placeName, detail.country);
   } catch {
     failedRemove = detail;
-    tripBoard.setNotice(msg('boardNoticeRemoveFail', detail.placeName), true);
+    store.set({
+      boardNotice: { text: msg('boardNoticeRemoveFail', detail.placeName), retry: true },
+    });
     announceAlert('alertRemoveFail', detail.placeName);
     return;
   }
   failedRemove = null;
-  tripBoard.setBoard(boardItemViews(pins), pins.length >= 2);
+  store.set({ boardItems: boardItemViews(pins), boardCanPlan: pins.length >= 2 });
   await syncPinButton();
 };
 
@@ -2424,9 +2447,9 @@ const onClearConfirm = async (): Promise<void> => {
     announceAlert('alertBoardClearFail');
     return;
   }
-  tripBoard.setBoard([], false);
+  store.set({ boardItems: [], boardCanPlan: false });
   await syncPinButton();
-  tripBoard.focusHeading();
+  focusSelector('#board-heading button');
   announceStatus('boardCleared');
 };
 
@@ -2473,13 +2496,17 @@ const renderItineraryCard = (pins: BoardPin[], plan: ItineraryPlan): void => {
   });
   currentView = 'itinerary';
   swapResultSlot(() => {
-    resultSlot.replaceChildren(tripCard);
-    tripCard.setCard({
-      view: 'itinerary',
-      title: msg('itineraryTitle', String(stops.length)),
-      stops,
-      mapsUrl: mapsDirUrl(stops.map((stop) => stop.name)),
-      mapsLabel: msg('mapsLink', String(stops.length)),
+    store.set({
+      result: {
+        ...blankResultSlot(),
+        card: {
+          view: 'itinerary',
+          title: msg('itineraryTitle', String(stops.length)),
+          stops,
+          mapsUrl: mapsDirUrl(stops.map((stop) => stop.name)),
+          mapsLabel: msg('mapsLink', String(stops.length)),
+        },
+      },
     });
   });
 };
@@ -2515,7 +2542,7 @@ const planTrip = async (): Promise<void> => {
   if (pins.length < 2) {
     // The Plan button guards this, but the board may have changed underneath.
     analysisInFlight = false;
-    tripBoard.setBoard(boardItemViews(pins), false);
+    store.set({ boardItems: boardItemViews(pins), boardCanPlan: false });
     return;
   }
   clearContentSlots();
@@ -2582,36 +2609,35 @@ const resumePending = async (): Promise<void> => {
   }
 };
 
-const onKeySave = async (detail: KeySaveRequestDetail): Promise<void> => {
-  keySetup.setPending(true);
+const onKeySave = async (key: string): Promise<void> => {
+  const sessionOnly = store.get().keyForm.sessionOnly;
+  setKeyForm({ pending: true });
   announceStatus('statusValidatingKey');
   const { provider, settings } = await getActiveProvider();
   activeProvider = provider;
   runSettings = settings;
   try {
-    await provider.testKey(detail.key);
+    await provider.testKey(key);
   } catch (err) {
-    keySetup.setPending(false);
+    setKeyForm({ pending: false });
     if (err instanceof ProviderError && err.code === 'auth') {
-      keySetup.setError(msg('keyErrorRejected'));
+      setKeyForm({ error: msg('keyErrorRejected') });
     } else if (err instanceof ProviderError && err.code === 'network') {
-      keySetup.setError(msg('keyErrorNetwork'));
+      setKeyForm({ error: msg('keyErrorNetwork') });
     } else {
-      keySetup.setError(msg('keyErrorRetry'));
+      setKeyForm({ error: msg('keyErrorRetry') });
     }
     return;
   }
   try {
-    await saveKey(provider.id, detail.key, detail.sessionOnly);
-    runSettings = { ...settings, sessionOnly: detail.sessionOnly };
+    await saveKey(provider.id, key, sessionOnly);
+    runSettings = { ...settings, sessionOnly };
     await saveSettings(runSettings);
   } catch {
-    keySetup.setPending(false);
-    keySetup.setError(msg('keyErrorRetry'));
+    setKeyForm({ pending: false, error: msg('keyErrorRetry') });
     return;
   }
-  keySetup.setPending(false);
-  keySetup.clear();
+  setKeyForm({ pending: false, error: null, resetKey: store.get().keyForm.resetKey + 1 });
   announceStatus('statusKeySaved');
   if (!provider.capabilities.onDevice && !(await hasConsented())) {
     showConsent(true);
@@ -2620,8 +2646,8 @@ const onKeySave = async (detail: KeySaveRequestDetail): Promise<void> => {
   await resumePending();
 };
 
-const onConsentDecision = async (detail: ConsentDecisionDetail): Promise<void> => {
-  if (!detail.agreed) {
+const onConsentDecision = async (agreed: boolean): Promise<void> => {
+  if (!agreed) {
     pendingRun = null;
     analysisInFlight = false;
     updatePreview(null);
@@ -2633,14 +2659,15 @@ const onConsentDecision = async (detail: ConsentDecisionDetail): Promise<void> =
   await resumePending();
 };
 
-const onSessionOnlyChange = async (detail: SessionOnlyChangeDetail): Promise<void> => {
+const onSessionOnlyChange = async (checked: boolean): Promise<void> => {
+  setKeyForm({ sessionOnly: checked });
   try {
     const { provider, settings } = await getActiveProvider();
-    runSettings = { ...settings, sessionOnly: detail.checked };
+    runSettings = { ...settings, sessionOnly: checked };
     await saveSettings(runSettings);
     const loaded = await loadKey(provider.id);
     if (loaded.state === 'ok') {
-      await saveKey(provider.id, loaded.key, detail.checked);
+      await saveKey(provider.id, loaded.key, checked);
     }
   } catch {
     // Best effort; the checkbox state stays as the user set it.
@@ -2660,119 +2687,216 @@ const loadShortcutLine = async (): Promise<void> => {
   }
   shortcutText = text;
   if (currentView === 'idle') {
-    tripCard.setCard({ view: 'idle', hint: msg('panelIdle'), shortcut: text });
+    store.set({
+      result: {
+        ...blankResultSlot(),
+        card: { view: 'idle', hint: msg('panelIdle'), shortcut: text },
+      },
+    });
   }
+};
+
+const PreviewFrame = ({ preview }: { preview: PreviewState }) => {
+  if (preview.kind === 'placeholder') {
+    return <span>{msg('previewUnavailable')}</span>;
+  }
+  if (preview.kind === 'crop') {
+    return (
+      <>
+        <img
+          referrerPolicy="no-referrer"
+          alt={preview.identified ? msg('previewAltIdentified', preview.identified) : msg('previewAltCrop')}
+          src={preview.src}
+          onError={() => showPreviewPlaceholder()}
+        />
+        <p className="preview-caption">{msg('samZoomCaption')}</p>
+      </>
+    );
+  }
+  return (
+    <>
+      <img
+        referrerPolicy="no-referrer"
+        alt={
+          preview.identified
+            ? msg('previewAltIdentified', preview.identified)
+            : msg(preview.frame ? 'previewAltFrame' : 'previewAltImage')
+        }
+        src={preview.src}
+        onError={() => showPreviewPlaceholder()}
+      />
+      {preview.overlay ? (
+        <div
+          className="sam-box"
+          aria-hidden="true"
+          style={{
+            left: `${preview.overlay.left}px`,
+            top: `${preview.overlay.top}px`,
+            width: `${preview.overlay.width}px`,
+            height: `${preview.overlay.height}px`,
+          }}
+        />
+      ) : null}
+    </>
+  );
+};
+
+const SidepanelApp = () => {
+  const state = useSyncExternalStore(store.subscribe, store.get);
+  const keyForm = state.keyForm;
+  return (
+    <main>
+      <h1 id="page-title" className="visually-hidden">{msg('appName')}</h1>
+      <header id="preview-header">
+        <h2 id="preview-heading" className="visually-hidden" tabIndex={-1}>{msg('previewHeading')}</h2>
+        <div id="preview-frame">
+          <PreviewFrame preview={state.preview} />
+        </div>
+      </header>
+      <div id="status-region" role="status" className="visually-hidden">
+        <span key={state.statusSeq}>{state.status}</span>
+      </div>
+      <div id="alert-region" role="alert" className="visually-hidden">
+        <span key={state.alertSeq}>{state.alert}</span>
+      </div>
+      <div id="result-slot" aria-busy={state.resultBusy || undefined}>
+        {state.result.card ? (
+          <TripCard
+            card={state.result.card}
+            callbacks={{
+              onPin: () => void onPinToggle(),
+              onReanalyze: () => void reanalyze(),
+              onRetry: () => void retry(),
+              onFetchRetry: () => void fetchRetry(),
+              onNanoInstead: () => void tryNanoInstead(),
+              onLookAgain: () => void lookAgain(),
+              onAlternates: (intent) => void onAlternates(intent),
+              onCompare: (value) => void onCompare(value),
+              onPinAlternate: (index) => void onPinAlternate(index),
+              onPlanInstead: (index) => void onPlanInstead(index),
+            }}
+          />
+        ) : null}
+        {state.result.scan ? (
+          <ScanList
+            loading={state.result.scan.loading}
+            items={state.result.scan.items}
+            onGuide={(index) => void onScanGuide(index)}
+            onPin={(index) => void onScanPin(index)}
+            onPinSelected={(indices) => void onScanPinSelected(indices)}
+          />
+        ) : null}
+        {state.result.key ? (
+          <>
+            {state.result.key.orphaned ? <p className="key-notice">{msg('keyReenterNotice')}</p> : null}
+            <KeySetup
+              mode="setup"
+              pending={keyForm.pending}
+              error={keyForm.error}
+              sessionOnly={keyForm.sessionOnly}
+              nano={keyForm.nano}
+              nanoInstead={keyForm.nanoInstead}
+              nanoProgress={keyForm.nanoProgress}
+              resetKey={keyForm.resetKey}
+              callbacks={{
+                onSave: (key) => void onKeySave(key),
+                onError: (text) => setKeyForm({ error: text }),
+                onSessionOnlyChange: (checked) => void onSessionOnlyChange(checked),
+                onNanoEnable: () => void enableNanoAndResume(),
+                onConsentDecision: (agreed) => void onConsentDecision(agreed),
+              }}
+            />
+          </>
+        ) : null}
+        {state.result.consent ? (
+          <KeySetup
+            mode="consent"
+            pending={keyForm.pending}
+            error={keyForm.error}
+            sessionOnly={keyForm.sessionOnly}
+            nano={keyForm.nano}
+            nanoInstead={keyForm.nanoInstead}
+            nanoProgress={keyForm.nanoProgress}
+            resetKey={keyForm.resetKey}
+            callbacks={{
+              onSave: (key) => void onKeySave(key),
+              onError: (text) => setKeyForm({ error: text }),
+              onSessionOnlyChange: (checked) => void onSessionOnlyChange(checked),
+              onNanoEnable: () => void enableNanoAndResume(),
+              onConsentDecision: (agreed) => void onConsentDecision(agreed),
+            }}
+          />
+        ) : null}
+        {state.result.video ? (
+          <>
+            <h2 tabIndex={-1}>{msg('videoConfirmTitle')}</h2>
+            <p>{msg('videoConfirmBody')}</p>
+            {state.result.video.rung2 ? <p>{msg('videoConfirmRung2Note')}</p> : null}
+            <div className="confirm-actions">
+              <button type="button" className="primary" onClick={() => void onVideoConfirmAgree()}>
+                {msg('videoConfirmAgree')}
+              </button>
+              <button type="button" onClick={() => onVideoConfirmCancel()}>
+                {msg('videoConfirmCancel')}
+              </button>
+            </div>
+          </>
+        ) : null}
+      </div>
+      <div id="links-slot" hidden={state.links === null || undefined}>
+        {state.links !== null ? <BookingGrid destination={state.links} /> : null}
+      </div>
+      <div id="guide-slot" hidden={!state.guideVisible || undefined}>
+        <p id="search-line" hidden={!state.searching || undefined}>
+          {state.searching ? msg('statusSearchingWeb') : null}
+        </p>
+        <div id="guide-content" aria-busy={state.guideBusy || undefined} />
+        {state.duel ? (
+          <CompareTable table={state.duel} onRetry={() => void onDuelRetry()} />
+        ) : null}
+      </div>
+      <div id="sources-slot" hidden={state.sources.length === 0 || undefined}>
+        <h3 id="sources-heading" className="visually-hidden">{msg('sourcesHeading')}</h3>
+        <SourceChips sources={state.sources} />
+      </div>
+      <div id="board-slot">
+        <TripBoard
+          items={state.boardItems}
+          canPlan={state.boardCanPlan}
+          notice={state.boardNotice}
+          onRemovePin={(detail) => void onRemovePin(detail)}
+          onPlan={() => void planTrip()}
+          onClearConfirm={() => void onClearConfirm()}
+          onRetryPin={() => void onRetryPin()}
+        />
+      </div>
+      <footer id="page-footer">
+        <p id="privacy-line">{state.privacy}</p>
+        <details id="links-note">
+          <summary id="links-note-summary">{msg('privacyLinksSummary')}</summary>
+          <p id="links-note-body">{msg('privacyLinksBody')}</p>
+        </details>
+        <p id="cost-line">{state.cost}</p>
+      </footer>
+    </main>
+  );
 };
 
 export const initPanel = (): void => {
   if (initialized) {
     return;
   }
-  if (!document.getElementById('status-region')) {
+  const host = document.getElementById('root');
+  if (!host) {
     return;
   }
   initialized = true;
-  pageTitle = req('page-title');
-  previewHeading = req('preview-heading');
-  previewFrame = req('preview-frame');
-  statusRegion = req('status-region');
-  alertRegion = req('alert-region');
-  resultSlot = req('result-slot');
-  linksSlot = req('links-slot');
-  guideSlot = req('guide-slot');
-  searchLine = req('search-line');
-  guideContent = req('guide-content');
-  sourcesSlot = req('sources-slot');
-  sourcesHeading = req('sources-heading');
-  boardSlot = req('board-slot');
-  privacyLine = req('privacy-line');
-  linksNoteSummary = req('links-note-summary');
-  linksNoteBody = req('links-note-body');
-  costLine = req('cost-line');
 
   document.title = msg('appName');
   document.documentElement.lang = msg('@@ui_locale').replace('_', '-');
   document.documentElement.dir = msg('@@bidi_dir');
-  pageTitle.textContent = msg('appName');
-  previewHeading.textContent = msg('previewHeading');
-  sourcesHeading.textContent = msg('sourcesHeading');
-  linksNoteSummary.textContent = msg('privacyLinksSummary');
-  linksNoteBody.textContent = msg('privacyLinksBody');
-
-  tripCard = document.createElement('trip-card') as TripCardElement;
-  scanList = document.createElement('scan-list') as ScanListElement;
-  duelTable = document.createElement('compare-table') as CompareTableElement;
-  keySetup = document.createElement('key-setup') as KeySetupElement;
-  bookingGrid = document.createElement('booking-grid') as BookingGridElement;
-  sourceChips = document.createElement('source-chips') as SourceChipsElement;
-  tripBoard = document.createElement('trip-board') as TripBoardElement;
-  boardSlot.append(tripBoard);
-
-  tripCard.addEventListener('trip-retry', () => {
-    void retry();
-  });
-  tripCard.addEventListener('trip-fetch-retry', () => {
-    void fetchRetry();
-  });
-  tripCard.addEventListener('trip-nano', () => {
-    void tryNanoInstead();
-  });
-  tripCard.addEventListener('trip-look-again', () => {
-    void lookAgain();
-  });
-  tripCard.addEventListener('trip-reanalyze', () => {
-    void reanalyze();
-  });
-  tripCard.addEventListener('trip-pin', () => {
-    void onPinToggle();
-  });
-  tripCard.addEventListener('trip-compare', (event) => {
-    void onCompare((event as CustomEvent<TripCompareDetail>).detail);
-  });
-  tripCard.addEventListener('trip-alternates', (event) => {
-    void onAlternates((event as CustomEvent<TripAlternatesDetail>).detail);
-  });
-  tripCard.addEventListener('trip-pin-alternate', (event) => {
-    void onPinAlternate((event as CustomEvent<TripPinAlternateDetail>).detail);
-  });
-  tripCard.addEventListener('trip-plan-instead', (event) => {
-    void onPlanInstead((event as CustomEvent<TripPlanInsteadDetail>).detail);
-  });
-  duelTable.addEventListener('duel-retry', () => {
-    void onDuelRetry();
-  });
-  scanList.addEventListener('scan-guide', (event) => {
-    void onScanGuide((event as CustomEvent<ScanGuideDetail>).detail);
-  });
-  scanList.addEventListener('scan-pin', (event) => {
-    void onScanPin((event as CustomEvent<ScanPinDetail>).detail);
-  });
-  scanList.addEventListener('scan-pin-selected', (event) => {
-    void onScanPinSelected((event as CustomEvent<ScanPinSelectedDetail>).detail);
-  });
-  tripBoard.addEventListener('trip-remove-pin', (event) => {
-    void onRemovePin((event as CustomEvent<TripRemovePinDetail>).detail);
-  });
-  tripBoard.addEventListener('trip-plan', () => {
-    void planTrip();
-  });
-  tripBoard.addEventListener('trip-clear-confirm', () => {
-    void onClearConfirm();
-  });
-  tripBoard.addEventListener('trip-retry-pin', () => {
-    void onRetryPin();
-  });
-  keySetup.addEventListener('key-save-request', (event) => {
-    void onKeySave((event as CustomEvent<KeySaveRequestDetail>).detail);
-  });
-  keySetup.addEventListener('consent-decision', (event) => {
-    void onConsentDecision((event as CustomEvent<ConsentDecisionDetail>).detail);
-  });
-  keySetup.addEventListener('session-only-change', (event) => {
-    void onSessionOnlyChange((event as CustomEvent<SessionOnlyChangeDetail>).detail);
-  });
-  keySetup.addEventListener('nano-enable', () => {
-    void enableNanoAndResume();
+  flushSync(() => {
+    createRoot(host).render(<SidepanelApp />);
   });
   window.addEventListener('scroll', onWindowScroll, { passive: true });
 

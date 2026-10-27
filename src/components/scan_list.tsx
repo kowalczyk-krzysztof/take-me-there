@@ -1,9 +1,6 @@
 import { useRef, useState } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
-import { flushSync } from 'react-dom';
 import styles from './scan_list.module.css';
 import { msg } from '../utils/i18n';
-import { emit } from '../utils/events';
 
 export interface ScanItemView {
   placeName: string;
@@ -179,56 +176,3 @@ export const ScanList = ({
   );
 };
 
-export class ScanListElement extends HTMLElement {
-  private root: Root | null = null;
-  private items: ScanItemView[] = [];
-  private loading = true;
-
-  connectedCallback(): void {
-    this.root ??= createRoot(this);
-    this.render();
-  }
-
-  disconnectedCallback(): void {
-    this.root?.unmount();
-    this.root = null;
-  }
-
-  focusHeading(): void {
-    this.querySelector('h2')?.focus();
-  }
-
-  setLoading(): void {
-    this.items = [];
-    this.loading = true;
-    this.render();
-  }
-
-  setResults(items: ScanItemView[]): void {
-    this.items = items;
-    this.loading = false;
-    this.render();
-  }
-
-  private render(): void {
-    if (this.root) {
-      const host = this;
-      const { items, loading } = this;
-      flushSync(() => {
-        this.root?.render(
-          <ScanList
-            loading={loading}
-            items={items}
-            onGuide={(index) => emit(host, 'scan-guide', { index } satisfies ScanGuideDetail)}
-            onPin={(index) => emit(host, 'scan-pin', { index } satisfies ScanPinDetail)}
-            onPinSelected={(indices) => emit(host, 'scan-pin-selected', { indices } satisfies ScanPinSelectedDetail)}
-          />,
-        );
-      });
-    }
-  }
-}
-
-if (!customElements.get('scan-list')) {
-  customElements.define('scan-list', ScanListElement);
-}

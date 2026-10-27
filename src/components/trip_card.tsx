@@ -1,11 +1,9 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import type { PlaceResult } from '../types';
 import { prefersReducedMotion } from '../utils/dom';
 import styles from './trip_card.module.css';
 import { msg } from '../utils/i18n';
-import { emit } from '../utils/events';
 
 
 export interface ItineraryStopView {
@@ -498,56 +496,3 @@ export const TripCard = ({ card, callbacks }: { card: CardState; callbacks: Trip
   );
 };
 
-export class TripCardElement extends HTMLElement {
-  private root: Root | null = null;
-  private state: CardState = { view: 'loading' };
-
-  connectedCallback(): void {
-    this.root ??= createRoot(this);
-    this.render();
-  }
-
-  disconnectedCallback(): void {
-    this.root?.unmount();
-    this.root = null;
-  }
-
-  setCard(state: CardState): void {
-    this.state = state;
-    this.render();
-  }
-
-  focusHeading(): void {
-    this.querySelector('h2')?.focus();
-  }
-
-  private render(): void {
-    if (this.root) {
-      const host = this;
-      const state = this.state;
-      flushSync(() => {
-        this.root?.render(
-          <TripCard
-            card={state}
-            callbacks={{
-              onPin: () => emit(host, 'trip-pin'),
-              onReanalyze: () => emit(host, 'trip-reanalyze'),
-              onRetry: () => emit(host, 'trip-retry'),
-              onFetchRetry: () => emit(host, 'trip-fetch-retry'),
-              onNanoInstead: () => emit(host, 'trip-nano'),
-              onLookAgain: () => emit(host, 'trip-look-again'),
-              onAlternates: (intent) => emit(host, 'trip-alternates', { intent } satisfies TripAlternatesDetail),
-              onCompare: (value) => emit(host, 'trip-compare', { value } satisfies TripCompareDetail),
-              onPinAlternate: (index) => emit(host, 'trip-pin-alternate', { index } satisfies TripPinAlternateDetail),
-              onPlanInstead: (index) => emit(host, 'trip-plan-instead', { index } satisfies TripPlanInsteadDetail),
-            }}
-          />,
-        );
-      });
-    }
-  }
-}
-
-if (!customElements.get('trip-card')) {
-  customElements.define('trip-card', TripCardElement);
-}

@@ -1,6 +1,4 @@
 import type { GuideSource } from '../providers/index';
-import { createRoot, type Root } from 'react-dom/client';
-import { flushSync } from 'react-dom';
 import styles from './source_chips.module.css';
 import { msg } from '../utils/i18n';
 
@@ -41,19 +39,3 @@ export const SourceChips = ({ sources }: { sources: GuideSource[] }) => (
   </div>
 );
 
-export class SourceChipsElement extends HTMLElement {
-  private root: Root | null = null;
-  private sources: GuideSource[] = [];
-
-  setSources(sources: GuideSource[]): void {
-    this.sources = sources;
-    this.root ??= createRoot(this);
-    flushSync(() => {
-      this.root?.render(<SourceChips sources={this.sources} />);
-    });
-  }
-}
-
-if (!customElements.get('source-chips')) {
-  customElements.define('source-chips', SourceChipsElement);
-}

@@ -1,8 +1,5 @@
-import { createRoot, type Root } from 'react-dom/client';
-import { flushSync } from 'react-dom';
 import styles from './compare_table.module.css';
 import { msg } from '../utils/i18n';
-import { emit } from '../utils/events';
 
 export interface DuelRowView {
   criterion: string;
@@ -68,48 +65,3 @@ export const CompareTable = ({ table, onRetry }: { table: DuelTableState; onRetr
   </div>
 );
 
-export class CompareTableElement extends HTMLElement {
-  private root: Root | null = null;
-  private state: DuelTableState = { mode: 'loading', a: '', b: '' };
-
-  connectedCallback(): void {
-    this.root ??= createRoot(this);
-    this.render();
-  }
-
-  disconnectedCallback(): void {
-    this.root?.unmount();
-    this.root = null;
-  }
-
-  setLoading(a: string, b: string): void {
-    this.state = { mode: 'loading', a, b };
-    this.render();
-  }
-
-  setResults(a: string, b: string, rows: DuelRowView[], verdict: string): void {
-    this.state = { mode: 'ready', a, b, rows, verdict };
-    this.render();
-  }
-
-  setError(): void {
-    this.state = { mode: 'error', a: this.state.a, b: this.state.b };
-    this.render();
-  }
-
-  private render(): void {
-    if (this.root) {
-      const host = this;
-      const state = this.state;
-      flushSync(() => {
-        this.root?.render(
-          <CompareTable table={state} onRetry={() => emit(host, 'duel-retry')} />,
-        );
-      });
-    }
-  }
-}
-
-if (!customElements.get('compare-table')) {
-  customElements.define('compare-table', CompareTableElement);
-}

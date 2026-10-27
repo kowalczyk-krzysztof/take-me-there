@@ -1,14 +1,9 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import './source_chips';
-import type { SourceChipsElement } from './source_chips';
+import { SourceChips } from './source_chips';
+import type { GuideSource } from '../providers/index';
 import { installChromeMock, uninstallChromeMock } from '../test/chrome_mock';
-
-const mount = (): SourceChipsElement => {
-  const el = document.createElement('source-chips') as SourceChipsElement;
-  document.body.append(el);
-  return el;
-};
+import { renderSync } from '../test/render_sync';
 
 beforeEach(() => {
   installChromeMock();
@@ -22,15 +17,17 @@ afterEach(() => {
 
 describe('source-chips', () => {
   it('renders hostname chips for valid URLs only', () => {
-    const el = mount();
-    const root = el;
-    el.setSources([
-      { title: 'Model title', url: 'https://example.com/article?x=1' },
-      { title: '', url: 'http://plain.example.org/' },
-      { title: 'Evil', url: 'javascript:alert(1)' },
-      { title: 'File', url: 'ftp://files.example.com/x' },
-      { title: 'Relative', url: '/relative/path' },
-    ]);
+    const root = renderSync(
+      <SourceChips
+        sources={[
+          { title: 'Model title', url: 'https://example.com/article?x=1' },
+          { title: '', url: 'http://plain.example.org/' },
+          { title: 'Evil', url: 'javascript:alert(1)' },
+          { title: 'File', url: 'ftp://files.example.com/x' },
+          { title: 'Relative', url: '/relative/path' },
+        ]}
+      />,
+    ).container;
     const chips = [...root.querySelectorAll('a.chip')] as HTMLAnchorElement[];
     expect(chips).toHaveLength(2);
     expect(chips[0].textContent).toContain('example.com');
@@ -43,11 +40,10 @@ describe('source-chips', () => {
   });
 
   it('renders nothing for empty or fully invalid sources', () => {
-    const el = mount();
-    const root = el;
-    el.setSources([]);
-    expect(root.querySelectorAll('a.chip')).toHaveLength(0);
-    el.setSources([{ title: 'x', url: 'data:text/html,hi' }]);
-    expect(root.querySelectorAll('a.chip')).toHaveLength(0);
+    const rendered = renderSync(<SourceChips sources={[]} />);
+    expect(rendered.container.querySelectorAll('a.chip')).toHaveLength(0);
+    const invalid: GuideSource[] = [{ title: 'x', url: 'data:text/html,hi' }];
+    rendered.rerender(<SourceChips sources={invalid} />);
+    expect(rendered.container.querySelectorAll('a.chip')).toHaveLength(0);
   });
 });

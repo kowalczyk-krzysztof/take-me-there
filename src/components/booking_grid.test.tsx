@@ -1,14 +1,8 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import './booking_grid';
-import type { BookingGridElement } from './booking_grid';
+import { BookingGrid } from './booking_grid';
 import { installChromeMock, uninstallChromeMock } from '../test/chrome_mock';
-
-const mount = (): BookingGridElement => {
-  const el = document.createElement('booking-grid') as BookingGridElement;
-  document.body.append(el);
-  return el;
-};
+import { renderSync } from '../test/render_sync';
 
 beforeEach(() => {
   installChromeMock();
@@ -22,9 +16,7 @@ afterEach(() => {
 
 describe('booking-grid', () => {
   it('renders localized tiles for the verified portals', () => {
-    const el = mount();
-    const root = el;
-    el.setDestination('Oia, Greece');
+    const root = renderSync(<BookingGrid destination="Oia, Greece" />).container;
     const tiles = [...root.querySelectorAll('a.tile')] as HTMLAnchorElement[];
     expect(tiles).toHaveLength(4);
     expect(tiles.map((tile) => tile.textContent?.replace('newTabSuffix', ''))).toEqual([
@@ -43,13 +35,11 @@ describe('booking-grid', () => {
   });
 
   it('renders nothing without a destination', () => {
-    const el = mount();
-    const root = el;
-    el.setDestination('');
-    expect(root.querySelectorAll('a.tile')).toHaveLength(0);
-    el.setDestination('Oia, Greece');
-    expect(root.querySelectorAll('a.tile')).toHaveLength(4);
-    el.setDestination('');
-    expect(root.querySelectorAll('a.tile')).toHaveLength(0);
+    const rendered = renderSync(<BookingGrid destination="" />);
+    expect(rendered.container.querySelectorAll('a.tile')).toHaveLength(0);
+    rendered.rerender(<BookingGrid destination="Oia, Greece" />);
+    expect(rendered.container.querySelectorAll('a.tile')).toHaveLength(4);
+    rendered.rerender(<BookingGrid destination="" />);
+    expect(rendered.container.querySelectorAll('a.tile')).toHaveLength(0);
   });
 });

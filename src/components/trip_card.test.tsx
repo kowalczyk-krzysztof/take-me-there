@@ -1,15 +1,9 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import './trip_card';
-import type { TripCardElement } from './trip_card';
+import { TripCard, type CardState, type TripCardCallbacks } from './trip_card';
 import type { PlaceResult } from '../types';
 import { installChromeMock, uninstallChromeMock } from '../test/chrome_mock';
-
-const mount = (): { el: TripCardElement; root: TripCardElement } => {
-  const el = document.createElement('trip-card') as TripCardElement;
-  document.body.append(el);
-  return { el, root: el };
-};
+import { renderSync, type Rendered } from '../test/render_sync';
 
 const PLACE: PlaceResult = {
   identified: true,
@@ -18,6 +12,33 @@ const PLACE: PlaceResult = {
   country: 'Greece',
   confidence: 0.9,
   oneLiner: 'Blue domes.',
+};
+
+const noop = () => {};
+
+const fullCallbacks = (overrides: Partial<TripCardCallbacks> = {}): TripCardCallbacks => ({
+  onPin: noop,
+  onReanalyze: noop,
+  onRetry: noop,
+  onFetchRetry: noop,
+  onNanoInstead: noop,
+  onLookAgain: noop,
+  onAlternates: noop,
+  onCompare: noop,
+  onPinAlternate: noop,
+  onPlanInstead: noop,
+  ...overrides,
+});
+
+const renderCard = (card: CardState, callbacks: Partial<TripCardCallbacks> = {}): Rendered =>
+  renderSync(<TripCard card={card} callbacks={fullCallbacks(callbacks)} />);
+
+const rerenderCard = (
+  rendered: Rendered,
+  card: CardState,
+  callbacks: Partial<TripCardCallbacks> = {},
+): void => {
+  rendered.rerender(<TripCard card={card} callbacks={fullCallbacks(callbacks)} />);
 };
 
 beforeEach(() => {
@@ -32,15 +53,13 @@ afterEach(() => {
 
 describe('trip-card', () => {
   it('renders idle hints', () => {
-    const { root } = mount();
-    (root as TripCardElement).setCard({ view: 'idle', hint: 'hint', shortcut: 'keys' });
+    const root = renderCard({ view: 'idle', hint: 'hint', shortcut: 'keys' }).container;
     expect(root.querySelector('.hint')?.textContent).toBe('hint');
     expect(root.querySelector('.shortcut')?.textContent).toBe('keys');
   });
 
   it('renders an aria-hidden skeleton while loading', () => {
-    const { root } = mount();
-    (root as TripCardElement).setCard({ view: 'loading' });
+    const root = renderCard({ view: 'loading' }).container;
     const skeleton = root.querySelector('.skeleton');
     expect(skeleton?.getAttribute('aria-hidden')).toBe('true');
     expect(skeleton?.querySelectorAll('.skeleton-block').length).toBeGreaterThan(0);
@@ -48,64 +67,71 @@ describe('trip-card', () => {
   });
 
   it('renders results with badges and disagree actions', () => {
-    const { el, root } = mount();
-    el.setCard({ view: 'result', place: PLACE, lowConfidence: false, pinned: false });
+    const onReanalyze = vi.fn();
+    const rendered = renderCard(
+      { view: 'result', place: PLACE, lowConfidence: false, pinned: false },
+      { onReanalyze },
+    );
+    const root = rendered.container;
     expect(root.querySelector('h2')?.textContent).toBe('Oia');
     expect(root.querySelector('.subtitle')?.textContent).toBe('Oia, Greece');
     expect(root.querySelector('.badge')).toBeNull();
-    el.setCard({ view: 'result', place: { ...PLACE, confidence: 0.2 }, lowConfidence: true, pinned: false });
+    rerenderCard(
+      rendered,
+      { view: 'result', place: { ...PLACE, confidence: 0.2 }, lowConfidence: true, pinned: false },
+      { onReanalyze },
+    );
     expect(root.querySelector('.badge')?.textContent).toBe('bestGuessBadge');
     expect(root.querySelector('summary')?.textContent).toBe('notThisPlace');
 
-    const seen: string[] = [];
-    el.addEventListener('trip-reanalyze', () => seen.push('reanalyze'));
     const buttons = [...root.querySelectorAll('.disagree-buttons button')];
     expect(buttons).toHaveLength(1);
     (buttons[0] as HTMLButtonElement).click();
-    expect(seen).toEqual(['reanalyze']);
+    expect(onReanalyze).toHaveBeenCalledTimes(1);
   });
 
   it('omits empty result fields', () => {
-    const { el, root } = mount();
-    el.setCard({
+    const root = renderCard({
       view: 'result',
       place: { ...PLACE, city: '', country: '', oneLiner: '' },
       lowConfidence: false,
       pinned: false,
-    });
+    }).container;
     expect(root.querySelector('.subtitle')).toBeNull();
     expect(root.querySelector('.oneliner')).toBeNull();
   });
 
   it('renders intent chips that emit one-shot alternates events', () => {
-    const { el, root } = mount();
-    el.setCard({ view: 'result', place: PLACE, lowConfidence: false, pinned: false });
+    const onAlternates = vi.fn();
+    const root = renderCard(
+      { view: 'result', place: PLACE, lowConfidence: false, pinned: false },
+      { onAlternates },
+    ).container;
     const chips = root.querySelectorAll('.chips-row .chip');
     expect(chips).toHaveLength(3);
     expect(chips[0]?.textContent).toBe('alternatesCheaper');
     expect(chips[0]?.hasAttribute('aria-pressed')).toBe(false);
-    const seen: unknown[] = [];
-    el.addEventListener('trip-alternates', (event) => seen.push((event as CustomEvent).detail));
     (chips[1] as HTMLButtonElement).click();
-    expect(seen).toEqual([{ intent: 'quieter' }]);
+    expect(onAlternates).toHaveBeenCalledWith('quieter');
   });
 
   it('marks the pressed chip aria-disabled with skeleton cards while loading', () => {
-    const { el, root } = mount();
-    el.setCard({
-      view: 'result',
-      place: PLACE,
-      lowConfidence: false,
-      pinned: false,
-      alternates: { state: 'loading', intent: 'cheaper' },
-    });
+    const onAlternates = vi.fn();
+    const root = renderCard(
+      {
+        view: 'result',
+        place: PLACE,
+        lowConfidence: false,
+        pinned: false,
+        alternates: { state: 'loading', intent: 'cheaper' },
+      },
+      { onAlternates },
+    ).container;
     const chips = root.querySelectorAll('.chips-row .chip');
     expect(chips[0]?.getAttribute('aria-disabled')).toBe('true');
     expect(chips[1]?.hasAttribute('aria-disabled')).toBe(false);
-    const seen: unknown[] = [];
-    el.addEventListener('trip-alternates', (event) => seen.push((event as CustomEvent).detail));
     (chips[0] as HTMLButtonElement).click();
-    expect(seen).toEqual([]);
+    expect(onAlternates).not.toHaveBeenCalled();
     const skeletons = root.querySelector('.alternates-skeletons');
     expect(skeletons?.getAttribute('aria-hidden')).toBe('true');
     expect(skeletons?.querySelectorAll('.skeleton-block')).toHaveLength(3);
@@ -113,44 +139,48 @@ describe('trip-card', () => {
   });
 
   it('renders alternate cards with instead actions', () => {
-    const { el, root } = mount();
-    el.setCard({
-      view: 'result',
-      place: PLACE,
-      lowConfidence: false,
-      pinned: false,
-      alternates: {
-        state: 'ready',
-        intent: 'cheaper',
-        cards: [{ name: 'Fira, Greece', why: 'Same caldera, lower prices.', bestMonth: 'May', pinned: false }],
+    const onPlanInstead = vi.fn();
+    const root = renderCard(
+      {
+        view: 'result',
+        place: PLACE,
+        lowConfidence: false,
+        pinned: false,
+        alternates: {
+          state: 'ready',
+          intent: 'cheaper',
+          cards: [{ name: 'Fira, Greece', why: 'Same caldera, lower prices.', bestMonth: 'May', pinned: false }],
+        },
       },
-    });
+      { onPlanInstead },
+    ).container;
     expect(root.querySelector('.alternates-skeletons')).toBeNull();
     expect(root.querySelector('.alternate-name')?.textContent).toBe('Fira, Greece');
     expect(root.querySelector('.alternate-why')?.textContent).toBe('Same caldera, lower prices.');
     expect(root.querySelector('.alternate-month')?.textContent).toBe('alternatesBestMonth');
-    const seen: unknown[] = [];
-    el.addEventListener('trip-plan-instead', (event) => seen.push((event as CustomEvent).detail));
     (root.querySelector('.alternate-actions button:not(.pin-button)') as HTMLButtonElement).click();
-    expect(seen).toEqual([{ index: 0 }]);
+    expect(onPlanInstead).toHaveBeenCalledWith(0);
   });
 
   it('pins alternate cards with a monogram tile', () => {
-    const { el, root } = mount();
-    el.setCard({
-      view: 'result',
-      place: PLACE,
-      lowConfidence: false,
-      pinned: false,
-      alternates: {
-        state: 'ready',
-        intent: 'cheaper',
-        cards: [
-          { name: 'Fira, Greece', why: 'Same caldera, lower prices.', bestMonth: 'May', pinned: false },
-          { name: 'Oia, Greece', why: 'Same island.', bestMonth: 'June', pinned: true },
-        ],
+    const onPinAlternate = vi.fn();
+    const root = renderCard(
+      {
+        view: 'result',
+        place: PLACE,
+        lowConfidence: false,
+        pinned: false,
+        alternates: {
+          state: 'ready',
+          intent: 'cheaper',
+          cards: [
+            { name: 'Fira, Greece', why: 'Same caldera, lower prices.', bestMonth: 'May', pinned: false },
+            { name: 'Oia, Greece', why: 'Same island.', bestMonth: 'June', pinned: true },
+          ],
+        },
       },
-    });
+      { onPinAlternate },
+    ).container;
     const tiles = root.querySelectorAll('.alternate-card .thumb-monogram');
     expect(tiles).toHaveLength(2);
     expect(tiles[0]?.textContent).toBe('F');
@@ -159,129 +189,150 @@ describe('trip-card', () => {
     expect(pins).toHaveLength(2);
     expect(pins[0]?.getAttribute('aria-pressed')).toBe('false');
     expect(pins[1]?.getAttribute('aria-pressed')).toBe('true');
-    const seen: unknown[] = [];
-    el.addEventListener('trip-pin-alternate', (event) => seen.push((event as CustomEvent).detail));
     pins[0]?.click();
-    expect(seen).toEqual([{ index: 0 }]);
+    expect(onPinAlternate).toHaveBeenCalledWith(0);
   });
 
   it('renders the compare picker only with options', () => {
-    const { el, root } = mount();
-    el.setCard({ view: 'result', place: PLACE, lowConfidence: false, pinned: false });
+    const onCompare = vi.fn();
+    const rendered = renderCard(
+      { view: 'result', place: PLACE, lowConfidence: false, pinned: false },
+      { onCompare },
+    );
+    const root = rendered.container;
     expect(root.querySelector('.compare-row')).toBeNull();
-    el.setCard({
-      view: 'result',
-      place: PLACE,
-      lowConfidence: false,
-      pinned: false,
-      compareOptions: [{ value: 'Fira|||Greece', label: 'Fira, Greece' }],
-    });
+    rerenderCard(
+      rendered,
+      {
+        view: 'result',
+        place: PLACE,
+        lowConfidence: false,
+        pinned: false,
+        compareOptions: [{ value: 'Fira|||Greece', label: 'Fira, Greece' }],
+      },
+      { onCompare },
+    );
     const row = root.querySelector('.compare-row');
     expect(row?.querySelector('label')?.textContent).toContain('compareLabel');
     expect(row?.querySelector('.compare-go')?.textContent).toBe('compareGo');
-    const seen: unknown[] = [];
-    el.addEventListener('trip-compare', (event) => seen.push((event as CustomEvent).detail));
     (row?.querySelector('.compare-go') as HTMLButtonElement).click();
-    expect(seen).toEqual([{ value: 'Fira|||Greece' }]);
+    expect(onCompare).toHaveBeenCalledWith('Fira|||Greece');
   });
 
   it('renders no-place cards with escapes', () => {
-    const { el, root } = mount();
-    let looks = 0;
-    el.addEventListener('trip-look-again', () => {
-      looks += 1;
-    });
-    el.setCard({
-      view: 'no-place',
-      showLookAgain: true,
-      fallback: { label: 'Santorini', href: 'https://www.google.com/maps/search/?api=1&query=x' },
-    });
+    const onLookAgain = vi.fn();
+    const rendered = renderCard(
+      {
+        view: 'no-place',
+        showLookAgain: true,
+        fallback: { label: 'Santorini', href: 'https://www.google.com/maps/search/?api=1&query=x' },
+      },
+      { onLookAgain },
+    );
+    const root = rendered.container;
     expect(root.querySelector('h2')?.textContent).toBe('noPlaceTitle');
     const button = root.querySelector('button.primary') as HTMLButtonElement;
     expect(button.textContent).toBe('lookAgainButton');
     button.click();
-    expect(looks).toBe(1);
+    expect(onLookAgain).toHaveBeenCalledTimes(1);
     const link = root.querySelector('.fallback a') as HTMLAnchorElement;
     expect(link.textContent).toContain('Santorini');
     expect(link.target).toBe('_blank');
 
-    el.setCard({ view: 'no-place', showLookAgain: false, fallback: null });
+    rerenderCard(rendered, { view: 'no-place', showLookAgain: false, fallback: null }, { onLookAgain });
     expect(root.querySelector('button')).toBeNull();
     expect(root.querySelector('.fallback')).toBeNull();
   });
 
   it('renders error cards with optional retry', () => {
-    const { el, root } = mount();
-    let retries = 0;
-    el.addEventListener('trip-retry', () => {
-      retries += 1;
-    });
-    el.setCard({ view: 'error', title: 'T', body: 'B', showRetry: true });
+    const onRetry = vi.fn();
+    const rendered = renderCard(
+      { view: 'error', title: 'T', body: 'B', showRetry: true },
+      { onRetry },
+    );
+    const root = rendered.container;
     expect(root.querySelector('h2')?.textContent).toBe('T');
     (root.querySelector('button') as HTMLButtonElement).click();
-    expect(retries).toBe(1);
-    el.setCard({ view: 'error', title: 'T', body: 'B', showRetry: false });
+    expect(onRetry).toHaveBeenCalledTimes(1);
+    rerenderCard(rendered, { view: 'error', title: 'T', body: 'B', showRetry: false }, { onRetry });
     expect(root.querySelector('button')).toBeNull();
   });
 
   it('renders the byte-fetch retry alongside the plain retry', () => {
-    const { el, root } = mount();
-    const seen: string[] = [];
-    el.addEventListener('trip-fetch-retry', () => seen.push('fetch'));
-    el.addEventListener('trip-retry', () => seen.push('plain'));
-    el.setCard({ view: 'error', title: 'T', body: 'B', showRetry: true, showFetchRetry: true });
+    const onRetry = vi.fn();
+    const onFetchRetry = vi.fn();
+    const root = renderCard(
+      { view: 'error', title: 'T', body: 'B', showRetry: true, showFetchRetry: true },
+      { onRetry, onFetchRetry },
+    ).container;
     const buttons = root.querySelectorAll('button');
     expect(buttons).toHaveLength(2);
     expect(buttons[1]?.textContent).toBe('fetchRetryButton');
     (buttons[1] as HTMLButtonElement).click();
     expect(buttons[1]?.textContent).toBe('fetchRetryLoading');
-    expect(seen).toEqual(['fetch']);
+    expect(onFetchRetry).toHaveBeenCalledTimes(1);
+    expect(onRetry).not.toHaveBeenCalled();
     (buttons[1] as HTMLButtonElement).click();
-    expect(seen).toEqual(['fetch']);
+    expect(onFetchRetry).toHaveBeenCalledTimes(1);
   });
 
   it('labels on-device results and offers the on-device escape hatch', () => {
-    const { el, root } = mount();
-    el.setCard({ view: 'result', place: PLACE, lowConfidence: false, pinned: false });
+    const onNanoInstead = vi.fn();
+    const rendered = renderCard(
+      { view: 'result', place: PLACE, lowConfidence: false, pinned: false },
+      { onNanoInstead },
+    );
+    const root = rendered.container;
     expect(root.querySelector('.nano-badge')).toBeNull();
-    el.setCard({ view: 'result', place: PLACE, lowConfidence: false, pinned: false, onDevice: true });
+    rerenderCard(
+      rendered,
+      { view: 'result', place: PLACE, lowConfidence: false, pinned: false, onDevice: true },
+      { onNanoInstead },
+    );
     expect(root.querySelector('.nano-badge')?.textContent).toBe('nanoBadge');
-    let nanos = 0;
-    el.addEventListener('trip-nano', () => {
-      nanos += 1;
-    });
-    el.setCard({ view: 'error', title: 'T', body: 'B', showRetry: true, showNanoInstead: true });
+    rerenderCard(
+      rendered,
+      { view: 'error', title: 'T', body: 'B', showRetry: true, showNanoInstead: true },
+      { onNanoInstead },
+    );
     const buttons = root.querySelectorAll('button');
     expect(buttons).toHaveLength(2);
     expect(buttons[1]?.textContent).toBe('nanoTryInstead');
     (buttons[1] as HTMLButtonElement).click();
-    expect(nanos).toBe(1);
+    expect(onNanoInstead).toHaveBeenCalledTimes(1);
   });
 
-  it('focuses its heading on request', () => {
-    const { el, root } = mount();
-    el.setCard({ view: 'result', place: PLACE, lowConfidence: false, pinned: false });
-    el.focusHeading();
-    expect((document.activeElement as HTMLElement)?.tagName).toBe('H2');
+  it('renders a focusable result heading', () => {
+    const root = renderCard(
+      { view: 'result', place: PLACE, lowConfidence: false, pinned: false },
+    ).container;
+    const heading = root.querySelector('h2') as HTMLHeadingElement;
+    heading.focus();
+    expect(document.activeElement?.tagName).toBe('H2');
   });
 
   it('renders the pin toggle with pressed state and event', () => {
-    const { el, root } = mount();
-    el.setCard({ view: 'result', place: PLACE, lowConfidence: false, pinned: false });
+    const onPin = vi.fn();
+    const rendered = renderCard(
+      { view: 'result', place: PLACE, lowConfidence: false, pinned: false },
+      { onPin },
+    );
+    const root = rendered.container;
     const pin = root.querySelector('.pin-button') as HTMLButtonElement;
     expect(pin.textContent).toBe('pinButton');
     expect(pin.getAttribute('aria-pressed')).toBe('false');
-    const fired = vi.fn();
-    el.addEventListener('trip-pin', fired);
     pin.click();
-    expect(fired).toHaveBeenCalledTimes(1);
-    el.setCard({ view: 'result', place: PLACE, lowConfidence: false, pinned: true });
+    expect(onPin).toHaveBeenCalledTimes(1);
+    rerenderCard(
+      rendered,
+      { view: 'result', place: PLACE, lowConfidence: false, pinned: true },
+      { onPin },
+    );
     expect(root.querySelector('.pin-button')?.getAttribute('aria-pressed')).toBe('true');
   });
 
   it('renders itineraries with stops, nights, links, and the Maps route', () => {
-    const { el, root } = mount();
-    el.setCard({
+    const root = renderCard({
       view: 'itinerary',
       title: 'Trip plan - 2 stops',
       stops: [
@@ -294,7 +345,7 @@ describe('trip-card', () => {
       ],
       mapsUrl: 'https://maps.example/dir',
       mapsLabel: 'Open route in Google Maps (2 stops)',
-    });
+    }).container;
     expect(root.querySelector('h2')?.textContent).toBe('Trip plan - 2 stops');
     const entries = [...root.querySelectorAll('.stop-list li')];
     expect(entries).toHaveLength(2);
@@ -311,39 +362,40 @@ describe('trip-card', () => {
   });
 
   it('omits the Maps link when no route exists', () => {
-    const { el, root } = mount();
-    el.setCard({
+    const root = renderCard({
       view: 'itinerary',
       title: 'Trip plan - 1 stop',
       stops: [{ name: 'Oia', nights: null, links: [] }],
       mapsUrl: null,
       mapsLabel: '',
-    });
+    }).container;
     expect(root.querySelector('.maps-link')).toBeNull();
   });
 
   it('fires retry once with a loading state', () => {
-    const { el, root } = mount();
-    el.setCard({ view: 'error', title: 'Fail', body: 'Why', showRetry: true });
+    const onRetry = vi.fn();
+    const root = renderCard(
+      { view: 'error', title: 'Fail', body: 'Why', showRetry: true },
+      { onRetry },
+    ).container;
     const retry = root.querySelector('.primary') as HTMLButtonElement;
-    const fired = vi.fn();
-    el.addEventListener('trip-retry', fired);
     retry.click();
     retry.click();
-    expect(fired).toHaveBeenCalledTimes(1);
+    expect(onRetry).toHaveBeenCalledTimes(1);
     expect(retry.getAttribute('aria-disabled')).toBe('true');
     expect(retry.textContent).toBe('retryingButton');
   });
 
   it('fires look-again once with a loading state', () => {
-    const { el, root } = mount();
-    el.setCard({ view: 'no-place', showLookAgain: true, fallback: null });
+    const onLookAgain = vi.fn();
+    const root = renderCard(
+      { view: 'no-place', showLookAgain: true, fallback: null },
+      { onLookAgain },
+    ).container;
     const lookAgain = root.querySelector('.primary') as HTMLButtonElement;
-    const fired = vi.fn();
-    el.addEventListener('trip-look-again', fired);
     lookAgain.click();
     lookAgain.click();
-    expect(fired).toHaveBeenCalledTimes(1);
+    expect(onLookAgain).toHaveBeenCalledTimes(1);
     expect(lookAgain.getAttribute('aria-disabled')).toBe('true');
     expect(lookAgain.textContent).toBe('lookingAgainButton');
   });

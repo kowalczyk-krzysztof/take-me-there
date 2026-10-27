@@ -1,19 +1,38 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import './trip_board';
-import type { BoardItemView, TripBoardElement, TripRemovePinDetail } from './trip_board';
+import { TripBoard, type BoardItemView, type BoardNoticeView, type TripRemovePinDetail } from './trip_board';
 import { installChromeMock, uninstallChromeMock } from '../test/chrome_mock';
-
-const mount = (): TripBoardElement => {
-  const el = document.createElement('trip-board') as TripBoardElement;
-  document.body.append(el);
-  return el;
-};
+import { renderSync } from '../test/render_sync';
 
 const ITEMS: BoardItemView[] = [
   { placeName: 'Oia', country: 'Greece', title: 'Oia, Greece', host: 'example.com', image: 'data:image/jpeg,aaa' },
   { placeName: 'Fira', country: 'Greece', title: 'Fira, Greece', host: 'blog.example', image: null },
 ];
+
+const NOTICE_OFF: BoardNoticeView = { text: null, retry: false };
+
+const renderBoard = (
+  items: BoardItemView[],
+  canPlan: boolean,
+  callbacks: {
+    onRemovePin?: (detail: TripRemovePinDetail) => void;
+    onPlan?: () => void;
+    onClearConfirm?: () => void;
+    onRetryPin?: () => void;
+  } = {},
+  notice: BoardNoticeView = NOTICE_OFF,
+) =>
+  renderSync(
+    <TripBoard
+      items={items}
+      canPlan={canPlan}
+      notice={notice}
+      onRemovePin={callbacks.onRemovePin ?? (() => {})}
+      onPlan={callbacks.onPlan ?? (() => {})}
+      onClearConfirm={callbacks.onClearConfirm ?? (() => {})}
+      onRetryPin={callbacks.onRetryPin ?? (() => {})}
+    />,
+  );
 
 beforeEach(() => {
   installChromeMock();
@@ -27,9 +46,8 @@ afterEach(() => {
 
 describe('trip-board', () => {
   it('renders the labeled collapsible list with remove buttons', () => {
-    const el = mount();
-    const root = el;
-    el.setBoard(ITEMS, true);
+    const onRemovePin = vi.fn();
+    const root = renderBoard(ITEMS, true, { onRemovePin }).container;
     const toggle = root.querySelector('.disclosure') as HTMLButtonElement;
     expect(toggle.getAttribute('aria-expanded')).toBe('true');
     expect(toggle.textContent).toBe('boardTitle');
@@ -46,10 +64,8 @@ describe('trip-board', () => {
     const mono = entries[1].querySelector('.thumb-monogram');
     expect(mono?.textContent).toBe('F');
     expect(mono?.getAttribute('aria-hidden')).toBe('true');
-    const detail = vi.fn();
-    el.addEventListener('trip-remove-pin', (event) => detail((event as CustomEvent).detail));
     (entries[0].querySelector('button') as HTMLButtonElement).click();
-    expect(detail).toHaveBeenCalledWith({
+    expect(onRemovePin).toHaveBeenCalledWith({
       placeName: 'Oia',
       country: 'Greece',
     } satisfies TripRemovePinDetail);
@@ -59,77 +75,106 @@ describe('trip-board', () => {
   });
 
   it('shows the empty state without a clear button', () => {
-    const el = mount();
-    const root = el;
-    el.setBoard([], false);
+    const root = renderBoard([], false).container;
     expect(root.querySelector('.empty')?.textContent).toBe('boardEmpty');
     expect(root.querySelector('ul')).toBeNull();
     expect(root.querySelector('.clear-button')).toBeNull();
   });
 
   it('disables planning with an adjacent explanation under two pins', () => {
-    const el = mount();
-    const root = el;
-    el.setBoard([ITEMS[0]], false);
+    const onPlan = vi.fn();
+    const rendered = renderBoard([ITEMS[0]!], false, { onPlan });
+    const root = rendered.container;
     const plan = root.querySelector('.plan-button') as HTMLButtonElement;
     expect(plan.getAttribute('aria-disabled')).toBe('true');
     expect(root.querySelector('.plan-note')?.textContent).toBe('boardPlanNote');
-    const fired = vi.fn();
-    el.addEventListener('trip-plan', fired);
     plan.click();
-    expect(fired).not.toHaveBeenCalled();
-    el.setBoard(ITEMS, true);
+    expect(onPlan).not.toHaveBeenCalled();
+    rendered.rerender(
+      <TripBoard
+        items={ITEMS}
+        canPlan={true}
+        notice={NOTICE_OFF}
+        onRemovePin={() => {}}
+        onPlan={onPlan}
+        onClearConfirm={() => {}}
+        onRetryPin={() => {}}
+      />,
+    );
     const enabled = root.querySelector('.plan-button') as HTMLButtonElement;
     expect(enabled.hasAttribute('aria-disabled')).toBe(false);
     expect(root.querySelector('.plan-note')).toBeNull();
     enabled.click();
-    expect(fired).toHaveBeenCalledTimes(1);
+    expect(onPlan).toHaveBeenCalledTimes(1);
   });
 
   it('confirms clearing inline with focus on the heading', () => {
-    const el = mount();
-    const root = el;
-    el.setBoard(ITEMS, true);
+    const onClearConfirm = vi.fn();
+    const root = renderBoard(ITEMS, true, { onClearConfirm }).container;
     (root.querySelector('.clear-button') as HTMLButtonElement).click();
     const heading = root.querySelector('.confirm-heading') as HTMLHeadingElement;
     expect(heading.textContent).toBe('boardClearTitle');
     expect(document.activeElement).toBe(heading);
-    const fired = vi.fn();
-    el.addEventListener('trip-clear-confirm', fired);
     const [confirm, cancel] = [...root.querySelectorAll('.confirm-actions button')] as HTMLButtonElement[];
     cancel.click();
-    expect(fired).not.toHaveBeenCalled();
+    expect(onClearConfirm).not.toHaveBeenCalled();
     expect(root.querySelector('ul')).not.toBeNull();
     expect(document.activeElement?.className).toContain('clear-button');
     (root.querySelector('.clear-button') as HTMLButtonElement).click();
     (root.querySelectorAll('.confirm-actions button')[0] as HTMLButtonElement).click();
     expect(confirm).not.toBeNull();
-    expect(fired).toHaveBeenCalledTimes(1);
+    expect(onClearConfirm).toHaveBeenCalledTimes(1);
   });
 
   it('shows the pin-failure notice with a retry action', () => {
-    const el = mount();
-    const root = el;
-    el.setBoard(ITEMS, true);
-    el.setNotice('boardNoticePinFail', true);
-    const notice = root.querySelector('.notice') as HTMLElement;
+    const onRetryPin = vi.fn();
+    const rendered = renderBoard(ITEMS, true, { onRetryPin });
+    rendered.rerender(
+      <TripBoard
+        items={ITEMS}
+        canPlan={true}
+        notice={{ text: 'boardNoticePinFail', retry: true }}
+        onRemovePin={() => {}}
+        onPlan={() => {}}
+        onClearConfirm={() => {}}
+        onRetryPin={onRetryPin}
+      />,
+    );
+    const notice = rendered.container.querySelector('.notice') as HTMLElement;
     expect(notice.hidden).toBe(false);
     expect(notice.textContent).toContain('boardNoticePinFail');
-    const fired = vi.fn();
-    el.addEventListener('trip-retry-pin', fired);
     (notice.querySelector('button') as HTMLButtonElement).click();
-    expect(fired).toHaveBeenCalledTimes(1);
-    el.setNotice(null, false);
+    expect(onRetryPin).toHaveBeenCalledTimes(1);
+    rendered.rerender(
+      <TripBoard
+        items={ITEMS}
+        canPlan={true}
+        notice={NOTICE_OFF}
+        onRemovePin={() => {}}
+        onPlan={() => {}}
+        onClearConfirm={() => {}}
+        onRetryPin={onRetryPin}
+      />,
+    );
     expect(notice.hidden).toBe(true);
   });
 
   it('repairs focus to the disclosure when a re-render removes it', () => {
-    const el = mount();
-    const root = el;
-    el.setBoard(ITEMS, true);
+    const rendered = renderBoard(ITEMS, true);
+    const root = rendered.container;
     const remove = root.querySelector('li button') as HTMLButtonElement;
     remove.focus();
-    el.setBoard([ITEMS[1]], false);
+    rendered.rerender(
+      <TripBoard
+        items={[ITEMS[1]!]}
+        canPlan={false}
+        notice={NOTICE_OFF}
+        onRemovePin={() => {}}
+        onPlan={() => {}}
+        onClearConfirm={() => {}}
+        onRetryPin={() => {}}
+      />,
+    );
     expect(document.activeElement?.className).toContain('disclosure');
   });
 });

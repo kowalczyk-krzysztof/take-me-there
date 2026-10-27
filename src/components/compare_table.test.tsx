@@ -1,19 +1,16 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import './compare_table';
-import type { CompareTableElement, DuelRowView } from './compare_table';
+import { CompareTable, type DuelRowView, type DuelTableState } from './compare_table';
 import { installChromeMock, uninstallChromeMock } from '../test/chrome_mock';
-
-const mount = (): { el: CompareTableElement; root: CompareTableElement } => {
-  const el = document.createElement('compare-table') as CompareTableElement;
-  document.body.append(el);
-  return { el, root: el };
-};
+import { renderSync } from '../test/render_sync';
 
 const ROWS: DuelRowView[] = [
   { criterion: 'Cost', a: 'Pricey sunsets.', b: 'Cheaper stays.' },
   { criterion: 'Crowds', a: 'Packed.', b: 'Calm.' },
 ];
+
+const renderTable = (table: DuelTableState, onRetry: () => void = () => {}) =>
+  renderSync(<CompareTable table={table} onRetry={onRetry} />);
 
 beforeEach(() => {
   installChromeMock();
@@ -27,8 +24,7 @@ afterEach(() => {
 
 describe('compare-table', () => {
   it('renders chrome with aria-hidden skeleton rows while loading', () => {
-    const { el, root } = mount();
-    el.setLoading('Oia, Greece', 'Fira, Greece');
+    const root = renderTable({ mode: 'loading', a: 'Oia, Greece', b: 'Fira, Greece' }).container;
     const table = root.querySelector('table');
     expect(table?.getAttribute('aria-busy')).toBe('true');
     expect(table?.querySelector('caption')?.textContent).toBe('duelCaption');
@@ -52,10 +48,14 @@ describe('compare-table', () => {
   });
 
   it('replaces skeletons with row-headed results and a verdict row', () => {
-    const { el, root } = mount();
-    el.setLoading('Oia, Greece', 'Fira, Greece');
-    el.setResults('Oia, Greece', 'Fira, Greece', ROWS, 'Pick Oia for views.');
-    const table = root.querySelector('table');
+    const rendered = renderTable({ mode: 'loading', a: 'Oia, Greece', b: 'Fira, Greece' });
+    rendered.rerender(
+      <CompareTable
+        table={{ mode: 'ready', a: 'Oia, Greece', b: 'Fira, Greece', rows: ROWS, verdict: 'Pick Oia for views.' }}
+        onRetry={() => {}}
+      />,
+    );
+    const table = rendered.container.querySelector('table');
     expect(table?.getAttribute('aria-busy')).toBe('false');
     expect(table?.querySelector('.skeleton-block')).toBeNull();
     const rows = table?.querySelectorAll('tbody tr');
@@ -72,15 +72,12 @@ describe('compare-table', () => {
   });
 
   it('collapses to an inline error with retry', () => {
-    const { el, root } = mount();
-    el.setLoading('Oia, Greece', 'Fira, Greece');
-    el.setError();
+    const onRetry = vi.fn();
+    const root = renderTable({ mode: 'error', a: 'Oia, Greece', b: 'Fira, Greece' }, onRetry).container;
     expect(root.querySelector('table')).toBeNull();
     expect(root.querySelector('.duel-error p')?.textContent).toBe('duelError');
     expect(root.querySelector('.duel-error button')?.textContent).toBe('duelRetry');
-    const retry = vi.fn();
-    el.addEventListener('duel-retry', retry);
     (root.querySelector('.duel-error button') as HTMLButtonElement).click();
-    expect(retry).toHaveBeenCalledTimes(1);
+    expect(onRetry).toHaveBeenCalledTimes(1);
   });
 });

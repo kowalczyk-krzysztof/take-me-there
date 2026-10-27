@@ -1,19 +1,15 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import './scan_list';
-import type { ScanItemView } from './scan_list';
+import { ScanList, type ScanItemView } from './scan_list';
 import { installChromeMock, uninstallChromeMock } from '../test/chrome_mock';
-
-const mount = () => {
-  const el = document.createElement('scan-list');
-  document.body.append(el);
-  return { el: el as unknown as import('./scan_list').ScanListElement, root: el };
-};
+import { renderSync } from '../test/render_sync';
 
 const ITEMS: ScanItemView[] = [
   { placeName: 'Oia', country: 'Greece', title: 'Oia, Greece', image: 'https://img/oia.jpg', pinned: false },
   { placeName: 'Fira', country: 'Greece', title: 'Fira, Greece', image: null, pinned: true },
 ];
+
+const noop = () => {};
 
 beforeEach(() => {
   installChromeMock();
@@ -27,8 +23,9 @@ afterEach(() => {
 
 describe('scan-list', () => {
   it('renders an aria-hidden skeleton while loading', () => {
-    const { root } = mount();
-    (root as unknown as { setLoading: () => void }).setLoading();
+    const root = renderSync(
+      <ScanList loading={true} items={[]} onGuide={noop} onPin={noop} onPinSelected={noop} />,
+    ).container;
     expect(root.querySelector('h2')?.textContent).toBe('scanTitle');
     const grid = root.querySelector('.skeleton-grid');
     expect(grid?.getAttribute('aria-hidden')).toBe('true');
@@ -37,17 +34,22 @@ describe('scan-list', () => {
   });
 
   it('renders a no-skeleton shadow after results arrive', () => {
-    const { el, root } = mount();
-    el.setLoading();
-    el.setResults(ITEMS);
+    const rendered = renderSync(
+      <ScanList loading={true} items={[]} onGuide={noop} onPin={noop} onPinSelected={noop} />,
+    );
+    rendered.rerender(
+      <ScanList loading={false} items={ITEMS} onGuide={noop} onPin={noop} onPinSelected={noop} />,
+    );
+    const root = rendered.container;
     expect(root.querySelector('.skeleton-grid')).toBeNull();
     expect(root.querySelector('section')?.getAttribute('aria-busy')).toBe('false');
     expect(root.querySelectorAll('.scan-card').length).toBe(2);
   });
 
   it('renders cards with group labels and three sibling controls', () => {
-    const { el, root } = mount();
-    el.setResults(ITEMS);
+    const root = renderSync(
+      <ScanList loading={false} items={ITEMS} onGuide={noop} onPin={noop} onPinSelected={noop} />,
+    ).container;
     const cards = root.querySelectorAll('.scan-card');
     expect(cards[0]?.getAttribute('role')).toBe('group');
     expect(cards[0]?.getAttribute('aria-label')).toBe('Oia, Greece');
@@ -63,8 +65,9 @@ describe('scan-list', () => {
   });
 
   it('renders decorative thumbnails with a placeholder fallback', () => {
-    const { el, root } = mount();
-    el.setResults(ITEMS);
+    const root = renderSync(
+      <ScanList loading={false} items={ITEMS} onGuide={noop} onPin={noop} onPinSelected={noop} />,
+    ).container;
     const cards = root.querySelectorAll('.scan-card');
     const img = cards[0]?.querySelector('img');
     expect(img?.getAttribute('alt')).toBe('');
@@ -75,42 +78,50 @@ describe('scan-list', () => {
   });
 
   it('emits guide and pin events per card', () => {
-    const { el, root } = mount();
-    el.setResults(ITEMS);
-    const guide = vi.fn();
-    const pin = vi.fn();
-    el.addEventListener('scan-guide', (event) => guide((event as CustomEvent).detail));
-    el.addEventListener('scan-pin', (event) => pin((event as CustomEvent).detail));
+    const onGuide = vi.fn();
+    const onPin = vi.fn();
+    const root = renderSync(
+      <ScanList loading={false} items={ITEMS} onGuide={onGuide} onPin={onPin} onPinSelected={noop} />,
+    ).container;
     const cards = root.querySelectorAll('.scan-card');
     (cards[1]?.querySelectorAll('button')[0] as HTMLButtonElement).click();
     (cards[0]?.querySelectorAll('button')[1] as HTMLButtonElement).click();
-    expect(guide).toHaveBeenCalledWith({ index: 1 });
-    expect(pin).toHaveBeenCalledWith({ index: 0 });
+    expect(onGuide).toHaveBeenCalledWith(1);
+    expect(onPin).toHaveBeenCalledWith(0);
   });
 
   it('counts checked cards in pin-selected and survives re-render', () => {
-    const { el, root } = mount();
     const i18n = vi.spyOn(chrome.i18n, 'getMessage');
-    el.setResults(ITEMS);
-    const pinSelected = vi.fn();
-    el.addEventListener('scan-pin-selected', (event) => pinSelected((event as CustomEvent).detail));
+    const onPinSelected = vi.fn();
+    const rendered = renderSync(
+      <ScanList loading={false} items={ITEMS} onGuide={noop} onPin={noop} onPinSelected={onPinSelected} />,
+    );
+    const root = rendered.container;
     const boxes = root.querySelectorAll('input[type="checkbox"]');
     (boxes[0] as HTMLInputElement).click();
     (boxes[1] as HTMLInputElement).click();
     expect(i18n).toHaveBeenLastCalledWith('scanPinSelected', '2');
     // Re-render (e.g. after a single pin) keeps the checked titles.
-    el.setResults([{ ...ITEMS[0]!, pinned: true }, ITEMS[1]!]);
+    rendered.rerender(
+      <ScanList
+        loading={false}
+        items={[{ ...ITEMS[0]!, pinned: true }, ITEMS[1]!]}
+        onGuide={noop}
+        onPin={noop}
+        onPinSelected={onPinSelected}
+      />,
+    );
     expect(i18n).toHaveBeenLastCalledWith('scanPinSelected', '2');
     (root.querySelector('.pin-selected') as HTMLButtonElement).click();
-    expect(pinSelected).toHaveBeenCalledWith({ indices: [0, 1] });
+    expect(onPinSelected).toHaveBeenCalledWith([0, 1]);
   });
 
   it('ignores pin-selected with nothing checked', () => {
-    const { el, root } = mount();
-    el.setResults(ITEMS);
-    const pinSelected = vi.fn();
-    el.addEventListener('scan-pin-selected', pinSelected);
+    const onPinSelected = vi.fn();
+    const root = renderSync(
+      <ScanList loading={false} items={ITEMS} onGuide={noop} onPin={noop} onPinSelected={onPinSelected} />,
+    ).container;
     (root.querySelector('.pin-selected') as HTMLButtonElement).click();
-    expect(pinSelected).not.toHaveBeenCalled();
+    expect(onPinSelected).not.toHaveBeenCalled();
   });
 });

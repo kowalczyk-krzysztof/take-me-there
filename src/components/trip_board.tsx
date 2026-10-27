@@ -1,9 +1,7 @@
 import { useLayoutEffect, useRef, useState } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import styles from './trip_board.module.css';
 import { msg } from '../utils/i18n';
-import { emit } from '../utils/events';
 
 export interface BoardItemView {
   placeName: string;
@@ -177,58 +175,3 @@ export const TripBoard = ({
   );
 };
 
-export class TripBoardElement extends HTMLElement {
-  private root: Root | null = null;
-  private items: BoardItemView[] = [];
-  private canPlan = false;
-  private notice: BoardNoticeView = { text: null, retry: false };
-
-  connectedCallback(): void {
-    this.root ??= createRoot(this);
-    this.render();
-  }
-
-  disconnectedCallback(): void {
-    this.root?.unmount();
-    this.root = null;
-  }
-
-  setBoard(items: BoardItemView[], canPlan: boolean): void {
-    this.items = items;
-    this.canPlan = canPlan;
-    this.render();
-  }
-
-  setNotice(text: string | null, retry: boolean): void {
-    this.notice = { text, retry };
-    this.render();
-  }
-
-  focusHeading(): void {
-    this.querySelector<HTMLButtonElement>(`.${styles.disclosure}`)?.focus();
-  }
-
-  private render(): void {
-    if (this.root) {
-      const host = this;
-      const { items, canPlan, notice } = this;
-      flushSync(() => {
-        this.root?.render(
-          <TripBoard
-            items={items}
-            canPlan={canPlan}
-            notice={notice}
-            onRemovePin={(detail) => emit(host, 'trip-remove-pin', detail)}
-            onPlan={() => emit(host, 'trip-plan')}
-            onClearConfirm={() => emit(host, 'trip-clear-confirm')}
-            onRetryPin={() => emit(host, 'trip-retry-pin')}
-          />,
-        );
-      });
-    }
-  }
-}
-
-if (!customElements.get('trip-board')) {
-  customElements.define('trip-board', TripBoardElement);
-}
