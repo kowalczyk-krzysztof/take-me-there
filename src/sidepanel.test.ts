@@ -38,6 +38,10 @@ const mountShell = (): void => {
   document.body.innerHTML = body;
 };
 
+const selectBoardTab = (): void => {
+  (document.querySelector('#tab-board') as HTMLButtonElement).click();
+};
+
 const waitFor = async (fn: () => unknown, timeoutMs = 5000): Promise<void> => {
   const start = Date.now();
   for (;;) {
@@ -216,6 +220,50 @@ describe('sidepanel', () => {
     await waitFor(() => {
       expect(card?.querySelector('.shortcut')?.textContent).toBe('shortcutUnset');
     });
+  });
+
+  it('switches tabs with roving focus, counts pins, and surfaces runs', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    const i18n = vi.spyOn(chrome.i18n, 'getMessage');
+    const tabMain = document.querySelector('#tab-main') as HTMLButtonElement;
+    const tabBoard = document.querySelector('#tab-board') as HTMLButtonElement;
+    expect(tabMain.textContent).toBe('mainTab');
+    expect(tabMain.getAttribute('aria-selected')).toBe('true');
+    expect(tabMain.tabIndex).toBe(0);
+    expect(tabBoard.getAttribute('aria-selected')).toBe('false');
+    expect(tabBoard.tabIndex).toBe(-1);
+    expect(document.querySelector('#tab-bar')?.getAttribute('aria-label')).toBe('tabsLabel');
+    expect(document.querySelector('#main-panel')?.hasAttribute('hidden')).toBe(false);
+    expect(document.querySelector('#board-panel')?.hasAttribute('hidden')).toBe(true);
+    tabBoard.click();
+    expect(tabBoard.getAttribute('aria-selected')).toBe('true');
+    expect(tabBoard.tabIndex).toBe(0);
+    expect(tabMain.tabIndex).toBe(-1);
+    expect(document.querySelector('#main-panel')?.hasAttribute('hidden')).toBe(true);
+    expect(document.querySelector('#board-panel')?.hasAttribute('hidden')).toBe(false);
+    tabMain.focus();
+    tabMain.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    expect(document.activeElement).toBe(tabBoard);
+    expect(tabBoard.getAttribute('aria-selected')).toBe('true');
+    tabBoard.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }));
+    expect(document.activeElement).toBe(tabMain);
+    expect(tabMain.getAttribute('aria-selected')).toBe('true');
+    // A new run surfaces on the main tab even from the board tab.
+    tabBoard.click();
+    fetchMock
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
+      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
+    await mock.session.set({ tripRequest: READY() });
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot h2')?.textContent).toBe('Oia');
+    });
+    expect(tabMain.getAttribute('aria-selected')).toBe('true');
+    (document.querySelector('#result-slot .pin-button') as HTMLButtonElement).click();
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned');
+    });
+    expect(i18n).toHaveBeenCalledWith('boardTitle', '1');
   });
 
   it('shows inline key setup when no key is saved', async () => {
@@ -545,6 +593,7 @@ describe('sidepanel', () => {
     const board = document.querySelector('#board-slot') as HTMLElement;
     expect(board.querySelector('.notice')?.textContent).toContain('boardNoticePinFail');
     fail.mockRestore();
+    selectBoardTab();
     (board.querySelector('.notice button') as HTMLButtonElement).click();
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned');
@@ -572,6 +621,7 @@ describe('sidepanel', () => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned');
     });
     const board = document.querySelector('#board-slot') as HTMLElement;
+    selectBoardTab();
     (board.querySelector('.clear-button') as HTMLButtonElement).click();
     expect(board.querySelector('.confirm-heading')?.textContent).toBe(
       'boardClearTitle',
@@ -643,12 +693,15 @@ describe('sidepanel', () => {
       expect(board.querySelectorAll('li')).toHaveLength(2);
     });
     const board = document.querySelector('#board-slot') as HTMLElement;
+    selectBoardTab();
     const plan = board.querySelector('.plan-button') as HTMLButtonElement;
     expect(plan.hasAttribute('aria-disabled')).toBe(false);
     plan.click();
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusItineraryReady');
     });
+    expect(document.querySelector('#tab-main')?.getAttribute('aria-selected')).toBe('true');
+    expect(document.querySelector('#board-panel')?.hasAttribute('hidden')).toBe(true);
     expect(card.querySelector('h2')?.textContent).toBe('itineraryTitle');
     expect(card.querySelectorAll('.stop-list li')).toHaveLength(2);
     const maps = card.querySelector('.maps-link') as HTMLAnchorElement;

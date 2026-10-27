@@ -1,6 +1,6 @@
 // Panel state machine: handoff intake, key and consent gates, cached or live
 // analysis with streamed guides, disagree flows, and the cost footer.
-import { useSyncExternalStore } from 'react';
+import { useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { createRoot } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import { BookingGrid } from './components/booking_grid';
@@ -250,6 +250,7 @@ interface KeyFormState {
 }
 
 interface PanelState {
+  tab: 'main' | 'board';
   status: string;
   statusSeq: number;
   alert: string;
@@ -280,6 +281,7 @@ const blankResultSlot = (): ResultSlotState => ({
 });
 
 const store = createStore<PanelState>({
+  tab: 'main',
   status: '',
   statusSeq: 0,
   alert: '',
@@ -308,6 +310,10 @@ const store = createStore<PanelState>({
     resetKey: 0,
   },
 });
+
+const selectTab = (tab: 'main' | 'board'): void => {
+  store.set({ tab });
+};
 
 const setKeyForm = (patch: Partial<KeyFormState>): void => {
   store.set({ keyForm: { ...store.get().keyForm, ...patch } });
@@ -1566,6 +1572,7 @@ const onScanPinSelected = async (indices: number[]): Promise<void> => {
 };
 
 const runAnalysis = async (request: TripRequest, origin: 'gesture' | 'panel'): Promise<void> => {
+  selectTab('main');
   abortActive();
   clearStaleTimer();
   const superseded = analysisInFlight;
@@ -2527,6 +2534,7 @@ const planTrip = async (): Promise<void> => {
   if (!provider.capabilities.onDevice && keyStatus.state !== 'ok') {
     analysisInFlight = false;
     pendingRun = { kind: 'itinerary' };
+    selectTab('main');
     showOnboarding(keyStatus.orphaned);
     announceStatus('statusKeyNeeded');
     return;
@@ -2534,6 +2542,7 @@ const planTrip = async (): Promise<void> => {
   if (!provider.capabilities.onDevice && !(await hasConsented())) {
     analysisInFlight = false;
     pendingRun = { kind: 'itinerary' };
+    selectTab('main');
     showConsent(false);
     announceStatus('statusConsentNeeded');
     return;
@@ -2545,6 +2554,7 @@ const planTrip = async (): Promise<void> => {
     store.set({ boardItems: boardItemViews(pins), boardCanPlan: false });
     return;
   }
+  selectTab('main');
   clearContentSlots();
   announceStatus('statusPlanning', String(pins.length));
   showSkeleton(itinId);
@@ -2741,12 +2751,53 @@ const PreviewFrame = ({ preview }: { preview: PreviewState }) => {
   );
 };
 
+const onTabKeyDown = (event: ReactKeyboardEvent): void => {
+  const current = (event.target as HTMLElement).id === 'tab-board' ? 'board' : 'main';
+  let next: 'main' | 'board' | null = null;
+  if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
+    next = current === 'main' ? 'board' : 'main';
+  } else if (event.key === 'Home') {
+    next = 'main';
+  } else if (event.key === 'End') {
+    next = 'board';
+  }
+  if (next) {
+    event.preventDefault();
+    selectTab(next);
+    document.getElementById(next === 'main' ? 'tab-main' : 'tab-board')?.focus();
+  }
+};
+
 const SidepanelApp = () => {
   const state = useSyncExternalStore(store.subscribe, store.get);
   const keyForm = state.keyForm;
+  const main = state.tab === 'main';
   return (
     <main>
       <h1 id="page-title" className="visually-hidden">{msg('appName')}</h1>
+      <div id="tab-bar" role="tablist" aria-label={msg('tabsLabel')} onKeyDown={onTabKeyDown}>
+        <button
+          id="tab-main"
+          role="tab"
+          aria-selected={main}
+          aria-controls="main-panel"
+          tabIndex={main ? 0 : -1}
+          onClick={() => selectTab('main')}
+        >
+          {msg('mainTab')}
+        </button>
+        <button
+          id="tab-board"
+          role="tab"
+          aria-selected={!main}
+          aria-controls="board-panel"
+          tabIndex={main ? -1 : 0}
+          onClick={() => selectTab('board')}
+        >
+          {msg('boardTitle', String(state.boardItems.length))}
+        </button>
+      </div>
+      <section id="main-panel" role="tabpanel" aria-labelledby="tab-main" hidden={!main || undefined}>
       <header id="preview-header">
         <h2 id="preview-heading" className="visually-hidden" tabIndex={-1}>{msg('previewHeading')}</h2>
         <div id="preview-frame">
@@ -2859,6 +2910,8 @@ const SidepanelApp = () => {
         <h3 id="sources-heading" className="visually-hidden">{msg('sourcesHeading')}</h3>
         <SourceChips sources={state.sources} />
       </div>
+      </section>
+      <section id="board-panel" role="tabpanel" aria-labelledby="tab-board" hidden={main || undefined}>
       <div id="board-slot">
         <TripBoard
           items={state.boardItems}
@@ -2870,6 +2923,7 @@ const SidepanelApp = () => {
           onRetryPin={() => void onRetryPin()}
         />
       </div>
+      </section>
       <footer id="page-footer">
         <p id="privacy-line">{state.privacy}</p>
         <details id="links-note">

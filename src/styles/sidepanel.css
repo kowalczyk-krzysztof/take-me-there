@@ -18,6 +18,35 @@ main {
   padding: 16px;
 }
 
+#tab-bar {
+  display: flex;
+  gap: 4px;
+}
+
+#tab-bar [role="tab"] {
+  font: inherit;
+  flex: 1;
+  padding: 8px;
+  background: transparent;
+  color: var(--muted);
+  border: none;
+  border-bottom: 2px solid var(--border);
+  cursor: pointer;
+}
+
+#tab-bar [role="tab"][aria-selected="true"] {
+  color: var(--text);
+  border-bottom-color: var(--link);
+  font-weight: 600;
+}
+
+#main-panel,
+#board-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
 #preview-header {
   position: sticky;
   top: 0;
