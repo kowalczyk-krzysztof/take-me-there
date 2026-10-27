@@ -803,15 +803,40 @@ const identifyAttempt = async (
     // The image failed (unreachable, hotlink-protected, undecodable): one
     // text-only retry from the page signals, flagged lower confidence.
     // Video 400s skip this: the provider owns the two-step video fallback.
-    const result = await identifyAttempt(input, key, usage, buildRequest, true, strictReminder);
-    return {
-      ...result,
-      place: {
-        ...result.place,
-        confidence: Math.min(result.place.confidence, TEXT_FALLBACK_CONFIDENCE_CAP),
-      },
-      textFallback: true,
-    };
+    try {
+      const result = await identifyAttempt(input, key, usage, buildRequest, true, strictReminder);
+      return {
+        ...result,
+        place: {
+          ...result.place,
+          confidence: Math.min(result.place.confidence, TEXT_FALLBACK_CONFIDENCE_CAP),
+        },
+        textFallback: true,
+      };
+    } catch (err) {
+      if (
+        err instanceof ProviderError &&
+        (err.code === 'auth' ||
+          err.code === 'rate_limited' ||
+          err.code === 'network' ||
+          err.code === 'aborted' ||
+          err.code === 'no_key' ||
+          err.code === 'consent_required')
+      ) {
+        throw err;
+      }
+      // Image AND text paths failed: surface the original image-400 (with
+      // the accrued usage) so the panel can offer the Milestone-2
+      // byte-fetch retry.
+      const imageError = new ProviderError(
+        'server',
+        'image unreachable and text fallback failed',
+        false,
+        400,
+      );
+      imageError.usage = { ...usage };
+      throw imageError;
+    }
   }
   if (!res.ok) {
     throw responseError(res);

@@ -728,6 +728,86 @@
     "message": "Sent to Meta's Muse API with your key: place names only.",
     "description": "Privacy footer for duels and alternates."
   },
+  "fetchRetryButton": {
+    "message": "Download image and retry",
+    "description": "Byte-fetch retry button."
+  },
+  "fetchRetryLoading": {
+    "message": "Downloading image...",
+    "description": "Byte-fetch retry loading label."
+  },
+  "fetchDenied": {
+    "message": "Image download permission was denied.",
+    "description": "Byte-fetch denial announcement."
+  },
+  "fetchFailed": {
+    "message": "Could not download the image for retry.",
+    "description": "Byte-fetch failure announcement."
+  },
+  "optionsProviderHeading": {
+    "message": "AI provider",
+    "description": "Options provider section heading."
+  },
+  "providerMuse": {
+    "message": "Meta Muse (recommended)",
+    "description": "Muse provider radio label."
+  },
+  "providerCompat": {
+    "message": "OpenAI-compatible server",
+    "description": "Custom provider radio label."
+  },
+  "compatBaseUrl": {
+    "message": "Server URL",
+    "description": "Custom server URL label."
+  },
+  "compatModel": {
+    "message": "Model",
+    "description": "Custom server model label."
+  },
+  "compatStructured": {
+    "message": "Structured output",
+    "description": "Custom server structured-output label."
+  },
+  "compatStructuredSchema": {
+    "message": "JSON schema",
+    "description": "Structured-output schema option."
+  },
+  "compatStructuredObject": {
+    "message": "JSON object",
+    "description": "Structured-output object option."
+  },
+  "compatInputRate": {
+    "message": "Input price in USD per 1M tokens (optional)",
+    "description": "Custom server input rate label."
+  },
+  "compatOutputRate": {
+    "message": "Output price in USD per 1M tokens (optional)",
+    "description": "Custom server output rate label."
+  },
+  "compatSave": {
+    "message": "Save server",
+    "description": "Custom server save button."
+  },
+  "statusProviderSaved": {
+    "message": "Provider saved.",
+    "description": "Provider switch announcement."
+  },
+  "providerErrorUrl": {
+    "message": "Enter a valid https server URL (http works for localhost only).",
+    "description": "Custom server URL error."
+  },
+  "providerErrorModel": {
+    "message": "Enter a model name.",
+    "description": "Custom server model error."
+  },
+  "providerErrorRates": {
+    "message": "Rates must be blank or non-negative numbers.",
+    "description": "Custom server rates error."
+  },
+  "providerErrorDenied": {
+    "message": "Permission for that server was denied.",
+    "description": "Custom server denial error."
+  },
   "boardNoticePinFail": {
     "message": "Couldn't pin $1 - storage is unavailable.",
     "description": "Visible pin-failure notice.",

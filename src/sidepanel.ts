@@ -47,6 +47,7 @@ import {
   type BoardPin,
 } from './board_store';
 import { buildDestination, buildLinks, mapsDirUrl } from './deep_links';
+import { downscaleToJpegDataUrl, fetchImageBytes } from './image_fetch';
 import { loadKey, saveKey } from './key_vault';
 import { estimateCostUsd, formatUsd, recordMonthSpend } from './pricing';
 import { createGuideRenderer, findGuideStart } from './render_markdown';
@@ -733,6 +734,7 @@ const renderErrorCard = (
   showRetry: boolean,
   withKeySetup: boolean,
   fallback: { label: string; href: string } | null = null,
+  showFetchRetry = false,
 ): void => {
   cancelSkeleton();
   currentView = 'error';
@@ -745,6 +747,7 @@ const renderErrorCard = (
       body: msg(bodyKey),
       showRetry,
       fallback,
+      showFetchRetry,
     });
     if (withKeySetup) {
       keySetup.showSetup();
@@ -767,8 +770,20 @@ const showProviderError = (
   err: unknown,
   request: TripRequest | null,
   privacyOverride?: PrivacyMode,
+  fetchRetryAvailable = false,
 ): void => {
   const privacy = privacyOverride ?? errorPrivacy(request);
+  // Milestone 2: a 400 on the image-bearing identify means the model could
+  // not fetch the remote image, so the card offers the byte-fetch retry.
+  const fetchRetry =
+    fetchRetryAvailable &&
+    err instanceof ProviderError &&
+    err.status === 400 &&
+    !!request &&
+    !request.mediaType &&
+    !request.scanImages &&
+    !request.dataPending &&
+    request.srcUrl.startsWith('https://');
   if (!(err instanceof ProviderError)) {
     renderErrorCard('errorServerTitle', 'errorServerBody', true, false);
     announceAlert('alertServer');
@@ -810,7 +825,7 @@ const showProviderError = (
     'errorServerBody',
     'alertServer',
   ];
-  renderErrorCard(titleKey, bodyKey, true, false);
+  renderErrorCard(titleKey, bodyKey, true, false, null, fetchRetry);
   announceAlert(alertKey);
   updatePrivacy(privacy);
 };
@@ -973,7 +988,12 @@ const identifyAndGuide = async (args: IdentifyArgs): Promise<RunOutcome> => {
       return 'aborted';
     }
     recordPartialUsage(err, provider);
-    showProviderError(err, request);
+    showProviderError(
+      err,
+      request,
+      undefined,
+      !request.mediaType && !request.scanImages && !request.frame,
+    );
     analysisInFlight = false;
     return 'error';
   }
@@ -1578,6 +1598,71 @@ const retry = async (): Promise<void> => {
     await runScanGuide(target.request, target.index, 'panel');
   } else {
     await runAnalysis(target.request, 'panel');
+  }
+};
+
+// Milestone 2: the model could not fetch the remote image, so the panel
+// downloads the bytes itself (per-origin grant, credentials omitted) and
+// retries with a data: URL. The grant is removed in the finally so it never
+// outlives the click.
+const fetchRetry = async (): Promise<void> => {
+  const target =
+    lastRun?.kind === 'request' ? lastRun.request : (
+      activeRequest?.mediaType === undefined ? activeRequest : null
+    );
+  const srcUrl = target?.srcUrl ?? '';
+  if (
+    !target ||
+    target.mediaType ||
+    target.scanImages ||
+    target.dataPending ||
+    !srcUrl.startsWith('https://')
+  ) {
+    return;
+  }
+  let origin: string;
+  try {
+    origin = new URL(srcUrl).origin;
+  } catch {
+    return;
+  }
+  // Gesture rule: the permission prompt is the first await in this handler.
+  let granted = false;
+  try {
+    granted = await chrome.permissions.request({ origins: [`${origin}/*`] });
+  } catch {
+    granted = false;
+  }
+  if (!granted) {
+    announceAlert('fetchDenied');
+    return;
+  }
+  try {
+    abortActive();
+    clearStaleTimer();
+    announceStatus('statusAnalyzing');
+    const controller = new AbortController();
+    activeController = controller;
+    let dataUrl: string;
+    try {
+      const bytes = await fetchImageBytes(srcUrl, controller.signal);
+      dataUrl = await downscaleToJpegDataUrl(bytes);
+    } catch {
+      if (!controller.signal.aborted) {
+        announceAlert('fetchFailed');
+      }
+      return;
+    }
+    if (controller.signal.aborted) {
+      return;
+    }
+    await runAnalysis({ ...target, srcUrl: dataUrl, dataPending: false }, 'panel');
+  } finally {
+    try {
+      await chrome.permissions.remove({ origins: [`${origin}/*`] });
+    } catch {
+      // The grant is already gone; nothing to clean up.
+    }
   }
 };
 
@@ -2300,6 +2385,9 @@ export const initPanel = (): void => {
 
   tripCard.addEventListener('trip-retry', () => {
     void retry();
+  });
+  tripCard.addEventListener('trip-fetch-retry', () => {
+    void fetchRetry();
   });
   tripCard.addEventListener('trip-look-again', () => {
     void lookAgain();

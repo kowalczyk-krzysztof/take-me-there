@@ -151,4 +151,113 @@ describe('options', () => {
     expect(await loadKey('muse')).toEqual({ state: 'missing', orphaned: false });
     expect(mock.local.data.has('apiKey:muse')).toBe(false);
   });
+
+  it('saves a custom server after the origin grant', async () => {
+    const mock = await setup();
+    const permsRequest = vi.fn().mockResolvedValue(true);
+    (chrome as unknown as { permissions: unknown }).permissions = { request: permsRequest };
+    const compat = document.querySelector('#provider-compat') as HTMLInputElement;
+    compat.checked = true;
+    compat.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(document.querySelector('#compat-fields')?.hasAttribute('hidden')).toBe(false);
+    (document.querySelector('#compat-base-url') as HTMLInputElement).value =
+      'https://llm.example.com/v1/';
+    (document.querySelector('#compat-model') as HTMLInputElement).value = 'test-model';
+    (document.querySelector('#compat-structured') as HTMLSelectElement).value = 'json_schema';
+    (document.querySelector('#compat-input-rate') as HTMLInputElement).value = '1.5';
+    (document.querySelector('#compat-save') as HTMLButtonElement).click();
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('statusProviderSaved');
+    });
+    expect(permsRequest).toHaveBeenCalledWith({ origins: ['https://llm.example.com/*'] });
+    expect(mock.local.data.get('settings')).toEqual({
+      activeProviderId: 'openai_compat',
+      openaiCompat: {
+        baseURL: 'https://llm.example.com/v1',
+        model: 'test-model',
+        structuredOutput: 'json_schema',
+        inputRatePerM: 1.5,
+      },
+      imageOnly: false,
+      sessionOnly: false,
+    });
+  });
+
+  it('rejects bad server URLs, models, rates, and denials', async () => {
+    const mock = await setup();
+    const permsRequest = vi.fn().mockResolvedValue(false);
+    (chrome as unknown as { permissions: unknown }).permissions = { request: permsRequest };
+    const compat = document.querySelector('#provider-compat') as HTMLInputElement;
+    compat.checked = true;
+    compat.dispatchEvent(new Event('change', { bubbles: true }));
+    const save = document.querySelector('#compat-save') as HTMLButtonElement;
+    const baseUrl = document.querySelector('#compat-base-url') as HTMLInputElement;
+    const model = document.querySelector('#compat-model') as HTMLInputElement;
+    const error = () => document.querySelector('#compat-error')?.textContent;
+    baseUrl.value = 'https://remote.example.com:81/x';
+    save.click();
+    await waitFor(() => {
+      expect(error()).toBe('providerErrorModel');
+    });
+    baseUrl.value = 'not a url';
+    model.value = 'm';
+    save.click();
+    await waitFor(() => {
+      expect(error()).toBe('providerErrorUrl');
+    });
+    baseUrl.value = 'http://remote.example.com/v1';
+    save.click();
+    await waitFor(() => {
+      expect(error()).toBe('providerErrorUrl');
+    });
+    baseUrl.value = 'http://localhost:11434/v1';
+    (document.querySelector('#compat-input-rate') as HTMLInputElement).value = '-2';
+    save.click();
+    await waitFor(() => {
+      expect(error()).toBe('providerErrorRates');
+    });
+    (document.querySelector('#compat-input-rate') as HTMLInputElement).value = '';
+    save.click();
+    await waitFor(() => {
+      expect(error()).toBe('providerErrorDenied');
+    });
+    expect(permsRequest).toHaveBeenCalledWith({ origins: ['http://localhost:11434/*'] });
+    expect(mock.local.data.get('settings')).toBeUndefined();
+  });
+
+  it('switches back to Muse immediately', async () => {
+    const mock = await setup(async (inner) => {
+      await inner.local.set({
+        settings: {
+          activeProviderId: 'openai_compat',
+          openaiCompat: {
+            baseURL: 'https://llm.example.com/v1',
+            model: 'm',
+            structuredOutput: 'json_object',
+          },
+          imageOnly: false,
+          sessionOnly: false,
+        },
+      });
+    });
+    await waitFor(() => {
+      expect(
+        (document.querySelector('#provider-compat') as HTMLInputElement).checked,
+      ).toBe(true);
+    });
+    expect(document.querySelector('#compat-fields')?.hasAttribute('hidden')).toBe(false);
+    expect((document.querySelector('#compat-base-url') as HTMLInputElement).value).toBe(
+      'https://llm.example.com/v1',
+    );
+    const muse = document.querySelector('#provider-muse') as HTMLInputElement;
+    muse.checked = true;
+    muse.dispatchEvent(new Event('change', { bubbles: true }));
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('statusProviderSaved');
+    });
+    expect(document.querySelector('#compat-fields')?.hasAttribute('hidden')).toBe(true);
+    expect((mock.local.data.get('settings') as { activeProviderId: string }).activeProviderId).toBe(
+      'muse',
+    );
+  });
 });

@@ -169,6 +169,24 @@ describe('muse identify', () => {
     expect(typeof requestBody(1).messages[1].content).toBe('string');
   });
 
+  it('surfaces the image-400 when the text fallback also fails', async () => {
+    await consented();
+    fetchMock
+      .mockResolvedValueOnce(new Response('bad image', { status: 400 }))
+      .mockResolvedValueOnce(new Response('boom', { status: 500 }));
+    await expect(provider.identifyPlace('LLM_key', identifyInput())).rejects.toMatchObject({
+      code: 'server',
+      status: 400,
+    });
+    fetchMock.mockReset();
+    fetchMock
+      .mockResolvedValueOnce(new Response('bad image', { status: 400 }))
+      .mockResolvedValueOnce(new Response('slow down', { status: 429 }));
+    await expect(provider.identifyPlace('LLM_key', identifyInput())).rejects.toMatchObject({
+      code: 'rate_limited',
+    });
+  });
+
   it('maps network failures and aborts', async () => {
     await consented();
     fetchMock.mockRejectedValue(new TypeError('fetch failed'));

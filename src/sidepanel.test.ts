@@ -1065,6 +1065,94 @@ describe('sidepanel', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it('retries an image-400 with downloaded bytes', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    const permsRequest = vi.fn().mockResolvedValue(true);
+    const permsRemove = vi.fn().mockResolvedValue(undefined);
+    (chrome as unknown as { permissions: unknown }).permissions = {
+      request: permsRequest,
+      remove: permsRemove,
+    };
+    vi.stubGlobal('createImageBitmap', vi.fn().mockResolvedValue({ width: 400, height: 300, close: vi.fn() }));
+    vi.stubGlobal(
+      'OffscreenCanvas',
+      vi.fn().mockImplementation(function (this: unknown) {
+        return {
+          getContext: () => ({ drawImage: vi.fn() }),
+          convertToBlob: async () => new Blob(['fakejpeg']),
+        };
+      }),
+    );
+    fetchMock
+      .mockResolvedValueOnce(new Response('bad image', { status: 400 }))
+      .mockResolvedValueOnce(new Response('boom', { status: 500 }))
+      .mockResolvedValueOnce(new Response(new Uint8Array([1, 2, 3])))
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
+      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
+    await mock.session.set({ tripRequest: READY() });
+    await waitFor(() => {
+      const card = document.querySelector('trip-card');
+      expect(card?.shadowRoot?.querySelectorAll('button')).toHaveLength(2);
+    });
+    const card = document.querySelector('trip-card') as HTMLElement;
+    const buttons = card.shadowRoot?.querySelectorAll('button');
+    expect(buttons?.[1]?.textContent).toBe('fetchRetryButton');
+    (buttons?.[1] as HTMLButtonElement).click();
+    await waitFor(() => {
+      const retried = document.querySelector('trip-card');
+      expect(retried?.shadowRoot?.querySelector('h2')?.textContent).toBe('Oia');
+    });
+    await waitFor(() => {
+      expect(document.querySelector('#guide-content')?.textContent).toContain('Hello world');
+    });
+    expect(permsRequest).toHaveBeenCalledWith({ origins: ['https://cdn.example.com/*'] });
+    expect(permsRemove).toHaveBeenCalledWith({ origins: ['https://cdn.example.com/*'] });
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(fetchMock.mock.calls[2][0]).toBe('https://cdn.example.com/oia.jpg');
+    const retryInit = fetchMock.mock.calls[3][1] as RequestInit;
+    const retryBody = JSON.parse(retryInit.body as string) as {
+      messages: Array<{ content: Array<{ type: string; image_url?: { url: string } }> }>;
+    };
+    const imagePart = retryBody.messages[1].content.find((part) => part.type === 'image_url');
+    expect(imagePart?.image_url?.url.startsWith('data:image/jpeg;base64,')).toBe(true);
+  });
+
+  it('announces denial and hides the fetch button on non-400 errors', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    const permsRequest = vi.fn().mockResolvedValue(false);
+    const permsRemove = vi.fn().mockResolvedValue(undefined);
+    (chrome as unknown as { permissions: unknown }).permissions = {
+      request: permsRequest,
+      remove: permsRemove,
+    };
+    fetchMock
+      .mockResolvedValueOnce(new Response('bad image', { status: 400 }))
+      .mockResolvedValueOnce(new Response('boom', { status: 500 }));
+    await mock.session.set({ tripRequest: READY() });
+    await waitFor(() => {
+      const card = document.querySelector('trip-card');
+      expect(card?.shadowRoot?.querySelectorAll('button')).toHaveLength(2);
+    });
+    const card = document.querySelector('trip-card') as HTMLElement;
+    const buttons = card.shadowRoot?.querySelectorAll('button');
+    (buttons?.[1] as HTMLButtonElement).click();
+    await waitFor(() => {
+      expect(document.querySelector('#alert-region')?.textContent).toBe('fetchDenied');
+    });
+    expect(permsRemove).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    fetchMock.mockReset();
+    fetchMock.mockResolvedValueOnce(new Response('boom', { status: 500 }));
+    await mock.session.set({ tripRequest: READY({ requestId: '200-2' }) });
+    await waitFor(() => {
+      const retry = document.querySelector('trip-card');
+      expect(retry?.shadowRoot?.querySelector('h2')?.textContent).toBe('errorServerTitle');
+      expect(retry?.shadowRoot?.querySelectorAll('button')).toHaveLength(1);
+    });
+  });
+
   it('renders honest cards with fallback links for unreadable video', async () => {
     const mock = await setup();
     await plantKeyAndConsent();

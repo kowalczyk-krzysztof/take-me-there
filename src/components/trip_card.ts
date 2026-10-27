@@ -58,6 +58,7 @@ export type CardState =
     body: string;
     showRetry: boolean;
     fallback?: { label: string; href: string } | null;
+    showFetchRetry?: boolean;
   }
   | {
     view: 'itinerary';
@@ -117,7 +118,13 @@ export class TripCardElement extends HTMLElement {
         this.renderNoPlace(state.showLookAgain, state.fallback);
         break;
       case 'error':
-        this.renderError(state.title, state.body, state.showRetry, state.fallback ?? null);
+        this.renderError(
+          state.title,
+          state.body,
+          state.showRetry,
+          state.fallback ?? null,
+          state.showFetchRetry ?? false,
+        );
         break;
       case 'itinerary':
         this.renderItinerary(state.title, state.stops, state.mapsUrl, state.mapsLabel);
@@ -402,6 +409,7 @@ export class TripCardElement extends HTMLElement {
     body: string,
     showRetry: boolean,
     fallback: { label: string; href: string } | null,
+    showFetchRetry: boolean,
   ): void {
     const heading = document.createElement('h2');
     heading.tabIndex = -1;
@@ -412,6 +420,11 @@ export class TripCardElement extends HTMLElement {
     if (showRetry) {
       this.root.append(
         this.oneShotButton(msg('retryButton'), msg('retryingButton'), 'trip-retry'),
+      );
+    }
+    if (showFetchRetry) {
+      this.root.append(
+        this.oneShotButton(msg('fetchRetryButton'), msg('fetchRetryLoading'), 'trip-fetch-retry'),
       );
     }
     if (fallback) {

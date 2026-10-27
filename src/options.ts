@@ -1,6 +1,6 @@
 // Options page: key management around the shared key form, the image-only
-// toggle, the monthly cost total with reset, and the privacy disclosure.
-// Custom-provider settings arrive with the Milestone 2 release.
+// toggle, the AI provider switch with custom-server settings (Milestone 2),
+// the monthly cost total with reset, and the privacy disclosure.
 import './components/key_setup';
 import type {
   KeySaveRequestDetail,
@@ -49,12 +49,42 @@ export const initOptions = (): void => {
   req<HTMLButtonElement>('clear-key').textContent = msg('clearKeyButton');
   req<HTMLButtonElement>('reset-cost').textContent = msg('resetCostButton');
   req('image-only-label').textContent = msg('imageOnlyLabel');
+  req('provider-heading').textContent = msg('optionsProviderHeading');
+  req('provider-muse-label').textContent = msg('providerMuse');
+  req('provider-compat-label').textContent = msg('providerCompat');
+  req('compat-base-url-label').textContent = msg('compatBaseUrl');
+  req('compat-model-label').textContent = msg('compatModel');
+  req('compat-structured-label').textContent = msg('compatStructured');
+  req('compat-structured-schema').textContent = msg('compatStructuredSchema');
+  req('compat-structured-object').textContent = msg('compatStructuredObject');
+  req('compat-input-rate-label').textContent = msg('compatInputRate');
+  req('compat-output-rate-label').textContent = msg('compatOutputRate');
+  req<HTMLButtonElement>('compat-save').textContent = msg('compatSave');
   req('cost-heading').textContent = msg('optionsCostHeading');
   req('privacy-heading').textContent = msg('optionsPrivacyHeading');
   req('privacy-body').textContent = msg('optionsPrivacyBody');
   const statusRegion = req('status-region');
   const costLine = req('cost-line');
   const imageOnlyBox = req<HTMLInputElement>('image-only');
+  const museRadio = req<HTMLInputElement>('provider-muse');
+  const compatRadio = req<HTMLInputElement>('provider-compat');
+  const compatFields = req('compat-fields');
+  const baseUrlInput = req<HTMLInputElement>('compat-base-url');
+  const modelInput = req<HTMLInputElement>('compat-model');
+  const structuredSelect = req<HTMLSelectElement>('compat-structured');
+  const inputRateInput = req<HTMLInputElement>('compat-input-rate');
+  const outputRateInput = req<HTMLInputElement>('compat-output-rate');
+  const compatError = req('compat-error');
+
+  const showCompatError = (key: string | null): void => {
+    if (!key) {
+      compatError.hidden = true;
+      compatError.textContent = '';
+      return;
+    }
+    compatError.hidden = false;
+    compatError.textContent = msg(key);
+  };
 
   const keySetup = document.createElement('key-setup') as KeySetupElement;
   req('key-host').append(keySetup);
@@ -67,6 +97,21 @@ export const initOptions = (): void => {
   void loadSettings().then((settings) => {
     keySetup.setSessionOnly(settings.sessionOnly);
     imageOnlyBox.checked = settings.imageOnly;
+    const compatActive = settings.activeProviderId === 'openai_compat';
+    museRadio.checked = !compatActive;
+    compatRadio.checked = compatActive;
+    compatFields.hidden = !compatActive;
+    baseUrlInput.value = settings.openaiCompat.baseURL;
+    modelInput.value = settings.openaiCompat.model;
+    structuredSelect.value = settings.openaiCompat.structuredOutput;
+    inputRateInput.value =
+      settings.openaiCompat.inputRatePerM === undefined
+        ? ''
+        : String(settings.openaiCompat.inputRatePerM);
+    outputRateInput.value =
+      settings.openaiCompat.outputRatePerM === undefined
+        ? ''
+        : String(settings.openaiCompat.outputRatePerM);
   });
   void refreshCost().catch(() => {
     costLine.textContent = msg('optionsCostMonth', formatUsd(0));
@@ -160,6 +205,99 @@ export const initOptions = (): void => {
     void (async () => {
       const settings = await loadSettings();
       await saveSettings({ ...settings, imageOnly: imageOnlyBox.checked });
+    })();
+  });
+
+  museRadio.addEventListener('change', () => {
+    if (!museRadio.checked) {
+      return;
+    }
+    void (async () => {
+      const settings = await loadSettings();
+      await saveSettings({ ...settings, activeProviderId: 'muse' });
+      compatFields.hidden = true;
+      showCompatError(null);
+      statusRegion.textContent = msg('statusProviderSaved');
+    })();
+  });
+
+  compatRadio.addEventListener('change', () => {
+    if (!compatRadio.checked) {
+      return;
+    }
+    // Reveals the server form; the switch itself lands on Save, after the
+    // origin grant.
+    compatFields.hidden = false;
+  });
+
+  req<HTMLButtonElement>('compat-save').addEventListener('click', () => {
+    void (async () => {
+      showCompatError(null);
+      const baseURL = baseUrlInput.value.trim().replace(/\/+$/, '');
+      let origin = '';
+      try {
+        const parsed = new URL(baseURL);
+        const local =
+          parsed.hostname === 'localhost' ||
+          parsed.hostname === '127.0.0.1' ||
+          parsed.hostname === '[::1]';
+        if (
+          (parsed.protocol !== 'https:' && !(parsed.protocol === 'http:' && local)) ||
+          !parsed.hostname
+        ) {
+          throw new Error('unsupported server URL');
+        }
+        origin = parsed.origin;
+      } catch {
+        showCompatError('providerErrorUrl');
+        return;
+      }
+      const model = modelInput.value.trim();
+      if (!model) {
+        showCompatError('providerErrorModel');
+        return;
+      }
+      const parseRate = (raw: string): number | undefined => {
+        const trimmed = raw.trim();
+        if (!trimmed) {
+          return undefined;
+        }
+        const value = Number(trimmed);
+        return Number.isFinite(value) && value >= 0 ? value : NaN;
+      };
+      const inputRatePerM = parseRate(inputRateInput.value);
+      const outputRatePerM = parseRate(outputRateInput.value);
+      if (Number.isNaN(inputRatePerM) || Number.isNaN(outputRatePerM)) {
+        showCompatError('providerErrorRates');
+        return;
+      }
+      // The user-specified server pattern: one persistent per-origin grant
+      // for the configured baseURL (unlike the M2 byte-fetch, this grant is
+      // needed for every call, so it is never removed here).
+      let granted = false;
+      try {
+        granted = await chrome.permissions.request({ origins: [`${origin}/*`] });
+      } catch {
+        granted = false;
+      }
+      if (!granted) {
+        showCompatError('providerErrorDenied');
+        return;
+      }
+      const settings = await loadSettings();
+      await saveSettings({
+        ...settings,
+        activeProviderId: 'openai_compat',
+        openaiCompat: {
+          baseURL,
+          model,
+          structuredOutput:
+            structuredSelect.value === 'json_schema' ? 'json_schema' : 'json_object',
+          ...(inputRatePerM === undefined ? {} : { inputRatePerM }),
+          ...(outputRatePerM === undefined ? {} : { outputRatePerM }),
+        },
+      });
+      statusRegion.textContent = msg('statusProviderSaved');
     })();
   });
 

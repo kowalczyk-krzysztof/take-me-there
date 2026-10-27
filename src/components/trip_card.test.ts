@@ -194,6 +194,22 @@ describe('trip-card', () => {
     expect(root.querySelector('button')).toBeNull();
   });
 
+  it('renders the byte-fetch retry alongside the plain retry', () => {
+    const { el, root } = mount();
+    const seen: string[] = [];
+    el.addEventListener('trip-fetch-retry', () => seen.push('fetch'));
+    el.addEventListener('trip-retry', () => seen.push('plain'));
+    el.setCard({ view: 'error', title: 'T', body: 'B', showRetry: true, showFetchRetry: true });
+    const buttons = root.querySelectorAll('button');
+    expect(buttons).toHaveLength(2);
+    expect(buttons[1]?.textContent).toBe('fetchRetryButton');
+    (buttons[1] as HTMLButtonElement).click();
+    expect(buttons[1]?.textContent).toBe('fetchRetryLoading');
+    expect(seen).toEqual(['fetch']);
+    (buttons[1] as HTMLButtonElement).click();
+    expect(seen).toEqual(['fetch']);
+  });
+
   it('focuses its heading on request', () => {
     const { el, root } = mount();
     el.setCard({ view: 'result', place: PLACE, lowConfidence: false, pinned: false });
