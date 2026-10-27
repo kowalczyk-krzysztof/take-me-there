@@ -39,7 +39,9 @@ const BoardItem = ({ host, item }: { host: HTMLElement; item: BoardItemView }) =
         src={item.image}
         onError={(event) => event.currentTarget.remove()}
       />
-    ) : null}
+    ) : (
+      <div className="thumb-monogram" aria-hidden="true">{item.title.trim().charAt(0)}</div>
+    )}
     <div className="item-text">
       <p className="item-name">{item.title}</p>
       <p className="item-host">{item.host}</p>

@@ -102,9 +102,19 @@ trip-card { display: block; }trip-card h2 {
   border: 1px solid var(--border);
   border-radius: 4px;
   padding: 8px;
-}trip-card .alternate-name {
+}trip-card .alternate-head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
   margin: 0 0 4px;
+}trip-card .alternate-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}trip-card .alternate-name {
+  margin: 0;
   font-weight: 600;
+  flex: 1;
 }trip-card .alternate-why {
   margin: 0 0 4px;
   font-size: 13px;

@@ -1029,7 +1029,7 @@ describe('sidepanel', () => {
     });
     const fresh = document.querySelector('trip-card') as HTMLElement;
     expect(fresh.querySelectorAll('.alternate-card')).toHaveLength(2);
-    (fresh.querySelector('.alternate-card button') as HTMLButtonElement).click();
+    (fresh.querySelector('.alternate-actions button:not(.pin-button)') as HTMLButtonElement).click();
     await waitFor(() => {
       const grid = document.querySelector('booking-grid');
       const tiles = grid?.querySelectorAll('a.tile');
@@ -1039,6 +1039,46 @@ describe('sidepanel', () => {
     expect(document.querySelector('#guide-content')?.textContent).toBe('Hello world');
     expect(document.querySelector('#privacy-line')?.textContent).toBe('privacyNames');
     expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
+  it('pins alternates to the board with a monogram tile', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    fetchMock
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
+      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]))
+      .mockResolvedValueOnce(
+        groundedResponse({
+          alternatives: [
+            { placeName: 'Fira', country: 'Greece', why: 'Same caldera, lower prices.', bestMonth: 'May' },
+          ],
+        }),
+      );
+    await mock.session.set({ tripRequest: READY() });
+    await waitFor(() => {
+      const card = document.querySelector('trip-card');
+      expect(card?.querySelector('h2')?.textContent).toBe('Oia');
+    });
+    const card = document.querySelector('trip-card') as HTMLElement;
+    (card.querySelector('.chips-row .chip') as HTMLButtonElement).click();
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('alternatesReady');
+    });
+    const fresh = document.querySelector('trip-card') as HTMLElement;
+    const pin = fresh.querySelector('.alternate-card .pin-button') as HTMLButtonElement;
+    expect(pin.getAttribute('aria-pressed')).toBe('false');
+    expect(fresh.querySelector('.alternate-card .thumb-monogram')?.textContent).toBe('F');
+    pin.click();
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned');
+    });
+    const board = document.querySelector('trip-board') as HTMLElement;
+    const entries = board.querySelectorAll('li');
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.querySelector('.item-name')?.textContent).toContain('Fira');
+    expect(entries[0]?.querySelector('.thumb-monogram')?.textContent).toBe('F');
+    const synced = document.querySelector('trip-card') as HTMLElement;
+    expect(synced.querySelector('.alternate-card .pin-button')?.getAttribute('aria-pressed')).toBe('true');
   });
 
   it('recovers from alternates failure with chips intact', async () => {

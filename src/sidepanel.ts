@@ -17,10 +17,12 @@ import type {
   ScanPinSelectedDetail,
 } from './components/scan_list';
 import type {
+  AlternateCardView,
   AlternatesView,
   CompareOptionView,
   TripAlternatesDetail,
   TripCompareDetail,
+  TripPinAlternateDetail,
   TripPlanInsteadDetail,
 } from './components/trip_card';
 import type {
@@ -1975,20 +1977,30 @@ const FINDING_KEYS: Record<AlternateIntent, string> = {
   similar: 'alternatesFindingSimilar',
 };
 
-const alternatesView = (): AlternatesView => {
+const alternatePlaceResult = (alt: PlaceAlternate): PlaceResult => ({
+  identified: true,
+  placeName: alt.placeName,
+  city: '',
+  country: alt.country,
+  confidence: 0,
+  oneLiner: alt.why,
+});
+
+const alternatesView = async (): Promise<AlternatesView> => {
   if (alternatesLoading) {
     return { state: 'loading', intent: alternatesLoading };
   }
   if (currentAlternates) {
-    return {
-      state: 'ready',
-      intent: currentAlternates.intent,
-      cards: currentAlternates.alternatives.map((alt) => ({
+    const cards: AlternateCardView[] = [];
+    for (const alt of currentAlternates.alternatives) {
+      cards.push({
         name: buildDestination(alt.placeName, '', alt.country),
         why: alt.why,
         bestMonth: alt.bestMonth,
-      })),
-    };
+        pinned: await isPlacePinned(alternatePlaceResult(alt)),
+      });
+    }
+    return { state: 'ready', intent: currentAlternates.intent, cards };
   }
   return { state: 'idle' };
 };
@@ -2033,7 +2045,7 @@ const resultCardProps = async (
   pinned: await isPlacePinned(place),
   onDevice: currentOnDevice,
   compareOptions: await compareOptionViews(place),
-  alternates: alternatesView(),
+  alternates: await alternatesView(),
 });
 
 const refreshResultCard = async (): Promise<void> => {
@@ -2234,6 +2246,17 @@ const runAlternates = async (intent: AlternateIntent): Promise<void> => {
 
 const onAlternates = async (detail: TripAlternatesDetail): Promise<void> => {
   await runAlternates(detail.intent);
+};
+
+const onPinAlternate = async (detail: TripPinAlternateDetail): Promise<void> => {
+  const target = currentAlternates?.alternatives[detail.index];
+  if (!target) {
+    return;
+  }
+  await attemptPin({
+    place: alternatePlaceResult(target),
+    sourceHost: sourceHostFor(activeRequest),
+  });
 };
 
 const onPlanInstead = async (detail: TripPlanInsteadDetail): Promise<void> => {
@@ -2709,6 +2732,9 @@ export const initPanel = (): void => {
   });
   tripCard.addEventListener('trip-alternates', (event) => {
     void onAlternates((event as CustomEvent<TripAlternatesDetail>).detail);
+  });
+  tripCard.addEventListener('trip-pin-alternate', (event) => {
+    void onPinAlternate((event as CustomEvent<TripPinAlternateDetail>).detail);
   });
   tripCard.addEventListener('trip-plan-instead', (event) => {
     void onPlanInstead((event as CustomEvent<TripPlanInsteadDetail>).detail);

@@ -24,6 +24,11 @@ export interface AlternateCardView {
   name: string;
   why: string;
   bestMonth: string;
+  pinned: boolean;
+}
+
+export interface TripPinAlternateDetail {
+  index: number;
 }
 
 export type AlternatesView =
@@ -204,17 +209,32 @@ const AlternatesView = ({ host, alternates }: { host: HTMLElement; alternates: A
     <div className="alternates" aria-busy="false">
       {alternates.cards.map((card, index) => (
         <div key={index} className="alternate-card">
-          <p className="alternate-name">{card.name}</p>
+          <div className="alternate-head">
+            <div className="thumb-monogram" aria-hidden="true">{card.name.trim().charAt(0)}</div>
+            <p className="alternate-name">{card.name}</p>
+          </div>
           <p className="alternate-why">{card.why}</p>
           <p className="alternate-month">{msg('alternatesBestMonth', card.bestMonth)}</p>
-          <button
-            type="button"
-            onClick={() => {
-              emit(host, 'trip-plan-instead', { index } satisfies TripPlanInsteadDetail);
-            }}
-          >
-            {msg('alternatesInstead', card.name)}
-          </button>
+          <div className="alternate-actions">
+            <button
+              type="button"
+              className="pin-button"
+              aria-pressed={card.pinned}
+              onClick={() => {
+                emit(host, 'trip-pin-alternate', { index } satisfies TripPinAlternateDetail);
+              }}
+            >
+              {msg('pinButton', card.name)}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                emit(host, 'trip-plan-instead', { index } satisfies TripPlanInsteadDetail);
+              }}
+            >
+              {msg('alternatesInstead', card.name)}
+            </button>
+          </div>
         </div>
       ))}
     </div>

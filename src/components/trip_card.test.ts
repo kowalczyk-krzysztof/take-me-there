@@ -122,7 +122,7 @@ describe('trip-card', () => {
       alternates: {
         state: 'ready',
         intent: 'cheaper',
-        cards: [{ name: 'Fira, Greece', why: 'Same caldera, lower prices.', bestMonth: 'May' }],
+        cards: [{ name: 'Fira, Greece', why: 'Same caldera, lower prices.', bestMonth: 'May', pinned: false }],
       },
     });
     expect(root.querySelector('.alternates-skeletons')).toBeNull();
@@ -131,7 +131,37 @@ describe('trip-card', () => {
     expect(root.querySelector('.alternate-month')?.textContent).toBe('alternatesBestMonth');
     const seen: unknown[] = [];
     el.addEventListener('trip-plan-instead', (event) => seen.push((event as CustomEvent).detail));
-    (root.querySelector('.alternate-card button') as HTMLButtonElement).click();
+    (root.querySelector('.alternate-actions button:not(.pin-button)') as HTMLButtonElement).click();
+    expect(seen).toEqual([{ index: 0 }]);
+  });
+
+  it('pins alternate cards with a monogram tile', () => {
+    const { el, root } = mount();
+    el.setCard({
+      view: 'result',
+      place: PLACE,
+      lowConfidence: false,
+      pinned: false,
+      alternates: {
+        state: 'ready',
+        intent: 'cheaper',
+        cards: [
+          { name: 'Fira, Greece', why: 'Same caldera, lower prices.', bestMonth: 'May', pinned: false },
+          { name: 'Oia, Greece', why: 'Same island.', bestMonth: 'June', pinned: true },
+        ],
+      },
+    });
+    const tiles = root.querySelectorAll('.alternate-card .thumb-monogram');
+    expect(tiles).toHaveLength(2);
+    expect(tiles[0]?.textContent).toBe('F');
+    expect(tiles[0]?.getAttribute('aria-hidden')).toBe('true');
+    const pins = root.querySelectorAll('.alternate-card .pin-button') as NodeListOf<HTMLButtonElement>;
+    expect(pins).toHaveLength(2);
+    expect(pins[0]?.getAttribute('aria-pressed')).toBe('false');
+    expect(pins[1]?.getAttribute('aria-pressed')).toBe('true');
+    const seen: unknown[] = [];
+    el.addEventListener('trip-pin-alternate', (event) => seen.push((event as CustomEvent).detail));
+    pins[0]?.click();
     expect(seen).toEqual([{ index: 0 }]);
   });
 

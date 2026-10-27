@@ -43,6 +43,9 @@ describe('trip-board', () => {
     expect(thumb?.getAttribute('src')).toBe('data:image/jpeg,aaa');
     expect(thumb?.alt).toBe('');
     expect(entries[1].querySelector('img')).toBeNull();
+    const mono = entries[1].querySelector('.thumb-monogram');
+    expect(mono?.textContent).toBe('F');
+    expect(mono?.getAttribute('aria-hidden')).toBe('true');
     const detail = vi.fn();
     el.addEventListener('trip-remove-pin', (event) => detail((event as CustomEvent).detail));
     (entries[0].querySelector('button') as HTMLButtonElement).click();

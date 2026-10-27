@@ -54,6 +54,20 @@ button, a, input, select, summary {
   min-height: 14px;
 }
 
+.thumb-monogram {
+  width: 48px;
+  height: 48px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  background: var(--badge-surface);
+  color: var(--badge);
+  font-size: 20px;
+  font-weight: 700;
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .skeleton-block {
     background: linear-gradient(90deg, var(--surface) 25%, var(--border) 50%, var(--surface) 75%);
