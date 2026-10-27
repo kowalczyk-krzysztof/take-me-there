@@ -32,7 +32,6 @@ this same table.
 | Full-video analysis (after the one-time video confirm) | The video's web address (Meta's servers fetch the video, including its soundtrack), plus the same page context | `https://api.meta.ai` | Identify the place from motion and audio |
 | Trip-board planning ("Plan this trip") | Pinned thumbnails (pixels), their place names, and the addresses of the sites they were pinned from | `https://api.meta.ai` | Sequence the stops and narrate the itinerary |
 | Booking-link click | The destination name, embedded in the link URL you clicked | The booking site you chose (Google, Airbnb, Booking.com, GetYourGuide, TripAdvisor, Expedia) | Open that site's search results |
-| Manual-destination mode | Nothing leaves the browser | Nowhere | Links are built locally with no AI call |
 
 Notes:
 
@@ -85,8 +84,6 @@ with explicit per-user consent.
 - Options page: view or clear the saved key, toggle session-only mode,
   view or reset the monthly cost total.
 - Consent gate: decline ("Not now") to discard a staged analysis.
-- Keyless baseline: without any key, the manual-destination input still
-  builds booking links locally, sending nothing anywhere.
 - Uninstall: removes every stored item listed above.
 
 ## Contact

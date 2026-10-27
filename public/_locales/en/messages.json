@@ -63,10 +63,6 @@
     "message": "Analysis canceled - analyzing new image",
     "description": "Coalesced announcement when a click supersedes a run."
   },
-  "statusManualGuide": {
-    "message": "Writing trip guide…",
-    "description": "Status announcement when a manual guide starts."
-  },
   "statusKeyNeeded": {
     "message": "Add your Muse API key to analyze this image.",
     "description": "Status announcement when the key setup appears."
@@ -78,10 +74,6 @@
   "statusConsentDeclined": {
     "message": "Analysis discarded.",
     "description": "Status announcement when consent is declined."
-  },
-  "statusManualNoKey": {
-    "message": "Booking links ready - add a key for the trip guide.",
-    "description": "Status announcement for a keyless manual destination."
   },
   "statusNoPlace": {
     "message": "No specific place found.",
@@ -203,10 +195,6 @@
     "message": "Re-analyze",
     "description": "Wrong-place re-analysis button."
   },
-  "editDestinationButton": {
-    "message": "Edit destination",
-    "description": "Wrong-place manual edit button."
-  },
   "notThisPlace": {
     "message": "Not this place?",
     "description": "Wrong-place disclosure summary."
@@ -246,10 +234,6 @@
   "resetCostButton": {
     "message": "Reset monthly cost total",
     "description": "Options cost reset button."
-  },
-  "manualGoButton": {
-    "message": "Plan trip",
-    "description": "Manual destination submit button."
   },
   "keyLabel": {
     "message": "Muse API key",
@@ -341,14 +325,6 @@
   "optionsPrivacyBody": {
     "message": "Your key is stored encrypted on this device. Page text and image addresses are sent to api.meta.ai only when you analyze something. Cost totals stay on this device. Nothing is sent anywhere else.",
     "description": "Options privacy disclosure."
-  },
-  "manualLabel": {
-    "message": "Plan a trip to…",
-    "description": "Manual destination label."
-  },
-  "manualPlaceholder": {
-    "message": "City or place name",
-    "description": "Manual destination placeholder."
   },
   "bestGuessBadge": {
     "message": "Best guess",
@@ -442,10 +418,6 @@
     "message": "Sent to Meta's Muse API with your key: this image's address only",
     "description": "Privacy footer for image-only analyses."
   },
-  "privacyManual": {
-    "message": "Sent to Meta's Muse API with your key: the destination name",
-    "description": "Privacy footer for manual destinations."
-  },
   "privacyCache": {
     "message": "From cache - nothing was sent.",
     "description": "Privacy footer for cache hits."
@@ -453,10 +425,6 @@
   "privacyIdle": {
     "message": "Analyzing sends image and page context to Meta's Muse API - details appear with each analysis.",
     "description": "Privacy footer when idle."
-  },
-  "privacyLocalOnly": {
-    "message": "Booking links are built on this device - add a key for the trip guide.",
-    "description": "Privacy footer for keyless manual destinations."
   },
   "privacyLinksSummary": {
     "message": "About booking links",

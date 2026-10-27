@@ -164,12 +164,10 @@ afterEach(() => {
 });
 
 describe('sidepanel', () => {
-  it('renders idle with the manual form', async () => {
+  it('renders the idle hint', async () => {
     await setup();
     const card = document.querySelector('trip-card');
     expect(card?.shadowRoot?.querySelector('.hint')?.textContent).toBe('panelIdle');
-    expect(document.querySelector('#manual-label')?.textContent).toBe('manualLabel');
-    expect(document.querySelector('#manual-go')?.textContent).toBe('manualGoButton');
     await waitFor(() => {
       expect(card?.shadowRoot?.querySelector('.shortcut')?.textContent).toBe('shortcutUnset');
     });
@@ -254,23 +252,6 @@ describe('sidepanel', () => {
     await waitFor(() => {
       const card = document.querySelector('trip-card');
       expect(card?.shadowRoot?.querySelector('h2')?.textContent).toBe('Oia');
-    });
-  });
-
-  it('plans manual destinations with links plus a streamed guide', async () => {
-    await setup();
-    await plantKeyAndConsent();
-    fetchMock.mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
-    (document.querySelector('#manual-input') as HTMLInputElement).value = 'Oia, Greece';
-    (document.querySelector('#manual-form') as HTMLFormElement).dispatchEvent(
-      new Event('submit', { bubbles: true, cancelable: true }),
-    );
-    await waitFor(() => {
-      const grid = document.querySelector('booking-grid');
-      expect(grid?.shadowRoot?.querySelectorAll('a.tile')).toHaveLength(4);
-    });
-    await waitFor(() => {
-      expect(document.querySelector('#guide-content')?.textContent).toContain('Hello world');
     });
   });
 

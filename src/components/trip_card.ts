@@ -160,11 +160,7 @@ export class TripCardElement extends HTMLElement {
     reanalyze.type = 'button';
     reanalyze.textContent = msg('reanalyzeButton');
     reanalyze.addEventListener('click', () => this.emit('trip-reanalyze'));
-    const edit = document.createElement('button');
-    edit.type = 'button';
-    edit.textContent = msg('editDestinationButton');
-    edit.addEventListener('click', () => this.emit('trip-edit-destination'));
-    buttons.append(reanalyze, edit);
+    buttons.append(reanalyze);
     details.append(summary, buttons);
     this.root.append(details);
   }

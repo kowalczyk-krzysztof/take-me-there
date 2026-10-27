@@ -29,7 +29,7 @@ import {
   removePin,
   type BoardPin,
 } from './board_store';
-import { buildDestination, buildLinks, capDestination, mapsDirUrl } from './deep_links';
+import { buildDestination, buildLinks, mapsDirUrl } from './deep_links';
 import { loadKey, saveKey } from './key_vault';
 import { estimateCostUsd, formatUsd, recordMonthSpend } from './pricing';
 import { createGuideRenderer } from './render_markdown';
@@ -183,10 +183,7 @@ const EMPTY_SIGNALS: PageSignals = {
   jsonLd: [],
 };
 
-type PendingRun =
-  | { kind: 'request'; request: TripRequest }
-  | { kind: 'manual'; destination: string }
-  | { kind: 'itinerary' };
+type PendingRun = { kind: 'request'; request: TripRequest } | { kind: 'itinerary' };
 
 let initialized = false;
 let pageTitle: HTMLElement;
@@ -201,9 +198,6 @@ let searchLine: HTMLElement;
 let guideContent: HTMLElement;
 let sourcesSlot: HTMLElement;
 let sourcesHeading: HTMLElement;
-let manualForm: HTMLFormElement;
-let manualInput: HTMLInputElement;
-let manualGo: HTMLButtonElement;
 let privacyLine: HTMLElement;
 let linksNoteSummary: HTMLElement;
 let linksNoteBody: HTMLElement;
@@ -234,7 +228,6 @@ let currentDestination = '';
 let currentSources: GuideSource[] = [];
 let currentView = '';
 let shortcutText = '';
-let manualCounter = 0;
 let skeletonTimer: ReturnType<typeof setTimeout> | undefined;
 let skeletonFor = '';
 let skeletonShownAt = 0;
@@ -354,34 +347,23 @@ const showSources = (sources: GuideSource[]): void => {
 type PrivacyMode =
   | 'image'
   | 'image-only'
-  | 'manual'
   | 'cache'
   | 'idle'
-  | 'local-only'
   | 'video-frame'
   | 'video-url'
   | 'board';
 
 const updatePrivacy = (mode: PrivacyMode): void => {
-  const key =
-    mode === 'image'
-      ? 'privacyImage'
-      : mode === 'image-only'
-        ? 'privacyImageOnly'
-        : mode === 'manual'
-          ? 'privacyManual'
-          : mode === 'cache'
-            ? 'privacyCache'
-            : mode === 'local-only'
-              ? 'privacyLocalOnly'
-              : mode === 'video-frame'
-                ? 'privacyVideoFrame'
-                : mode === 'video-url'
-                  ? 'privacyVideoUrl'
-                  : mode === 'board'
-                    ? 'privacyBoard'
-                    : 'privacyIdle';
-  privacyLine.textContent = msg(key);
+  const keys: Record<PrivacyMode, string> = {
+    image: 'privacyImage',
+    'image-only': 'privacyImageOnly',
+    cache: 'privacyCache',
+    idle: 'privacyIdle',
+    'video-frame': 'privacyVideoFrame',
+    'video-url': 'privacyVideoUrl',
+    board: 'privacyBoard',
+  };
+  privacyLine.textContent = msg(keys[mode]);
 };
 
 const clearCost = (): void => {
@@ -711,10 +693,7 @@ const renderErrorCard = (
 
 // Error-path footer: video runs report their rung (a frame-carrying request
 // ran rung 1, a frameless one ran rung 2), everything else keeps the old rule.
-const errorPrivacy = (request: TripRequest | null, forManual: boolean): PrivacyMode => {
-  if (forManual) {
-    return 'manual';
-  }
+const errorPrivacy = (request: TripRequest | null): PrivacyMode => {
   if (request?.mediaType === 'video') {
     return request.frame ? 'video-frame' : 'video-url';
   }
@@ -724,10 +703,9 @@ const errorPrivacy = (request: TripRequest | null, forManual: boolean): PrivacyM
 const showProviderError = (
   err: unknown,
   request: TripRequest | null,
-  forManual: boolean,
   privacyOverride?: PrivacyMode,
 ): void => {
-  const privacy = privacyOverride ?? errorPrivacy(request, forManual);
+  const privacy = privacyOverride ?? errorPrivacy(request);
   if (!(err instanceof ProviderError)) {
     renderErrorCard('errorServerTitle', 'errorServerBody', true, false);
     announceAlert('alertServer');
@@ -750,12 +728,7 @@ const showProviderError = (
     return;
   }
   if (err.code === 'auth') {
-    pendingRun =
-      request != null
-        ? { kind: 'request', request }
-        : forManual
-          ? { kind: 'manual', destination: currentDestination }
-          : pendingRun;
+    pendingRun = request != null ? { kind: 'request', request } : pendingRun;
     renderErrorCard('errorAuthTitle', 'errorAuthBody', false, true);
     announceAlert('alertAuth');
     updatePrivacy(privacy);
@@ -844,7 +817,7 @@ const streamGuideRun = async (args: StreamArgs): Promise<RunOutcome> => {
     notice.textContent = msg('guideInterrupted');
     guideContent.append(notice);
     recordPartialUsage(err, provider);
-    showProviderError(err, activeRequest, privacy === 'manual', privacy);
+    showProviderError(err, activeRequest, privacy);
     analysisInFlight = false;
     return 'error';
   }
@@ -917,7 +890,7 @@ const identifyAndGuide = async (args: IdentifyArgs): Promise<RunOutcome> => {
       return 'aborted';
     }
     recordPartialUsage(err, provider);
-    showProviderError(err, request, false);
+    showProviderError(err, request);
     analysisInFlight = false;
     return 'error';
   }
@@ -1227,7 +1200,7 @@ const lookAgain = async (): Promise<void> => {
       analysisInFlight = false;
       return;
     }
-    const outcome = await identifyAndGuide({
+    await identifyAndGuide({
       request,
       provider,
       settings,
@@ -1235,9 +1208,6 @@ const lookAgain = async (): Promise<void> => {
       origin: 'panel',
       insist: true,
     });
-    if (outcome === 'no-place' && !isTyping()) {
-      manualInput.focus();
-    }
   } finally {
     resultSlot.removeAttribute('aria-busy');
   }
@@ -1288,80 +1258,10 @@ const retry = async (): Promise<void> => {
     return;
   }
   clearContentSlots();
-  if (target.kind === 'manual') {
-    await handleManualSubmit(target.destination, false);
-  } else if (target.kind === 'itinerary') {
+  if (target.kind === 'itinerary') {
     await planTrip();
   } else {
     await runAnalysis(target.request, 'panel');
-  }
-};
-
-const handleManualSubmit = async (destinationRaw: string, fresh: boolean): Promise<void> => {
-  const destination = capDestination(destinationRaw);
-  if (!destination) {
-    return;
-  }
-  abortActive();
-  analysisInFlight = true;
-  if (fresh) {
-    manualCounter += 1;
-  }
-  beginRun(`manual-${manualCounter}`);
-  lastRun = { kind: 'manual', destination };
-  currentDestination = destination;
-  currentSources = [];
-  showLinks(destination);
-  clearCost();
-  const { provider, settings } = await getActiveProvider();
-  activeProvider = provider;
-  runSettings = settings;
-  const keyStatus = await loadKey(provider.id);
-  if (keyStatus.state !== 'ok') {
-    analysisInFlight = false;
-    announceStatus('statusManualNoKey');
-    updatePrivacy('local-only');
-    return;
-  }
-  if (!(await hasConsented())) {
-    analysisInFlight = false;
-    pendingRun = { kind: 'manual', destination };
-    showConsent(false);
-    announceStatus('statusConsentNeeded');
-    return;
-  }
-  announceStatus('statusManualGuide');
-  const place: PlaceResult = {
-    identified: true,
-    placeName: destination,
-    city: '',
-    country: '',
-    confidence: 1,
-    oneLiner: '',
-  };
-  currentPlace = place;
-  currentView = 'result';
-  const pinned = await isPlacePinned(place);
-  swapResultSlot(() => {
-    resultSlot.replaceChildren(tripCard);
-    tripCard.setCard({ view: 'result', place, lowConfidence: false, pinned });
-  });
-  const controller = new AbortController();
-  activeController = controller;
-  const outcome = await streamGuideRun({
-    provider,
-    key: keyStatus.key,
-    destination,
-    signal: controller.signal,
-    cacheKey: null,
-    privacy: 'manual',
-    origin: 'panel',
-  });
-  if (activeController === controller) {
-    activeController = null;
-  }
-  if (outcome === 'aborted') {
-    analysisInFlight = false;
   }
 };
 
@@ -1605,7 +1505,7 @@ const planTrip = async (): Promise<void> => {
       return;
     }
     recordPartialUsage(err, provider);
-    showProviderError(err, null, false, 'board');
+    showProviderError(err, null, 'board');
     analysisInFlight = false;
     return;
   }
@@ -1637,9 +1537,7 @@ const resumePending = async (): Promise<void> => {
     showIdle();
     return;
   }
-  if (pending.kind === 'manual') {
-    await handleManualSubmit(pending.destination, false);
-  } else if (pending.kind === 'itinerary') {
+  if (pending.kind === 'itinerary') {
     await planTrip();
   } else {
     await runAnalysis(pending.request, 'panel');
@@ -1749,9 +1647,6 @@ export const initPanel = (): void => {
   guideContent = req('guide-content');
   sourcesSlot = req('sources-slot');
   sourcesHeading = req('sources-heading');
-  manualForm = req<HTMLFormElement>('manual-form');
-  manualInput = req<HTMLInputElement>('manual-input');
-  manualGo = req<HTMLButtonElement>('manual-go');
   boardSlot = req('board-slot');
   privacyLine = req('privacy-line');
   linksNoteSummary = req('links-note-summary');
@@ -1764,9 +1659,6 @@ export const initPanel = (): void => {
   pageTitle.textContent = msg('appName');
   previewHeading.textContent = msg('previewHeading');
   sourcesHeading.textContent = msg('sourcesHeading');
-  req('manual-label').textContent = msg('manualLabel');
-  manualInput.placeholder = msg('manualPlaceholder');
-  manualGo.textContent = msg('manualGoButton');
   linksNoteSummary.textContent = msg('privacyLinksSummary');
   linksNoteBody.textContent = msg('privacyLinksBody');
 
@@ -1785,10 +1677,6 @@ export const initPanel = (): void => {
   });
   tripCard.addEventListener('trip-reanalyze', () => {
     void reanalyze();
-  });
-  tripCard.addEventListener('trip-edit-destination', () => {
-    manualInput.focus();
-    manualInput.select();
   });
   tripCard.addEventListener('trip-pin', () => {
     void onPinToggle();
@@ -1813,10 +1701,6 @@ export const initPanel = (): void => {
   });
   keySetup.addEventListener('session-only-change', (event) => {
     void onSessionOnlyChange((event as CustomEvent<SessionOnlyChangeDetail>).detail);
-  });
-  manualForm.addEventListener('submit', (event) => {
-    event.preventDefault();
-    void handleManualSubmit(manualInput.value, true);
   });
   window.addEventListener('scroll', onWindowScroll, { passive: true });
 

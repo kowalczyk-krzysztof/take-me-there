@@ -59,11 +59,10 @@ describe('trip-card', () => {
 
     const seen: string[] = [];
     el.addEventListener('trip-reanalyze', () => seen.push('reanalyze'));
-    el.addEventListener('trip-edit-destination', () => seen.push('edit'));
     const buttons = [...root.querySelectorAll('.disagree-buttons button')];
+    expect(buttons).toHaveLength(1);
     (buttons[0] as HTMLButtonElement).click();
-    (buttons[1] as HTMLButtonElement).click();
-    expect(seen).toEqual(['reanalyze', 'edit']);
+    expect(seen).toEqual(['reanalyze']);
   });
 
   it('omits empty result fields', () => {
