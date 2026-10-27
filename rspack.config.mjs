@@ -57,7 +57,7 @@ export default defineConfig((_env, argv) => {
     devtool: isProd ? false : 'inline-source-map',
     plugins: [
       new CopyRspackPlugin({
-        patterns: [{ from: 'public' }, { from: 'LICENSE' }],
+        patterns: [{ from: 'public' }, { from: 'LICENSE' }, { from: 'THIRD_PARTY_NOTICES' }],
       }),
     ],
   };
