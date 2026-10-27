@@ -4,19 +4,18 @@ import styles from './compare_table.module.css';
 import { msg } from '../utils/i18n';
 import { emit } from '../utils/events';
 
-
 export interface DuelRowView {
   criterion: string;
   a: string;
   b: string;
 }
 
-type DuelState =
+export type DuelTableState =
   | { mode: 'loading'; a: string; b: string }
   | { mode: 'ready'; a: string; b: string; rows: DuelRowView[]; verdict: string }
   | { mode: 'error'; a: string; b: string };
 
-const DuelTable = ({ state }: { state: Extract<DuelState, { mode: 'loading' | 'ready' }> }) => (
+const DuelTableView = ({ state }: { state: Extract<DuelTableState, { mode: 'loading' | 'ready' }> }) => (
   <table aria-busy={state.mode === 'loading'}>
     <caption>{msg('duelCaption', [state.a, state.b])}</caption>
     <thead>
@@ -54,12 +53,26 @@ const DuelTable = ({ state }: { state: Extract<DuelState, { mode: 'loading' | 'r
   </table>
 );
 
+export const CompareTable = ({ table, onRetry }: { table: DuelTableState; onRetry: () => void }) => (
+  <div className={styles.root}>
+    {table.mode === 'error' ? (
+      <div className={styles['duel-error']}>
+        <p>{msg('duelError', [table.a, table.b])}</p>
+        <button type="button" className={styles.primary} onClick={onRetry}>
+          {msg('duelRetry')}
+        </button>
+      </div>
+    ) : (
+      <DuelTableView state={table} />
+    )}
+  </div>
+);
+
 export class CompareTableElement extends HTMLElement {
   private root: Root | null = null;
-  private state: DuelState = { mode: 'loading', a: '', b: '' };
+  private state: DuelTableState = { mode: 'loading', a: '', b: '' };
 
   connectedCallback(): void {
-    this.classList.add(styles.root);
     this.root ??= createRoot(this);
     this.render();
   }
@@ -90,16 +103,7 @@ export class CompareTableElement extends HTMLElement {
       const state = this.state;
       flushSync(() => {
         this.root?.render(
-          state.mode === 'error' ? (
-            <div className={styles['duel-error']}>
-              <p>{msg('duelError', [state.a, state.b])}</p>
-              <button type="button" className={styles.primary} onClick={() => emit(host, 'duel-retry')}>
-                {msg('duelRetry')}
-              </button>
-            </div>
-          ) : (
-            <DuelTable state={state} />
-          ),
+          <CompareTable table={state} onRetry={() => emit(host, 'duel-retry')} />,
         );
       });
     }

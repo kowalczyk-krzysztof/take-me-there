@@ -4,9 +4,8 @@ import { flushSync } from 'react-dom';
 import styles from './booking_grid.module.css';
 import { msg } from '../utils/i18n';
 
-
-const BookingGridView = ({ destination }: { destination: string }) => (
-  <>
+export const BookingGrid = ({ destination }: { destination: string }) => (
+  <div className={styles.root}>
     {destination
       ? buildLinks(destination).map((link) => (
           <a key={link.id} href={link.href} target="_blank" rel="noopener" className={styles.tile}>
@@ -15,7 +14,7 @@ const BookingGridView = ({ destination }: { destination: string }) => (
           </a>
         ))
       : null}
-  </>
+  </div>
 );
 
 export class BookingGridElement extends HTMLElement {
@@ -24,10 +23,9 @@ export class BookingGridElement extends HTMLElement {
 
   setDestination(destination: string): void {
     this.destination = destination;
-    this.classList.add(styles.root);
     this.root ??= createRoot(this);
     flushSync(() => {
-      this.root?.render(<BookingGridView destination={this.destination} />);
+      this.root?.render(<BookingGrid destination={this.destination} />);
     });
   }
 }

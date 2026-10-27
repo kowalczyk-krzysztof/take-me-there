@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import type { PlaceResult } from '../types';
@@ -47,6 +47,19 @@ export interface TripAlternatesDetail {
 
 export interface TripPlanInsteadDetail {
   index: number;
+}
+
+export interface TripCardCallbacks {
+  onPin: () => void;
+  onReanalyze: () => void;
+  onRetry: () => void;
+  onFetchRetry: () => void;
+  onNanoInstead: () => void;
+  onLookAgain: () => void;
+  onAlternates: (intent: AlternateIntentView) => void;
+  onCompare: (value: string) => void;
+  onPinAlternate: (index: number) => void;
+  onPlanInstead: (index: number) => void;
 }
 
 export type CardState =
@@ -113,12 +126,11 @@ const LoadingView = () => {
 // Re-run buttons fire once: aria-disabled (never native disabled on the
 // focused control) plus a loading label, reset by the next render.
 const OneShotButton = ({
-  host, label, loadingLabel, event,
+  label, loadingLabel, onFire,
 }: {
-  host: HTMLElement;
   label: string;
   loadingLabel: string;
-  event: string;
+  onFire: () => void;
 }) => {
   const [fired, setFired] = useState(false);
   // Sync guard: back-to-back clicks in one tick batch before state flushes.
@@ -134,7 +146,7 @@ const OneShotButton = ({
         }
         firedRef.current = true;
         flushSync(() => setFired(true));
-        emit(host, event);
+        onFire();
       }}
     >
       {fired ? loadingLabel : label}
@@ -152,7 +164,7 @@ const FallbackLine = ({ fallback }: { fallback: { label: string; href: string } 
   </p>
 );
 
-const ChipsRow = ({ host, alternates }: { host: HTMLElement; alternates: AlternatesView }) => {
+const ChipsRow = ({ alternates, onAlternates }: { alternates: AlternatesView; onAlternates: (intent: AlternateIntentView) => void }) => {
   const intents: Array<{ intent: AlternateIntentView; key: string }> = [
     { intent: 'cheaper', key: 'alternatesCheaper' },
     { intent: 'quieter', key: 'alternatesQuieter' },
@@ -173,7 +185,7 @@ const ChipsRow = ({ host, alternates }: { host: HTMLElement; alternates: Alterna
               if (busy) {
                 return;
               }
-              emit(host, 'trip-alternates', { intent } satisfies TripAlternatesDetail);
+              onAlternates(intent);
             }}
           >
             {msg(key)}
@@ -184,7 +196,7 @@ const ChipsRow = ({ host, alternates }: { host: HTMLElement; alternates: Alterna
   );
 };
 
-const AlternatesView = ({ host, alternates }: { host: HTMLElement; alternates: AlternatesView }) => {
+const AlternatesView = ({ alternates, onPinAlternate, onPlanInstead }: { alternates: AlternatesView; onPinAlternate: (index: number) => void; onPlanInstead: (index: number) => void }) => {
   if (alternates.state === 'idle') {
     return <div className={styles.alternates} hidden />;
   }
@@ -215,7 +227,7 @@ const AlternatesView = ({ host, alternates }: { host: HTMLElement; alternates: A
               className={styles['pin-button']}
               aria-pressed={card.pinned}
               onClick={() => {
-                emit(host, 'trip-pin-alternate', { index } satisfies TripPinAlternateDetail);
+                onPinAlternate(index);
               }}
             >
               {msg('pinButton', card.name)}
@@ -223,7 +235,7 @@ const AlternatesView = ({ host, alternates }: { host: HTMLElement; alternates: A
             <button
               type="button"
               onClick={() => {
-                emit(host, 'trip-plan-instead', { index } satisfies TripPlanInsteadDetail);
+                onPlanInstead(index);
               }}
             >
               {msg('alternatesInstead', card.name)}
@@ -235,7 +247,7 @@ const AlternatesView = ({ host, alternates }: { host: HTMLElement; alternates: A
   );
 };
 
-const CompareRow = ({ host, options }: { host: HTMLElement; options: CompareOptionView[] }) => {
+const CompareRow = ({ options, onCompare }: { options: CompareOptionView[]; onCompare: (value: string) => void }) => {
   const selectRef = useRef<HTMLSelectElement>(null);
   return (
     <div className={styles['compare-row']}>
@@ -251,7 +263,7 @@ const CompareRow = ({ host, options }: { host: HTMLElement; options: CompareOpti
         type="button"
         className="compare-go"
         onClick={() => {
-          emit(host, 'trip-compare', { value: selectRef.current?.value ?? '' } satisfies TripCompareDetail);
+          onCompare(selectRef.current?.value ?? '');
         }}
       >
         {msg('compareGo')}
@@ -261,15 +273,15 @@ const CompareRow = ({ host, options }: { host: HTMLElement; options: CompareOpti
 };
 
 const ResultView = ({
-  host, place, lowConfidence, pinned, onDevice, compareOptions, alternates,
+  place, lowConfidence, pinned, onDevice, compareOptions, alternates, callbacks,
 }: {
-  host: HTMLElement;
   place: PlaceResult;
   lowConfidence: boolean;
   pinned: boolean;
   onDevice: boolean;
   compareOptions: CompareOptionView[];
   alternates: AlternatesView;
+  callbacks: TripCardCallbacks;
 }) => {
   const subtitle = [place.city, place.country].filter((part) => part).join(', ');
   return (
@@ -295,17 +307,17 @@ const ResultView = ({
         type="button"
         className={styles['pin-button']}
         aria-pressed={pinned}
-        onClick={() => emit(host, 'trip-pin')}
+        onClick={callbacks.onPin}
       >
         {msg('pinButton', place.placeName)}
       </button>
-      <ChipsRow host={host} alternates={alternates} />
-      <AlternatesView host={host} alternates={alternates} />
-      {compareOptions.length > 0 ? <CompareRow host={host} options={compareOptions} /> : null}
+      <ChipsRow alternates={alternates} onAlternates={callbacks.onAlternates} />
+      <AlternatesView alternates={alternates} onPinAlternate={callbacks.onPinAlternate} onPlanInstead={callbacks.onPlanInstead} />
+      {compareOptions.length > 0 ? <CompareRow options={compareOptions} onCompare={callbacks.onCompare} /> : null}
       <details>
         <summary>{msg('notThisPlace')}</summary>
         <div className={styles['disagree-buttons']}>
-          <button type="button" onClick={() => emit(host, 'trip-reanalyze')}>
+          <button type="button" onClick={callbacks.onReanalyze}>
             {msg('reanalyzeButton')}
           </button>
         </div>
@@ -357,21 +369,20 @@ const ItineraryView = ({
 );
 
 const NoPlaceView = ({
-  host, showLookAgain, fallback,
+  showLookAgain, fallback, onLookAgain,
 }: {
-  host: HTMLElement;
   showLookAgain: boolean;
   fallback: { label: string; href: string } | null;
+  onLookAgain: () => void;
 }) => (
   <>
     <h2 tabIndex={-1}>{msg('noPlaceTitle')}</h2>
     <p>{msg('noPlaceBody')}</p>
     {showLookAgain ? (
       <OneShotButton
-        host={host}
         label={msg('lookAgainButton')}
         loadingLabel={msg('lookingAgainButton')}
-        event="trip-look-again"
+        onFire={onLookAgain}
       />
     ) : null}
     {fallback ? <FallbackLine fallback={fallback} /> : null}
@@ -379,119 +390,121 @@ const NoPlaceView = ({
 );
 
 const ErrorView = ({
-  host, title, body, showRetry, fallback, showFetchRetry, showNanoInstead,
+  title, body, showRetry, fallback, showFetchRetry, showNanoInstead, callbacks,
 }: {
-  host: HTMLElement;
   title: string;
   body: string;
   showRetry: boolean;
   fallback: { label: string; href: string } | null;
   showFetchRetry: boolean;
   showNanoInstead: boolean;
+  callbacks: Pick<TripCardCallbacks, 'onRetry' | 'onFetchRetry' | 'onNanoInstead'>;
 }) => (
   <>
     <h2 tabIndex={-1}>{title}</h2>
     <p>{body}</p>
     {showRetry ? (
       <OneShotButton
-        host={host}
         label={msg('retryButton')}
         loadingLabel={msg('retryingButton')}
-        event="trip-retry"
+        onFire={callbacks.onRetry}
       />
     ) : null}
     {showFetchRetry ? (
       <OneShotButton
-        host={host}
         label={msg('fetchRetryButton')}
         loadingLabel={msg('fetchRetryLoading')}
-        event="trip-fetch-retry"
+        onFire={callbacks.onFetchRetry}
       />
     ) : null}
     {showNanoInstead ? (
       <OneShotButton
-        host={host}
         label={msg('nanoTryInstead')}
         loadingLabel={msg('nanoDownloading')}
-        event="trip-nano"
+        onFire={callbacks.onNanoInstead}
       />
     ) : null}
     {fallback ? <FallbackLine fallback={fallback} /> : null}
   </>
 );
 
-// The epoch key remounts the whole view on every setCard call, so per-render
-// state (one-shot buttons, rotation) resets exactly like the old rebuild.
-const CardView = ({ host, state, epoch }: { host: HTMLElement; state: CardState; epoch: number }) => {
-  switch (state.view) {
-    case 'idle':
-      return (
-        <div key={epoch}>
-          <IdleView hint={state.hint} shortcut={state.shortcut} />
-        </div>
-      );
-    case 'loading':
-      return (
-        <div key={epoch}>
-          <LoadingView />
-        </div>
-      );
-    case 'result':
-      return (
-        <div key={epoch}>
-          <ResultView
-            host={host}
-            place={state.place}
-            lowConfidence={state.lowConfidence}
-            pinned={state.pinned}
-            onDevice={state.onDevice ?? false}
-            compareOptions={state.compareOptions ?? []}
-            alternates={state.alternates ?? { state: 'idle' }}
-          />
-        </div>
-      );
-    case 'no-place':
-      return (
-        <div key={epoch}>
-          <NoPlaceView host={host} showLookAgain={state.showLookAgain} fallback={state.fallback} />
-        </div>
-      );
-    case 'error':
-      return (
-        <div key={epoch}>
-          <ErrorView
-            host={host}
-            title={state.title}
-            body={state.body}
-            showRetry={state.showRetry}
-            fallback={state.fallback ?? null}
-            showFetchRetry={state.showFetchRetry ?? false}
-            showNanoInstead={state.showNanoInstead ?? false}
-          />
-        </div>
-      );
-    case 'itinerary':
-      return (
-        <div key={epoch}>
-          <ItineraryView
-            title={state.title}
-            stops={state.stops}
-            mapsUrl={state.mapsUrl}
-            mapsLabel={state.mapsLabel}
-          />
-        </div>
-      );
+// The epoch key remounts the whole view on every new card object, so
+// per-render state (one-shot buttons, rotation) resets on every update.
+export const TripCard = ({ card, callbacks }: { card: CardState; callbacks: TripCardCallbacks }) => {
+  const [epoch, setEpoch] = useState(0);
+  const prevCard = useRef(card);
+  if (prevCard.current !== card) {
+    prevCard.current = card;
+    setEpoch((current) => current + 1);
   }
+  let view: ReactNode;
+  switch (card.view) {
+    case 'idle':
+      view = <IdleView hint={card.hint} shortcut={card.shortcut} />;
+      break;
+    case 'loading':
+      view = <LoadingView />;
+      break;
+    case 'result':
+      view = (
+        <ResultView
+          place={card.place}
+          lowConfidence={card.lowConfidence}
+          pinned={card.pinned}
+          onDevice={card.onDevice ?? false}
+          compareOptions={card.compareOptions ?? []}
+          alternates={card.alternates ?? { state: 'idle' }}
+          callbacks={callbacks}
+        />
+      );
+      break;
+    case 'no-place':
+      view = (
+        <NoPlaceView
+          showLookAgain={card.showLookAgain}
+          fallback={card.fallback}
+          onLookAgain={callbacks.onLookAgain}
+        />
+      );
+      break;
+    case 'error':
+      view = (
+        <ErrorView
+          title={card.title}
+          body={card.body}
+          showRetry={card.showRetry}
+          fallback={card.fallback ?? null}
+          showFetchRetry={card.showFetchRetry ?? false}
+          showNanoInstead={card.showNanoInstead ?? false}
+          callbacks={callbacks}
+        />
+      );
+      break;
+    case 'itinerary':
+      view = (
+        <ItineraryView
+          title={card.title}
+          stops={card.stops}
+          mapsUrl={card.mapsUrl}
+          mapsLabel={card.mapsLabel}
+        />
+      );
+      break;
+  }
+  return (
+    <div key={epoch} className={styles.root}>
+      {view}
+    </div>
+  );
 };
 
 export class TripCardElement extends HTMLElement {
   private root: Root | null = null;
-  private epoch = 0;
+  private state: CardState = { view: 'loading' };
 
   connectedCallback(): void {
-    this.classList.add(styles.root);
     this.root ??= createRoot(this);
-    this.render({ view: 'loading' });
+    this.render();
   }
 
   disconnectedCallback(): void {
@@ -500,18 +513,36 @@ export class TripCardElement extends HTMLElement {
   }
 
   setCard(state: CardState): void {
-    this.epoch += 1;
-    this.render(state);
+    this.state = state;
+    this.render();
   }
 
   focusHeading(): void {
     this.querySelector('h2')?.focus();
   }
 
-  private render(state: CardState): void {
+  private render(): void {
     if (this.root) {
+      const host = this;
+      const state = this.state;
       flushSync(() => {
-        this.root?.render(<CardView host={this} state={state} epoch={this.epoch} />);
+        this.root?.render(
+          <TripCard
+            card={state}
+            callbacks={{
+              onPin: () => emit(host, 'trip-pin'),
+              onReanalyze: () => emit(host, 'trip-reanalyze'),
+              onRetry: () => emit(host, 'trip-retry'),
+              onFetchRetry: () => emit(host, 'trip-fetch-retry'),
+              onNanoInstead: () => emit(host, 'trip-nano'),
+              onLookAgain: () => emit(host, 'trip-look-again'),
+              onAlternates: (intent) => emit(host, 'trip-alternates', { intent } satisfies TripAlternatesDetail),
+              onCompare: (value) => emit(host, 'trip-compare', { value } satisfies TripCompareDetail),
+              onPinAlternate: (index) => emit(host, 'trip-pin-alternate', { index } satisfies TripPinAlternateDetail),
+              onPlanInstead: (index) => emit(host, 'trip-plan-instead', { index } satisfies TripPlanInsteadDetail),
+            }}
+          />,
+        );
       });
     }
   }

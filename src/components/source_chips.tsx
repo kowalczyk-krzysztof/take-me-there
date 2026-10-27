@@ -24,8 +24,8 @@ const hostnameOf = (href: string): string => {
   }
 };
 
-const SourceChipsView = ({ sources }: { sources: GuideSource[] }) => (
-  <>
+export const SourceChips = ({ sources }: { sources: GuideSource[] }) => (
+  <div className={styles.root}>
     {sources.map((source, index) => {
       const href = safeHttpUrl(source.url);
       if (!href) {
@@ -38,7 +38,7 @@ const SourceChipsView = ({ sources }: { sources: GuideSource[] }) => (
         </a>
       );
     })}
-  </>
+  </div>
 );
 
 export class SourceChipsElement extends HTMLElement {
@@ -47,10 +47,9 @@ export class SourceChipsElement extends HTMLElement {
 
   setSources(sources: GuideSource[]): void {
     this.sources = sources;
-    this.classList.add(styles.root);
     this.root ??= createRoot(this);
     flushSync(() => {
-      this.root?.render(<SourceChipsView sources={this.sources} />);
+      this.root?.render(<SourceChips sources={this.sources} />);
     });
   }
 }
