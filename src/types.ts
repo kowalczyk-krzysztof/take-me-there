@@ -1,0 +1,80 @@
+// zod schemas as the single source of truth: they emit the Muse
+// response_format payload, validate parsed model output, and produce the
+// shared TypeScript types via z.infer. Import from 'zod/mini' only: a plain
+// 'zod' import silently multiplies the bundle (enforced by a pre-zip grep).
+import * as z from 'zod/mini';
+
+// Identify output: every string carries maxLength, the object is strict, and
+// every property is required. This is exactly Muse's strict subset.
+export const PLACE_SCHEMA = z.strictObject({
+  identified: z.boolean(),
+  placeName: z.string().check(z.maxLength(100)),
+  city: z.string().check(z.maxLength(100)),
+  country: z.string().check(z.maxLength(100)),
+  confidence: z.number(),
+  oneLiner: z.string().check(z.maxLength(300)),
+});
+export type PlaceResult = z.infer<typeof PLACE_SCHEMA>;
+
+// Payload for the Muse response_format json_schema. toJSONSchema always adds
+// a top-level $schema key, which the strict subset forbids, so drop it here.
+// $ref/$defs must never appear: the unit test fails the build if a later
+// schema edit introduces them.
+export function placeJsonSchema(): Record<string, unknown> {
+  const emitted = z.toJSONSchema(PLACE_SCHEMA) as unknown as Record<string, unknown>;
+  const { $schema: _dropped, ...schema } = emitted;
+  return schema;
+}
+
+const JSON_LD_SCHEMA = z.strictObject({
+  types: z.array(z.string()),
+  name: z.string(),
+  locality: z.string(),
+  country: z.string(),
+  lat: z.nullable(z.number()),
+  lon: z.nullable(z.number()),
+});
+
+// The page scraper's output shape, mirrored from the self-contained injected
+// module (which cannot import this file). The panel validates the handoff
+// against this before trusting it.
+export const PAGE_SIGNALS_SCHEMA = z.strictObject({
+  imgFound: z.boolean(),
+  alt: z.string(),
+  imgTitle: z.string(),
+  figcaption: z.string(),
+  nearestHeading: z.string(),
+  nearestParagraph: z.string(),
+  ogTitle: z.string(),
+  ogDescription: z.string(),
+  ogSiteName: z.string(),
+  docTitle: z.string(),
+  metaDescription: z.string(),
+  canonical: z.string(),
+  pageHost: z.string(),
+  urlSlug: z.string(),
+  imgFileSlug: z.string(),
+  jsonLd: z.array(JSON_LD_SCHEMA),
+});
+export type PageSignals = z.infer<typeof PAGE_SIGNALS_SCHEMA>;
+
+// The worker-to-panel handoff record. Signals ride along only once the
+// scrape settles (the 'ready' terminal write).
+export const TRIP_REQUEST_SCHEMA = z.strictObject({
+  requestId: z.string(),
+  status: z.enum(['collecting', 'ready']),
+  srcUrl: z.string(),
+  dataPending: z.boolean(),
+  pageUrl: z.nullable(z.string()),
+  tabId: z.number(),
+  signals: z.optional(PAGE_SIGNALS_SCHEMA),
+});
+export type TripRequest = z.infer<typeof TRIP_REQUEST_SCHEMA>;
+
+export const PROVIDER_CAPABILITIES_SCHEMA = z.strictObject({
+  video: z.boolean(),
+  webGrounding: z.boolean(),
+  segmentation: z.boolean(),
+  structuredOutput: z.enum(['json_schema', 'json_object', 'none']),
+});
+export type ProviderCapabilities = z.infer<typeof PROVIDER_CAPABILITIES_SCHEMA>;

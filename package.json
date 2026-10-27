@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "zip": "npm run build && node scripts/verify-bundle.mjs && cd dist && zip -qr ../plan-a-trip-there.zip ."
+    "zip": "npm run build && node scripts/verify-bundle.mjs && cd dist && zip -qr ../plan-a-trip-extension.zip ."
   },
   "dependencies": {
     "eventsource-parser": "4.1.3",

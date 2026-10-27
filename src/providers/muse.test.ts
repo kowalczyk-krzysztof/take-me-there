@@ -1,0 +1,334 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  ProviderError,
+  setConsented,
+  type GuideEvent,
+  type IdentifyInput,
+} from './index';
+import { MuseProvider } from './muse';
+import { installChromeMock, uninstallChromeMock, type ChromeMock } from '../test/chrome_mock';
+
+const VALID_PLACE = {
+  identified: true,
+  placeName: 'Oia',
+  city: 'Oia',
+  country: 'Greece',
+  confidence: 0.9,
+  oneLiner: 'Blue domes over the caldera.',
+};
+
+function chatResponse(place: unknown, usage = { prompt_tokens: 100, completion_tokens: 50 }) {
+  return new Response(
+    JSON.stringify({ choices: [{ message: { content: JSON.stringify(place) } }], usage }),
+    { status: 200 },
+  );
+}
+
+function rawChatResponse(content: string, usage = { prompt_tokens: 100, completion_tokens: 50 }) {
+  return new Response(JSON.stringify({ choices: [{ message: { content } }], usage }), {
+    status: 200,
+  });
+}
+
+function sseResponse(chunks: string[]) {
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (const chunk of chunks) {
+        controller.enqueue(encoder.encode(chunk));
+      }
+      controller.close();
+    },
+  });
+  return new Response(stream, {
+    status: 200,
+    headers: { 'Content-Type': 'text/event-stream' },
+  });
+}
+
+function identifyInput(overrides: Partial<IdentifyInput> = {}): IdentifyInput {
+  return {
+    imageUrl: 'https://cdn.example.com/oia.jpg',
+    signalsText: 'page title: Santorini guide',
+    signal: new AbortController().signal,
+    ...overrides,
+  };
+}
+
+async function collect(gen: AsyncGenerator<GuideEvent, void, void>): Promise<GuideEvent[]> {
+  const out: GuideEvent[] = [];
+  for await (const event of gen) {
+    out.push(event);
+  }
+  return out;
+}
+
+let mock: ChromeMock;
+const fetchMock = vi.fn();
+const provider = new MuseProvider();
+
+beforeEach(() => {
+  mock = installChromeMock();
+  fetchMock.mockReset();
+  vi.stubGlobal('fetch', fetchMock);
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  uninstallChromeMock();
+});
+
+async function consented(): Promise<void> {
+  await setConsented();
+}
+
+function requestBody(callIndex = 0): Record<string, any> {
+  const init = fetchMock.mock.calls[callIndex][1] as RequestInit;
+  return JSON.parse(init.body as string) as Record<string, any>;
+}
+
+describe('muse identify', () => {
+  it('parses structured output and maps usage', async () => {
+    await consented();
+    fetchMock.mockResolvedValue(chatResponse(VALID_PLACE));
+    const result = await provider.identifyPlace('LLM_key', identifyInput());
+    expect(result.place).toEqual(VALID_PLACE);
+    expect(result.usage).toEqual({ inputTokens: 100, outputTokens: 50, searchCount: 0, flatFeesUsd: 0 });
+    expect(result.textFallback).toBe(false);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://api.meta.ai/v1/chat/completions');
+    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer LLM_key');
+    const body = requestBody();
+    expect(body.model).toBe('muse-spark-1.3');
+    expect(body.reasoning_effort).toBe('low');
+    expect(body.max_completion_tokens).toBe(2048);
+    expect(body.response_format.type).toBe('json_schema');
+    expect(body.response_format.json_schema.schema.additionalProperties).toBe(false);
+    expect(body.messages[1].content[1]).toEqual({
+      type: 'image_url',
+      image_url: { url: 'https://cdn.example.com/oia.jpg' },
+    });
+  });
+
+  it('re-asks once on validation failure, then throws with usage attached', async () => {
+    await consented();
+    fetchMock
+      .mockResolvedValueOnce(rawChatResponse('not json {'))
+      .mockResolvedValueOnce(rawChatResponse('{"identified":'));
+    const failure = await provider
+      .identifyPlace('LLM_key', identifyInput())
+      .then(
+        () => null,
+        (err: unknown) => err as ProviderError,
+      );
+    expect(failure).toBeInstanceOf(ProviderError);
+    expect(failure?.code).toBe('invalid_response');
+    expect(failure?.retryable).toBe(true);
+    expect(failure?.usage).toEqual({
+      inputTokens: 200,
+      outputTokens: 100,
+      searchCount: 0,
+      flatFeesUsd: 0,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(JSON.stringify(requestBody(1))).toContain('ONLY JSON');
+  });
+
+  it('maps status codes to typed errors', async () => {
+    await consented();
+    fetchMock.mockResolvedValue(new Response('nope', { status: 401 }));
+    await expect(provider.identifyPlace('LLM_bad', identifyInput())).rejects.toMatchObject({
+      code: 'auth',
+      retryable: false,
+    });
+    fetchMock.mockResolvedValue(new Response('slow', { status: 429 }));
+    await expect(provider.identifyPlace('LLM_key', identifyInput())).rejects.toMatchObject({
+      code: 'rate_limited',
+      retryable: true,
+    });
+    fetchMock.mockResolvedValue(new Response('boom', { status: 500 }));
+    await expect(provider.identifyPlace('LLM_key', identifyInput())).rejects.toMatchObject({
+      code: 'server',
+      retryable: true,
+    });
+  });
+
+  it('retries once text-only on image failure with capped confidence', async () => {
+    await consented();
+    fetchMock
+      .mockResolvedValueOnce(new Response('bad image', { status: 400 }))
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE));
+    const result = await provider.identifyPlace('LLM_key', identifyInput());
+    expect(result.textFallback).toBe(true);
+    expect(result.place.confidence).toBe(0.4);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(typeof requestBody(1).messages[1].content).toBe('string');
+  });
+
+  it('maps network failures and aborts', async () => {
+    await consented();
+    fetchMock.mockRejectedValue(new TypeError('fetch failed'));
+    await expect(provider.identifyPlace('LLM_key', identifyInput())).rejects.toMatchObject({
+      code: 'network',
+      retryable: true,
+    });
+    fetchMock.mockRejectedValue(new DOMException('aborted', 'AbortError'));
+    await expect(provider.identifyPlace('LLM_key', identifyInput())).rejects.toMatchObject({
+      code: 'aborted',
+      retryable: false,
+    });
+  });
+
+  it('blocks without consent or a key', async () => {
+    fetchMock.mockResolvedValue(chatResponse(VALID_PLACE));
+    await expect(provider.identifyPlace('LLM_key', identifyInput())).rejects.toMatchObject({
+      code: 'consent_required',
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+    await consented();
+    await expect(provider.identifyPlace('', identifyInput())).rejects.toMatchObject({
+      code: 'no_key',
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('sanitizes the rejected place and escalates effort on insist', async () => {
+    await consented();
+    fetchMock.mockResolvedValue(chatResponse(VALID_PLACE));
+    await provider.identifyPlace(
+      'LLM_key',
+      identifyInput({ insist: true, rejectedPlace: 'Paris\nHACK' }),
+    );
+    const body = requestBody();
+    expect(body.reasoning_effort).toBe('medium');
+    const text = body.messages[1].content[0].text as string;
+    expect(text).toContain('NOT Paris HACK.');
+    expect(text).toContain('user confirms');
+  });
+
+  it('validates keys against the models endpoint', async () => {
+    fetchMock.mockResolvedValue(new Response('[]', { status: 200 }));
+    await expect(provider.testKey('LLM_key')).resolves.toBeUndefined();
+    expect(fetchMock.mock.calls[0][0]).toBe('https://api.meta.ai/v1/models');
+    fetchMock.mockResolvedValue(new Response('nope', { status: 401 }));
+    await expect(provider.testKey('LLM_bad')).rejects.toMatchObject({ code: 'auth' });
+  });
+});
+
+describe('muse streamGuide', () => {
+  const RESPONSES_SSE = [
+    ': comment line\n',
+    '\n',
+    'event: keepalive\n',
+    'data: ping\n',
+    '\n',
+    'event: response.web_search_call.searching\n',
+    'data: {}\n',
+    '\n',
+    'event: response.output_text.delta\n',
+    'data: {"delta":"Hello "}\n',
+    '\n',
+    'event: response.output_text.delta\n',
+    'data: {"delta":"world"}\n',
+    '\n',
+    'event: response.output_text.annotation.added\n',
+    'data: {"annotation":{"type":"url_citation","url":"https://example.com/a","title":"A"}}\n',
+    '\n',
+    'event: response.output_text.annotation.added\n',
+    'data: {"annotation":{"type":"url_citation","url":"https://example.com/a","title":"A again"}}\n',
+    '\n',
+    'event: response.web_search_call.completed\n',
+    'data: {}\n',
+    '\n',
+    'event: response.completed\n',
+    'data: {"response":{"usage":{"input_tokens":300,"output_tokens":120}}}\n',
+    '\n',
+  ].join('');
+
+  function input(overrides = {}) {
+    return { destination: 'Oia, Greece', signal: new AbortController().signal, ...overrides };
+  }
+
+  it('parses grounded responses split across chunk boundaries', async () => {
+    await consented();
+    const raw = RESPONSES_SSE;
+    fetchMock.mockResolvedValue(sseResponse([raw.slice(0, 50), raw.slice(50, 51), raw.slice(51)]));
+    const events = await collect(provider.streamGuide('LLM_key', input()));
+    expect(events[0]).toEqual({ type: 'searching' });
+    expect(events.filter((e) => e.type === 'delta')).toEqual([
+      { type: 'delta', text: 'Hello ' },
+      { type: 'delta', text: 'world' },
+    ]);
+    expect(events).toContainEqual({
+      type: 'sources',
+      sources: [{ title: 'A', url: 'https://example.com/a' }],
+    });
+    expect(events[events.length - 1]).toEqual({
+      type: 'usage',
+      usage: { inputTokens: 300, outputTokens: 120, searchCount: 1, flatFeesUsd: 0 },
+    });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://api.meta.ai/v1/responses');
+    const body = JSON.parse(init.body as string) as Record<string, any>;
+    expect(body.tools).toEqual([{ type: 'web_search', search_context_size: 'low' }]);
+    expect(body.stream).toBe(true);
+  });
+
+  it('handles CRLF framing', async () => {
+    await consented();
+    const raw = RESPONSES_SSE.replace(/\n/g, '\r\n');
+    fetchMock.mockResolvedValue(sseResponse([raw.slice(0, 77), raw.slice(77)]));
+    const events = await collect(provider.streamGuide('LLM_key', input()));
+    expect(events.filter((e) => e.type === 'delta')).toHaveLength(2);
+    expect(events[events.length - 1]?.type).toBe('usage');
+  });
+
+  it('falls back to plain chat streaming behind the flag', async () => {
+    await consented();
+    fetchMock.mockResolvedValue(
+      sseResponse([
+        'data: {"choices":[{"delta":{"content":"Hi"}}]}\n\n',
+        'data: {"choices":[{"delta":{}}],"usage":{"prompt_tokens":10,"completion_tokens":5}}\n\ndata: [DONE]\n\n',
+      ]),
+    );
+    const events = await collect(provider.streamGuide('LLM_key', input({ transport: 'chat' })));
+    expect(events).toEqual([
+      { type: 'delta', text: 'Hi' },
+      { type: 'usage', usage: { inputTokens: 10, outputTokens: 5, searchCount: 0, flatFeesUsd: 0 } },
+    ]);
+    expect(events.some((e) => e.type === 'sources')).toBe(false);
+    const body = requestBody();
+    expect(body.stream_options).toEqual({ include_usage: true });
+  });
+
+  it('treats malformed payloads and buffer overflow as stream errors', async () => {
+    await consented();
+    fetchMock.mockResolvedValue(sseResponse(['data: {oops\n\n']));
+    await expect(collect(provider.streamGuide('LLM_key', input()))).rejects.toMatchObject({
+      code: 'stream_error',
+      retryable: true,
+    });
+    fetchMock.mockResolvedValue(sseResponse([`data: ${'x'.repeat(1024 * 1024 + 100)}\n\n`]));
+    await expect(collect(provider.streamGuide('LLM_key', input()))).rejects.toMatchObject({
+      code: 'stream_error',
+    });
+  });
+
+  it('maps non-2xx responses and enforces key plus consent', async () => {
+    await consented();
+    fetchMock.mockResolvedValue(new Response('nope', { status: 401 }));
+    await expect(collect(provider.streamGuide('LLM_key', input()))).rejects.toMatchObject({
+      code: 'auth',
+    });
+    mock.local.data.delete('consentGiven');
+    await expect(collect(provider.streamGuide('LLM_key', input()))).rejects.toMatchObject({
+      code: 'consent_required',
+    });
+    await consented();
+    await expect(collect(provider.streamGuide('', input()))).rejects.toMatchObject({
+      code: 'no_key',
+    });
+  });
+});
