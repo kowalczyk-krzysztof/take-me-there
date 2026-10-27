@@ -7,71 +7,7 @@
     <link rel="stylesheet" href="options.css">
   </head>
   <body>
-    <main>
-      <h1 id="title"></h1>
-      <h2 id="key-heading"></h2>
-      <div id="key-host"></div>
-      <div class="button-row">
-        <button id="test-key" type="button"></button>
-        <button id="clear-key" type="button"></button>
-      </div>
-      <label class="checkbox-row" id="image-only-row">
-        <input type="checkbox" id="image-only">
-        <span id="image-only-label"></span>
-      </label>
-      <label class="checkbox-row" id="prefer-on-device-row">
-        <input type="checkbox" id="prefer-on-device">
-        <span id="prefer-on-device-label"></span>
-      </label>
-      <h2 id="provider-heading"></h2>
-      <div id="provider-group" role="radiogroup">
-        <label class="radio-row">
-          <input type="radio" name="provider" value="muse" id="provider-muse">
-          <span id="provider-muse-label"></span>
-        </label>
-        <label class="radio-row">
-          <input type="radio" name="provider" value="openai_compat" id="provider-compat">
-          <span id="provider-compat-label"></span>
-        </label>
-      </div>
-      <fieldset id="compat-fields">
-        <label class="field-row">
-          <span id="compat-base-url-label"></span>
-          <input type="url" id="compat-base-url" autocomplete="url">
-        </label>
-        <label class="field-row">
-          <span id="compat-model-label"></span>
-          <input type="text" id="compat-model" autocomplete="off">
-        </label>
-        <label class="field-row">
-          <span id="compat-structured-label"></span>
-          <select id="compat-structured">
-            <option value="json_schema" id="compat-structured-schema"></option>
-            <option value="json_object" id="compat-structured-object"></option>
-          </select>
-        </label>
-        <label class="field-row">
-          <span id="compat-input-rate-label"></span>
-          <input type="number" id="compat-input-rate" min="0" step="any">
-        </label>
-        <label class="field-row">
-          <span id="compat-output-rate-label"></span>
-          <input type="number" id="compat-output-rate" min="0" step="any">
-        </label>
-        <div class="button-row">
-          <button id="compat-save" type="button"></button>
-        </div>
-        <p id="compat-error" role="alert" hidden></p>
-      </fieldset>
-      <h2 id="cost-heading"></h2>
-      <p id="cost-line"></p>
-      <div class="button-row">
-        <button id="reset-cost" type="button"></button>
-      </div>
-      <h2 id="privacy-heading"></h2>
-      <p id="privacy-body"></p>
-      <div id="status-region" role="status" class="visually-hidden"></div>
-    </main>
+    <div id="root"></div>
     <script src="options.js"></script>
   </body>
 </html>

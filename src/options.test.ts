@@ -134,13 +134,9 @@ describe('options', () => {
   it('saves keys through validation', async () => {
     const mock = await setup();
     fetchMock.mockResolvedValue(new Response('[]', { status: 200 }));
-    const keySetup = document.querySelector('key-setup') as HTMLElement;
-    keySetup.dispatchEvent(
-      new CustomEvent('key-save-request', {
-        detail: { key: 'LLM_new', sessionOnly: false },
-        bubbles: true,
-        composed: true,
-      }),
+    (document.querySelector('#key-input') as HTMLInputElement).value = 'LLM_new';
+    (document.querySelector('#key-host form') as HTMLFormElement).dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true }),
     );
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusKeySaved');

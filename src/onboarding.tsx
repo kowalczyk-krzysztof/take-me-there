@@ -1,11 +1,7 @@
-// Install-time welcome page: what the extension does, the shared key form,
-// and a try-it hint. Skippable - the panel covers users who close it.
-import './components/key_setup';
-import type {
-  KeySaveRequestDetail,
-  KeySetupElement,
-  SessionOnlyChangeDetail,
-} from './components/key_setup';
+import { useSyncExternalStore } from 'react';
+import { createRoot } from 'react-dom/client';
+import { flushSync } from 'react-dom';
+import { KeySetup, type NanoSectionState } from './components/key_setup';
 import { loadKey, saveKey } from './key_vault';
 import {
   ProviderError,
@@ -16,15 +12,130 @@ import {
   saveSettings,
 } from './providers/index';
 import { msg } from './utils/i18n';
+import { createStore } from './utils/store';
 import './styles/options.css';
 import './components/shared_styles.css';
 
-const req = <T extends HTMLElement>(id: string): T => {
-  const el = document.getElementById(id);
-  if (!el) {
-    throw new Error(`onboarding shell is missing #${id}`);
-  }
-  return el as T;
+interface OnboardingState {
+  status: string;
+  shortcut: string;
+  keyPending: boolean;
+  keyError: string | null;
+  sessionOnly: boolean;
+  keyReset: number;
+  nano: NanoSectionState;
+  nanoProgress: number | null;
+}
+
+const store = createStore<OnboardingState>({
+  status: '',
+  shortcut: '',
+  keyPending: false,
+  keyError: null,
+  sessionOnly: false,
+  keyReset: 0,
+  nano: 'hidden',
+  nanoProgress: null,
+});
+
+const onSaveKey = (key: string): void => {
+  void (async () => {
+    store.set({ keyPending: true, keyError: null, status: msg('statusValidatingKey') });
+    const { provider, settings } = await getActiveProvider();
+    try {
+      await provider.testKey(key);
+    } catch (err) {
+      store.set({
+        keyPending: false,
+        keyError:
+          err instanceof ProviderError && err.code === 'auth'
+            ? msg('keyErrorRejected')
+            : err instanceof ProviderError && err.code === 'network'
+              ? msg('keyErrorNetwork')
+              : msg('keyErrorRetry'),
+      });
+      return;
+    }
+    const sessionOnly = store.get().sessionOnly;
+    try {
+      await saveKey(provider.id, key, sessionOnly);
+      await saveSettings({ ...settings, sessionOnly });
+    } catch {
+      store.set({ keyPending: false, keyError: msg('keyErrorRetry') });
+      return;
+    }
+    store.set({
+      keyPending: false,
+      keyError: null,
+      keyReset: store.get().keyReset + 1,
+      status: msg('statusKeySaved'),
+    });
+  })();
+};
+
+const onNanoEnable = (): void => {
+  void (async () => {
+    const state = await nanoAvailability();
+    if (state === 'unavailable') {
+      store.set({ nano: 'hidden', status: msg('nanoUnavailable') });
+      return;
+    }
+    if (state !== 'readily') {
+      store.set({ nano: 'downloading', nanoProgress: null, status: msg('nanoDownloadStart') });
+      try {
+        await downloadNanoModel((frac) => store.set({ nanoProgress: frac }));
+      } catch {
+        store.set({ nano: 'failed', status: msg('nanoDownloadFail') });
+        return;
+      }
+      store.set({ status: msg('nanoDownloadReady') });
+    }
+    const settings = await loadSettings();
+    await saveSettings({ ...settings, preferOnDevice: true });
+    store.set({ nano: 'hidden', status: msg('nanoReady') });
+  })();
+};
+
+const OnboardingApp = () => {
+  const state = useSyncExternalStore(store.subscribe, store.get);
+  return (
+    <main>
+      <h1 id="title">{msg('appName')}</h1>
+      <p id="howto">{msg('onboardingHowto')}</p>
+      <p id="shortcut-line">{state.shortcut}</p>
+      <div id="key-host">
+        <KeySetup
+          mode="setup"
+          pending={state.keyPending}
+          error={state.keyError}
+          sessionOnly={state.sessionOnly}
+          nano={state.nano}
+          nanoInstead={false}
+          nanoProgress={state.nanoProgress}
+          resetKey={state.keyReset}
+          callbacks={{
+            onSave: onSaveKey,
+            onError: (text) => store.set({ keyError: text }),
+            onSessionOnlyChange: (checked) => {
+              store.set({ sessionOnly: checked });
+              void (async () => {
+                const { provider, settings } = await getActiveProvider();
+                await saveSettings({ ...settings, sessionOnly: checked });
+                const loaded = await loadKey(provider.id);
+                if (loaded.state === 'ok') {
+                  await saveKey(provider.id, loaded.key, checked);
+                }
+              })().catch(() => {});
+            },
+            onNanoEnable,
+            onConsentDecision: () => {},
+          }}
+        />
+      </div>
+      <div id="status-region" role="status" className="visually-hidden">{state.status}</div>
+      <p id="try-hint">{msg('onboardingTryHint')}</p>
+    </main>
+  );
 };
 
 let initialized = false;
@@ -33,7 +144,8 @@ export const initOnboarding = (): void => {
   if (initialized) {
     return;
   }
-  if (!document.getElementById('key-host')) {
+  const host = document.getElementById('root');
+  if (!host) {
     return;
   }
   initialized = true;
@@ -41,106 +153,27 @@ export const initOnboarding = (): void => {
   document.title = msg('appName');
   document.documentElement.lang = msg('@@ui_locale').replace('_', '-');
   document.documentElement.dir = msg('@@bidi_dir');
-  req('title').textContent = msg('appName');
-  req('howto').textContent = msg('onboardingHowto');
-  req('try-hint').textContent = msg('onboardingTryHint');
-  const shortcutLine = req('shortcut-line');
-  const statusRegion = req('status-region');
-
-  const keySetup = document.createElement('key-setup') as KeySetupElement;
-  req('key-host').append(keySetup);
+  flushSync(() => {
+    createRoot(host).render(<OnboardingApp />);
+  });
   void loadSettings().then((settings) => {
-    keySetup.setSessionOnly(settings.sessionOnly);
+    store.set({ sessionOnly: settings.sessionOnly });
   });
   void chrome.commands
     .getAll()
     .then((commands) => {
       const action = commands.find((command) => command.name === '_execute_action');
-      shortcutLine.textContent = action?.shortcut
-        ? msg('shortcutLine', action.shortcut)
-        : msg('shortcutUnset');
+      store.set({
+        shortcut: action?.shortcut ? msg('shortcutLine', action.shortcut) : msg('shortcutUnset'),
+      });
     })
     .catch(() => {
-      shortcutLine.textContent = msg('shortcutUnset');
+      store.set({ shortcut: msg('shortcutUnset') });
     });
-
-  keySetup.addEventListener('key-save-request', (event) => {
-    const detail = (event as CustomEvent<KeySaveRequestDetail>).detail;
-    void (async () => {
-      keySetup.setPending(true);
-      statusRegion.textContent = msg('statusValidatingKey');
-      const { provider, settings } = await getActiveProvider();
-      try {
-        await provider.testKey(detail.key);
-      } catch (err) {
-        keySetup.setPending(false);
-        if (err instanceof ProviderError && err.code === 'auth') {
-          keySetup.setError(msg('keyErrorRejected'));
-        } else if (err instanceof ProviderError && err.code === 'network') {
-          keySetup.setError(msg('keyErrorNetwork'));
-        } else {
-          keySetup.setError(msg('keyErrorRetry'));
-        }
-        return;
-      }
-      try {
-        await saveKey(provider.id, detail.key, detail.sessionOnly);
-        await saveSettings({ ...settings, sessionOnly: detail.sessionOnly });
-      } catch {
-        keySetup.setPending(false);
-        keySetup.setError(msg('keyErrorRetry'));
-        return;
-      }
-      keySetup.setPending(false);
-      keySetup.clear();
-      statusRegion.textContent = msg('statusKeySaved');
-    })();
-  });
-
-  keySetup.addEventListener('session-only-change', (event) => {
-    const detail = (event as CustomEvent<SessionOnlyChangeDetail>).detail;
-    void (async () => {
-      const { provider, settings } = await getActiveProvider();
-      await saveSettings({ ...settings, sessionOnly: detail.checked });
-      const loaded = await loadKey(provider.id);
-      if (loaded.state === 'ok') {
-        await saveKey(provider.id, loaded.key, detail.checked);
-      }
-    })().catch(() => {
-      // Best effort; the checkbox state stays as the user set it.
-    });
-  });
-
-  keySetup.addEventListener('nano-enable', () => {
-    void (async () => {
-      const state = await nanoAvailability();
-      if (state === 'unavailable') {
-        keySetup.setNano('hidden');
-        statusRegion.textContent = msg('nanoUnavailable');
-        return;
-      }
-      if (state !== 'readily') {
-        keySetup.setNano('downloading');
-        statusRegion.textContent = msg('nanoDownloadStart');
-        try {
-          await downloadNanoModel((frac) => keySetup.setNanoProgress(frac));
-        } catch {
-          keySetup.setNano('failed');
-          statusRegion.textContent = msg('nanoDownloadFail');
-          return;
-        }
-        statusRegion.textContent = msg('nanoDownloadReady');
-      }
-      const settings = await loadSettings();
-      await saveSettings({ ...settings, preferOnDevice: true });
-      keySetup.setNano('hidden');
-      statusRegion.textContent = msg('nanoReady');
-    })();
-  });
   void (async () => {
     const state = await nanoAvailability();
     if (state === 'readily' || state === 'downloadable' || state === 'downloading') {
-      keySetup.setNano(state === 'readily' ? 'ready' : 'downloadable');
+      store.set({ nano: state === 'readily' ? 'ready' : 'downloadable' });
     }
   })();
 };
