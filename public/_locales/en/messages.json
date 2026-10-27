@@ -1,1114 +1,997 @@
 {
- "appName": {
-  "message": "Plan a trip there",
-  "description": "Extension name."
- },
- "appDesc": {
-  "message": "Right-click any image to identify the place with Muse AI and plan a trip from the side panel.",
-  "description": "Extension description."
- },
- "menuTitle": {
-  "message": "Plan a trip there",
-  "description": "Image context menu item."
- },
- "panelIdle": {
-  "message": "Right-click an image on any page, then choose Plan a trip there.",
-  "description": "Side panel idle hint."
- },
- "shortcutLine": {
-  "message": "Keyboard shortcut: $1",
-  "description": "Idle hint line showing the real panel shortcut.",
-  "placeholders": {
-   "shortcut": {
-    "content": "$1",
-    "example": "Ctrl+Shift+Period"
-   }
+  "appName": {
+    "message": "Plan a trip there",
+    "description": "Extension name."
+  },
+  "appDesc": {
+    "message": "Right-click any image to identify the place with Muse AI and plan a trip from the side panel.",
+    "description": "Extension description."
+  },
+  "menuTitle": {
+    "message": "Plan a trip there",
+    "description": "Image context menu item."
+  },
+  "panelIdle": {
+    "message": "Right-click an image on any page, then choose Plan a trip there.",
+    "description": "Side panel idle hint."
+  },
+  "shortcutLine": {
+    "message": "Keyboard shortcut: $1",
+    "description": "Idle hint line showing the real panel shortcut.",
+    "placeholders": {
+      "shortcut": { "content": "$1", "example": "Ctrl+Shift+Period" }
+    }
+  },
+  "shortcutUnset": {
+    "message": "No keyboard shortcut assigned - set one at chrome://extensions/shortcuts",
+    "description": "Idle hint line when no shortcut is assigned."
+  },
+  "statusAnalyzing": {
+    "message": "Analyzing image…",
+    "description": "Status announcement when analysis starts."
+  },
+  "statusFoundWriting": {
+    "message": "Found $1 - writing trip guide…",
+    "description": "Status announcement when the place is identified.",
+    "placeholders": {
+      "place": { "content": "$1", "example": "Oia" }
+    }
+  },
+  "statusSearchingWeb": {
+    "message": "Searching the web…",
+    "description": "Status announcement when grounding starts."
+  },
+  "statusGuideReady": {
+    "message": "Trip guide ready",
+    "description": "Status announcement when the guide completes."
+  },
+  "statusGuideReadySources": {
+    "message": "Trip guide ready - $1 sources",
+    "description": "Status announcement when the guide completes with sources.",
+    "placeholders": {
+      "count": { "content": "$1", "example": "3" }
+    }
+  },
+  "statusCacheHit": {
+    "message": "Showing saved result - $1",
+    "description": "Single status announcement for cache hits.",
+    "placeholders": {
+      "place": { "content": "$1", "example": "Oia" }
+    }
+  },
+  "statusCanceledNew": {
+    "message": "Analysis canceled - analyzing new image",
+    "description": "Coalesced announcement when a click supersedes a run."
+  },
+  "statusKeyNeeded": {
+    "message": "Add your Muse API key to analyze this image.",
+    "description": "Status announcement when the key setup appears."
+  },
+  "statusConsentNeeded": {
+    "message": "Review what is sent and agree to analyze this image.",
+    "description": "Status announcement when the consent gate appears."
+  },
+  "statusConsentDeclined": {
+    "message": "Analysis discarded.",
+    "description": "Status announcement when consent is declined."
+  },
+  "statusNoPlace": {
+    "message": "No specific place found.",
+    "description": "Status announcement for the no-place terminal state."
+  },
+  "statusValidatingKey": {
+    "message": "Validating key…",
+    "description": "Status announcement while a key is validated."
+  },
+  "statusKeySaved": {
+    "message": "Key saved",
+    "description": "Status announcement when a key is saved."
+  },
+  "statusKeyCleared": {
+    "message": "Key cleared.",
+    "description": "Status announcement when a key is cleared."
+  },
+  "statusKeyWorks": {
+    "message": "Key works.",
+    "description": "Status announcement when a tested key is accepted."
+  },
+  "statusMonthlyReset": {
+    "message": "Monthly total reset",
+    "description": "Status announcement when the cost total is reset."
+  },
+  "alertAuth": {
+    "message": "Your API key was rejected. Check the key and try again.",
+    "description": "Alert for authentication failures."
+  },
+  "alertRateLimited": {
+    "message": "Rate limited - try again in a moment.",
+    "description": "Alert for rate limiting."
+  },
+  "alertServer": {
+    "message": "The service had a problem - try again.",
+    "description": "Alert for server errors."
+  },
+  "alertNetwork": {
+    "message": "Network problem - check your connection and retry.",
+    "description": "Alert for network errors."
+  },
+  "alertInvalidResponse": {
+    "message": "Could not read the model's answer - retry.",
+    "description": "Alert for validation failures."
+  },
+  "alertStreamError": {
+    "message": "Guide interrupted - retry to continue.",
+    "description": "Alert for stream errors."
+  },
+  "alertNotConfigured": {
+    "message": "The custom provider is not configured.",
+    "description": "Alert for a misconfigured provider."
+  },
+  "errorAuthTitle": {
+    "message": "Check your API key",
+    "description": "Error card title for rejected keys."
+  },
+  "errorAuthBody": {
+    "message": "The key was rejected. Fix it below and the analysis resumes.",
+    "description": "Error card body for rejected keys."
+  },
+  "errorRateTitle": {
+    "message": "Rate limited",
+    "description": "Error card title for rate limiting."
+  },
+  "errorRateBody": {
+    "message": "Too many requests - wait a moment, then retry.",
+    "description": "Error card body for rate limiting."
+  },
+  "errorServerTitle": {
+    "message": "Service problem",
+    "description": "Error card title for server errors."
+  },
+  "errorServerBody": {
+    "message": "The service had a problem - retry.",
+    "description": "Error card body for server errors."
+  },
+  "errorNetworkTitle": {
+    "message": "Network problem",
+    "description": "Error card title for network errors."
+  },
+  "errorNetworkBody": {
+    "message": "Check your connection, then retry.",
+    "description": "Error card body for network errors."
+  },
+  "errorInvalidTitle": {
+    "message": "Unreadable answer",
+    "description": "Error card title for validation failures."
+  },
+  "errorInvalidBody": {
+    "message": "Could not read the model's answer - retry.",
+    "description": "Error card body for validation failures."
+  },
+  "errorStreamTitle": {
+    "message": "Guide interrupted",
+    "description": "Error card title for stream errors."
+  },
+  "errorStreamBody": {
+    "message": "The guide stopped early - retry to continue.",
+    "description": "Error card body for stream errors."
+  },
+  "errorDataTitle": {
+    "message": "Image too large",
+    "description": "Error card title for oversized inline images."
+  },
+  "errorDataBody": {
+    "message": "This inline image is too large to pass along - try a smaller one.",
+    "description": "Error card body for oversized inline images."
+  },
+  "retryButton": {
+    "message": "Retry",
+    "description": "Error card retry button."
+  },
+  "retryingButton": {
+    "message": "Retrying…",
+    "description": "Retry button loading state."
+  },
+  "lookAgainButton": {
+    "message": "It's a place - look again",
+    "description": "No-place card escalation button."
+  },
+  "lookingAgainButton": {
+    "message": "Looking again…",
+    "description": "Look-again button loading state."
+  },
+  "reanalyzeButton": {
+    "message": "Re-analyze",
+    "description": "Wrong-place re-analysis button."
+  },
+  "notThisPlace": {
+    "message": "Not this place?",
+    "description": "Wrong-place disclosure summary."
+  },
+  "agreeButton": {
+    "message": "Agree & analyze",
+    "description": "Consent gate agreement button."
+  },
+  "declineButton": {
+    "message": "Not now",
+    "description": "Consent gate decline button."
+  },
+  "saveKeyButton": {
+    "message": "Save key",
+    "description": "Key form save button."
+  },
+  "validatingButton": {
+    "message": "Validating…",
+    "description": "Key form save button while validating."
+  },
+  "showKeyButton": {
+    "message": "Show key",
+    "description": "Key field reveal button."
+  },
+  "hideKeyButton": {
+    "message": "Hide key",
+    "description": "Key field hide button."
+  },
+  "clearKeyButton": {
+    "message": "Clear key",
+    "description": "Options clear-key button."
+  },
+  "testKeyButton": {
+    "message": "Test key",
+    "description": "Options test-key button."
+  },
+  "resetCostButton": {
+    "message": "Reset monthly cost total",
+    "description": "Options cost reset button."
+  },
+  "keyLabel": {
+    "message": "Muse API key",
+    "description": "Key field label."
+  },
+  "keyHint": {
+    "message": "Starts with LLM_ - created in the dev.meta.ai dashboard.",
+    "description": "Key field hint."
+  },
+  "keyPlaceholder": {
+    "message": "LLM_…",
+    "description": "Key field placeholder."
+  },
+  "keyErrorEmpty": {
+    "message": "Paste a key first.",
+    "description": "Key form empty error."
+  },
+  "keyErrorRejected": {
+    "message": "Key rejected - check it and try again.",
+    "description": "Key form rejection error."
+  },
+  "keyErrorNetwork": {
+    "message": "Could not reach the service - try again.",
+    "description": "Key form network error."
+  },
+  "keyErrorRetry": {
+    "message": "Could not validate the key - try again.",
+    "description": "Key form transient validation error."
+  },
+  "keyReenterNotice": {
+    "message": "Please re-enter your key - the saved copy could not be read.",
+    "description": "Notice when the vault copy is orphaned."
+  },
+  "sessionOnlyLabel": {
+    "message": "Session-only mode (forget the key when the browser closes)",
+    "description": "Session-only checkbox label."
+  },
+  "dashboardLink": {
+    "message": "Get a key in the dev.meta.ai dashboard",
+    "description": "Dashboard link text."
+  },
+  "securityNotice": {
+    "message": "Your API key is encrypted before it's saved (AES-GCM, with a non-extractable key kept in this browser profile) and never leaves this device except to authenticate requests to api.meta.ai. Someone with full access to your computer account could still recover it, so only save it on a trusted device - or enable session-only mode, which keeps the key in memory and forgets it when the browser closes.",
+    "description": "Canonical key security notice."
+  },
+  "keyHygiene": {
+    "message": "Create a dedicated key just for this extension, paste it only into the official Web Store install or a build you made yourself from this repo (a modified clone could steal it), and revoke it anytime in the dev.meta.ai dashboard.",
+    "description": "Key hygiene lines."
+  },
+  "consentTitle": {
+    "message": "Before the first analysis",
+    "description": "Consent gate heading."
+  },
+  "consentBody": {
+    "message": "Analyzing sends the clicked image (its web address or, for inline images, captured frames, and on-demand retries, its pixels), nearby page text (title, captions, metadata), and the page's address to Meta's Muse API using your key. For private images, the image's address itself can grant access to it. Scanning a page sends that page's travel images and their captions the same way (even when the \"image only\" toggle is on), and planning a trip from your board sends the pinned thumbnails, their place names, and the addresses of the sites you pinned them from. Meta may run web searches to ground the trip guide. Per Meta's API terms, standard (non-contributor) models are not trained on your content.",
+    "description": "Canonical data-transmission disclosure."
+  },
+  "onboardingHowto": {
+    "message": "Right-click any image on any page and choose Plan a trip there. Muse AI identifies the place and the side panel plans your trip.",
+    "description": "Onboarding how-it-works line."
+  },
+  "onboardingTryHint": {
+    "message": "Try it now: open a photo-rich page such as a Wikipedia landmark article, right-click a photo, and choose Plan a trip there.",
+    "description": "Onboarding try-it hint."
+  },
+  "optionsKeyHeading": {
+    "message": "API key",
+    "description": "Options key section heading."
+  },
+  "optionsCostHeading": {
+    "message": "API cost",
+    "description": "Options cost section heading."
+  },
+  "optionsCostMonth": {
+    "message": "Estimated API cost this month: $1",
+    "description": "Options monthly total label.",
+    "placeholders": {
+      "amount": { "content": "$1", "example": "$1.23" }
+    }
+  },
+  "imageOnlyLabel": {
+    "message": "Send the image only - no page text",
+    "description": "Image-only toggle label."
+  },
+  "optionsPrivacyHeading": {
+    "message": "Storage and privacy",
+    "description": "Options privacy section heading."
+  },
+  "optionsPrivacyBody": {
+    "message": "Your key is stored encrypted on this device. Page text and image addresses are sent to api.meta.ai only when you analyze something. Cost totals stay on this device. Nothing is sent anywhere else.",
+    "description": "Options privacy disclosure."
+  },
+  "bestGuessBadge": {
+    "message": "Best guess",
+    "description": "Low-confidence badge text."
+  },
+  "sourcesHeading": {
+    "message": "Sources",
+    "description": "Sources row heading."
+  },
+  "newTabSuffix": {
+    "message": ", opens in new tab",
+    "description": "Visually-hidden new-tab suffix for links."
+  },
+  "bookingLink_maps": {
+    "message": "Google Maps",
+    "description": "Booking tile label."
+  },
+  "bookingLink_flights": {
+    "message": "Google Flights",
+    "description": "Booking tile label."
+  },
+  "bookingLink_hotels": {
+    "message": "Google Hotels",
+    "description": "Booking tile label."
+  },
+  "bookingLink_airbnb": {
+    "message": "Airbnb",
+    "description": "Booking tile label."
+  },
+  "bookingLink_booking": {
+    "message": "Booking.com",
+    "description": "Booking tile label."
+  },
+  "bookingLink_getyourguide": {
+    "message": "GetYourGuide",
+    "description": "Booking tile label."
+  },
+  "bookingLink_tripadvisor": {
+    "message": "TripAdvisor",
+    "description": "Booking tile label."
+  },
+  "bookingLink_expedia": {
+    "message": "Expedia",
+    "description": "Booking tile label."
+  },
+  "truncatedNotice": {
+    "message": "Guide truncated.",
+    "description": "Notice when the guide hits the character cap."
+  },
+  "guideInterrupted": {
+    "message": "Guide interrupted.",
+    "description": "Notice kept with partial guide text."
+  },
+  "noPlaceTitle": {
+    "message": "Couldn't spot a specific place in this photo",
+    "description": "No-place card title."
+  },
+  "noPlaceBody": {
+    "message": "Try another photo, look again with more effort, or type a destination below.",
+    "description": "No-place card body."
+  },
+  "fallbackPrefix": {
+    "message": "From the page:",
+    "description": "Prefix for the page-signal fallback link."
+  },
+  "costLine": {
+    "message": "This analysis ≈ $1 · this month ≈ $2",
+    "description": "Per-run and monthly cost readout.",
+    "placeholders": {
+      "run": { "content": "$1", "example": "$0.01" },
+      "month": { "content": "$2", "example": "$1.23" }
+    }
+  },
+  "costLineTokens": {
+    "message": "Tokens this run: $1 in, $2 out",
+    "description": "Token readout without rates.",
+    "placeholders": {
+      "in": { "content": "$1", "example": "1200" },
+      "out": { "content": "$2", "example": "300" }
+    }
+  },
+  "costLineCache": {
+    "message": "from cache - no API cost",
+    "description": "Cache-hit cost line."
+  },
+  "privacyImage": {
+    "message": "Sent to Meta's Muse API with your key: this image's address, nearby page text, and the page address",
+    "description": "Privacy footer for image analyses."
+  },
+  "privacyImageOnly": {
+    "message": "Sent to Meta's Muse API with your key: this image's address only",
+    "description": "Privacy footer for image-only analyses."
+  },
+  "privacyCache": {
+    "message": "From cache - nothing was sent.",
+    "description": "Privacy footer for cache hits."
+  },
+  "privacyIdle": {
+    "message": "Analyzing sends image and page context to Meta's Muse API - details appear with each analysis.",
+    "description": "Privacy footer when idle."
+  },
+  "privacyLinksSummary": {
+    "message": "About booking links",
+    "description": "Booking-links disclosure summary."
+  },
+  "privacyLinksBody": {
+    "message": "Clicking a booking link sends the destination name to that site. Links open in a new tab.",
+    "description": "Booking-links disclosure body."
+  },
+  "previewHeading": {
+    "message": "Image being analyzed",
+    "description": "Preview header heading."
+  },
+  "previewAltImage": {
+    "message": "Image being analyzed",
+    "description": "Preview image alt text."
+  },
+  "previewAltIdentified": {
+    "message": "Image identified as $1",
+    "description": "Preview image alt text after identification.",
+    "placeholders": {
+      "place": { "content": "$1", "example": "Oia" }
+    }
+  },
+  "previewUnavailable": {
+    "message": "Image preview unavailable",
+    "description": "Visible placeholder text."
+  },
+  "loadingReading": {
+    "message": "Reading the photo…",
+    "description": "Cosmetic loading line."
+  },
+  "loadingIdentifying": {
+    "message": "Identifying the place…",
+    "description": "Cosmetic loading line."
+  },
+  "loadingWriting": {
+    "message": "Writing your trip guide…",
+    "description": "Cosmetic loading line."
+  },
+  "videoConfirmTitle": {
+    "message": "Analyze this video?",
+    "description": "First-video confirm heading."
+  },
+  "videoConfirmBody": {
+    "message": "This captures the current video frame and sends it to Meta - continue?",
+    "description": "First-video confirm disclosure."
+  },
+  "videoConfirmRung2Note": {
+    "message": "The frame could not be captured, so the full video and its soundtrack will be sent instead.",
+    "description": "Extra confirm line when rung 2 will run."
+  },
+  "videoConfirmAgree": {
+    "message": "Capture & analyze",
+    "description": "First-video confirm button."
+  },
+  "videoConfirmCancel": {
+    "message": "Cancel",
+    "description": "First-video decline button."
+  },
+  "previewAltFrame": {
+    "message": "Captured video frame being analyzed",
+    "description": "Preview alt text for a captured frame."
+  },
+  "statusAnalyzingFrame": {
+    "message": "Analyzing the frame you clicked…",
+    "description": "Status announcement when frame analysis starts."
+  },
+  "statusAnalyzingVideo": {
+    "message": "Analyzing the video you clicked…",
+    "description": "Status announcement when full-video analysis starts."
+  },
+  "statusVideoConfirmNeeded": {
+    "message": "Video confirmation needed.",
+    "description": "Status announcement for the first-video gate."
+  },
+  "statusVideoConfirmDeclined": {
+    "message": "Video analysis canceled.",
+    "description": "Status announcement when the video confirm is declined."
+  },
+  "errorVideoTitle": {
+    "message": "Can't read this video",
+    "description": "Error card title for unreadable video."
+  },
+  "errorVideoBody": {
+    "message": "No frame could be captured from this video (it may be protected). Use the suggested link when one is shown, or analyze another image.",
+    "description": "Error card body for unreadable video."
+  },
+  "errorVideoMatchTitle": {
+    "message": "Couldn't match the video",
+    "description": "Error card title when the video element is not found."
+  },
+  "errorVideoMatchBody": {
+    "message": "The clicked video could not be found on the page. Click the video again, or analyze another image.",
+    "description": "Error card body when the video element is not found."
+  },
+  "errorVideoProviderBody": {
+    "message": "The frame could not be captured and the active provider cannot analyze video directly.",
+    "description": "Error card body when rung 2 is unavailable."
+  },
+  "alertVideoUnreadable": {
+    "message": "Video unreadable. Suggested links are shown.",
+    "description": "Alert announcement for video failures."
+  },
+  "privacyVideoFrame": {
+    "message": "Sent to Meta's Muse API with your key: this captured video frame, nearby page text, and the page address.",
+    "description": "Privacy footer for frame analysis."
+  },
+  "privacyVideoUrl": {
+    "message": "Sent to Meta's Muse API with your key: this video and its soundtrack, nearby page text, and the page address.",
+    "description": "Privacy footer for full-video analysis."
+  },
+  "boardTitle": {
+    "message": "Trip board ($1)",
+    "description": "Board disclosure button label.",
+    "placeholders": {
+      "count": { "content": "$1", "example": "3" }
+    }
+  },
+  "boardEmpty": {
+    "message": "No places pinned yet. Pin a result to start your board.",
+    "description": "Empty board text."
+  },
+  "boardPlan": {
+    "message": "Plan this trip",
+    "description": "Itinerary action button."
+  },
+  "boardPlanNote": {
+    "message": "Pin at least 2 places to plan a trip.",
+    "description": "Explanation beside the disabled Plan button."
+  },
+  "boardClear": {
+    "message": "Clear board",
+    "description": "Board clear button."
+  },
+  "boardRemove": {
+    "message": "Remove $1",
+    "description": "Per-pin remove button.",
+    "placeholders": {
+      "place": { "content": "$1", "example": "Oia" }
+    }
+  },
+  "pinButton": {
+    "message": "Pin $1 to trip",
+    "description": "Result card pin toggle.",
+    "placeholders": {
+      "place": { "content": "$1", "example": "Oia" }
+    }
+  },
+  "scanTitle": {
+    "message": "Places found on this page",
+    "description": "Scan state heading."
+  },
+  "scanMenuTitle": {
+    "message": "Scan page for places",
+    "description": "Page context menu item."
+  },
+  "scanGuide": {
+    "message": "Guide for $1",
+    "description": "Scan card Guide button.",
+    "placeholders": {
+      "place": { "content": "$1", "example": "Oia" }
+    }
+  },
+  "scanPinSelected": {
+    "message": "Pin selected ($1)",
+    "description": "Scan shortlist bulk-pin button.",
+    "placeholders": {
+      "count": { "content": "$1", "example": "2" }
+    }
+  },
+  "scanEmptyTitle": {
+    "message": "No images to scan",
+    "description": "Scan error title when the harvest is empty."
+  },
+  "scanEmptyBody": {
+    "message": "This page has no large images to identify places from.",
+    "description": "Scan error body when the harvest is empty."
+  },
+  "scanNoneTitle": {
+    "message": "No places found",
+    "description": "Scan error title when no place was recognized."
+  },
+  "scanNoneBody": {
+    "message": "The scan finished but no recognizable places were found.",
+    "description": "Scan error body when no place was recognized."
+  },
+  "scanFound": {
+    "message": "Found $1 places on this page",
+    "description": "Scan completion announcement.",
+    "placeholders": {
+      "count": { "content": "$1", "example": "3" }
+    }
+  },
+  "duelCaption": {
+    "message": "Comparing $1 and $2",
+    "description": "Duel table caption.",
+    "placeholders": {
+      "a": { "content": "$1", "example": "Oia, Greece" },
+      "b": { "content": "$2", "example": "Fira, Greece" }
+    }
+  },
+  "duelVerdict": {
+    "message": "Verdict",
+    "description": "Duel verdict row header."
+  },
+  "duelError": {
+    "message": "Could not compare $1 and $2.",
+    "description": "Duel inline error.",
+    "placeholders": {
+      "a": { "content": "$1", "example": "Oia, Greece" },
+      "b": { "content": "$2", "example": "Fira, Greece" }
+    }
+  },
+  "duelRetry": {
+    "message": "Retry comparison",
+    "description": "Duel inline retry button."
+  },
+  "duelStatus": {
+    "message": "Comparing $1 and $2...",
+    "description": "Duel start announcement.",
+    "placeholders": {
+      "a": { "content": "$1", "example": "Oia" },
+      "b": { "content": "$2", "example": "Fira" }
+    }
+  },
+  "duelReady": {
+    "message": "Comparison ready",
+    "description": "Duel completion announcement."
+  },
+  "compareLabel": {
+    "message": "Compare with",
+    "description": "Duel picker label."
+  },
+  "compareGo": {
+    "message": "Compare",
+    "description": "Duel picker Go button."
+  },
+  "compareStale": {
+    "message": "That place is no longer on the board.",
+    "description": "Announcement when a duel target vanished."
+  },
+  "alternatesCheaper": {
+    "message": "Cheaper alternatives",
+    "description": "Cheaper intent chip."
+  },
+  "alternatesQuieter": {
+    "message": "Quieter alternatives",
+    "description": "Quieter intent chip."
+  },
+  "alternatesSimilar": {
+    "message": "Similar-vibe alternatives",
+    "description": "Similar-vibe intent chip."
+  },
+  "alternatesFindingCheaper": {
+    "message": "Finding cheaper alternatives...",
+    "description": "Cheaper search announcement."
+  },
+  "alternatesFindingQuieter": {
+    "message": "Finding quieter alternatives...",
+    "description": "Quieter search announcement."
+  },
+  "alternatesFindingSimilar": {
+    "message": "Finding similar-vibe alternatives...",
+    "description": "Similar-vibe search announcement."
+  },
+  "alternatesReady": {
+    "message": "$1 alternatives ready",
+    "description": "Alternates arrival announcement.",
+    "placeholders": {
+      "count": { "content": "$1", "example": "3" }
+    }
+  },
+  "alternatesFail": {
+    "message": "Could not load alternatives.",
+    "description": "Alternates failure announcement."
+  },
+  "alternatesBestMonth": {
+    "message": "Best month: $1",
+    "description": "Alternate card best month.",
+    "placeholders": {
+      "month": { "content": "$1", "example": "May" }
+    }
+  },
+  "alternatesInstead": {
+    "message": "Plan trip to $1 instead",
+    "description": "Alternate card re-plan action.",
+    "placeholders": {
+      "place": { "content": "$1", "example": "Fira, Greece" }
+    }
+  },
+  "privacyNames": {
+    "message": "Sent to Meta's Muse API with your key: place names only.",
+    "description": "Privacy footer for duels and alternates."
+  },
+  "fetchRetryButton": {
+    "message": "Download image and retry",
+    "description": "Byte-fetch retry button."
+  },
+  "fetchRetryLoading": {
+    "message": "Downloading image...",
+    "description": "Byte-fetch retry loading label."
+  },
+  "fetchDenied": {
+    "message": "Image download permission was denied.",
+    "description": "Byte-fetch denial announcement."
+  },
+  "fetchFailed": {
+    "message": "Could not download the image for retry.",
+    "description": "Byte-fetch failure announcement."
+  },
+  "optionsProviderHeading": {
+    "message": "AI provider",
+    "description": "Options provider section heading."
+  },
+  "providerMuse": {
+    "message": "Meta Muse (recommended)",
+    "description": "Muse provider radio label."
+  },
+  "providerCompat": {
+    "message": "OpenAI-compatible server",
+    "description": "Custom provider radio label."
+  },
+  "compatBaseUrl": {
+    "message": "Server URL",
+    "description": "Custom server URL label."
+  },
+  "compatModel": {
+    "message": "Model",
+    "description": "Custom server model label."
+  },
+  "compatStructured": {
+    "message": "Structured output",
+    "description": "Custom server structured-output label."
+  },
+  "compatStructuredSchema": {
+    "message": "JSON schema",
+    "description": "Structured-output schema option."
+  },
+  "compatStructuredObject": {
+    "message": "JSON object",
+    "description": "Structured-output object option."
+  },
+  "compatInputRate": {
+    "message": "Input price in USD per 1M tokens (optional)",
+    "description": "Custom server input rate label."
+  },
+  "compatOutputRate": {
+    "message": "Output price in USD per 1M tokens (optional)",
+    "description": "Custom server output rate label."
+  },
+  "compatSave": {
+    "message": "Save server",
+    "description": "Custom server save button."
+  },
+  "statusProviderSaved": {
+    "message": "Provider saved.",
+    "description": "Provider switch announcement."
+  },
+  "providerErrorUrl": {
+    "message": "Enter a valid https server URL (http works for localhost only).",
+    "description": "Custom server URL error."
+  },
+  "providerErrorModel": {
+    "message": "Enter a model name.",
+    "description": "Custom server model error."
+  },
+  "providerErrorRates": {
+    "message": "Rates must be blank or non-negative numbers.",
+    "description": "Custom server rates error."
+  },
+  "providerErrorDenied": {
+    "message": "Permission for that server was denied.",
+    "description": "Custom server denial error."
+  },
+  "samZoomed": {
+    "message": "Zoomed in on the landmark for a second look",
+    "description": "SAM crop announcement."
+  },
+  "samZoomCaption": {
+    "message": "Zoomed in on the landmark",
+    "description": "SAM crop preview caption."
+  },
+  "previewAltCrop": {
+    "message": "Cropped view of the landmark being re-analyzed",
+    "description": "SAM crop preview alt text."
+  },
+  "nanoTry": {
+    "message": "Try on-device (basic, free)",
+    "description": "Onboarding Nano button."
+  },
+  "nanoTryInstead": {
+    "message": "Try on-device instead",
+    "description": "Error-card Nano button."
+  },
+  "nanoDownloadHint": {
+    "message": "Chrome downloads a one-time AI model (~2 GB) from Google; after that, analysis runs fully on this device.",
+    "description": "Nano download hint."
+  },
+  "nanoDownloading": {
+    "message": "Downloading on-device model",
+    "description": "Nano progress accessible name."
+  },
+  "nanoDownloadStart": {
+    "message": "Model download started - this can take several minutes",
+    "description": "Nano download start announcement."
+  },
+  "nanoDownloadMid": {
+    "message": "Model download is halfway there",
+    "description": "Nano download midpoint announcement."
+  },
+  "nanoDownloadReady": {
+    "message": "On-device model ready",
+    "description": "Nano download completion announcement."
+  },
+  "nanoDownloadFail": {
+    "message": "On-device model download failed.",
+    "description": "Nano download failure text."
+  },
+  "nanoUnavailable": {
+    "message": "On-device AI is not available on this device.",
+    "description": "Nano unavailable announcement."
+  },
+  "nanoBadge": {
+    "message": "on-device result - best effort",
+    "description": "On-device result badge."
+  },
+  "nanoGuideReady": {
+    "message": "Trip guide ready - analyzed on this device",
+    "description": "On-device guide completion announcement."
+  },
+  "nanoFreeLine": {
+    "message": "on-device - free",
+    "description": "On-device cost line."
+  },
+  "nanoReady": {
+    "message": "On-device AI is ready.",
+    "description": "Onboarding Nano ready announcement."
+  },
+  "privacyLocal": {
+    "message": "Analyzed on this device - nothing was sent anywhere.",
+    "description": "Privacy footer for on-device runs."
+  },
+  "preferOnDeviceLabel": {
+    "message": "Prefer on-device AI when available (free, basic)",
+    "description": "Options on-device toggle label."
+  },
+  "boardNoticePinFail": {
+    "message": "Couldn't pin $1 - storage is unavailable.",
+    "description": "Visible pin-failure notice.",
+    "placeholders": {
+      "place": { "content": "$1", "example": "Oia" }
+    }
+  },
+  "boardRetryNoThumb": {
+    "message": "Retry without thumbnail",
+    "description": "Pin retry action."
+  },
+  "boardClearTitle": {
+    "message": "Remove all $1 pins?",
+    "description": "Clear-board confirm heading.",
+    "placeholders": {
+      "count": { "content": "$1", "example": "3" }
+    }
+  },
+  "boardCleared": {
+    "message": "Board cleared",
+    "description": "Status announcement after clearing."
+  },
+  "statusPinned": {
+    "message": "Pinned $1 - $2 places on board",
+    "description": "Status announcement for a successful pin.",
+    "placeholders": {
+      "place": { "content": "$1", "example": "Oia" },
+      "count": { "content": "$2", "example": "3" }
+    }
+  },
+  "statusPinnedEvicted": {
+    "message": "Pinned $1 - board full, removed $2",
+    "description": "Status announcement for a pin with eviction.",
+    "placeholders": {
+      "place": { "content": "$1", "example": "Oia" },
+      "oldest": { "content": "$2", "example": "Fira" }
+    }
+  },
+  "statusPinDuplicate": {
+    "message": "$1 is already on the board",
+    "description": "Status announcement for a dedupe hit.",
+    "placeholders": {
+      "place": { "content": "$1", "example": "Oia" }
+    }
+  },
+  "alertPinFail": {
+    "message": "Couldn't pin $1",
+    "description": "Alert announcement for a failed pin.",
+    "placeholders": {
+      "place": { "content": "$1", "example": "Oia" }
+    }
+  },
+  "boardNoticeRemoveFail": {
+    "message": "Couldn't remove $1 - storage is unavailable.",
+    "description": "Visible remove-failure notice.",
+    "placeholders": {
+      "place": { "content": "$1", "example": "Oia" }
+    }
+  },
+  "alertRemoveFail": {
+    "message": "Couldn't remove $1",
+    "description": "Alert announcement for a failed remove.",
+    "placeholders": {
+      "place": { "content": "$1", "example": "Oia" }
+    }
+  },
+  "alertBoardClearFail": {
+    "message": "Couldn't clear the board.",
+    "description": "Alert announcement for a failed clear."
+  },
+  "statusPlanning": {
+    "message": "Planning your trip - $1 places…",
+    "description": "Status announcement when itinerary planning starts.",
+    "placeholders": {
+      "count": { "content": "$1", "example": "3" }
+    }
+  },
+  "statusItineraryReady": {
+    "message": "Itinerary ready",
+    "description": "Status announcement when the itinerary lands."
+  },
+  "itineraryTitle": {
+    "message": "Trip plan - $1 stops",
+    "description": "Itinerary card heading.",
+    "placeholders": {
+      "count": { "content": "$1", "example": "3" }
+    }
+  },
+  "itineraryNights": {
+    "message": "Nights: $1",
+    "description": "Per-stop nights line.",
+    "placeholders": {
+      "nights": { "content": "$1", "example": "2" }
+    }
+  },
+  "mapsLink": {
+    "message": "Open route in Google Maps ($1 stops)",
+    "description": "Maps route link label.",
+    "placeholders": {
+      "count": { "content": "$1", "example": "3" }
+    }
+  },
+  "privacyBoard": {
+    "message": "Sent to Meta's Muse API with your key: pinned thumbnails, place names, and source-site addresses.",
+    "description": "Privacy footer for board planning."
+  },
+  "mainTab": {
+    "message": "Main",
+    "description": "Main panel tab label."
+  },
+  "tabsLabel": {
+    "message": "Main and trip board",
+    "description": "Accessible name for the panel tab list."
   }
- },
- "shortcutUnset": {
-  "message": "No keyboard shortcut assigned - set one at chrome://extensions/shortcuts",
-  "description": "Idle hint line when no shortcut is assigned."
- },
- "statusAnalyzing": {
-  "message": "Analyzing image…",
-  "description": "Status announcement when analysis starts."
- },
- "statusFoundWriting": {
-  "message": "Found $1 - writing trip guide…",
-  "description": "Status announcement when the place is identified.",
-  "placeholders": {
-   "place": {
-    "content": "$1",
-    "example": "Oia"
-   }
-  }
- },
- "statusSearchingWeb": {
-  "message": "Searching the web…",
-  "description": "Status announcement when grounding starts."
- },
- "statusGuideReady": {
-  "message": "Trip guide ready",
-  "description": "Status announcement when the guide completes."
- },
- "statusGuideReadySources": {
-  "message": "Trip guide ready - $1 sources",
-  "description": "Status announcement when the guide completes with sources.",
-  "placeholders": {
-   "count": {
-    "content": "$1",
-    "example": "3"
-   }
-  }
- },
- "statusCacheHit": {
-  "message": "Showing saved result - $1",
-  "description": "Single status announcement for cache hits.",
-  "placeholders": {
-   "place": {
-    "content": "$1",
-    "example": "Oia"
-   }
-  }
- },
- "statusCanceledNew": {
-  "message": "Analysis canceled - analyzing new image",
-  "description": "Coalesced announcement when a click supersedes a run."
- },
- "statusKeyNeeded": {
-  "message": "Add your Muse API key to analyze this image.",
-  "description": "Status announcement when the key setup appears."
- },
- "statusConsentNeeded": {
-  "message": "Review what is sent and agree to analyze this image.",
-  "description": "Status announcement when the consent gate appears."
- },
- "statusConsentDeclined": {
-  "message": "Analysis discarded.",
-  "description": "Status announcement when consent is declined."
- },
- "statusNoPlace": {
-  "message": "No specific place found.",
-  "description": "Status announcement for the no-place terminal state."
- },
- "statusValidatingKey": {
-  "message": "Validating key…",
-  "description": "Status announcement while a key is validated."
- },
- "statusKeySaved": {
-  "message": "Key saved",
-  "description": "Status announcement when a key is saved."
- },
- "statusKeyCleared": {
-  "message": "Key cleared.",
-  "description": "Status announcement when a key is cleared."
- },
- "statusKeyWorks": {
-  "message": "Key works.",
-  "description": "Status announcement when a tested key is accepted."
- },
- "statusMonthlyReset": {
-  "message": "Monthly total reset",
-  "description": "Status announcement when the cost total is reset."
- },
- "alertAuth": {
-  "message": "Your API key was rejected. Check the key and try again.",
-  "description": "Alert for authentication failures."
- },
- "alertRateLimited": {
-  "message": "Rate limited - try again in a moment.",
-  "description": "Alert for rate limiting."
- },
- "alertServer": {
-  "message": "The service had a problem - try again.",
-  "description": "Alert for server errors."
- },
- "alertNetwork": {
-  "message": "Network problem - check your connection and retry.",
-  "description": "Alert for network errors."
- },
- "alertInvalidResponse": {
-  "message": "Could not read the model's answer - retry.",
-  "description": "Alert for validation failures."
- },
- "alertStreamError": {
-  "message": "Guide interrupted - retry to continue.",
-  "description": "Alert for stream errors."
- },
- "alertNotConfigured": {
-  "message": "The custom provider is not configured.",
-  "description": "Alert for a misconfigured provider."
- },
- "errorAuthTitle": {
-  "message": "Check your API key",
-  "description": "Error card title for rejected keys."
- },
- "errorAuthBody": {
-  "message": "The key was rejected. Fix it below and the analysis resumes.",
-  "description": "Error card body for rejected keys."
- },
- "errorRateTitle": {
-  "message": "Rate limited",
-  "description": "Error card title for rate limiting."
- },
- "errorRateBody": {
-  "message": "Too many requests - wait a moment, then retry.",
-  "description": "Error card body for rate limiting."
- },
- "errorServerTitle": {
-  "message": "Service problem",
-  "description": "Error card title for server errors."
- },
- "errorServerBody": {
-  "message": "The service had a problem - retry.",
-  "description": "Error card body for server errors."
- },
- "errorNetworkTitle": {
-  "message": "Network problem",
-  "description": "Error card title for network errors."
- },
- "errorNetworkBody": {
-  "message": "Check your connection, then retry.",
-  "description": "Error card body for network errors."
- },
- "errorInvalidTitle": {
-  "message": "Unreadable answer",
-  "description": "Error card title for validation failures."
- },
- "errorInvalidBody": {
-  "message": "Could not read the model's answer - retry.",
-  "description": "Error card body for validation failures."
- },
- "errorStreamTitle": {
-  "message": "Guide interrupted",
-  "description": "Error card title for stream errors."
- },
- "errorStreamBody": {
-  "message": "The guide stopped early - retry to continue.",
-  "description": "Error card body for stream errors."
- },
- "errorDataTitle": {
-  "message": "Image too large",
-  "description": "Error card title for oversized inline images."
- },
- "errorDataBody": {
-  "message": "This inline image is too large to pass along - try a smaller one.",
-  "description": "Error card body for oversized inline images."
- },
- "retryButton": {
-  "message": "Retry",
-  "description": "Error card retry button."
- },
- "retryingButton": {
-  "message": "Retrying…",
-  "description": "Retry button loading state."
- },
- "lookAgainButton": {
-  "message": "It's a place - look again",
-  "description": "No-place card escalation button."
- },
- "lookingAgainButton": {
-  "message": "Looking again…",
-  "description": "Look-again button loading state."
- },
- "reanalyzeButton": {
-  "message": "Re-analyze",
-  "description": "Wrong-place re-analysis button."
- },
- "notThisPlace": {
-  "message": "Not this place?",
-  "description": "Wrong-place disclosure summary."
- },
- "agreeButton": {
-  "message": "Agree & analyze",
-  "description": "Consent gate agreement button."
- },
- "declineButton": {
-  "message": "Not now",
-  "description": "Consent gate decline button."
- },
- "saveKeyButton": {
-  "message": "Save key",
-  "description": "Key form save button."
- },
- "validatingButton": {
-  "message": "Validating…",
-  "description": "Key form save button while validating."
- },
- "showKeyButton": {
-  "message": "Show key",
-  "description": "Key field reveal button."
- },
- "hideKeyButton": {
-  "message": "Hide key",
-  "description": "Key field hide button."
- },
- "clearKeyButton": {
-  "message": "Clear key",
-  "description": "Options clear-key button."
- },
- "testKeyButton": {
-  "message": "Test key",
-  "description": "Options test-key button."
- },
- "resetCostButton": {
-  "message": "Reset monthly cost total",
-  "description": "Options cost reset button."
- },
- "keyLabel": {
-  "message": "Muse API key",
-  "description": "Key field label."
- },
- "keyHint": {
-  "message": "Starts with LLM_ - created in the dev.meta.ai dashboard.",
-  "description": "Key field hint."
- },
- "keyPlaceholder": {
-  "message": "LLM_…",
-  "description": "Key field placeholder."
- },
- "keyErrorEmpty": {
-  "message": "Paste a key first.",
-  "description": "Key form empty error."
- },
- "keyErrorRejected": {
-  "message": "Key rejected - check it and try again.",
-  "description": "Key form rejection error."
- },
- "keyErrorNetwork": {
-  "message": "Could not reach the service - try again.",
-  "description": "Key form network error."
- },
- "keyErrorRetry": {
-  "message": "Could not validate the key - try again.",
-  "description": "Key form transient validation error."
- },
- "keyReenterNotice": {
-  "message": "Please re-enter your key - the saved copy could not be read.",
-  "description": "Notice when the vault copy is orphaned."
- },
- "sessionOnlyLabel": {
-  "message": "Session-only mode (forget the key when the browser closes)",
-  "description": "Session-only checkbox label."
- },
- "dashboardLink": {
-  "message": "Get a key in the dev.meta.ai dashboard",
-  "description": "Dashboard link text."
- },
- "securityNotice": {
-  "message": "Your API key is encrypted before it's saved (AES-GCM, with a non-extractable key kept in this browser profile) and never leaves this device except to authenticate requests to api.meta.ai. Someone with full access to your computer account could still recover it, so only save it on a trusted device - or enable session-only mode, which keeps the key in memory and forgets it when the browser closes.",
-  "description": "Canonical key security notice."
- },
- "keyHygiene": {
-  "message": "Create a dedicated key just for this extension, paste it only into the official Web Store install or a build you made yourself from this repo (a modified clone could steal it), and revoke it anytime in the dev.meta.ai dashboard.",
-  "description": "Key hygiene lines."
- },
- "consentTitle": {
-  "message": "Before the first analysis",
-  "description": "Consent gate heading."
- },
- "consentBody": {
-  "message": "Analyzing sends the clicked image (its web address or, for inline images, captured frames, and on-demand retries, its pixels), nearby page text (title, captions, metadata), and the page's address to Meta's Muse API using your key. For private images, the image's address itself can grant access to it. Scanning a page sends that page's travel images and their captions the same way (even when the \"image only\" toggle is on), and planning a trip from your board sends the pinned thumbnails, their place names, and the addresses of the sites you pinned them from. Meta may run web searches to ground the trip guide. Per Meta's API terms, standard (non-contributor) models are not trained on your content.",
-  "description": "Canonical data-transmission disclosure."
- },
- "onboardingHowto": {
-  "message": "Right-click any image on any page and choose Plan a trip there. Muse AI identifies the place and the side panel plans your trip.",
-  "description": "Onboarding how-it-works line."
- },
- "onboardingTryHint": {
-  "message": "Try it now: open a photo-rich page such as a Wikipedia landmark article, right-click a photo, and choose Plan a trip there.",
-  "description": "Onboarding try-it hint."
- },
- "optionsKeyHeading": {
-  "message": "API key",
-  "description": "Options key section heading."
- },
- "optionsCostHeading": {
-  "message": "API cost",
-  "description": "Options cost section heading."
- },
- "optionsCostMonth": {
-  "message": "Estimated API cost this month: $1",
-  "description": "Options monthly total label.",
-  "placeholders": {
-   "amount": {
-    "content": "$1",
-    "example": "$1.23"
-   }
-  }
- },
- "imageOnlyLabel": {
-  "message": "Send the image only - no page text",
-  "description": "Image-only toggle label."
- },
- "optionsPrivacyHeading": {
-  "message": "Storage and privacy",
-  "description": "Options privacy section heading."
- },
- "optionsPrivacyBody": {
-  "message": "Your key is stored encrypted on this device. Page text and image addresses are sent to api.meta.ai only when you analyze something. Cost totals stay on this device. Nothing is sent anywhere else.",
-  "description": "Options privacy disclosure."
- },
- "bestGuessBadge": {
-  "message": "Best guess",
-  "description": "Low-confidence badge text."
- },
- "sourcesHeading": {
-  "message": "Sources",
-  "description": "Sources row heading."
- },
- "newTabSuffix": {
-  "message": ", opens in new tab",
-  "description": "Visually-hidden new-tab suffix for links."
- },
- "bookingLink_maps": {
-  "message": "Google Maps",
-  "description": "Booking tile label."
- },
- "bookingLink_flights": {
-  "message": "Google Flights",
-  "description": "Booking tile label."
- },
- "bookingLink_hotels": {
-  "message": "Google Hotels",
-  "description": "Booking tile label."
- },
- "bookingLink_airbnb": {
-  "message": "Airbnb",
-  "description": "Booking tile label."
- },
- "bookingLink_booking": {
-  "message": "Booking.com",
-  "description": "Booking tile label."
- },
- "bookingLink_getyourguide": {
-  "message": "GetYourGuide",
-  "description": "Booking tile label."
- },
- "bookingLink_tripadvisor": {
-  "message": "TripAdvisor",
-  "description": "Booking tile label."
- },
- "bookingLink_expedia": {
-  "message": "Expedia",
-  "description": "Booking tile label."
- },
- "truncatedNotice": {
-  "message": "Guide truncated.",
-  "description": "Notice when the guide hits the character cap."
- },
- "guideInterrupted": {
-  "message": "Guide interrupted.",
-  "description": "Notice kept with partial guide text."
- },
- "noPlaceTitle": {
-  "message": "Couldn't spot a specific place in this photo",
-  "description": "No-place card title."
- },
- "noPlaceBody": {
-  "message": "Try another photo, look again with more effort, or type a destination below.",
-  "description": "No-place card body."
- },
- "fallbackPrefix": {
-  "message": "From the page:",
-  "description": "Prefix for the page-signal fallback link."
- },
- "costLine": {
-  "message": "This analysis ≈ $1 · this month ≈ $2",
-  "description": "Per-run and monthly cost readout.",
-  "placeholders": {
-   "run": {
-    "content": "$1",
-    "example": "$0.01"
-   },
-   "month": {
-    "content": "$2",
-    "example": "$1.23"
-   }
-  }
- },
- "costLineTokens": {
-  "message": "Tokens this run: $1 in, $2 out",
-  "description": "Token readout without rates.",
-  "placeholders": {
-   "in": {
-    "content": "$1",
-    "example": "1200"
-   },
-   "out": {
-    "content": "$2",
-    "example": "300"
-   }
-  }
- },
- "costLineCache": {
-  "message": "from cache - no API cost",
-  "description": "Cache-hit cost line."
- },
- "privacyImage": {
-  "message": "Sent to Meta's Muse API with your key: this image's address, nearby page text, and the page address",
-  "description": "Privacy footer for image analyses."
- },
- "privacyImageOnly": {
-  "message": "Sent to Meta's Muse API with your key: this image's address only",
-  "description": "Privacy footer for image-only analyses."
- },
- "privacyCache": {
-  "message": "From cache - nothing was sent.",
-  "description": "Privacy footer for cache hits."
- },
- "privacyIdle": {
-  "message": "Analyzing sends image and page context to Meta's Muse API - details appear with each analysis.",
-  "description": "Privacy footer when idle."
- },
- "privacyLinksSummary": {
-  "message": "About booking links",
-  "description": "Booking-links disclosure summary."
- },
- "privacyLinksBody": {
-  "message": "Clicking a booking link sends the destination name to that site. Links open in a new tab.",
-  "description": "Booking-links disclosure body."
- },
- "previewHeading": {
-  "message": "Image being analyzed",
-  "description": "Preview header heading."
- },
- "previewAltImage": {
-  "message": "Image being analyzed",
-  "description": "Preview image alt text."
- },
- "previewAltIdentified": {
-  "message": "Image identified as $1",
-  "description": "Preview image alt text after identification.",
-  "placeholders": {
-   "place": {
-    "content": "$1",
-    "example": "Oia"
-   }
-  }
- },
- "previewUnavailable": {
-  "message": "Image preview unavailable",
-  "description": "Visible placeholder text."
- },
- "loadingReading": {
-  "message": "Reading the photo…",
-  "description": "Cosmetic loading line."
- },
- "loadingIdentifying": {
-  "message": "Identifying the place…",
-  "description": "Cosmetic loading line."
- },
- "loadingWriting": {
-  "message": "Writing your trip guide…",
-  "description": "Cosmetic loading line."
- },
- "videoConfirmTitle": {
-  "message": "Analyze this video?",
-  "description": "First-video confirm heading."
- },
- "videoConfirmBody": {
-  "message": "This captures the current video frame and sends it to Meta - continue?",
-  "description": "First-video confirm disclosure."
- },
- "videoConfirmRung2Note": {
-  "message": "The frame could not be captured, so the full video and its soundtrack will be sent instead.",
-  "description": "Extra confirm line when rung 2 will run."
- },
- "videoConfirmAgree": {
-  "message": "Capture & analyze",
-  "description": "First-video confirm button."
- },
- "videoConfirmCancel": {
-  "message": "Cancel",
-  "description": "First-video decline button."
- },
- "previewAltFrame": {
-  "message": "Captured video frame being analyzed",
-  "description": "Preview alt text for a captured frame."
- },
- "statusAnalyzingFrame": {
-  "message": "Analyzing the frame you clicked…",
-  "description": "Status announcement when frame analysis starts."
- },
- "statusAnalyzingVideo": {
-  "message": "Analyzing the video you clicked…",
-  "description": "Status announcement when full-video analysis starts."
- },
- "statusVideoConfirmNeeded": {
-  "message": "Video confirmation needed.",
-  "description": "Status announcement for the first-video gate."
- },
- "statusVideoConfirmDeclined": {
-  "message": "Video analysis canceled.",
-  "description": "Status announcement when the video confirm is declined."
- },
- "errorVideoTitle": {
-  "message": "Can't read this video",
-  "description": "Error card title for unreadable video."
- },
- "errorVideoBody": {
-  "message": "No frame could be captured from this video (it may be protected). Use the suggested link when one is shown, or analyze another image.",
-  "description": "Error card body for unreadable video."
- },
- "errorVideoMatchTitle": {
-  "message": "Couldn't match the video",
-  "description": "Error card title when the video element is not found."
- },
- "errorVideoMatchBody": {
-  "message": "The clicked video could not be found on the page. Click the video again, or analyze another image.",
-  "description": "Error card body when the video element is not found."
- },
- "errorVideoProviderBody": {
-  "message": "The frame could not be captured and the active provider cannot analyze video directly.",
-  "description": "Error card body when rung 2 is unavailable."
- },
- "alertVideoUnreadable": {
-  "message": "Video unreadable. Suggested links are shown.",
-  "description": "Alert announcement for video failures."
- },
- "privacyVideoFrame": {
-  "message": "Sent to Meta's Muse API with your key: this captured video frame, nearby page text, and the page address.",
-  "description": "Privacy footer for frame analysis."
- },
- "privacyVideoUrl": {
-  "message": "Sent to Meta's Muse API with your key: this video and its soundtrack, nearby page text, and the page address.",
-  "description": "Privacy footer for full-video analysis."
- },
- "boardTitle": {
-  "message": "Trip board ($1)",
-  "description": "Board disclosure button label.",
-  "placeholders": {
-   "count": {
-    "content": "$1",
-    "example": "3"
-   }
-  }
- },
- "boardEmpty": {
-  "message": "No places pinned yet. Pin a result to start your board.",
-  "description": "Empty board text."
- },
- "boardPlan": {
-  "message": "Plan this trip",
-  "description": "Itinerary action button."
- },
- "boardPlanNote": {
-  "message": "Pin at least 2 places to plan a trip.",
-  "description": "Explanation beside the disabled Plan button."
- },
- "boardClear": {
-  "message": "Clear board",
-  "description": "Board clear button."
- },
- "boardRemove": {
-  "message": "Remove $1",
-  "description": "Per-pin remove button.",
-  "placeholders": {
-   "place": {
-    "content": "$1",
-    "example": "Oia"
-   }
-  }
- },
- "pinButton": {
-  "message": "Pin $1 to trip",
-  "description": "Result card pin toggle.",
-  "placeholders": {
-   "place": {
-    "content": "$1",
-    "example": "Oia"
-   }
-  }
- },
- "scanTitle": {
-  "message": "Places found on this page",
-  "description": "Scan state heading."
- },
- "scanMenuTitle": {
-  "message": "Scan page for places",
-  "description": "Page context menu item."
- },
- "scanGuide": {
-  "message": "Guide for $1",
-  "description": "Scan card Guide button.",
-  "placeholders": {
-   "place": {
-    "content": "$1",
-    "example": "Oia"
-   }
-  }
- },
- "scanPinSelected": {
-  "message": "Pin selected ($1)",
-  "description": "Scan shortlist bulk-pin button.",
-  "placeholders": {
-   "count": {
-    "content": "$1",
-    "example": "2"
-   }
-  }
- },
- "scanEmptyTitle": {
-  "message": "No images to scan",
-  "description": "Scan error title when the harvest is empty."
- },
- "scanEmptyBody": {
-  "message": "This page has no large images to identify places from.",
-  "description": "Scan error body when the harvest is empty."
- },
- "scanNoneTitle": {
-  "message": "No places found",
-  "description": "Scan error title when no place was recognized."
- },
- "scanNoneBody": {
-  "message": "The scan finished but no recognizable places were found.",
-  "description": "Scan error body when no place was recognized."
- },
- "scanFound": {
-  "message": "Found $1 places on this page",
-  "description": "Scan completion announcement.",
-  "placeholders": {
-   "count": {
-    "content": "$1",
-    "example": "3"
-   }
-  }
- },
- "duelCaption": {
-  "message": "Comparing $1 and $2",
-  "description": "Duel table caption.",
-  "placeholders": {
-   "a": {
-    "content": "$1",
-    "example": "Oia, Greece"
-   },
-   "b": {
-    "content": "$2",
-    "example": "Fira, Greece"
-   }
-  }
- },
- "duelVerdict": {
-  "message": "Verdict",
-  "description": "Duel verdict row header."
- },
- "duelError": {
-  "message": "Could not compare $1 and $2.",
-  "description": "Duel inline error.",
-  "placeholders": {
-   "a": {
-    "content": "$1",
-    "example": "Oia, Greece"
-   },
-   "b": {
-    "content": "$2",
-    "example": "Fira, Greece"
-   }
-  }
- },
- "duelRetry": {
-  "message": "Retry comparison",
-  "description": "Duel inline retry button."
- },
- "duelStatus": {
-  "message": "Comparing $1 and $2...",
-  "description": "Duel start announcement.",
-  "placeholders": {
-   "a": {
-    "content": "$1",
-    "example": "Oia"
-   },
-   "b": {
-    "content": "$2",
-    "example": "Fira"
-   }
-  }
- },
- "duelReady": {
-  "message": "Comparison ready",
-  "description": "Duel completion announcement."
- },
- "compareLabel": {
-  "message": "Compare with",
-  "description": "Duel picker label."
- },
- "compareGo": {
-  "message": "Compare",
-  "description": "Duel picker Go button."
- },
- "compareStale": {
-  "message": "That place is no longer on the board.",
-  "description": "Announcement when a duel target vanished."
- },
- "alternatesCheaper": {
-  "message": "Cheaper alternatives",
-  "description": "Cheaper intent chip."
- },
- "alternatesQuieter": {
-  "message": "Quieter alternatives",
-  "description": "Quieter intent chip."
- },
- "alternatesSimilar": {
-  "message": "Similar-vibe alternatives",
-  "description": "Similar-vibe intent chip."
- },
- "alternatesFindingCheaper": {
-  "message": "Finding cheaper alternatives...",
-  "description": "Cheaper search announcement."
- },
- "alternatesFindingQuieter": {
-  "message": "Finding quieter alternatives...",
-  "description": "Quieter search announcement."
- },
- "alternatesFindingSimilar": {
-  "message": "Finding similar-vibe alternatives...",
-  "description": "Similar-vibe search announcement."
- },
- "alternatesReady": {
-  "message": "$1 alternatives ready",
-  "description": "Alternates arrival announcement.",
-  "placeholders": {
-   "count": {
-    "content": "$1",
-    "example": "3"
-   }
-  }
- },
- "alternatesFail": {
-  "message": "Could not load alternatives.",
-  "description": "Alternates failure announcement."
- },
- "alternatesBestMonth": {
-  "message": "Best month: $1",
-  "description": "Alternate card best month.",
-  "placeholders": {
-   "month": {
-    "content": "$1",
-    "example": "May"
-   }
-  }
- },
- "alternatesInstead": {
-  "message": "Plan trip to $1 instead",
-  "description": "Alternate card re-plan action.",
-  "placeholders": {
-   "place": {
-    "content": "$1",
-    "example": "Fira, Greece"
-   }
-  }
- },
- "privacyNames": {
-  "message": "Sent to Meta's Muse API with your key: place names only.",
-  "description": "Privacy footer for duels and alternates."
- },
- "fetchRetryButton": {
-  "message": "Download image and retry",
-  "description": "Byte-fetch retry button."
- },
- "fetchRetryLoading": {
-  "message": "Downloading image...",
-  "description": "Byte-fetch retry loading label."
- },
- "fetchDenied": {
-  "message": "Image download permission was denied.",
-  "description": "Byte-fetch denial announcement."
- },
- "fetchFailed": {
-  "message": "Could not download the image for retry.",
-  "description": "Byte-fetch failure announcement."
- },
- "optionsProviderHeading": {
-  "message": "AI provider",
-  "description": "Options provider section heading."
- },
- "providerMuse": {
-  "message": "Meta Muse (recommended)",
-  "description": "Muse provider radio label."
- },
- "providerCompat": {
-  "message": "OpenAI-compatible server",
-  "description": "Custom provider radio label."
- },
- "compatBaseUrl": {
-  "message": "Server URL",
-  "description": "Custom server URL label."
- },
- "compatModel": {
-  "message": "Model",
-  "description": "Custom server model label."
- },
- "compatStructured": {
-  "message": "Structured output",
-  "description": "Custom server structured-output label."
- },
- "compatStructuredSchema": {
-  "message": "JSON schema",
-  "description": "Structured-output schema option."
- },
- "compatStructuredObject": {
-  "message": "JSON object",
-  "description": "Structured-output object option."
- },
- "compatInputRate": {
-  "message": "Input price in USD per 1M tokens (optional)",
-  "description": "Custom server input rate label."
- },
- "compatOutputRate": {
-  "message": "Output price in USD per 1M tokens (optional)",
-  "description": "Custom server output rate label."
- },
- "compatSave": {
-  "message": "Save server",
-  "description": "Custom server save button."
- },
- "statusProviderSaved": {
-  "message": "Provider saved.",
-  "description": "Provider switch announcement."
- },
- "providerErrorUrl": {
-  "message": "Enter a valid https server URL (http works for localhost only).",
-  "description": "Custom server URL error."
- },
- "providerErrorModel": {
-  "message": "Enter a model name.",
-  "description": "Custom server model error."
- },
- "providerErrorRates": {
-  "message": "Rates must be blank or non-negative numbers.",
-  "description": "Custom server rates error."
- },
- "providerErrorDenied": {
-  "message": "Permission for that server was denied.",
-  "description": "Custom server denial error."
- },
- "samZoomed": {
-  "message": "Zoomed in on the landmark for a second look",
-  "description": "SAM crop announcement."
- },
- "samZoomCaption": {
-  "message": "Zoomed in on the landmark",
-  "description": "SAM crop preview caption."
- },
- "previewAltCrop": {
-  "message": "Cropped view of the landmark being re-analyzed",
-  "description": "SAM crop preview alt text."
- },
- "nanoTry": {
-  "message": "Try on-device (basic, free)",
-  "description": "Onboarding Nano button."
- },
- "nanoTryInstead": {
-  "message": "Try on-device instead",
-  "description": "Error-card Nano button."
- },
- "nanoDownloadHint": {
-  "message": "Chrome downloads a one-time AI model (~2 GB) from Google; after that, analysis runs fully on this device.",
-  "description": "Nano download hint."
- },
- "nanoDownloading": {
-  "message": "Downloading on-device model",
-  "description": "Nano progress accessible name."
- },
- "nanoDownloadStart": {
-  "message": "Model download started - this can take several minutes",
-  "description": "Nano download start announcement."
- },
- "nanoDownloadMid": {
-  "message": "Model download is halfway there",
-  "description": "Nano download midpoint announcement."
- },
- "nanoDownloadReady": {
-  "message": "On-device model ready",
-  "description": "Nano download completion announcement."
- },
- "nanoDownloadFail": {
-  "message": "On-device model download failed.",
-  "description": "Nano download failure text."
- },
- "nanoUnavailable": {
-  "message": "On-device AI is not available on this device.",
-  "description": "Nano unavailable announcement."
- },
- "nanoBadge": {
-  "message": "on-device result - best effort",
-  "description": "On-device result badge."
- },
- "nanoGuideReady": {
-  "message": "Trip guide ready - analyzed on this device",
-  "description": "On-device guide completion announcement."
- },
- "nanoFreeLine": {
-  "message": "on-device - free",
-  "description": "On-device cost line."
- },
- "nanoReady": {
-  "message": "On-device AI is ready.",
-  "description": "Onboarding Nano ready announcement."
- },
- "privacyLocal": {
-  "message": "Analyzed on this device - nothing was sent anywhere.",
-  "description": "Privacy footer for on-device runs."
- },
- "preferOnDeviceLabel": {
-  "message": "Prefer on-device AI when available (free, basic)",
-  "description": "Options on-device toggle label."
- },
- "boardNoticePinFail": {
-  "message": "Couldn't pin $1 - storage is unavailable.",
-  "description": "Visible pin-failure notice.",
-  "placeholders": {
-   "place": {
-    "content": "$1",
-    "example": "Oia"
-   }
-  }
- },
- "boardRetryNoThumb": {
-  "message": "Retry without thumbnail",
-  "description": "Pin retry action."
- },
- "boardClearTitle": {
-  "message": "Remove all $1 pins?",
-  "description": "Clear-board confirm heading.",
-  "placeholders": {
-   "count": {
-    "content": "$1",
-    "example": "3"
-   }
-  }
- },
- "boardCleared": {
-  "message": "Board cleared",
-  "description": "Status announcement after clearing."
- },
- "statusPinned": {
-  "message": "Pinned $1 - $2 places on board",
-  "description": "Status announcement for a successful pin.",
-  "placeholders": {
-   "place": {
-    "content": "$1",
-    "example": "Oia"
-   },
-   "count": {
-    "content": "$2",
-    "example": "3"
-   }
-  }
- },
- "statusPinnedEvicted": {
-  "message": "Pinned $1 - board full, removed $2",
-  "description": "Status announcement for a pin with eviction.",
-  "placeholders": {
-   "place": {
-    "content": "$1",
-    "example": "Oia"
-   },
-   "oldest": {
-    "content": "$2",
-    "example": "Fira"
-   }
-  }
- },
- "statusPinDuplicate": {
-  "message": "$1 is already on the board",
-  "description": "Status announcement for a dedupe hit.",
-  "placeholders": {
-   "place": {
-    "content": "$1",
-    "example": "Oia"
-   }
-  }
- },
- "alertPinFail": {
-  "message": "Couldn't pin $1",
-  "description": "Alert announcement for a failed pin.",
-  "placeholders": {
-   "place": {
-    "content": "$1",
-    "example": "Oia"
-   }
-  }
- },
- "boardNoticeRemoveFail": {
-  "message": "Couldn't remove $1 - storage is unavailable.",
-  "description": "Visible remove-failure notice.",
-  "placeholders": {
-   "place": {
-    "content": "$1",
-    "example": "Oia"
-   }
-  }
- },
- "alertRemoveFail": {
-  "message": "Couldn't remove $1",
-  "description": "Alert announcement for a failed remove.",
-  "placeholders": {
-   "place": {
-    "content": "$1",
-    "example": "Oia"
-   }
-  }
- },
- "alertBoardClearFail": {
-  "message": "Couldn't clear the board.",
-  "description": "Alert announcement for a failed clear."
- },
- "statusPlanning": {
-  "message": "Planning your trip - $1 places…",
-  "description": "Status announcement when itinerary planning starts.",
-  "placeholders": {
-   "count": {
-    "content": "$1",
-    "example": "3"
-   }
-  }
- },
- "statusItineraryReady": {
-  "message": "Itinerary ready",
-  "description": "Status announcement when the itinerary lands."
- },
- "itineraryTitle": {
-  "message": "Trip plan - $1 stops",
-  "description": "Itinerary card heading.",
-  "placeholders": {
-   "count": {
-    "content": "$1",
-    "example": "3"
-   }
-  }
- },
- "itineraryNights": {
-  "message": "Nights: $1",
-  "description": "Per-stop nights line.",
-  "placeholders": {
-   "nights": {
-    "content": "$1",
-    "example": "2"
-   }
-  }
- },
- "mapsLink": {
-  "message": "Open route in Google Maps ($1 stops)",
-  "description": "Maps route link label.",
-  "placeholders": {
-   "count": {
-    "content": "$1",
-    "example": "3"
-   }
-  }
- },
- "privacyBoard": {
-  "message": "Sent to Meta's Muse API with your key: pinned thumbnails, place names, and source-site addresses.",
-  "description": "Privacy footer for board planning."
- },
- "mainTab": {
-  "message": "Main",
-  "description": "Main panel tab label."
- },
- "tabsLabel": {
-  "message": "Main and trip board",
-  "description": "Accessible name for the panel tab list."
- }
 }
