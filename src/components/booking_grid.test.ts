@@ -5,10 +5,10 @@ import type { BookingGridElement } from './booking_grid';
 import elementCss from './booking_grid.css?raw';
 import { installChromeMock, uninstallChromeMock } from '../test/chrome_mock';
 
-const mount = (): { el: BookingGridElement; root: ShadowRoot } => {
+const mount = (): BookingGridElement => {
   const el = document.createElement('booking-grid') as BookingGridElement;
   document.body.append(el);
-  return { el, root: el.shadowRoot as ShadowRoot };
+  return el;
 };
 
 beforeEach(() => {
@@ -23,7 +23,8 @@ afterEach(() => {
 
 describe('booking-grid', () => {
   it('renders localized tiles for the verified portals', () => {
-    const { el, root } = mount();
+    const el = mount();
+    const root = el;
     el.setDestination('Oia, Greece');
     const tiles = [...root.querySelectorAll('a.tile')] as HTMLAnchorElement[];
     expect(tiles).toHaveLength(4);
@@ -43,13 +44,14 @@ describe('booking-grid', () => {
   });
 
   it('never hides its own host', () => {
-    // :empty matches light-DOM children, which shadow-rendered hosts never
-    // have - such a rule would hide the grid permanently.
+    // An empty destination renders zero children, so an :empty rule would
+    // hide the host exactly when content is missing - keep the ban.
     expect(elementCss).not.toContain(':empty');
   });
 
   it('renders nothing without a destination', () => {
-    const { el, root } = mount();
+    const el = mount();
+    const root = el;
     el.setDestination('');
     expect(root.querySelectorAll('a.tile')).toHaveLength(0);
     el.setDestination('Oia, Greece');

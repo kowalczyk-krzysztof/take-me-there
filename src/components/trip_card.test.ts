@@ -5,10 +5,10 @@ import type { TripCardElement } from './trip_card';
 import type { PlaceResult } from '../types';
 import { installChromeMock, uninstallChromeMock } from '../test/chrome_mock';
 
-const mount = (): { el: TripCardElement; root: ShadowRoot } => {
+const mount = (): { el: TripCardElement; root: TripCardElement } => {
   const el = document.createElement('trip-card') as TripCardElement;
   document.body.append(el);
-  return { el, root: el.shadowRoot as ShadowRoot };
+  return { el, root: el };
 };
 
 const PLACE: PlaceResult = {
@@ -33,14 +33,14 @@ afterEach(() => {
 describe('trip-card', () => {
   it('renders idle hints', () => {
     const { root } = mount();
-    (root.host as TripCardElement).setCard({ view: 'idle', hint: 'hint', shortcut: 'keys' });
+    (root as TripCardElement).setCard({ view: 'idle', hint: 'hint', shortcut: 'keys' });
     expect(root.querySelector('.hint')?.textContent).toBe('hint');
     expect(root.querySelector('.shortcut')?.textContent).toBe('keys');
   });
 
   it('renders an aria-hidden skeleton while loading', () => {
     const { root } = mount();
-    (root.host as TripCardElement).setCard({ view: 'loading' });
+    (root as TripCardElement).setCard({ view: 'loading' });
     const skeleton = root.querySelector('.skeleton');
     expect(skeleton?.getAttribute('aria-hidden')).toBe('true');
     expect(skeleton?.querySelectorAll('.skeleton-block').length).toBeGreaterThan(0);
@@ -232,7 +232,7 @@ describe('trip-card', () => {
     const { el, root } = mount();
     el.setCard({ view: 'result', place: PLACE, lowConfidence: false, pinned: false });
     el.focusHeading();
-    expect((root.activeElement as HTMLElement)?.tagName).toBe('H2');
+    expect((document.activeElement as HTMLElement)?.tagName).toBe('H2');
   });
 
   it('renders the pin toggle with pressed state and event', () => {

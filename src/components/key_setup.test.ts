@@ -9,10 +9,10 @@ import type {
 } from './key_setup';
 import { installChromeMock, uninstallChromeMock } from '../test/chrome_mock';
 
-const mount = (): { el: KeySetupElement; root: ShadowRoot } => {
+const mount = (): { el: KeySetupElement; root: KeySetupElement } => {
   const el = document.createElement('key-setup') as KeySetupElement;
   document.body.append(el);
-  return { el, root: el.shadowRoot as ShadowRoot };
+  return { el, root: el };
 };
 
 beforeEach(() => {
@@ -132,7 +132,7 @@ describe('key-setup', () => {
     const { el, root } = mount();
     el.showConsent();
     el.focusConsentHeading();
-    expect((root.activeElement as HTMLElement)?.tagName).toBe('H2');
+    expect((document.activeElement as HTMLElement)?.tagName).toBe('H2');
   });
 
   it('hides the Nano section by default', () => {

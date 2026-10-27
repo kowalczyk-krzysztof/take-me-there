@@ -6,7 +6,7 @@ import type {
   KeySetupElement,
   SessionOnlyChangeDetail,
 } from './components/key_setup';
-import { adoptSharedStyles } from './components/shared_styles';
+import { ensureSharedStyles } from './components/shared_styles';
 import { loadKey, saveKey } from './key_vault';
 import {
   ProviderError,
@@ -38,7 +38,7 @@ export const initOnboarding = (): void => {
     return;
   }
   initialized = true;
-  adoptSharedStyles(document);
+  ensureSharedStyles();
 
   document.title = msg('appName');
   document.documentElement.lang = msg('@@ui_locale').replace('_', '-');

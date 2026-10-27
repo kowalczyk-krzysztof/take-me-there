@@ -4,10 +4,10 @@ import './compare_table';
 import type { CompareTableElement, DuelRowView } from './compare_table';
 import { installChromeMock, uninstallChromeMock } from '../test/chrome_mock';
 
-const mount = (): { el: CompareTableElement; root: ShadowRoot } => {
+const mount = (): { el: CompareTableElement; root: CompareTableElement } => {
   const el = document.createElement('compare-table') as CompareTableElement;
   document.body.append(el);
-  return { el, root: el.shadowRoot as ShadowRoot };
+  return { el, root: el };
 };
 
 const ROWS: DuelRowView[] = [

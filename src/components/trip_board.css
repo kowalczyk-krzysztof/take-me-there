@@ -1,16 +1,12 @@
-section {
+trip-board section {
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 8px 12px;
   background: var(--surface);
-}
-
-h2 {
+}trip-board h2 {
   margin: 0;
   font-size: 14px;
-}
-
-.disclosure {
+}trip-board .disclosure {
   font: inherit;
   font-weight: 600;
   padding: 4px 0;
@@ -20,65 +16,45 @@ h2 {
   cursor: pointer;
   width: 100%;
   text-align: left;
-}
-
-.disclosure::after {
+}trip-board .disclosure::after {
   content: " ▾";
-}
-
-.disclosure[aria-expanded="false"]::after {
+}trip-board .disclosure[aria-expanded="false"]::after {
   content: " ▸";
-}
-
-.empty {
+}trip-board .empty {
   color: var(--muted);
   font-size: 13px;
   margin: 8px 0;
-}
-
-ul {
+}trip-board ul {
   list-style: none;
   margin: 8px 0;
   padding: 0;
   display: flex;
   flex-direction: column;
   gap: 8px;
-}
-
-li {
+}trip-board li {
   display: flex;
   gap: 8px;
   align-items: center;
   border-top: 1px solid var(--border);
   padding-top: 8px;
-}
-
-li img {
+}trip-board li img {
   width: 48px;
   height: 48px;
   object-fit: cover;
   border-radius: 4px;
   flex: none;
-}
-
-.item-text {
+}trip-board .item-text {
   flex: 1;
   min-width: 0;
-}
-
-.item-name {
+}trip-board .item-name {
   margin: 0;
   font-weight: 600;
   font-size: 13px;
-}
-
-.item-host {
+}trip-board .item-host {
   margin: 0;
   color: var(--muted);
   font-size: 12px;
-}
-
-button {
+}trip-board button {
   font: inherit;
   padding: 8px 14px;
   border-radius: 4px;
@@ -87,51 +63,35 @@ button {
   color: var(--text);
   border: 1px solid var(--border);
   flex: none;
-}
-
-button.primary {
+}trip-board button.primary {
   background: var(--link);
   color: var(--background);
   border-color: transparent;
-}
-
-button[aria-disabled="true"] {
+}trip-board button[aria-disabled="true"] {
   opacity: 0.55;
   cursor: default;
-}
-
-.plan-row {
+}trip-board .plan-row {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
   margin: 8px 0;
-}
-
-.plan-note {
+}trip-board .plan-note {
   margin: 0;
   color: var(--muted);
   font-size: 13px;
-}
-
-.clear-button {
+}trip-board .clear-button {
   margin-bottom: 4px;
-}
-
-.notice {
+}trip-board .notice {
   margin: 8px 0 0;
   font-size: 13px;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
-}
-
-.confirm-heading {
+}trip-board .confirm-heading {
   font-size: 14px;
-}
-
-.confirm-actions {
+}trip-board .confirm-actions {
   display: flex;
   gap: 8px;
   margin: 8px 0;

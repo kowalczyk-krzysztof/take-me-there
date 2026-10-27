@@ -7,7 +7,7 @@ import { installChromeMock, uninstallChromeMock } from '../test/chrome_mock';
 const mount = () => {
   const el = document.createElement('scan-list');
   document.body.append(el);
-  return { el: el as unknown as import('./scan_list').ScanListElement, root: el.shadowRoot as ShadowRoot };
+  return { el: el as unknown as import('./scan_list').ScanListElement, root: el };
 };
 
 const ITEMS: ScanItemView[] = [
@@ -28,7 +28,7 @@ afterEach(() => {
 describe('scan-list', () => {
   it('renders an aria-hidden skeleton while loading', () => {
     const { root } = mount();
-    (root.host as unknown as { setLoading: () => void }).setLoading();
+    (root as unknown as { setLoading: () => void }).setLoading();
     expect(root.querySelector('h2')?.textContent).toBe('scanTitle');
     const grid = root.querySelector('.skeleton-grid');
     expect(grid?.getAttribute('aria-hidden')).toBe('true');

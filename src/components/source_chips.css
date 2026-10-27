@@ -1,10 +1,10 @@
-:host {
+source-chips {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }
 
-.chip {
+source-chips .chip {
   display: inline-flex;
   align-items: center;
   padding: 6px 10px;

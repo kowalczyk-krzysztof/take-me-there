@@ -15,11 +15,15 @@
   "dependencies": {
     "eventsource-parser": "4.1.3",
     "idb-keyval": "6.3.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
     "zod": "4.6.7"
   },
   "devDependencies": {
     "@rspack/cli": "2.2.9",
     "@rspack/core": "2.2.9",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
     "chrome-types": "0.1.460",
     "happy-dom": "21.0.4",
     "typescript": "7.0.2",

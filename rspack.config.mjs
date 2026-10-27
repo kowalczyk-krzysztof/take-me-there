@@ -27,7 +27,7 @@ export default defineConfig((_env, argv) => {
       clean: true,
     },
     resolve: {
-      extensions: ['.ts', '.js'],
+      extensions: ['.tsx', '.ts', '.js'],
     },
     module: {
       rules: [
@@ -37,12 +37,13 @@ export default defineConfig((_env, argv) => {
           type: 'asset/source',
         },
         {
-          test: /\.ts$/,
+          test: /\.tsx?$/,
           exclude: [/node_modules/],
           loader: 'builtin:swc-loader',
           options: {
             jsc: {
-              parser: { syntax: 'typescript' },
+              parser: { syntax: 'typescript', tsx: true },
+              transform: { react: { runtime: 'automatic' } },
               target: 'es2022',
             },
           },

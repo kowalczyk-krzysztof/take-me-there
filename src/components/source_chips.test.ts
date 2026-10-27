@@ -5,10 +5,10 @@ import type { SourceChipsElement } from './source_chips';
 import elementCss from './source_chips.css?raw';
 import { installChromeMock, uninstallChromeMock } from '../test/chrome_mock';
 
-const mount = (): { el: SourceChipsElement; root: ShadowRoot } => {
+const mount = (): SourceChipsElement => {
   const el = document.createElement('source-chips') as SourceChipsElement;
   document.body.append(el);
-  return { el, root: el.shadowRoot as ShadowRoot };
+  return el;
 };
 
 beforeEach(() => {
@@ -23,7 +23,8 @@ afterEach(() => {
 
 describe('source-chips', () => {
   it('renders hostname chips for valid URLs only', () => {
-    const { el, root } = mount();
+    const el = mount();
+    const root = el;
     el.setSources([
       { title: 'Model title', url: 'https://example.com/article?x=1' },
       { title: '', url: 'http://plain.example.org/' },
@@ -43,13 +44,14 @@ describe('source-chips', () => {
   });
 
   it('never hides its own host', () => {
-    // :empty matches light-DOM children, which shadow-rendered hosts never
-    // have - such a rule would hide the chips permanently.
+    // Empty results render zero children, so an :empty rule would hide the
+    // host exactly when content is missing - keep the ban.
     expect(elementCss).not.toContain(':empty');
   });
 
   it('renders nothing for empty or fully invalid sources', () => {
-    const { el, root } = mount();
+    const el = mount();
+    const root = el;
     el.setSources([]);
     expect(root.querySelectorAll('a.chip')).toHaveLength(0);
     el.setSources([{ title: 'x', url: 'data:text/html,hi' }]);

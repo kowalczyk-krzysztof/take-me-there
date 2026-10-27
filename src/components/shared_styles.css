@@ -1,4 +1,4 @@
-:host, :root {
+:root {
   --focus-color: #0b5fff;
   --text: #1a1a1a;
   --muted: #5a5a5a;
@@ -12,7 +12,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :host, :root {
+  :root {
     --focus-color: #8ab4ff;
     --text: #e8e8e8;
     --muted: #b5b5b5;

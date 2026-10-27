@@ -4,10 +4,10 @@ import './trip_board';
 import type { BoardItemView, TripBoardElement, TripRemovePinDetail } from './trip_board';
 import { installChromeMock, uninstallChromeMock } from '../test/chrome_mock';
 
-const mount = (): { el: TripBoardElement; root: ShadowRoot } => {
+const mount = (): TripBoardElement => {
   const el = document.createElement('trip-board') as TripBoardElement;
   document.body.append(el);
-  return { el, root: el.shadowRoot as ShadowRoot };
+  return el;
 };
 
 const ITEMS: BoardItemView[] = [
@@ -27,7 +27,8 @@ afterEach(() => {
 
 describe('trip-board', () => {
   it('renders the labeled collapsible list with remove buttons', () => {
-    const { el, root } = mount();
+    const el = mount();
+    const root = el;
     el.setBoard(ITEMS, true);
     const toggle = root.querySelector('.disclosure') as HTMLButtonElement;
     expect(toggle.getAttribute('aria-expanded')).toBe('true');
@@ -55,7 +56,8 @@ describe('trip-board', () => {
   });
 
   it('shows the empty state without a clear button', () => {
-    const { el, root } = mount();
+    const el = mount();
+    const root = el;
     el.setBoard([], false);
     expect(root.querySelector('.empty')?.textContent).toBe('boardEmpty');
     expect(root.querySelector('ul')).toBeNull();
@@ -63,7 +65,8 @@ describe('trip-board', () => {
   });
 
   it('disables planning with an adjacent explanation under two pins', () => {
-    const { el, root } = mount();
+    const el = mount();
+    const root = el;
     el.setBoard([ITEMS[0]], false);
     const plan = root.querySelector('.plan-button') as HTMLButtonElement;
     expect(plan.getAttribute('aria-disabled')).toBe('true');
@@ -81,19 +84,20 @@ describe('trip-board', () => {
   });
 
   it('confirms clearing inline with focus on the heading', () => {
-    const { el, root } = mount();
+    const el = mount();
+    const root = el;
     el.setBoard(ITEMS, true);
     (root.querySelector('.clear-button') as HTMLButtonElement).click();
     const heading = root.querySelector('.confirm-heading') as HTMLHeadingElement;
     expect(heading.textContent).toBe('boardClearTitle');
-    expect(root.activeElement).toBe(heading);
+    expect(document.activeElement).toBe(heading);
     const fired = vi.fn();
     el.addEventListener('trip-clear-confirm', fired);
     const [confirm, cancel] = [...root.querySelectorAll('.confirm-actions button')] as HTMLButtonElement[];
     cancel.click();
     expect(fired).not.toHaveBeenCalled();
     expect(root.querySelector('ul')).not.toBeNull();
-    expect(root.activeElement?.className).toContain('clear-button');
+    expect(document.activeElement?.className).toContain('clear-button');
     (root.querySelector('.clear-button') as HTMLButtonElement).click();
     (root.querySelectorAll('.confirm-actions button')[0] as HTMLButtonElement).click();
     expect(confirm).not.toBeNull();
@@ -101,7 +105,8 @@ describe('trip-board', () => {
   });
 
   it('shows the pin-failure notice with a retry action', () => {
-    const { el, root } = mount();
+    const el = mount();
+    const root = el;
     el.setBoard(ITEMS, true);
     el.setNotice('boardNoticePinFail', true);
     const notice = root.querySelector('.notice') as HTMLElement;
@@ -116,11 +121,12 @@ describe('trip-board', () => {
   });
 
   it('repairs focus to the disclosure when a re-render removes it', () => {
-    const { el, root } = mount();
+    const el = mount();
+    const root = el;
     el.setBoard(ITEMS, true);
     const remove = root.querySelector('li button') as HTMLButtonElement;
     remove.focus();
     el.setBoard([ITEMS[1]], false);
-    expect(root.activeElement?.className).toContain('disclosure');
+    expect(document.activeElement?.className).toContain('disclosure');
   });
 });

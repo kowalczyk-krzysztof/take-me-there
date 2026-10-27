@@ -6,6 +6,7 @@
     "moduleResolution": "bundler",
     "strict": true,
     "noEmit": true,
+    "jsx": "react-jsx",
     "types": ["chrome-types"]
   },
   "include": ["src"]

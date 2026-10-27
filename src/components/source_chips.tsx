@@ -1,0 +1,64 @@
+import type { GuideSource } from '../providers/index';
+import { createRoot, type Root } from 'react-dom/client';
+import { flushSync } from 'react-dom';
+import { injectComponentStyles } from './shared_styles';
+import elementCss from './source_chips.css?raw';
+
+injectComponentStyles('source-chips', elementCss);
+
+const msg = (key: string, subs?: string | string[]): string =>
+  chrome.i18n.getMessage(key, subs);
+
+const safeHttpUrl = (raw: string): string | null => {
+  try {
+    const parsed = new URL(raw);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return null;
+    }
+    return parsed.href;
+  } catch {
+    return null;
+  }
+};
+
+const hostnameOf = (href: string): string => {
+  try {
+    return new URL(href).hostname;
+  } catch {
+    return href;
+  }
+};
+
+const SourceChipsView = ({ sources }: { sources: GuideSource[] }) => (
+  <>
+    {sources.map((source, index) => {
+      const href = safeHttpUrl(source.url);
+      if (!href) {
+        return null;
+      }
+      return (
+        <a key={`${href}-${index}`} href={href} target="_blank" rel="noopener noreferrer" className="chip">
+          {hostnameOf(href)}
+          <span className="visually-hidden">{msg('newTabSuffix')}</span>
+        </a>
+      );
+    })}
+  </>
+);
+
+export class SourceChipsElement extends HTMLElement {
+  private root: Root | null = null;
+  private sources: GuideSource[] = [];
+
+  setSources(sources: GuideSource[]): void {
+    this.sources = sources;
+    this.root ??= createRoot(this);
+    flushSync(() => {
+      this.root?.render(<SourceChipsView sources={this.sources} />);
+    });
+  }
+}
+
+if (!customElements.get('source-chips')) {
+  customElements.define('source-chips', SourceChipsElement);
+}

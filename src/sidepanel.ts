@@ -36,7 +36,7 @@ import type {
   TripRemovePinDetail,
 } from './components/trip_board';
 import type { TripCardElement } from './components/trip_card';
-import { adoptSharedStyles, prefersReducedMotion } from './components/shared_styles';
+import { ensureSharedStyles, prefersReducedMotion } from './components/shared_styles';
 import {
   clearBoard,
   dedupeKeyFor,
@@ -300,13 +300,7 @@ const announceAlert = (key: string, subs?: string | string[]): void => {
   alertRegion.textContent = msg(key, subs);
 };
 
-const composedActiveElement = (): Element | null => {
-  let active: Element | null = document.activeElement;
-  while (active?.shadowRoot?.activeElement) {
-    active = active.shadowRoot.activeElement;
-  }
-  return active;
-};
+const composedActiveElement = (): Element | null => document.activeElement;
 
 const isTyping = (): boolean => {
   const active = composedActiveElement();
@@ -2655,7 +2649,7 @@ export const initPanel = (): void => {
     return;
   }
   initialized = true;
-  adoptSharedStyles(document);
+  ensureSharedStyles();
   pageTitle = req('page-title');
   previewHeading = req('preview-heading');
   previewFrame = req('preview-frame');

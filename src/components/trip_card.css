@@ -1,18 +1,10 @@
-:host { display: block; }
-
-h2 {
+trip-card { display: block; }trip-card h2 {
   font-size: 18px;
   margin: 0 0 4px;
-}
-
-.subtitle {
+}trip-card .subtitle {
   margin: 0 0 4px;
   color: var(--muted);
-}
-
-.oneliner { margin: 0 0 8px; }
-
-.badge {
+}trip-card .oneliner { margin: 0 0 8px; }trip-card .badge {
   display: inline-block;
   font-size: 12px;
   padding: 2px 8px;
@@ -21,45 +13,29 @@ h2 {
   color: var(--badge);
   margin-left: 8px;
   vertical-align: middle;
-}
-
-.hint { margin: 0 0 4px; }
-
-.shortcut {
+}trip-card .hint { margin: 0 0 4px; }trip-card .shortcut {
   margin: 0;
   font-size: 13px;
   color: var(--muted);
-}
-
-.skeleton {
+}trip-card .skeleton {
   display: flex;
   flex-direction: column;
   gap: 8px;
-}
-
-.cosmetic {
+}trip-card .cosmetic {
   color: var(--muted);
   font-size: 13px;
   margin: 8px 0 0;
   min-height: 20px;
-}
-
-details { margin-top: 8px; }
-
-summary {
+}trip-card details { margin-top: 8px; }trip-card summary {
   cursor: pointer;
   color: var(--muted);
   font-size: 13px;
-}
-
-.disagree-buttons {
+}trip-card .disagree-buttons {
   display: flex;
   gap: 8px;
   margin-top: 8px;
   flex-wrap: wrap;
-}
-
-button {
+}trip-card button {
   font: inherit;
   padding: 8px 14px;
   border-radius: 4px;
@@ -67,136 +43,88 @@ button {
   background: transparent;
   color: var(--text);
   border: 1px solid var(--border);
-}
-
-button.primary {
+}trip-card button.primary {
   background: var(--link);
   color: var(--background);
   border-color: transparent;
-}
-
-button[aria-disabled="true"] {
+}trip-card button[aria-disabled="true"] {
   opacity: 0.55;
   cursor: default;
-}
-
-.fallback {
+}trip-card .fallback {
   font-size: 13px;
   color: var(--muted);
-}
-
-a { color: var(--link); }
-
-.pin-button { margin: 4px 0 0; }
-
-.pin-button[aria-pressed="true"] {
+}trip-card a { color: var(--link); }trip-card .pin-button { margin: 4px 0 0; }trip-card .pin-button[aria-pressed="true"] {
   border-color: var(--link);
   color: var(--link);
-}
-
-.stop-list {
+}trip-card .stop-list {
   margin: 8px 0;
   padding-left: 20px;
   display: flex;
   flex-direction: column;
   gap: 8px;
-}
-
-.stop-name {
+}trip-card .stop-name {
   margin: 0;
   font-weight: 600;
-}
-
-.stop-nights {
+}trip-card .stop-nights {
   margin: 0;
   font-size: 13px;
   color: var(--muted);
-}
-
-.stop-links {
+}trip-card .stop-links {
   margin: 4px 0 0;
   font-size: 13px;
-}
-
-.maps-link {
+}trip-card .maps-link {
   display: inline-block;
   margin-top: 8px;
   font-weight: 600;
-}
-
-.chips-row {
+}trip-card .chips-row {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
   margin-top: 8px;
-}
-
-.chip {
+}trip-card .chip {
   border-radius: 999px;
   padding: 6px 12px;
   font-size: 13px;
-}
-
-.alternates {
+}trip-card .alternates {
   display: flex;
   flex-direction: column;
   gap: 8px;
   margin-top: 8px;
-}
-
-.alternates[hidden] {
+}trip-card .alternates[hidden] {
   display: none;
-}
-
-.alternates-skeletons {
+}trip-card .alternates-skeletons {
   display: flex;
   flex-direction: column;
   gap: 8px;
-}
-
-.skeleton-card {
+}trip-card .skeleton-card {
   min-height: 72px;
-}
-
-.alternate-card {
+}trip-card .alternate-card {
   border: 1px solid var(--border);
   border-radius: 4px;
   padding: 8px;
-}
-
-.alternate-name {
+}trip-card .alternate-name {
   margin: 0 0 4px;
   font-weight: 600;
-}
-
-.alternate-why {
+}trip-card .alternate-why {
   margin: 0 0 4px;
   font-size: 13px;
-}
-
-.alternate-month {
+}trip-card .alternate-month {
   margin: 0 0 8px;
   font-size: 13px;
   color: var(--muted);
-}
-
-.compare-row {
+}trip-card .compare-row {
   display: flex;
   gap: 8px;
   align-items: flex-end;
   margin-top: 8px;
-}
-
-.compare-row label {
+}trip-card .compare-row label {
   display: flex;
   flex-direction: column;
   gap: 4px;
   font-size: 13px;
   color: var(--muted);
   flex: 1;
-}
-
-.compare-row select {
+}trip-card .compare-row select {
   font: inherit;
   padding: 8px;
   border-radius: 4px;

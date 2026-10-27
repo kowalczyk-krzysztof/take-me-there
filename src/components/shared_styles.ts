@@ -1,32 +1,24 @@
-// One constructable stylesheet shared by every document and shadow root:
-// the focus style, contrast tokens (light and dark), minimum target sizes,
-// skeleton treatment, reduced-motion overrides, and utilities.
 import sharedCss from './shared_styles.css?raw';
 
-let sheet: CSSStyleSheet | null = null;
+const injected = new Set<string>();
 
-export const sharedSheet = (): CSSStyleSheet | null => {
-  if (typeof CSSStyleSheet === 'undefined') {
-    return null;
-  }
-  if (!sheet) {
-    sheet = new CSSStyleSheet();
-    sheet.replaceSync(sharedCss);
-  }
-  return sheet;
-};
-
-export const adoptSharedStyles = (root: Document | ShadowRoot): void => {
-  const shared = sharedSheet();
-  if (!shared || !('adoptedStyleSheets' in root)) {
+export const injectStyleOnce = (id: string, cssText: string): void => {
+  if (typeof document === 'undefined' || injected.has(id)) {
     return;
   }
-  if (!root.adoptedStyleSheets.includes(shared)) {
-    root.adoptedStyleSheets = [...root.adoptedStyleSheets, shared];
-  }
+  injected.add(id);
+  const style = document.createElement('style');
+  style.setAttribute('data-component', id);
+  style.textContent = cssText;
+  document.head.append(style);
 };
 
-export const sharedCssText = (): string => sharedCss;
+export const ensureSharedStyles = (): void => injectStyleOnce('shared', sharedCss);
+
+export const injectComponentStyles = (tag: string, cssText: string): void => {
+  ensureSharedStyles();
+  injectStyleOnce(tag, cssText);
+};
 
 export const prefersReducedMotion = (): boolean =>
   typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
