@@ -434,14 +434,6 @@
     "message": "Analyzing sends image and page context to Meta's Muse API - details appear with each analysis.",
     "description": "Privacy footer when idle."
   },
-  "privacyLinksSummary": {
-    "message": "About booking links",
-    "description": "Booking-links disclosure summary."
-  },
-  "privacyLinksBody": {
-    "message": "Clicking a booking link sends the destination name to that site. Links open in a new tab.",
-    "description": "Booking-links disclosure body."
-  },
   "previewHeading": {
     "message": "Image being analyzed",
     "description": "Preview header heading."

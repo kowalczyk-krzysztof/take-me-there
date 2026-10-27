@@ -140,10 +140,6 @@ main {
   margin: 0 0 8px;
 }
 
-#page-footer summary {
-  cursor: pointer;
-}
-
 .confirm-actions {
   display: flex;
   gap: 8px;

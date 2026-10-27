@@ -2926,10 +2926,6 @@ const SidepanelApp = () => {
       </section>
       <footer id="page-footer">
         <p id="privacy-line">{state.privacy}</p>
-        <details id="links-note">
-          <summary id="links-note-summary">{msg('privacyLinksSummary')}</summary>
-          <p id="links-note-body">{msg('privacyLinksBody')}</p>
-        </details>
         <p id="cost-line">{state.cost}</p>
       </footer>
     </main>
