@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import { createRoot } from 'react-dom/client';
 import { flushSync } from 'react-dom';
-import { KeySetup } from './components/key_setup';
+import { KeySetup } from './components/key_setup/key_setup';
 import { clearKey, loadKey, saveKey } from './key_vault';
 import { formatUsd, readMonthSpend, resetMonthSpend } from './pricing';
 import {

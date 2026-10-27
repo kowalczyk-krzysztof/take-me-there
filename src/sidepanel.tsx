@@ -3,21 +3,21 @@
 import { useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { createRoot } from 'react-dom/client';
 import { flushSync } from 'react-dom';
-import { BookingGrid } from './components/booking_grid';
-import { CompareTable, type DuelTableState } from './components/compare_table';
-import type { ScanItemView } from './components/scan_list';
-import { ScanList } from './components/scan_list';
+import { BookingGrid } from './components/booking_grid/booking_grid';
+import { CompareTable, type DuelTableState } from './components/compare_table/compare_table';
+import type { ScanItemView } from './components/scan_list/scan_list';
+import { ScanList } from './components/scan_list/scan_list';
 import type {
   AlternateCardView,
   AlternatesView,
   CardState,
   CompareOptionView,
-} from './components/trip_card';
-import { TripCard } from './components/trip_card';
-import { KeySetup, type NanoSectionState } from './components/key_setup';
-import { SourceChips } from './components/source_chips';
-import type { BoardItemView, TripRemovePinDetail } from './components/trip_board';
-import { TripBoard } from './components/trip_board';
+} from './components/trip_card/trip_card';
+import { TripCard } from './components/trip_card/trip_card';
+import { KeySetup, type NanoSectionState } from './components/key_setup/key_setup';
+import { SourceChips } from './components/source_chips/source_chips';
+import type { BoardItemView, TripRemovePinDetail } from './components/trip_board/trip_board';
+import { TripBoard } from './components/trip_board/trip_board';
 import { prefersReducedMotion } from './utils/dom';
 import {
   clearBoard,
@@ -79,7 +79,6 @@ import {
 import { msg } from './utils/i18n';
 import { createStore } from './utils/store';
 import './styles/sidepanel.css';
-import './components/shared_styles.css';
 import './components/shared_styles.css';
 
 const SKELETON_DELAY_MS = 200;
@@ -2706,7 +2705,11 @@ const loadShortcutLine = async (): Promise<void> => {
   }
 };
 
-const PreviewFrame = ({ preview }: { preview: PreviewState }) => {
+interface PreviewFrameProps {
+  preview: PreviewState;
+}
+
+const PreviewFrame = ({ preview }: PreviewFrameProps) => {
   if (preview.kind === 'placeholder') {
     return <span>{msg('previewUnavailable')}</span>;
   }

@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ScanList, type ScanItemView } from './scan_list';
-import { installChromeMock, uninstallChromeMock } from '../test/chrome_mock';
-import { renderSync } from '../test/render_sync';
+import { installChromeMock, uninstallChromeMock } from '../../test/chrome_mock';
+import { renderSync } from '../../test/render_sync';
 
 const ITEMS: ScanItemView[] = [
   { placeName: 'Oia', country: 'Greece', title: 'Oia, Greece', image: 'https://img/oia.jpg', pinned: false },

@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { KeySetup, type KeySetupCallbacks, type NanoSectionState } from './key_setup';
-import { installChromeMock, uninstallChromeMock } from '../test/chrome_mock';
-import { renderSync, type Rendered } from '../test/render_sync';
+import { installChromeMock, uninstallChromeMock } from '../../test/chrome_mock';
+import { renderSync, type Rendered } from '../../test/render_sync';
 
 interface SetupProps {
   mode?: 'setup' | 'consent';

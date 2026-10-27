@@ -1,9 +1,9 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { SourceChips } from './source_chips';
-import type { GuideSource } from '../providers/index';
-import { installChromeMock, uninstallChromeMock } from '../test/chrome_mock';
-import { renderSync } from '../test/render_sync';
+import type { GuideSource } from '../../providers/index';
+import { installChromeMock, uninstallChromeMock } from '../../test/chrome_mock';
+import { renderSync } from '../../test/render_sync';
 
 beforeEach(() => {
   installChromeMock();

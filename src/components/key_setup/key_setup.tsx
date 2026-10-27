@@ -1,7 +1,8 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import styles from './key_setup.module.css';
-import { msg } from '../utils/i18n';
+import { msg } from '../../utils/i18n';
+import { NanoSection } from './nano_section';
 
 const DASHBOARD_URL = 'https://dev.meta.ai';
 
@@ -29,49 +30,7 @@ export interface KeySetupCallbacks {
   onDraftChange?: (draft: string) => void;
 }
 
-const NanoSection = ({
-  nano, nanoInstead, nanoProgress, onNanoEnable,
-}: {
-  nano: NanoSectionState;
-  nanoInstead: boolean;
-  nanoProgress: number | null;
-  onNanoEnable: () => void;
-}) => {
-  if (nano === 'hidden') {
-    return null;
-  }
-  if (nano === 'downloading') {
-    return (
-      <div className={styles['nano-section']}>
-        <p className={styles.hint} id="nano-hint">{msg('nanoDownloadHint')}</p>
-        <progress
-          id="nano-progress"
-          max={100}
-          value={nanoProgress === null ? undefined : Math.min(1, Math.max(0, nanoProgress)) * 100}
-          aria-label={msg('nanoDownloading')}
-        />
-      </div>
-    );
-  }
-  return (
-    <div className={styles['nano-section']}>
-      <p className={styles.hint} id="nano-hint">{msg('nanoDownloadHint')}</p>
-      {nano === 'failed' ? <p className={styles.error}>{msg('nanoDownloadFail')}</p> : null}
-      <button
-        type="button"
-        className={styles.secondary}
-        aria-describedby="nano-hint"
-        onClick={onNanoEnable}
-      >
-        {msg(nanoInstead ? 'nanoTryInstead' : 'nanoTry')}
-      </button>
-    </div>
-  );
-};
-
-export const KeySetup = ({
-  mode, pending, error, sessionOnly, nano, nanoInstead, nanoProgress, resetKey, callbacks,
-}: {
+interface Props {
   mode: 'setup' | 'consent';
   pending: boolean;
   error: string | null;
@@ -81,7 +40,11 @@ export const KeySetup = ({
   nanoProgress: number | null;
   resetKey: number;
   callbacks: KeySetupCallbacks;
-}) => {
+}
+
+export const KeySetup = ({
+  mode, pending, error, sessionOnly, nano, nanoInstead, nanoProgress, resetKey, callbacks,
+}: Props) => {
   const [revealed, setRevealed] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
   useLayoutEffect(() => {

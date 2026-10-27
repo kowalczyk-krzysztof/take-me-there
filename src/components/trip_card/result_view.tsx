@@ -1,0 +1,63 @@
+import type { PlaceResult } from '../../types';
+import styles from './trip_card.module.css';
+import { msg } from '../../utils/i18n';
+import type { AlternatesView, CompareOptionView, TripCardCallbacks } from './trip_card';
+import { ChipsRow } from './chips_row';
+import { AlternatesView as AlternatesList } from './alternates_view';
+import { CompareRow } from './compare_row';
+
+interface Props {
+  place: PlaceResult;
+  lowConfidence: boolean;
+  pinned: boolean;
+  onDevice: boolean;
+  compareOptions: CompareOptionView[];
+  alternates: AlternatesView;
+  callbacks: TripCardCallbacks;
+}
+
+export const ResultView = ({
+  place, lowConfidence, pinned, onDevice, compareOptions, alternates, callbacks,
+}: Props) => {
+  const subtitle = [place.city, place.country].filter((part) => part).join(', ');
+  return (
+    <>
+      <h2 tabIndex={-1}>
+        {place.placeName}
+        {lowConfidence ? (
+          <>
+            {' '}
+            <span className={styles.badge}>{msg('bestGuessBadge')}</span>
+          </>
+        ) : null}
+        {onDevice ? (
+          <>
+            {' '}
+            <span className={`${styles.badge} nano-badge`}>{msg('nanoBadge')}</span>
+          </>
+        ) : null}
+      </h2>
+      {subtitle ? <p className={styles.subtitle}>{subtitle}</p> : null}
+      {place.oneLiner ? <p className={styles.oneliner}>{place.oneLiner}</p> : null}
+      <button
+        type="button"
+        className={styles['pin-button']}
+        aria-pressed={pinned}
+        onClick={callbacks.onPin}
+      >
+        {msg('pinButton', place.placeName)}
+      </button>
+      <ChipsRow alternates={alternates} onAlternates={callbacks.onAlternates} />
+      <AlternatesList alternates={alternates} onPinAlternate={callbacks.onPinAlternate} onPlanInstead={callbacks.onPlanInstead} />
+      {compareOptions.length > 0 ? <CompareRow options={compareOptions} onCompare={callbacks.onCompare} /> : null}
+      <details>
+        <summary>{msg('notThisPlace')}</summary>
+        <div className={styles['disagree-buttons']}>
+          <button type="button" onClick={callbacks.onReanalyze}>
+            {msg('reanalyzeButton')}
+          </button>
+        </div>
+      </details>
+    </>
+  );
+};

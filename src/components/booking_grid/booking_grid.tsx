@@ -1,8 +1,12 @@
-import { buildLinks } from '../deep_links';
+import { buildLinks } from '../../deep_links';
 import styles from './booking_grid.module.css';
-import { msg } from '../utils/i18n';
+import { msg } from '../../utils/i18n';
 
-export const BookingGrid = ({ destination }: { destination: string }) => (
+interface Props {
+  destination: string;
+}
+
+export const BookingGrid = ({ destination }: Props) => (
   <div className={styles.root}>
     {destination
       ? buildLinks(destination).map((link) => (

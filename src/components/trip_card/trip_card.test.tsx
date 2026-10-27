@@ -1,9 +1,9 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TripCard, type CardState, type TripCardCallbacks } from './trip_card';
-import type { PlaceResult } from '../types';
-import { installChromeMock, uninstallChromeMock } from '../test/chrome_mock';
-import { renderSync, type Rendered } from '../test/render_sync';
+import type { PlaceResult } from '../../types';
+import { installChromeMock, uninstallChromeMock } from '../../test/chrome_mock';
+import { renderSync, type Rendered } from '../../test/render_sync';
 
 const PLACE: PlaceResult = {
   identified: true,

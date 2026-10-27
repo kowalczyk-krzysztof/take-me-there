@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TripBoard, type BoardItemView, type BoardNoticeView, type TripRemovePinDetail } from './trip_board';
-import { installChromeMock, uninstallChromeMock } from '../test/chrome_mock';
-import { renderSync } from '../test/render_sync';
+import { installChromeMock, uninstallChromeMock } from '../../test/chrome_mock';
+import { renderSync } from '../../test/render_sync';
 
 const ITEMS: BoardItemView[] = [
   { placeName: 'Oia', country: 'Greece', title: 'Oia, Greece', host: 'example.com', image: 'data:image/jpeg,aaa' },

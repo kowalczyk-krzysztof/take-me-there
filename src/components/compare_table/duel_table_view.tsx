@@ -1,18 +1,12 @@
 import styles from './compare_table.module.css';
-import { msg } from '../utils/i18n';
+import { msg } from '../../utils/i18n';
+import type { DuelTableState } from './compare_table';
 
-export interface DuelRowView {
-  criterion: string;
-  a: string;
-  b: string;
+interface Props {
+  state: Extract<DuelTableState, { mode: 'loading' | 'ready' }>;
 }
 
-export type DuelTableState =
-  | { mode: 'loading'; a: string; b: string }
-  | { mode: 'ready'; a: string; b: string; rows: DuelRowView[]; verdict: string }
-  | { mode: 'error'; a: string; b: string };
-
-const DuelTableView = ({ state }: { state: Extract<DuelTableState, { mode: 'loading' | 'ready' }> }) => (
+export const DuelTableView = ({ state }: Props) => (
   <table aria-busy={state.mode === 'loading'}>
     <caption>{msg('duelCaption', [state.a, state.b])}</caption>
     <thead>
@@ -49,19 +43,3 @@ const DuelTableView = ({ state }: { state: Extract<DuelTableState, { mode: 'load
     </tbody>
   </table>
 );
-
-export const CompareTable = ({ table, onRetry }: { table: DuelTableState; onRetry: () => void }) => (
-  <div className={styles.root}>
-    {table.mode === 'error' ? (
-      <div className={styles['duel-error']}>
-        <p>{msg('duelError', [table.a, table.b])}</p>
-        <button type="button" className={styles.primary} onClick={onRetry}>
-          {msg('duelRetry')}
-        </button>
-      </div>
-    ) : (
-      <DuelTableView state={table} />
-    )}
-  </div>
-);
-

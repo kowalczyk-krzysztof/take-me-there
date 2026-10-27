@@ -1,6 +1,8 @@
 import { useRef, useState } from 'react';
 import styles from './scan_list.module.css';
-import { msg } from '../utils/i18n';
+import { msg } from '../../utils/i18n';
+import { PinSelectedButton } from './pin_selected_button';
+import { ScanCard } from './scan_card';
 
 export interface ScanItemView {
   placeName: string;
@@ -28,84 +30,14 @@ export interface ScanListCallbacks {
   onPinSelected: (indices: number[]) => void;
 }
 
-// Own component so the label lookup runs in tree order (after the cards),
-// matching the old render sequence.
-const PinSelectedButton = ({
-  items, checked, onPinSelected,
-}: {
+interface Props extends ScanListCallbacks {
+  loading: boolean;
   items: ScanItemView[];
-  checked: Set<string>;
-  onPinSelected: (indices: number[]) => void;
-}) => (
-  <button
-    type="button"
-    className={`${styles.primary} ${styles['pin-selected']}`}
-    onClick={() => {
-      const indices = items
-        .map((item, index) => ({ item, index }))
-        .filter(({ item }) => checked.has(item.title))
-        .map(({ index }) => index);
-      if (indices.length > 0) {
-        onPinSelected(indices);
-      }
-    }}
-  >
-    {msg('scanPinSelected', String(checked.size))}
-  </button>
-);
-
-const ScanCard = ({
-  item, index, initialChecked, onGuide, onPin,
-}: {
-  item: ScanItemView;
-  index: number;
-  initialChecked: boolean;
-  onGuide: (index: number) => void;
-  onPin: (index: number) => void;
-}) => (
-  <div className={styles['scan-card']} role="group" aria-label={item.title}>
-    {item.image ? (
-      <img
-        alt=""
-        referrerPolicy="no-referrer"
-        src={item.image}
-        onError={(event) => event.currentTarget.remove()}
-      />
-    ) : (
-      <div className={styles['thumb-placeholder']} aria-hidden="true" />
-    )}
-    <label className={styles['select-row']}>
-      {/* Uncontrolled: a delegated native change listener tracks toggles,
-          so programmatic sets fire it too. */}
-      <input
-        type="checkbox"
-        data-title={item.title}
-        defaultChecked={initialChecked}
-      />
-      <span>{item.title}</span>
-    </label>
-    <div className={styles['card-actions']}>
-      <button type="button" onClick={() => onGuide(index)}>
-        {msg('scanGuide', item.placeName)}
-      </button>
-      <button
-        type="button"
-        className="pin-button"
-        aria-pressed={item.pinned}
-        onClick={() => onPin(index)}
-      >
-        {msg('pinButton', item.placeName)}
-      </button>
-    </div>
-  </div>
-);
+}
 
 export const ScanList = ({
   loading, items, onGuide, onPin, onPinSelected,
-}: {
-  loading: boolean;
-  items: ScanItemView[];
-} & ScanListCallbacks) => {
+}: Props) => {
   const checkedRef = useRef<Set<string>>(new Set());
   const [epoch, setEpoch] = useState(0);
   const prevItems = useRef(items);

@@ -1,7 +1,8 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import styles from './trip_board.module.css';
-import { msg } from '../utils/i18n';
+import { msg } from '../../utils/i18n';
+import { BoardItem } from './board_item';
 
 export interface BoardItemView {
   placeName: string;
@@ -28,40 +29,15 @@ export interface TripBoardCallbacks {
   onRetryPin: () => void;
 }
 
-const BoardItem = ({ item, onRemovePin }: { item: BoardItemView; onRemovePin: (detail: TripRemovePinDetail) => void }) => (
-  <li>
-    {item.image ? (
-      <img
-        alt=""
-        referrerPolicy="no-referrer"
-        src={item.image}
-        onError={(event) => event.currentTarget.remove()}
-      />
-    ) : (
-      <div className="thumb-monogram" aria-hidden="true">{item.title.trim().charAt(0)}</div>
-    )}
-    <div className={styles['item-text']}>
-      <p className={styles['item-name']}>{item.title}</p>
-      <p className={styles['item-host']}>{item.host}</p>
-    </div>
-    <button
-      type="button"
-      onClick={() => {
-        onRemovePin({ placeName: item.placeName, country: item.country });
-      }}
-    >
-      {msg('boardRemove', item.placeName)}
-    </button>
-  </li>
-);
-
-export const TripBoard = ({
-  items, canPlan, notice, onRemovePin, onPlan, onClearConfirm, onRetryPin,
-}: {
+interface Props extends TripBoardCallbacks {
   items: BoardItemView[];
   canPlan: boolean;
   notice: BoardNoticeView;
-} & TripBoardCallbacks) => {
+}
+
+export const TripBoard = ({
+  items, canPlan, notice, onRemovePin, onPlan, onClearConfirm, onRetryPin,
+}: Props) => {
   const [open, setOpen] = useState(true);
   const [confirming, setConfirming] = useState<number | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);

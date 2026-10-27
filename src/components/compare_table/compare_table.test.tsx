@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CompareTable, type DuelRowView, type DuelTableState } from './compare_table';
-import { installChromeMock, uninstallChromeMock } from '../test/chrome_mock';
-import { renderSync } from '../test/render_sync';
+import { installChromeMock, uninstallChromeMock } from '../../test/chrome_mock';
+import { renderSync } from '../../test/render_sync';
 
 const ROWS: DuelRowView[] = [
   { criterion: 'Cost', a: 'Pricey sunsets.', b: 'Cheaper stays.' },

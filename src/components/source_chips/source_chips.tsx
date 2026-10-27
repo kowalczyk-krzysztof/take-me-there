@@ -1,6 +1,6 @@
-import type { GuideSource } from '../providers/index';
+import type { GuideSource } from '../../providers/index';
 import styles from './source_chips.module.css';
-import { msg } from '../utils/i18n';
+import { msg } from '../../utils/i18n';
 
 const safeHttpUrl = (raw: string): string | null => {
   try {
@@ -22,7 +22,11 @@ const hostnameOf = (href: string): string => {
   }
 };
 
-export const SourceChips = ({ sources }: { sources: GuideSource[] }) => (
+interface Props {
+  sources: GuideSource[];
+}
+
+export const SourceChips = ({ sources }: Props) => (
   <div className={styles.root}>
     {sources.map((source, index) => {
       const href = safeHttpUrl(source.url);

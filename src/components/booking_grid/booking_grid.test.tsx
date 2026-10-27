@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { BookingGrid } from './booking_grid';
-import { installChromeMock, uninstallChromeMock } from '../test/chrome_mock';
-import { renderSync } from '../test/render_sync';
+import { installChromeMock, uninstallChromeMock } from '../../test/chrome_mock';
+import { renderSync } from '../../test/render_sync';
 
 beforeEach(() => {
   installChromeMock();
