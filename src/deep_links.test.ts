@@ -4,6 +4,7 @@ import {
   UNVERIFIED_PORTALS_ENABLED,
   buildDestination,
   buildLinks,
+  mapsDirUrl,
 } from './deep_links';
 
 describe('deep_links', () => {
@@ -46,5 +47,43 @@ describe('deep_links', () => {
       'hotels',
       'airbnb',
     ]);
+  });
+});
+
+describe('mapsDirUrl', () => {
+  it('routes first to last with encoded-pipe waypoints', () => {
+    expect(mapsDirUrl(['Oia', 'Fira', 'Imerovigli'])).toBe(
+      'https://www.google.com/maps/dir/?api=1&origin=Oia&destination=Imerovigli&waypoints=Fira',
+    );
+  });
+
+  it('omits the waypoints param for direct routes and rejects single stops', () => {
+    expect(mapsDirUrl(['Oia', 'Fira'])).toBe(
+      'https://www.google.com/maps/dir/?api=1&origin=Oia&destination=Fira',
+    );
+    expect(mapsDirUrl(['Oia'])).toBeNull();
+    expect(mapsDirUrl([])).toBeNull();
+  });
+
+  it('strips pipes, controls, and newlines before encoding', () => {
+    const url = mapsDirUrl(['Oi|a\nFira', 'X', 'Y']);
+    expect(url).toContain('origin=Oi');
+    expect(url).not.toContain('|');
+    expect(url).not.toContain('%0A');
+    // A literal pipe in a place name cannot forge an extra waypoint.
+    const forged = mapsDirUrl(['A', 'B|C', 'D']);
+    expect(forged?.split('%7C')).toHaveLength(1);
+  });
+
+  it('caps waypoints at nine and the URL at 2048 chars', () => {
+    const stops = ['Start', ...Array.from({ length: 20 }, (_, i) => `Stop ${i}`), 'End'];
+    const url = mapsDirUrl(stops);
+    expect(url?.split('%7C')).toHaveLength(9);
+    expect(url).toContain('destination=End');
+    const long = ['Start', ...Array.from({ length: 11 }, (_, i) => `L${'o'.repeat(110)}${i}`), 'End'];
+    const capped = mapsDirUrl(long);
+    expect(capped && capped.length <= 2048).toBe(true);
+    expect(capped).toContain('origin=Start');
+    expect(capped).toContain('destination=End');
   });
 });

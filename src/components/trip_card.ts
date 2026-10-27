@@ -4,10 +4,16 @@ import type { PlaceResult } from '../types';
 import { adoptSharedStyles, prefersReducedMotion } from './shared_styles';
 import elementCss from './trip_card.css?raw';
 
+export interface ItineraryStopView {
+  name: string;
+  nights: number | null;
+  links: Array<{ id: string; href: string }>;
+}
+
 export type CardState =
   | { view: 'idle'; hint: string; shortcut: string }
   | { view: 'loading' }
-  | { view: 'result'; place: PlaceResult; lowConfidence: boolean }
+  | { view: 'result'; place: PlaceResult; lowConfidence: boolean; pinned: boolean }
   | { view: 'no-place'; showLookAgain: boolean; fallback: { label: string; href: string } | null }
   | {
     view: 'error';
@@ -15,6 +21,13 @@ export type CardState =
     body: string;
     showRetry: boolean;
     fallback?: { label: string; href: string } | null;
+  }
+  | {
+    view: 'itinerary';
+    title: string;
+    stops: ItineraryStopView[];
+    mapsUrl: string | null;
+    mapsLabel: string;
   };
 
 const msg = (key: string, subs?: string | string[]): string =>
@@ -55,13 +68,16 @@ export class TripCardElement extends HTMLElement {
         this.renderLoading();
         break;
       case 'result':
-        this.renderResult(state.place, state.lowConfidence);
+        this.renderResult(state.place, state.lowConfidence, state.pinned);
         break;
       case 'no-place':
         this.renderNoPlace(state.showLookAgain, state.fallback);
         break;
       case 'error':
         this.renderError(state.title, state.body, state.showRetry, state.fallback ?? null);
+        break;
+      case 'itinerary':
+        this.renderItinerary(state.title, state.stops, state.mapsUrl, state.mapsLabel);
         break;
     }
   }
@@ -104,7 +120,7 @@ export class TripCardElement extends HTMLElement {
     }
   }
 
-  private renderResult(place: PlaceResult, lowConfidence: boolean): void {
+  private renderResult(place: PlaceResult, lowConfidence: boolean, pinned: boolean): void {
     const heading = document.createElement('h2');
     heading.tabIndex = -1;
     heading.textContent = place.placeName;
@@ -128,6 +144,13 @@ export class TripCardElement extends HTMLElement {
       one.textContent = place.oneLiner;
       this.root.append(one);
     }
+    const pin = document.createElement('button');
+    pin.type = 'button';
+    pin.className = 'pin-button';
+    pin.setAttribute('aria-pressed', String(pinned));
+    pin.textContent = msg('pinButton', place.placeName);
+    pin.addEventListener('click', () => this.emit('trip-pin'));
+    this.root.append(pin);
     const details = document.createElement('details');
     const summary = document.createElement('summary');
     summary.textContent = msg('notThisPlace');
@@ -144,6 +167,68 @@ export class TripCardElement extends HTMLElement {
     buttons.append(reanalyze, edit);
     details.append(summary, buttons);
     this.root.append(details);
+  }
+
+  private renderItinerary(
+    title: string,
+    stops: ItineraryStopView[],
+    mapsUrl: string | null,
+    mapsLabel: string,
+  ): void {
+    const heading = document.createElement('h2');
+    heading.tabIndex = -1;
+    heading.textContent = title;
+    this.root.append(heading);
+    const list = document.createElement('ol');
+    list.className = 'stop-list';
+    for (const stop of stops) {
+      const entry = document.createElement('li');
+      const name = document.createElement('p');
+      name.className = 'stop-name';
+      name.textContent = stop.name;
+      entry.append(name);
+      if (stop.nights !== null) {
+        const nights = document.createElement('p');
+        nights.className = 'stop-nights';
+        nights.textContent = msg('itineraryNights', String(stop.nights));
+        entry.append(nights);
+      }
+      if (stop.links.length > 0) {
+        const row = document.createElement('p');
+        row.className = 'stop-links';
+        stop.links.forEach((link, index) => {
+          if (index > 0) {
+            row.append(' · ');
+          }
+          const anchor = document.createElement('a');
+          anchor.href = link.href;
+          anchor.target = '_blank';
+          anchor.rel = 'noopener';
+          anchor.textContent = msg(`bookingLink_${link.id}`);
+          const suffix = document.createElement('span');
+          suffix.className = 'visually-hidden';
+          suffix.textContent = msg('newTabSuffix');
+          anchor.append(suffix);
+          row.append(anchor);
+        });
+        entry.append(row);
+      }
+      list.append(entry);
+    }
+    this.root.append(list);
+    if (mapsUrl) {
+      const maps = document.createElement('a');
+      maps.className = 'maps-link';
+      maps.href = mapsUrl;
+      maps.target = '_blank';
+      maps.rel = 'noopener';
+      maps.textContent = mapsLabel;
+      const suffix = document.createElement('span');
+      suffix.className = 'visually-hidden';
+      suffix.textContent = msg('newTabSuffix');
+      maps.append(suffix);
+      this.root.append(maps);
+    }
   }
 
   private renderNoPlace(

@@ -91,6 +91,82 @@ export const TRIP_REQUEST_SCHEMA = z.strictObject({
 });
 export type TripRequest = z.infer<typeof TRIP_REQUEST_SCHEMA>;
 
+// Itinerary structure: stop names are constrained to an enum of the pinned
+// place names, so the model can only sequence user-selected pins, never
+// invent stops. Every enum use site builds a FRESH z.enum: sharing one
+// instance makes toJSONSchema emit $defs/$ref, which the strict subset
+// forbids. Night counts stay bounds-free in the schema (subset risk) and are
+// clamped client-side instead.
+export interface ItineraryDay {
+  dayTitle: string;
+  stopNames: string[];
+  summary: string;
+}
+
+export interface ItineraryNight {
+  stop: string;
+  nights: number;
+}
+
+export interface ItineraryPlan {
+  stops: string[];
+  days: ItineraryDay[];
+  nightsEach: ItineraryNight[];
+}
+
+export const itinerarySchema = (stopNames: string[]) => {
+  if (stopNames.length === 0) {
+    throw new Error('itinerarySchema needs at least one stop name');
+  }
+  const names = stopNames as [string, ...string[]];
+  return z.strictObject({
+    stops: z.array(z.enum(names)),
+    days: z.array(
+      z.strictObject({
+        dayTitle: z.string().check(z.maxLength(80)),
+        stopNames: z.array(z.enum(names)),
+        summary: z.string().check(z.maxLength(500)),
+      }),
+    ),
+    nightsEach: z.array(
+      z.strictObject({
+        stop: z.enum(names),
+        nights: z.number(),
+      }),
+    ),
+  });
+};
+
+export const itineraryJsonSchema = (stopNames: string[]): Record<string, unknown> => {
+  const emitted = z.toJSONSchema(itinerarySchema(stopNames)) as unknown as Record<
+    string,
+    unknown
+  >;
+  const { $schema: _dropped, ...schema } = emitted;
+  return schema;
+};
+
+// Lenient client-side shape for itinerary answers: the strict server schema
+// already constrains conforming output, and this pass drops non-enum stops
+// (instead of rejecting the whole plan) for anything that slips through.
+export const looseItinerarySchema = () =>
+  z.strictObject({
+    stops: z.array(z.string()),
+    days: z.array(
+      z.strictObject({
+        dayTitle: z.string(),
+        stopNames: z.array(z.string()),
+        summary: z.string(),
+      }),
+    ),
+    nightsEach: z.array(
+      z.strictObject({
+        stop: z.string(),
+        nights: z.unknown(),
+      }),
+    ),
+  });
+
 export const PROVIDER_CAPABILITIES_SCHEMA = z.strictObject({
   video: z.boolean(),
   webGrounding: z.boolean(),

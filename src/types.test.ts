@@ -4,6 +4,8 @@ import {
   PLACE_SCHEMA,
   PROVIDER_CAPABILITIES_SCHEMA,
   TRIP_REQUEST_SCHEMA,
+  itineraryJsonSchema,
+  itinerarySchema,
   placeJsonSchema,
 } from './types';
 
@@ -31,11 +33,17 @@ const assertStrictSubset = (schema: Record<string, unknown>, path = '$'): void =
     Object.keys(props).sort(),
   );
   for (const [name, prop] of Object.entries(props)) {
-    if (prop.type === 'string') {
+    if (prop.type === 'string' && !Array.isArray(prop.enum)) {
       expect(typeof prop.maxLength, `${path}.${name} has maxLength`).toBe('number');
     }
     if (prop.type === 'object') {
       assertStrictSubset(prop, `${path}.${name}`);
+    }
+    if (prop.type === 'array') {
+      const items = prop.items as Record<string, unknown>;
+      if (items.type === 'object') {
+        assertStrictSubset(items, `${path}.${name}[]`);
+      }
     }
   }
 };
@@ -90,6 +98,53 @@ describe('place schema pipeline', () => {
     const { country: _dropped, ...missingCountry } = VALID_PLACE;
     expect(PLACE_SCHEMA.safeParse(missingCountry).success).toBe(false);
     expect(PLACE_SCHEMA.safeParse({ ...VALID_PLACE, extra: 1 }).success).toBe(false);
+  });
+});
+
+describe('itinerary schema pipeline', () => {
+  const STOPS = ['Oia', 'Fira'];
+
+  it('emits the strict subset with inlined stop enums', () => {
+    const schema = itineraryJsonSchema(STOPS);
+    assertStrictSubset(schema);
+    expect(forbiddenKeys(schema)).toEqual([]);
+    const props = schema.properties as Record<string, Record<string, unknown>>;
+    const stopsItems = props.stops.items as Record<string, unknown>;
+    expect(stopsItems.enum).toEqual(STOPS);
+  });
+
+  it('accepts a valid plan and constrains every stop to the enum', () => {
+    const schema = itinerarySchema(STOPS);
+    const valid = {
+      stops: ['Oia', 'Fira'],
+      days: [{ dayTitle: 'Day 1', stopNames: ['Oia'], summary: 'Caldera views.' }],
+      nightsEach: [
+        { stop: 'Oia', nights: 2 },
+        { stop: 'Fira', nights: 1 },
+      ],
+    };
+    expect(schema.safeParse(valid).success).toBe(true);
+    expect(
+      schema.safeParse({ ...valid, stops: ['Oia', 'Paris'] }).success,
+    ).toBe(false);
+    expect(
+      schema.safeParse({
+        ...valid,
+        days: [{ dayTitle: 'Day 1', stopNames: ['Paris'], summary: 'Nope.' }],
+      }).success,
+    ).toBe(false);
+  });
+
+  it('rejects oversized strings and refuses an empty enum', () => {
+    const schema = itinerarySchema(STOPS);
+    expect(
+      schema.safeParse({
+        stops: ['Oia'],
+        days: [{ dayTitle: 'x'.repeat(81), stopNames: ['Oia'], summary: 'Ok.' }],
+        nightsEach: [],
+      }).success,
+    ).toBe(false);
+    expect(() => itinerarySchema([])).toThrow();
   });
 });
 

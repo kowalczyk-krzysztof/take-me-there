@@ -395,6 +395,200 @@ describe('sidepanel', () => {
     expect(document.querySelector('#privacy-line')?.textContent).toBe('privacyVideoUrl');
   });
 
+  it('pins results to the board with announcements', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    fetchMock
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
+      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
+    await mock.session.set({ tripRequest: READY() });
+    await waitFor(() => {
+      const card = document.querySelector('trip-card');
+      expect(card?.shadowRoot?.querySelector('h2')?.textContent).toBe('Oia');
+    });
+    const card = document.querySelector('trip-card') as HTMLElement;
+    const pin = card.shadowRoot?.querySelector('.pin-button') as HTMLButtonElement;
+    expect(pin.getAttribute('aria-pressed')).toBe('false');
+    pin.click();
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned');
+    });
+    expect(
+      (card.shadowRoot?.querySelector('.pin-button') as HTMLButtonElement).getAttribute(
+        'aria-pressed',
+      ),
+    ).toBe('true');
+    const board = document.querySelector('trip-board') as HTMLElement;
+    const items = [...(board.shadowRoot?.querySelectorAll('li') ?? [])];
+    expect(items).toHaveLength(1);
+    expect(items[0].querySelector('.item-name')?.textContent).toBe('Oia, Greece');
+    expect(items[0].querySelector('.item-host')?.textContent).toBe('example.com');
+    expect(
+      (board.shadowRoot?.querySelector('.plan-button') as HTMLButtonElement).getAttribute(
+        'aria-disabled',
+      ),
+    ).toBe('true');
+    (card.shadowRoot?.querySelector('.pin-button') as HTMLButtonElement).click();
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('statusPinDuplicate');
+    });
+    expect(board.shadowRoot?.querySelectorAll('li')).toHaveLength(1);
+    const remove = items[0].querySelector('button') as HTMLButtonElement;
+    remove.click();
+    await waitFor(() => {
+      expect(board.shadowRoot?.querySelectorAll('li')).toHaveLength(0);
+    });
+    expect(
+      (card.shadowRoot?.querySelector('.pin-button') as HTMLButtonElement).getAttribute(
+        'aria-pressed',
+      ),
+    ).toBe('false');
+  });
+
+  it('retries failed pins without the thumbnail', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    fetchMock
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
+      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
+    await mock.session.set({ tripRequest: READY() });
+    await waitFor(() => {
+      const card = document.querySelector('trip-card');
+      expect(card?.shadowRoot?.querySelector('h2')?.textContent).toBe('Oia');
+    });
+    const fail = vi.spyOn(mock.local, 'set').mockRejectedValueOnce(new Error('quota'));
+    const card = document.querySelector('trip-card') as HTMLElement;
+    (card.shadowRoot?.querySelector('.pin-button') as HTMLButtonElement).click();
+    await waitFor(() => {
+      expect(document.querySelector('#alert-region')?.textContent).toBe('alertPinFail');
+    });
+    const board = document.querySelector('trip-board') as HTMLElement;
+    expect(board.shadowRoot?.querySelector('.notice')?.textContent).toContain('boardNoticePinFail');
+    fail.mockRestore();
+    (board.shadowRoot?.querySelector('.notice button') as HTMLButtonElement).click();
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned');
+    });
+    const { listPins } = await import('./board_store');
+    const pins = await listPins();
+    expect(pins).toHaveLength(1);
+    expect(pins[0].thumbnail).toBeUndefined();
+  });
+
+  it('clears the board through the inline confirm', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    fetchMock
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
+      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
+    await mock.session.set({ tripRequest: READY() });
+    await waitFor(() => {
+      const card = document.querySelector('trip-card');
+      expect(card?.shadowRoot?.querySelector('h2')?.textContent).toBe('Oia');
+    });
+    const card = document.querySelector('trip-card') as HTMLElement;
+    (card.shadowRoot?.querySelector('.pin-button') as HTMLButtonElement).click();
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned');
+    });
+    const board = document.querySelector('trip-board') as HTMLElement;
+    (board.shadowRoot?.querySelector('.clear-button') as HTMLButtonElement).click();
+    expect(board.shadowRoot?.querySelector('.confirm-heading')?.textContent).toBe(
+      'boardClearTitle',
+    );
+    const [, cancel] = [
+      ...(board.shadowRoot?.querySelectorAll('.confirm-actions button') ?? []),
+    ] as HTMLButtonElement[];
+    cancel.click();
+    expect(board.shadowRoot?.querySelectorAll('li')).toHaveLength(1);
+    (board.shadowRoot?.querySelector('.clear-button') as HTMLButtonElement).click();
+    const [confirm] = [
+      ...(board.shadowRoot?.querySelectorAll('.confirm-actions button') ?? []),
+    ] as HTMLButtonElement[];
+    confirm.click();
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('boardCleared');
+    });
+    expect(board.shadowRoot?.querySelectorAll('li')).toHaveLength(0);
+    expect(board.shadowRoot?.activeElement?.className).toContain('disclosure');
+  });
+
+  it('plans a trip from two pins with a narrated itinerary', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    const FIRA = { ...VALID_PLACE, placeName: 'Fira', city: 'Fira', oneLiner: 'Cliff views.' };
+    const VALID_PLAN = {
+      stops: ['Oia, Greece', 'Fira, Greece'],
+      days: [
+        {
+          dayTitle: 'Caldera day',
+          stopNames: ['Oia, Greece', 'Fira, Greece'],
+          summary: 'Walk the caldera path.',
+        },
+      ],
+      nightsEach: [
+        { stop: 'Oia, Greece', nights: 2 },
+        { stop: 'Fira, Greece', nights: 1 },
+      ],
+    };
+    fetchMock
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
+      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]))
+      .mockResolvedValueOnce(chatResponse(FIRA))
+      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]))
+      .mockResolvedValueOnce(chatResponse(VALID_PLAN))
+      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
+    await mock.session.set({ tripRequest: READY() });
+    await waitFor(() => {
+      const card = document.querySelector('trip-card');
+      expect(card?.shadowRoot?.querySelector('h2')?.textContent).toBe('Oia');
+    });
+    const card = document.querySelector('trip-card') as HTMLElement;
+    (card.shadowRoot?.querySelector('.pin-button') as HTMLButtonElement).click();
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned');
+    });
+    await mock.session.set({
+      tripRequest: READY({
+        requestId: '200-2',
+        srcUrl: 'https://cdn.example.com/fira.jpg',
+      }),
+    });
+    await waitFor(() => {
+      expect(card.shadowRoot?.querySelector('h2')?.textContent).toBe('Fira');
+    });
+    (card.shadowRoot?.querySelector('.pin-button') as HTMLButtonElement).click();
+    await waitFor(() => {
+      const board = document.querySelector('trip-board') as HTMLElement;
+      expect(board.shadowRoot?.querySelectorAll('li')).toHaveLength(2);
+    });
+    const board = document.querySelector('trip-board') as HTMLElement;
+    const plan = board.shadowRoot?.querySelector('.plan-button') as HTMLButtonElement;
+    expect(plan.hasAttribute('aria-disabled')).toBe(false);
+    plan.click();
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('statusItineraryReady');
+    });
+    expect(card.shadowRoot?.querySelector('h2')?.textContent).toBe('itineraryTitle');
+    expect(card.shadowRoot?.querySelectorAll('.stop-list li')).toHaveLength(2);
+    const maps = card.shadowRoot?.querySelector('.maps-link') as HTMLAnchorElement;
+    expect(maps.href).toContain('maps/dir');
+    expect(maps.href).toContain('origin=');
+    expect(document.querySelector('#guide-content')?.textContent).toContain('Hello world');
+    expect(document.querySelector('#privacy-line')?.textContent).toBe('privacyBoard');
+    expect(document.querySelector('#cost-line')?.textContent).toBe('costLine');
+    expect((card.shadowRoot?.activeElement as HTMLElement)?.tagName).toBe('H2');
+    const [, , , , structure] = fetchMock.mock.calls.map((call) => {
+      const init = call[1] as RequestInit;
+      return JSON.parse(init.body as string) as {
+        messages: Array<{ content: Array<{ type: string }> }>;
+        response_format: { type: string };
+      };
+    });
+    expect(structure.response_format.type).toBe('json_schema');
+    expect(structure.messages[1].content[0].type).toBe('text');
+  });
+
   it('renders honest cards with fallback links for unreadable video', async () => {
     const mock = await setup();
     await plantKeyAndConsent();

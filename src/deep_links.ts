@@ -56,3 +56,42 @@ export const buildLinks = (destination: string): BookingLink[] => {
   }
   return links;
 };
+
+export const MAPS_MAX_WAYPOINTS = 9;
+export const MAPS_MAX_URL_CHARS = 2048;
+
+// Multi-stop route link for the itinerary card. Stops arrive in visit order:
+// first becomes origin, last becomes destination, the middle becomes
+// waypoints. Every name is stripped of pipes, controls, and newlines BEFORE
+// encoding (a literal pipe would forge an extra waypoint), capped like any
+// destination, and joined with an encoded pipe; the URL cap drops whole
+// trailing waypoints, never truncating mid-escape.
+export const mapsDirUrl = (stops: string[]): string | null => {
+  if (stops.length < 2) {
+    return null;
+  }
+  const clean = (name: string): string =>
+    capDestination(name.replace(/[\0-\x1F\x7F|]+/g, ''));
+  const origin = clean(stops[0]);
+  const destination = clean(stops[stops.length - 1]);
+  if (!origin || !destination) {
+    return null;
+  }
+  let middles = stops.slice(1, -1).map(clean).filter(Boolean).slice(0, MAPS_MAX_WAYPOINTS);
+  const build = (waypoints: string[]): string => {
+    const base =
+      'https://www.google.com/maps/dir/?api=1' +
+      `&origin=${encodeURIComponent(origin)}` +
+      `&destination=${encodeURIComponent(destination)}`;
+    if (waypoints.length === 0) {
+      return base;
+    }
+    return `${base}&waypoints=${waypoints.map((stop) => encodeURIComponent(stop)).join('%7C')}`;
+  };
+  let url = build(middles);
+  while (url.length > MAPS_MAX_URL_CHARS && middles.length > 0) {
+    middles = middles.slice(0, -1);
+    url = build(middles);
+  }
+  return url.length > MAPS_MAX_URL_CHARS ? null : url;
+};

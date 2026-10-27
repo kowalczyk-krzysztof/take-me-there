@@ -3,10 +3,16 @@
 // configured mode (json_schema when the endpoint supports it, otherwise
 // json_object with client-side validation doing the real work).
 import type { ModelRates } from '../pricing';
+import { itineraryJsonSchema } from '../types';
 import {
   ProviderError,
   assertConsent,
   buildGuidePrompt,
+  buildItineraryMessages,
+  emptyUsage,
+  fetchChatCompletion,
+  invalidResponse,
+  parseItineraryPlan,
   postChatStream,
   requireKey,
   responseError,
@@ -18,6 +24,8 @@ import {
   type IdentifyInput,
   type IdentifyRequest,
   type IdentifyResult,
+  type ItineraryInput,
+  type ItineraryResult,
   type OpenAiCompatSettings,
   type Provider,
   type ProviderCapabilities,
@@ -95,11 +103,47 @@ export class OpenAiCompatProvider implements Provider {
     };
   }
 
+  async planItinerary(key: string, input: ItineraryInput): Promise<ItineraryResult> {
+    requireKey(key);
+    await assertConsent();
+    const base = this.baseURL();
+    const usage = emptyUsage();
+    if (input.pins.length === 0) {
+      throw invalidResponse(usage, 'no pins to plan');
+    }
+    const stopNames = input.pins.map((pin) => pin.name);
+    for (const strictReminder of [false, true]) {
+      const data = await fetchChatCompletion(
+        `${base}/chat/completions`,
+        key,
+        {
+          model: this.config.model,
+          max_completion_tokens: IDENTIFY_MAX_TOKENS,
+          messages: buildItineraryMessages(input.pins, strictReminder),
+          response_format:
+            this.config.structuredOutput === 'json_schema'
+              ? {
+                  type: 'json_schema',
+                  json_schema: { name: 'itinerary', schema: itineraryJsonSchema(stopNames) },
+                }
+              : { type: 'json_object' },
+        },
+        input.signal,
+        usage,
+      );
+      const plan = parseItineraryPlan(data, stopNames);
+      if (plan) {
+        return { plan, usage: { ...usage } };
+      }
+    }
+    throw invalidResponse(usage, 'model output failed validation');
+  }
+
   async *streamGuide(key: string, input: GuideInput): AsyncGenerator<GuideEvent, void, void> {
     requireKey(key);
     await assertConsent();
     const base = this.baseURL();
-    const prompt = buildGuidePrompt(input.destination, input.language);
+    const prompt = input.prompt ?? buildGuidePrompt(input.destination, input.language);
     yield* postChatStream(
       `${base}/chat/completions`,
       key,

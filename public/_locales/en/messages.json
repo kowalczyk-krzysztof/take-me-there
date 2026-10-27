@@ -568,5 +568,148 @@
   "privacyVideoUrl": {
     "message": "Sent to Meta's Muse API with your key: this video and its soundtrack, nearby page text, and the page address.",
     "description": "Privacy footer for full-video analysis."
+  },
+  "boardTitle": {
+    "message": "Trip board ($1)",
+    "description": "Board disclosure button label.",
+    "placeholders": {
+      "count": { "content": "$1", "example": "3" }
+    }
+  },
+  "boardEmpty": {
+    "message": "No places pinned yet. Pin a result to start your board.",
+    "description": "Empty board text."
+  },
+  "boardPlan": {
+    "message": "Plan this trip",
+    "description": "Itinerary action button."
+  },
+  "boardPlanNote": {
+    "message": "Pin at least 2 places to plan a trip.",
+    "description": "Explanation beside the disabled Plan button."
+  },
+  "boardClear": {
+    "message": "Clear board",
+    "description": "Board clear button."
+  },
+  "boardRemove": {
+    "message": "Remove $1",
+    "description": "Per-pin remove button.",
+    "placeholders": {
+      "place": { "content": "$1", "example": "Oia" }
+    }
+  },
+  "pinButton": {
+    "message": "Pin $1 to trip",
+    "description": "Result card pin toggle.",
+    "placeholders": {
+      "place": { "content": "$1", "example": "Oia" }
+    }
+  },
+  "boardNoticePinFail": {
+    "message": "Couldn't pin $1 - storage is unavailable.",
+    "description": "Visible pin-failure notice.",
+    "placeholders": {
+      "place": { "content": "$1", "example": "Oia" }
+    }
+  },
+  "boardRetryNoThumb": {
+    "message": "Retry without thumbnail",
+    "description": "Pin retry action."
+  },
+  "boardClearTitle": {
+    "message": "Remove all $1 pins?",
+    "description": "Clear-board confirm heading.",
+    "placeholders": {
+      "count": { "content": "$1", "example": "3" }
+    }
+  },
+  "boardCleared": {
+    "message": "Board cleared",
+    "description": "Status announcement after clearing."
+  },
+  "statusPinned": {
+    "message": "Pinned $1 - $2 places on board",
+    "description": "Status announcement for a successful pin.",
+    "placeholders": {
+      "place": { "content": "$1", "example": "Oia" },
+      "count": { "content": "$2", "example": "3" }
+    }
+  },
+  "statusPinnedEvicted": {
+    "message": "Pinned $1 - board full, removed $2",
+    "description": "Status announcement for a pin with eviction.",
+    "placeholders": {
+      "place": { "content": "$1", "example": "Oia" },
+      "oldest": { "content": "$2", "example": "Fira" }
+    }
+  },
+  "statusPinDuplicate": {
+    "message": "$1 is already on the board",
+    "description": "Status announcement for a dedupe hit.",
+    "placeholders": {
+      "place": { "content": "$1", "example": "Oia" }
+    }
+  },
+  "alertPinFail": {
+    "message": "Couldn't pin $1",
+    "description": "Alert announcement for a failed pin.",
+    "placeholders": {
+      "place": { "content": "$1", "example": "Oia" }
+    }
+  },
+  "boardNoticeRemoveFail": {
+    "message": "Couldn't remove $1 - storage is unavailable.",
+    "description": "Visible remove-failure notice.",
+    "placeholders": {
+      "place": { "content": "$1", "example": "Oia" }
+    }
+  },
+  "alertRemoveFail": {
+    "message": "Couldn't remove $1",
+    "description": "Alert announcement for a failed remove.",
+    "placeholders": {
+      "place": { "content": "$1", "example": "Oia" }
+    }
+  },
+  "alertBoardClearFail": {
+    "message": "Couldn't clear the board.",
+    "description": "Alert announcement for a failed clear."
+  },
+  "statusPlanning": {
+    "message": "Planning your trip - $1 places…",
+    "description": "Status announcement when itinerary planning starts.",
+    "placeholders": {
+      "count": { "content": "$1", "example": "3" }
+    }
+  },
+  "statusItineraryReady": {
+    "message": "Itinerary ready",
+    "description": "Status announcement when the itinerary lands."
+  },
+  "itineraryTitle": {
+    "message": "Trip plan - $1 stops",
+    "description": "Itinerary card heading.",
+    "placeholders": {
+      "count": { "content": "$1", "example": "3" }
+    }
+  },
+  "itineraryNights": {
+    "message": "Nights: $1",
+    "description": "Per-stop nights line.",
+    "placeholders": {
+      "nights": { "content": "$1", "example": "2" }
+    }
+  },
+  "mapsLink": {
+    "message": "Open route in Google Maps ($1 stops)",
+    "description": "Maps route link label.",
+    "placeholders": {
+      "count": { "content": "$1", "example": "3" }
+    }
+  },
+  "privacyBoard": {
+    "message": "Sent to Meta's Muse API with your key: pinned thumbnails, place names, and source-site addresses.",
+    "description": "Privacy footer for board planning."
   }
 }

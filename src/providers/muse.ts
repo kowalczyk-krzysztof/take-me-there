@@ -3,15 +3,18 @@
 // Responses API with a chat-completions fallback behind the transport flag.
 import { EventSourceParserStream, type EventSourceMessage } from 'eventsource-parser/stream';
 import { MUSE_SPARK_RATES, type ModelRates } from '../pricing';
-import { placeJsonSchema, type PlaceResult } from '../types';
+import { itineraryJsonSchema, placeJsonSchema, type PlaceResult } from '../types';
 import {
   ProviderError,
   SSE_MAX_BUFFER,
   assertConsent,
   buildGuidePrompt,
+  buildItineraryMessages,
   decodeStream,
   emptyUsage,
+  fetchChatCompletion,
   invalidResponse,
+  parseItineraryPlan,
   postChatStream,
   readChatUsage,
   requireKey,
@@ -28,6 +31,8 @@ import {
   type IdentifyInput,
   type IdentifyRequest,
   type IdentifyResult,
+  type ItineraryInput,
+  type ItineraryResult,
   type Provider,
   type ProviderCapabilities,
   type Usage,
@@ -37,6 +42,7 @@ const API_BASE = 'https://api.meta.ai/v1';
 const MODEL = 'muse-spark-1.3';
 const IDENTIFY_MAX_TOKENS = 2048;
 const GUIDE_MAX_TOKENS = 4096;
+const ITINERARY_MAX_TOKENS = 4096;
 
 export class MuseProvider implements Provider {
   readonly id = 'muse';
@@ -243,10 +249,43 @@ export class MuseProvider implements Provider {
     };
   }
 
+  async planItinerary(key: string, input: ItineraryInput): Promise<ItineraryResult> {
+    requireKey(key);
+    await assertConsent();
+    const usage = emptyUsage();
+    if (input.pins.length === 0) {
+      throw invalidResponse(usage, 'no pins to plan');
+    }
+    const stopNames = input.pins.map((pin) => pin.name);
+    for (const strictReminder of [false, true]) {
+      const data = await fetchChatCompletion(
+        `${API_BASE}/chat/completions`,
+        key,
+        {
+          model: MODEL,
+          reasoning_effort: 'low',
+          max_completion_tokens: ITINERARY_MAX_TOKENS,
+          messages: buildItineraryMessages(input.pins, strictReminder),
+          response_format: {
+            type: 'json_schema',
+            json_schema: { name: 'itinerary', strict: true, schema: itineraryJsonSchema(stopNames) },
+          },
+        },
+        input.signal,
+        usage,
+      );
+      const plan = parseItineraryPlan(data, stopNames);
+      if (plan) {
+        return { plan, usage: { ...usage } };
+      }
+    }
+    throw invalidResponse(usage, 'model output failed validation');
+  }
+
   async *streamGuide(key: string, input: GuideInput): AsyncGenerator<GuideEvent, void, void> {
     requireKey(key);
     await assertConsent();
-    const prompt = buildGuidePrompt(input.destination, input.language);
+    const prompt = input.prompt ?? buildGuidePrompt(input.destination, input.language);
     if (input.transport === 'chat') {
       yield* this.streamGuideChat(key, prompt, input.signal);
     } else {

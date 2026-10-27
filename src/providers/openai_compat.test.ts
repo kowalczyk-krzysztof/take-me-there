@@ -186,3 +186,66 @@ describe('openai_compat', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
+
+describe('compat planItinerary', () => {
+  const VALID_PLAN = {
+    stops: ['Oia', 'Fira'],
+    days: [],
+    nightsEach: [{ stop: 'Oia', nights: 1 }],
+  };
+
+  const planInput = () => ({
+    pins: [
+      { name: 'Oia', host: 'example.com' },
+      { name: 'Fira', host: 'blog.example' },
+    ],
+    signal: new AbortController().signal,
+  });
+
+  it('uses the configured envelope and validates client-side', async () => {
+    await setConsented();
+    fetchMock.mockResolvedValue(chatResponse(VALID_PLAN));
+    const provider = new OpenAiCompatProvider(config({ structuredOutput: 'json_schema' }));
+    const result = await provider.planItinerary('sk_key', planInput());
+    expect(result.plan.stops).toEqual(['Oia', 'Fira']);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://llm.example.com/v1/chat/completions');
+    const body = JSON.parse(init.body as string) as Record<string, Record<string, unknown>>;
+    expect((body.response_format as Record<string, string>).type).toBe('json_schema');
+  });
+
+  it('falls back to json_object with the same client validation', async () => {
+    await setConsented();
+    fetchMock.mockResolvedValue(chatResponse(VALID_PLAN));
+    const provider = new OpenAiCompatProvider(config({ structuredOutput: 'json_object' }));
+    const result = await provider.planItinerary('sk_key', planInput());
+    expect(result.plan.stops).toEqual(['Oia', 'Fira']);
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string) as Record<string, Record<string, unknown>>;
+    expect((body.response_format as Record<string, string>).type).toBe('json_object');
+  });
+
+  it('honors prompt overrides in streamed guides', async () => {
+    await setConsented();
+    fetchMock.mockResolvedValue(
+      sseResponse([
+        'data: {"choices":[{"delta":{"content":"Hi"}}]}\n',
+        '\n',
+        'data: [DONE]\n',
+        '\n',
+      ]),
+    );
+    const provider = new OpenAiCompatProvider(config());
+    const events: GuideEvent[] = [];
+    for await (const event of provider.streamGuide('sk_key', {
+      destination: 'X',
+      signal: new AbortController().signal,
+      prompt: 'Custom narration prompt.',
+    })) {
+      events.push(event);
+    }
+    expect(events.some((event) => event.type === 'delta')).toBe(true);
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(init.body as string).toContain('Custom narration prompt.');
+  });
+});

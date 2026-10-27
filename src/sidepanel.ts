@@ -3,6 +3,7 @@
 import './components/booking_grid';
 import './components/key_setup';
 import './components/source_chips';
+import './components/trip_board';
 import './components/trip_card';
 import type { BookingGridElement } from './components/booking_grid';
 import type {
@@ -12,13 +13,33 @@ import type {
   SessionOnlyChangeDetail,
 } from './components/key_setup';
 import type { SourceChipsElement } from './components/source_chips';
+import type {
+  BoardItemView,
+  TripBoardElement,
+  TripRemovePinDetail,
+} from './components/trip_board';
 import type { TripCardElement } from './components/trip_card';
 import { adoptSharedStyles, prefersReducedMotion } from './components/shared_styles';
-import { buildDestination, capDestination } from './deep_links';
+import {
+  clearBoard,
+  dedupeKeyFor,
+  listPins,
+  makeThumbnail,
+  pinPlace,
+  removePin,
+  type BoardPin,
+} from './board_store';
+import { buildDestination, buildLinks, capDestination, mapsDirUrl } from './deep_links';
 import { loadKey, saveKey } from './key_vault';
 import { estimateCostUsd, formatUsd, recordMonthSpend } from './pricing';
 import { createGuideRenderer } from './render_markdown';
-import { TRIP_REQUEST_SCHEMA, type PageSignals, type PlaceResult, type TripRequest } from './types';
+import {
+  TRIP_REQUEST_SCHEMA,
+  type ItineraryPlan,
+  type PageSignals,
+  type PlaceResult,
+  type TripRequest,
+} from './types';
 import {
   frameCacheSeed,
   hasVideoConsented,
@@ -35,6 +56,7 @@ import {
   loadSettings,
   saveSettings,
   setConsented,
+  sanitizePromptHint,
   type ExtensionSettings,
   type GuideSource,
   type Provider,
@@ -163,7 +185,8 @@ const EMPTY_SIGNALS: PageSignals = {
 
 type PendingRun =
   | { kind: 'request'; request: TripRequest }
-  | { kind: 'manual'; destination: string };
+  | { kind: 'manual'; destination: string }
+  | { kind: 'itinerary' };
 
 let initialized = false;
 let pageTitle: HTMLElement;
@@ -189,6 +212,10 @@ let tripCard: TripCardElement;
 let keySetup: KeySetupElement;
 let bookingGrid: BookingGridElement;
 let sourceChips: SourceChipsElement;
+let boardSlot: HTMLElement;
+let tripBoard: TripBoardElement;
+let failedPin: Omit<BoardPin, 'addedAt'> | null = null;
+let failedRemove: TripRemovePinDetail | null = null;
 
 let highestRequestId = '';
 let highestStatusRank = -1;
@@ -332,7 +359,8 @@ type PrivacyMode =
   | 'idle'
   | 'local-only'
   | 'video-frame'
-  | 'video-url';
+  | 'video-url'
+  | 'board';
 
 const updatePrivacy = (mode: PrivacyMode): void => {
   const key =
@@ -350,7 +378,9 @@ const updatePrivacy = (mode: PrivacyMode): void => {
                 ? 'privacyVideoFrame'
                 : mode === 'video-url'
                   ? 'privacyVideoUrl'
-                  : 'privacyIdle';
+                  : mode === 'board'
+                    ? 'privacyBoard'
+                    : 'privacyIdle';
   privacyLine.textContent = msg(key);
 };
 
@@ -597,16 +627,33 @@ const privacyForRequest = (
   return settings.imageOnly ? 'image-only' : 'image';
 };
 
+const isPlacePinned = async (place: PlaceResult): Promise<boolean> => {
+  try {
+    const pins = await listPins();
+    const key = await dedupeKeyFor(place.placeName, place.country);
+    for (const pin of pins) {
+      if ((await dedupeKeyFor(pin.place.placeName, pin.place.country)) === key) {
+        return true;
+      }
+    }
+  } catch {
+    // Fail closed: an unreadable board shows the unpinned state.
+  }
+  return false;
+};
+
 const renderResultHeader = async (place: PlaceResult, announce: boolean): Promise<void> => {
   await settleSkeleton();
   cancelSkeleton();
   currentView = 'result';
+  const pinned = await isPlacePinned(place);
   swapResultSlot(() => {
     resultSlot.replaceChildren(tripCard);
     tripCard.setCard({
       view: 'result',
       place,
       lowConfidence: place.confidence < 0.6,
+      pinned,
     });
   });
   showLinks(currentDestination);
@@ -678,11 +725,13 @@ const showProviderError = (
   err: unknown,
   request: TripRequest | null,
   forManual: boolean,
+  privacyOverride?: PrivacyMode,
 ): void => {
+  const privacy = privacyOverride ?? errorPrivacy(request, forManual);
   if (!(err instanceof ProviderError)) {
     renderErrorCard('errorServerTitle', 'errorServerBody', true, false);
     announceAlert('alertServer');
-    updatePrivacy(errorPrivacy(request, forManual));
+    updatePrivacy(privacy);
     return;
   }
   if (err.code === 'aborted') {
@@ -709,7 +758,7 @@ const showProviderError = (
           : pendingRun;
     renderErrorCard('errorAuthTitle', 'errorAuthBody', false, true);
     announceAlert('alertAuth');
-    updatePrivacy(errorPrivacy(request, forManual));
+    updatePrivacy(privacy);
     return;
   }
   const titles: Record<string, [string, string, string]> = {
@@ -727,7 +776,7 @@ const showProviderError = (
   ];
   renderErrorCard(titleKey, bodyKey, true, false);
   announceAlert(alertKey);
-  updatePrivacy(errorPrivacy(request, forManual));
+  updatePrivacy(privacy);
 };
 
 const recordPartialUsage = (err: unknown, provider: Provider): void => {
@@ -745,6 +794,8 @@ interface StreamArgs {
   cacheKey: string | null;
   privacy: PrivacyMode;
   origin: 'gesture' | 'panel';
+  prompt?: string;
+  completeKey?: string;
 }
 
 const streamGuideRun = async (args: StreamArgs): Promise<RunOutcome> => {
@@ -761,6 +812,7 @@ const streamGuideRun = async (args: StreamArgs): Promise<RunOutcome> => {
       destination,
       signal,
       language: chrome.i18n.getUILanguage(),
+      prompt: args.prompt,
     });
     for await (const event of events) {
       if (event.type === 'delta') {
@@ -792,7 +844,7 @@ const streamGuideRun = async (args: StreamArgs): Promise<RunOutcome> => {
     notice.textContent = msg('guideInterrupted');
     guideContent.append(notice);
     recordPartialUsage(err, provider);
-    showProviderError(err, activeRequest, privacy === 'manual');
+    showProviderError(err, activeRequest, privacy === 'manual', privacy);
     analysisInFlight = false;
     return 'error';
   }
@@ -811,7 +863,9 @@ const streamGuideRun = async (args: StreamArgs): Promise<RunOutcome> => {
   }
   await priceAndRecord(provider);
   updatePrivacy(privacy);
-  if (sources.length > 0) {
+  if (args.completeKey) {
+    announceStatus(args.completeKey);
+  } else if (sources.length > 0) {
     announceStatus('statusGuideReadySources', String(sources.length));
   } else {
     announceStatus('statusGuideReady');
@@ -906,7 +960,7 @@ const identifyAndGuide = async (args: IdentifyArgs): Promise<RunOutcome> => {
   return outcome;
 };
 
-const renderCached = (entry: CacheEntry, origin: 'gesture' | 'panel'): void => {
+const renderCached = async (entry: CacheEntry, origin: 'gesture' | 'panel'): Promise<void> => {
   cancelSkeleton();
   currentPlace = entry.place;
   currentSources = [...entry.sources];
@@ -935,12 +989,14 @@ const renderCached = (entry: CacheEntry, origin: 'gesture' | 'panel'): void => {
     entry.place.country,
   );
   currentView = 'result';
+  const pinned = await isPlacePinned(entry.place);
   swapResultSlot(() => {
     resultSlot.replaceChildren(tripCard);
     tripCard.setCard({
       view: 'result',
       place: entry.place,
       lowConfidence: entry.place.confidence < 0.6,
+      pinned,
     });
   });
   showLinks(currentDestination);
@@ -1031,7 +1087,7 @@ const runVideoAnalysis = async (
   if (cached) {
     analysisInFlight = false;
     activeController = null;
-    renderCached(cached, origin);
+    await renderCached(cached, origin);
     return;
   }
   announceStatus(
@@ -1093,7 +1149,7 @@ const runAnalysis = async (request: TripRequest, origin: 'gesture' | 'panel'): P
   if (cached) {
     analysisInFlight = false;
     activeController = null;
-    renderCached(cached, origin);
+    await renderCached(cached, origin);
     return;
   }
   announceStatus(superseded ? 'statusCanceledNew' : 'statusAnalyzing');
@@ -1234,6 +1290,8 @@ const retry = async (): Promise<void> => {
   clearContentSlots();
   if (target.kind === 'manual') {
     await handleManualSubmit(target.destination, false);
+  } else if (target.kind === 'itinerary') {
+    await planTrip();
   } else {
     await runAnalysis(target.request, 'panel');
   }
@@ -1283,9 +1341,10 @@ const handleManualSubmit = async (destinationRaw: string, fresh: boolean): Promi
   };
   currentPlace = place;
   currentView = 'result';
+  const pinned = await isPlacePinned(place);
   swapResultSlot(() => {
     resultSlot.replaceChildren(tripCard);
-    tripCard.setCard({ view: 'result', place, lowConfidence: false });
+    tripCard.setCard({ view: 'result', place, lowConfidence: false, pinned });
   });
   const controller = new AbortController();
   activeController = controller;
@@ -1306,6 +1365,271 @@ const handleManualSubmit = async (destinationRaw: string, fresh: boolean): Promi
   }
 };
 
+// ---- Trip Board (D1) ----
+
+const pinDisplayName = (pin: BoardPin): string =>
+  buildDestination(pin.place.placeName, pin.place.city, pin.place.country);
+
+const boardItemViews = (pins: BoardPin[]): BoardItemView[] =>
+  pins.map((pin) => ({
+    placeName: pin.place.placeName,
+    country: pin.place.country,
+    title: pinDisplayName(pin),
+    host: pin.sourceHost,
+    image:
+      pin.thumbnail ??
+      (pin.imageUrl && isAllowedPreviewUrl(pin.imageUrl) ? pin.imageUrl : null),
+  }));
+
+const renderBoard = async (): Promise<BoardPin[]> => {
+  const pins = await listPins();
+  tripBoard.setBoard(boardItemViews(pins), pins.length >= 2);
+  return pins;
+};
+
+const syncPinButton = async (): Promise<void> => {
+  if (currentView !== 'result' || !currentPlace) {
+    return;
+  }
+  tripCard.setCard({
+    view: 'result',
+    place: currentPlace,
+    lowConfidence: currentPlace.confidence < 0.6,
+    pinned: await isPlacePinned(currentPlace),
+  });
+};
+
+const sourceHostFor = (request: TripRequest | null): string => {
+  if (request?.pageUrl) {
+    try {
+      return new URL(request.pageUrl).host;
+    } catch {
+      // Fall through to the scraped host.
+    }
+  }
+  return request?.signals?.pageHost ?? '';
+};
+
+const attemptPin = async (pin: Omit<BoardPin, 'addedAt'>, withoutThumb = false): Promise<void> => {
+  const candidate = withoutThumb ? { ...pin, thumbnail: undefined } : pin;
+  let outcome;
+  try {
+    outcome = await pinPlace(candidate);
+  } catch {
+    failedPin = pin;
+    tripBoard.setNotice(msg('boardNoticePinFail', pin.place.placeName), true);
+    announceAlert('alertPinFail', pin.place.placeName);
+    return;
+  }
+  failedPin = null;
+  tripBoard.setNotice(null, false);
+  if (outcome.status === 'duplicate') {
+    await syncPinButton();
+    announceStatus('statusPinDuplicate', pin.place.placeName);
+    return;
+  }
+  tripBoard.setBoard(boardItemViews(outcome.pins), outcome.pins.length >= 2);
+  await syncPinButton();
+  if (outcome.evicted) {
+    announceStatus('statusPinnedEvicted', [pin.place.placeName, outcome.evicted.place.placeName]);
+  } else {
+    announceStatus('statusPinned', [pin.place.placeName, String(outcome.pins.length)]);
+  }
+};
+
+const onPinToggle = async (): Promise<void> => {
+  const place = currentPlace;
+  if (!place || !place.identified) {
+    return;
+  }
+  const frame = activeRequest?.frame?.dataUrl;
+  const src = activeRequest?.srcUrl ?? '';
+  const held = frame ?? (src.startsWith('data:image/') ? src : undefined);
+  const thumbnail = held ? await makeThumbnail(held) : null;
+  const pin: Omit<BoardPin, 'addedAt'> = {
+    place,
+    sourceHost: sourceHostFor(activeRequest),
+    ...(thumbnail ? { thumbnail } : {}),
+    ...(src && isAllowedPreviewUrl(src) && !src.startsWith('data:') ? { imageUrl: src } : {}),
+  };
+  await attemptPin(pin);
+};
+
+const onRemovePin = async (detail: TripRemovePinDetail): Promise<void> => {
+  let pins: BoardPin[];
+  try {
+    pins = await removePin(detail.placeName, detail.country);
+  } catch {
+    failedRemove = detail;
+    tripBoard.setNotice(msg('boardNoticeRemoveFail', detail.placeName), true);
+    announceAlert('alertRemoveFail', detail.placeName);
+    return;
+  }
+  failedRemove = null;
+  tripBoard.setBoard(boardItemViews(pins), pins.length >= 2);
+  await syncPinButton();
+};
+
+const onRetryPin = async (): Promise<void> => {
+  if (failedPin) {
+    const pin = failedPin;
+    failedPin = null;
+    await attemptPin(pin, true);
+  } else if (failedRemove) {
+    const target = failedRemove;
+    failedRemove = null;
+    await onRemovePin(target);
+  }
+};
+
+const onClearConfirm = async (): Promise<void> => {
+  try {
+    await clearBoard();
+  } catch {
+    announceAlert('alertBoardClearFail');
+    return;
+  }
+  tripBoard.setBoard([], false);
+  await syncPinButton();
+  tripBoard.focusHeading();
+  announceStatus('boardCleared');
+};
+
+const narrationPrompt = (pins: BoardPin[], plan: ItineraryPlan): string => {
+  const byName = new Map(pins.map((pin) => [pinDisplayName(pin), pin]));
+  const displayName = (stop: string): string => {
+    const pin = byName.get(stop);
+    return pin ? pinDisplayName(pin) : stop;
+  };
+  let dayPlan: string;
+  if (plan.days.length > 0) {
+    dayPlan = plan.days
+      .map(
+        (day, index) =>
+          `Day ${index + 1} - ${sanitizePromptHint(day.dayTitle, 80)}: ` +
+          `${day.stopNames.map(displayName).join('; ')}. ` +
+          sanitizePromptHint(day.summary, 500),
+      )
+      .join('\n');
+  } else {
+    const nights = new Map(plan.nightsEach.map((entry) => [entry.stop, entry.nights]));
+    dayPlan = `Visit in order: ${plan.stops
+      .map((stop) => `${displayName(stop)} (${nights.get(stop) ?? 1} nights)`)
+      .join('; ')}. Split into sensible days yourself.`;
+  }
+  let prompt =
+    `Narrate this trip itinerary day by day with a '## Day N: title' heading per day, ` +
+    `4-6 highlight bullets across the trip, best months, and transport notes where relevant. Day plan:\n${dayPlan}`;
+  const language = chrome.i18n.getUILanguage();
+  if (language) {
+    prompt += ` Write the narration in ${language}.`;
+  }
+  return prompt;
+};
+
+const renderItineraryCard = (pins: BoardPin[], plan: ItineraryPlan): void => {
+  const byName = new Map(pins.map((pin) => [pinDisplayName(pin), pin]));
+  const nights = new Map(plan.nightsEach.map((entry) => [entry.stop, entry.nights]));
+  const stops = plan.stops.map((stop) => {
+    const pin = byName.get(stop);
+    const name = pin ? pinDisplayName(pin) : stop;
+    return { name, nights: nights.get(stop) ?? null, links: buildLinks(name) };
+  });
+  currentView = 'itinerary';
+  swapResultSlot(() => {
+    resultSlot.replaceChildren(tripCard);
+    tripCard.setCard({
+      view: 'itinerary',
+      title: msg('itineraryTitle', String(stops.length)),
+      stops,
+      mapsUrl: mapsDirUrl(stops.map((stop) => stop.name)),
+      mapsLabel: msg('mapsLink', String(stops.length)),
+    });
+  });
+};
+
+const planTrip = async (): Promise<void> => {
+  abortActive();
+  clearStaleTimer();
+  analysisInFlight = true;
+  const itinId = `itinerary-${Date.now()}`;
+  beginRun(itinId);
+  lastRun = { kind: 'itinerary' };
+  pendingRun = null;
+  clearCost();
+  const { provider, settings } = await getActiveProvider();
+  activeProvider = provider;
+  runSettings = settings;
+  const keyStatus = await loadKey(provider.id);
+  if (keyStatus.state !== 'ok') {
+    analysisInFlight = false;
+    pendingRun = { kind: 'itinerary' };
+    showOnboarding(keyStatus.orphaned);
+    announceStatus('statusKeyNeeded');
+    return;
+  }
+  if (!(await hasConsented())) {
+    analysisInFlight = false;
+    pendingRun = { kind: 'itinerary' };
+    showConsent(false);
+    announceStatus('statusConsentNeeded');
+    return;
+  }
+  const pins = await listPins();
+  if (pins.length < 2) {
+    // The Plan button guards this, but the board may have changed underneath.
+    analysisInFlight = false;
+    tripBoard.setBoard(boardItemViews(pins), false);
+    return;
+  }
+  clearContentSlots();
+  announceStatus('statusPlanning', String(pins.length));
+  showSkeleton(itinId);
+  const controller = new AbortController();
+  activeController = controller;
+  let result;
+  try {
+    result = await provider.planItinerary(keyStatus.key, {
+      pins: pins.map((pin) => ({
+        name: pinDisplayName(pin),
+        host: pin.sourceHost,
+        thumbnail: pin.thumbnail,
+      })),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (activeController === controller) {
+      activeController = null;
+    }
+    if (err instanceof ProviderError && err.code === 'aborted') {
+      return;
+    }
+    recordPartialUsage(err, provider);
+    showProviderError(err, null, false, 'board');
+    analysisInFlight = false;
+    return;
+  }
+  runUsage = addUsage(runUsage, result.usage);
+  await settleSkeleton();
+  renderItineraryCard(pins, result.plan);
+  updatePrivacy('board');
+  focusResultHeading();
+  await streamGuideRun({
+    provider,
+    key: keyStatus.key,
+    destination: result.plan.stops.join(', '),
+    signal: controller.signal,
+    cacheKey: null,
+    privacy: 'board',
+    origin: 'panel',
+    prompt: narrationPrompt(pins, result.plan),
+    completeKey: 'statusItineraryReady',
+  });
+  if (activeController === controller) {
+    activeController = null;
+  }
+};
+
 const resumePending = async (): Promise<void> => {
   const pending = pendingRun;
   pendingRun = null;
@@ -1315,6 +1639,8 @@ const resumePending = async (): Promise<void> => {
   }
   if (pending.kind === 'manual') {
     await handleManualSubmit(pending.destination, false);
+  } else if (pending.kind === 'itinerary') {
+    await planTrip();
   } else {
     await runAnalysis(pending.request, 'panel');
   }
@@ -1426,6 +1752,7 @@ export const initPanel = (): void => {
   manualForm = req<HTMLFormElement>('manual-form');
   manualInput = req<HTMLInputElement>('manual-input');
   manualGo = req<HTMLButtonElement>('manual-go');
+  boardSlot = req('board-slot');
   privacyLine = req('privacy-line');
   linksNoteSummary = req('links-note-summary');
   linksNoteBody = req('links-note-body');
@@ -1447,6 +1774,8 @@ export const initPanel = (): void => {
   keySetup = document.createElement('key-setup') as KeySetupElement;
   bookingGrid = document.createElement('booking-grid') as BookingGridElement;
   sourceChips = document.createElement('source-chips') as SourceChipsElement;
+  tripBoard = document.createElement('trip-board') as TripBoardElement;
+  boardSlot.append(tripBoard);
 
   tripCard.addEventListener('trip-retry', () => {
     void retry();
@@ -1460,6 +1789,21 @@ export const initPanel = (): void => {
   tripCard.addEventListener('trip-edit-destination', () => {
     manualInput.focus();
     manualInput.select();
+  });
+  tripCard.addEventListener('trip-pin', () => {
+    void onPinToggle();
+  });
+  tripBoard.addEventListener('trip-remove-pin', (event) => {
+    void onRemovePin((event as CustomEvent<TripRemovePinDetail>).detail);
+  });
+  tripBoard.addEventListener('trip-plan', () => {
+    void planTrip();
+  });
+  tripBoard.addEventListener('trip-clear-confirm', () => {
+    void onClearConfirm();
+  });
+  tripBoard.addEventListener('trip-retry-pin', () => {
+    void onRetryPin();
   });
   keySetup.addEventListener('key-save-request', (event) => {
     void onKeySave((event as CustomEvent<KeySaveRequestDetail>).detail);
@@ -1479,6 +1823,7 @@ export const initPanel = (): void => {
   updatePreview(null);
   showIdle();
   void loadShortcutLine();
+  void renderBoard();
 
   chrome.storage.session.onChanged.addListener((changes) => {
     const change = changes['tripRequest'];

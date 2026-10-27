@@ -81,3 +81,40 @@ button.primary {
 }
 
 a { color: var(--link); }
+
+.pin-button { margin: 4px 0 0; }
+
+.pin-button[aria-pressed="true"] {
+  border-color: var(--link);
+  color: var(--link);
+}
+
+.stop-list {
+  margin: 8px 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stop-name {
+  margin: 0;
+  font-weight: 600;
+}
+
+.stop-nights {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.stop-links {
+  margin: 4px 0 0;
+  font-size: 13px;
+}
+
+.maps-link {
+  display: inline-block;
+  margin-top: 8px;
+  font-weight: 600;
+}

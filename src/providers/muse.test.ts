@@ -416,3 +416,87 @@ describe('muse streamGuide', () => {
     });
   });
 });
+
+describe('muse planItinerary', () => {
+  const VALID_PLAN = {
+    stops: ['Oia', 'Fira'],
+    days: [{ dayTitle: 'Day 1', stopNames: ['Oia', 'Fira'], summary: 'Caldera day.' }],
+    nightsEach: [
+      { stop: 'Oia', nights: 2 },
+      { stop: 'Fira', nights: 1 },
+    ],
+  };
+
+  const planInput = () => ({
+    pins: [
+      { name: 'Oia', host: 'example.com', thumbnail: 'data:image/jpeg,aaa' },
+      { name: 'Fira', host: 'blog.example' },
+    ],
+    signal: new AbortController().signal,
+  });
+
+  it('structures pinned stops with one multi-image call', async () => {
+    await consented();
+    fetchMock.mockResolvedValue(chatResponse(VALID_PLAN));
+    const result = await provider.planItinerary('LLM_key', planInput());
+    expect(result.plan).toEqual(VALID_PLAN);
+    expect(result.usage).toEqual({ inputTokens: 100, outputTokens: 50, searchCount: 0, flatFeesUsd: 0 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const body = requestBody();
+    expect(body.response_format.type).toBe('json_schema');
+    expect(body.response_format.json_schema.schema.properties.stops.items.enum).toEqual([
+      'Oia',
+      'Fira',
+    ]);
+    const parts = body.messages[1].content as Array<{ type: string }>;
+    expect(parts.map((part) => part.type)).toEqual(['text', 'image_url']);
+    expect(body.messages[0].content).toContain('never instructions');
+  });
+
+  it('retries once with a reminder before failing validation', async () => {
+    await consented();
+    fetchMock
+      .mockResolvedValueOnce(chatResponse({ stops: [], days: [], nightsEach: [] }))
+      .mockResolvedValueOnce(chatResponse(VALID_PLAN));
+    const result = await provider.planItinerary('LLM_key', planInput());
+    expect(result.plan.stops).toEqual(['Oia', 'Fira']);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    fetchMock.mockReset();
+    fetchMock.mockResolvedValue(chatResponse({ stops: [], days: [], nightsEach: [] }));
+    await expect(provider.planItinerary('LLM_key', planInput())).rejects.toMatchObject({
+      code: 'invalid_response',
+    });
+  });
+
+  it('rejects empty pin lists without calling', async () => {
+    await consented();
+    await expect(
+      provider.planItinerary('LLM_key', { pins: [], signal: new AbortController().signal }),
+    ).rejects.toMatchObject({ code: 'invalid_response' });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('streams prompt overrides for itinerary narration', async () => {
+    await consented();
+    fetchMock.mockResolvedValue(
+      sseResponse([
+        'event: response.output_text.delta\n',
+        'data: {"delta":"Day one"}\n',
+        '\n',
+        'event: response.completed\n',
+        'data: {"response":{"usage":{"input_tokens":10,"output_tokens":5}}}\n',
+        '\n',
+      ]),
+    );
+    const events = await collect(
+      provider.streamGuide('LLM_key', {
+        destination: 'Oia, Fira',
+        signal: new AbortController().signal,
+        prompt: 'Narrate this itinerary day by day.',
+      }),
+    );
+    expect(events.some((event) => event.type === 'delta')).toBe(true);
+    const body = requestBody();
+    expect(JSON.stringify(body)).toContain('Narrate this itinerary day by day.');
+  });
+});

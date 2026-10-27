@@ -30,6 +30,7 @@ this same table.
 | Grounded guide | The same request, plus Meta may run web searches on the place topic to ground facts | `https://api.meta.ai` | Current facts with cited sources |
 | Video frame analysis (after the one-time video confirm) | The captured frame's pixels (a JPEG data URL), the page URL and title, and short capped page-text snippets | `https://api.meta.ai` | Identify the place in the frame |
 | Full-video analysis (after the one-time video confirm) | The video's web address (Meta's servers fetch the video, including its soundtrack), plus the same page context | `https://api.meta.ai` | Identify the place from motion and audio |
+| Trip-board planning ("Plan this trip") | Pinned thumbnails (pixels), their place names, and the addresses of the sites they were pinned from | `https://api.meta.ai` | Sequence the stops and narrate the itinerary |
 | Booking-link click | The destination name, embedded in the link URL you clicked | The booking site you chose (Google, Airbnb, Booking.com, GetYourGuide, TripAdvisor, Expedia) | Open that site's search results |
 | Manual-destination mode | Nothing leaves the browser | Nowhere | Links are built locally with no AI call |
 
@@ -52,6 +53,7 @@ Notes:
 | API key | `chrome.storage.local`, AES-GCM encrypted (authentication information) | Until you clear it in Options or uninstall. Session-only mode keeps it in memory only: it is gone after a browser restart and no encrypted copy is written |
 | Consent flag | `chrome.storage.local` | Until uninstall; consent is asked once |
 | Monthly cost totals | `chrome.storage.local` | Viewable and resettable in Options; months older than ~24 are pruned |
+| Trip board pins | `chrome.storage.local` | Place data, source hosts, and thumbnail pixels at rest; cleared by "Clear board" or uninstall |
 | Analysis cache | `chrome.storage.session` (text only, hashed keys) | Wiped automatically when the browser exits; minimized while running |
 | Settings (provider and model choice) | `chrome.storage.local` | Until uninstall |
 
