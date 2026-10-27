@@ -30,7 +30,7 @@ import {
 } from './board_store';
 import { buildDestination, buildLinks, mapsDirUrl } from './deep_links';
 import { downscaleToJpegDataUrl, fetchImageBytes } from './image_fetch';
-import { loadKey, saveKey, type KeyStatus } from './key_vault';
+import { clearKey, isVaultKey, loadKey, saveKey, type KeyStatus } from './key_vault';
 import {
   cropToSamBox,
   dataUrlToBytes,
@@ -66,6 +66,7 @@ import {
   loadSettings,
   saveSettings,
   setConsented,
+  SETTINGS_STORAGE_KEY,
   downloadNanoModel,
   nanoAvailability,
   sanitizePromptHint,
@@ -233,7 +234,6 @@ type PreviewState =
 interface ResultSlotState {
   card: CardState | null;
   scan: { loading: boolean; items: ScanItemView[] } | null;
-  key: { orphaned: boolean } | null;
   consent: boolean;
   video: { rung2: boolean } | null;
 }
@@ -249,7 +249,11 @@ interface KeyFormState {
 }
 
 interface PanelState {
-  tab: 'main' | 'board';
+  tab: 'main' | 'board' | 'settings';
+  unlocked: boolean;
+  keySaved: boolean;
+  replacing: boolean;
+  showOrphaned: boolean;
   status: string;
   statusSeq: number;
   alert: string;
@@ -274,13 +278,16 @@ interface PanelState {
 const blankResultSlot = (): ResultSlotState => ({
   card: null,
   scan: null,
-  key: null,
   consent: false,
   video: null,
 });
 
 const store = createStore<PanelState>({
   tab: 'main',
+  unlocked: false,
+  keySaved: false,
+  replacing: false,
+  showOrphaned: false,
   status: '',
   statusSeq: 0,
   alert: '',
@@ -310,8 +317,58 @@ const store = createStore<PanelState>({
   },
 });
 
-const selectTab = (tab: 'main' | 'board'): void => {
+type PanelTab = 'main' | 'board' | 'settings';
+
+const TAB_IDS: Record<PanelTab, string> = {
+  main: 'tab-main',
+  board: 'tab-board',
+  settings: 'tab-settings',
+};
+
+const selectTab = (tab: PanelTab, force = false): void => {
+  const state = store.get();
+  if (tab === 'main' && !state.unlocked && !force) {
+    return;
+  }
+  if (tab === state.tab) {
+    return;
+  }
   store.set({ tab });
+  const active = document.activeElement as HTMLElement | null;
+  const panel = active?.closest('#main-panel, #board-panel, #settings-panel');
+  if (panel?.hasAttribute('hidden')) {
+    document.getElementById(TAB_IDS[tab])?.focus();
+  }
+};
+
+const enabledTabs = (): PanelTab[] => {
+  const tabs: PanelTab[] = ['main', 'board', 'settings'];
+  return store.get().unlocked ? tabs : tabs.filter((tab) => tab !== 'main');
+};
+
+let lockEpoch = 0;
+
+const refreshLock = async (): Promise<void> => {
+  const epoch = ++lockEpoch;
+  try {
+    const { provider, settings } = await getActiveProvider();
+    const keyStatus = await loadKey(provider.id);
+    if (epoch !== lockEpoch) {
+      return;
+    }
+    store.set({
+      unlocked: keyStatus.state === 'ok' || settings.preferOnDevice,
+      keySaved: keyStatus.state === 'ok',
+    });
+  } catch {
+    // Keep the current lock on storage failure.
+  }
+};
+
+const onLockAreaChanged = (changes: Record<string, unknown>): void => {
+  if (Object.keys(changes).some((key) => isVaultKey(key) || key === SETTINGS_STORAGE_KEY)) {
+    void refreshLock();
+  }
 };
 
 const setKeyForm = (patch: Partial<KeyFormState>): void => {
@@ -551,22 +608,21 @@ const showOnboarding = (orphaned: boolean): void => {
   cancelSkeleton();
   currentView = 'onboarding';
   clearContentSlots();
-  swapResultSlot(() => {
-    store.set({ result: { ...blankResultSlot(), key: { orphaned } } });
-    setKeyForm({
-      nano: 'hidden',
-      nanoProgress: null,
-      sessionOnly: runSettings?.sessionOnly ?? false,
-    });
+  selectTab('settings');
+  setKeyForm({
+    nano: 'hidden',
+    nanoProgress: null,
+    nanoInstead: false,
+    sessionOnly: runSettings?.sessionOnly ?? false,
   });
+  store.set({ showOrphaned: orphaned, replacing: false, keySaved: false });
   updatePrivacy('idle');
   clearCost();
   void refreshNanoSection(false);
 };
 
-// Milestone 3: the key form grows the on-device alternative wherever Nano
-// could serve (onboarding, auth errors, eviction). Unavailable hardware
-// keeps the plain "needs a Muse key" message.
+// The key form grows the on-device alternative wherever Nano could serve.
+// Unavailable hardware keeps the plain "needs a Muse key" message.
 const refreshNanoSection = async (instead: boolean): Promise<void> => {
   const state = await nanoAvailability();
   if (state === 'readily' || state === 'downloadable' || state === 'downloading') {
@@ -599,6 +655,7 @@ const runNanoDownload = async (onDone: () => Promise<void>): Promise<void> => {
   announceStatus('nanoDownloadReady');
   const settings = await loadSettings();
   await saveSettings({ ...settings, preferOnDevice: true });
+  store.set({ unlocked: true });
   await onDone();
 };
 
@@ -612,22 +669,25 @@ const enableNanoAndResume = async (): Promise<void> => {
   if (state === 'readily') {
     const settings = await loadSettings();
     await saveSettings({ ...settings, preferOnDevice: true });
+    store.set({ unlocked: true });
+    selectTab('main', true);
     await resumePending();
     return;
   }
-  await runNanoDownload(() => resumePending());
+  await runNanoDownload(async () => {
+    selectTab('main', true);
+    await resumePending();
+  });
 };
 
 const showNanoDownload = (): void => {
   cancelSkeleton();
   currentView = 'nano';
-  swapResultSlot(() => {
-    store.set({ result: { ...blankResultSlot(), key: { orphaned: false } } });
-    setKeyForm({
-      nano: 'downloading',
-      nanoInstead: false,
-      sessionOnly: runSettings?.sessionOnly ?? false,
-    });
+  selectTab('settings');
+  setKeyForm({
+    nano: 'downloading',
+    nanoInstead: false,
+    sessionOnly: runSettings?.sessionOnly ?? false,
   });
 };
 
@@ -654,6 +714,7 @@ const showConsent = (focusGate: boolean): void => {
   cancelSkeleton();
   currentView = 'consent';
   clearContentSlots();
+  selectTab('main', true);
   swapResultSlot(() => {
     store.set({ result: { ...blankResultSlot(), consent: true } });
   });
@@ -883,13 +944,14 @@ const renderErrorCard = (
           showFetchRetry,
           showNanoInstead,
         },
-        key: withKeySetup ? { orphaned: false } : null,
       },
     });
-    if (withKeySetup) {
-      setKeyForm({ nano: 'hidden', nanoProgress: null, sessionOnly: runSettings?.sessionOnly ?? false });
-    }
   });
+  if (withKeySetup) {
+    selectTab('settings');
+    setKeyForm({ nano: 'hidden', nanoProgress: null, sessionOnly: runSettings?.sessionOnly ?? false });
+    store.set({ replacing: true, showOrphaned: false });
+  }
 };
 
 // Error-path footer: video runs report their rung (a frame-carrying request
@@ -1571,7 +1633,6 @@ const onScanPinSelected = async (indices: number[]): Promise<void> => {
 };
 
 const runAnalysis = async (request: TripRequest, origin: 'gesture' | 'panel'): Promise<void> => {
-  selectTab('main');
   abortActive();
   clearStaleTimer();
   const superseded = analysisInFlight;
@@ -1600,6 +1661,7 @@ const runAnalysis = async (request: TripRequest, origin: 'gesture' | 'panel'): P
     announceStatus('statusConsentNeeded');
     return;
   }
+  selectTab('main', true);
   if (request.mediaType === 'video') {
     await runVideoAnalysis(request, provider, settings, runKey(keyStatus), origin, superseded);
     return;
@@ -2533,7 +2595,6 @@ const planTrip = async (): Promise<void> => {
   if (!provider.capabilities.onDevice && keyStatus.state !== 'ok') {
     analysisInFlight = false;
     pendingRun = { kind: 'itinerary' };
-    selectTab('main');
     showOnboarding(keyStatus.orphaned);
     announceStatus('statusKeyNeeded');
     return;
@@ -2541,7 +2602,6 @@ const planTrip = async (): Promise<void> => {
   if (!provider.capabilities.onDevice && !(await hasConsented())) {
     analysisInFlight = false;
     pendingRun = { kind: 'itinerary' };
-    selectTab('main');
     showConsent(false);
     announceStatus('statusConsentNeeded');
     return;
@@ -2553,7 +2613,7 @@ const planTrip = async (): Promise<void> => {
     store.set({ boardItems: boardItemViews(pins), boardCanPlan: false });
     return;
   }
-  selectTab('main');
+  selectTab('main', true);
   clearContentSlots();
   announceStatus('statusPlanning', String(pins.length));
   showSkeleton(itinId);
@@ -2647,12 +2707,30 @@ const onKeySave = async (key: string): Promise<void> => {
     return;
   }
   setKeyForm({ pending: false, error: null, resetKey: store.get().keyForm.resetKey + 1 });
+  store.set({ keySaved: true, replacing: false, unlocked: true, showOrphaned: false });
+  selectTab('main', true);
   announceStatus('statusKeySaved');
   if (!provider.capabilities.onDevice && !(await hasConsented())) {
     showConsent(true);
     return;
   }
   await resumePending();
+};
+
+const onRemoveKey = (): void => {
+  void (async () => {
+    const { provider, settings } = await getActiveProvider();
+    await clearKey(provider.id);
+    store.set({
+      keySaved: false,
+      replacing: false,
+      unlocked: settings.preferOnDevice,
+      showOrphaned: false,
+    });
+    setKeyForm({ pending: false, error: null, resetKey: store.get().keyForm.resetKey + 1 });
+    selectTab('settings');
+    announceStatus('statusKeyCleared');
+  })();
 };
 
 const onConsentDecision = async (agreed: boolean): Promise<void> => {
@@ -2755,19 +2833,26 @@ const PreviewFrame = ({ preview }: PreviewFrameProps) => {
 };
 
 const onTabKeyDown = (event: ReactKeyboardEvent): void => {
-  const current = (event.target as HTMLElement).id === 'tab-board' ? 'board' : 'main';
-  let next: 'main' | 'board' | null = null;
+  const tabs = enabledTabs();
+  const currentId = (event.target as HTMLElement).id;
+  const current = (Object.keys(TAB_IDS) as PanelTab[]).find((tab) => TAB_IDS[tab] === currentId);
+  if (!current) {
+    return;
+  }
+  let next: PanelTab | null = null;
   if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
-    next = current === 'main' ? 'board' : 'main';
+    const at = tabs.indexOf(current);
+    const step = event.key === 'ArrowRight' ? 1 : -1;
+    next = tabs[(at + step + tabs.length) % tabs.length] ?? null;
   } else if (event.key === 'Home') {
-    next = 'main';
+    next = tabs[0] ?? null;
   } else if (event.key === 'End') {
-    next = 'board';
+    next = tabs[tabs.length - 1] ?? null;
   }
   if (next) {
     event.preventDefault();
     selectTab(next);
-    document.getElementById(next === 'main' ? 'tab-main' : 'tab-board')?.focus();
+    document.getElementById(TAB_IDS[next])?.focus();
   }
 };
 
@@ -2775,6 +2860,7 @@ const SidepanelApp = () => {
   const state = useSyncExternalStore(store.subscribe, store.get);
   const keyForm = state.keyForm;
   const main = state.tab === 'main';
+  const selected = (tab: PanelTab): boolean => state.tab === tab;
   return (
     <main>
       <h1 id="page-title" className="visually-hidden">{msg('appName')}</h1>
@@ -2782,9 +2868,10 @@ const SidepanelApp = () => {
         <button
           id="tab-main"
           role="tab"
-          aria-selected={main}
+          aria-selected={selected('main')}
           aria-controls="main-panel"
-          tabIndex={main ? 0 : -1}
+          aria-disabled={!state.unlocked || undefined}
+          tabIndex={selected('main') ? 0 : -1}
           onClick={() => selectTab('main')}
         >
           {msg('mainTab')}
@@ -2792,12 +2879,22 @@ const SidepanelApp = () => {
         <button
           id="tab-board"
           role="tab"
-          aria-selected={!main}
+          aria-selected={selected('board')}
           aria-controls="board-panel"
-          tabIndex={main ? -1 : 0}
+          tabIndex={selected('board') ? 0 : -1}
           onClick={() => selectTab('board')}
         >
           {msg('boardTitle', String(state.boardItems.length))}
+        </button>
+        <button
+          id="tab-settings"
+          role="tab"
+          aria-selected={selected('settings')}
+          aria-controls="settings-panel"
+          tabIndex={selected('settings') ? 0 : -1}
+          onClick={() => selectTab('settings')}
+        >
+          {msg('settingsTab')}
         </button>
       </div>
       <section id="main-panel" role="tabpanel" aria-labelledby="tab-main" hidden={!main || undefined}>
@@ -2839,28 +2936,6 @@ const SidepanelApp = () => {
             onPin={(index) => void onScanPin(index)}
             onPinSelected={(indices) => void onScanPinSelected(indices)}
           />
-        ) : null}
-        {state.result.key ? (
-          <>
-            {state.result.key.orphaned ? <p className="key-notice">{msg('keyReenterNotice')}</p> : null}
-            <KeySetup
-              mode="setup"
-              pending={keyForm.pending}
-              error={keyForm.error}
-              sessionOnly={keyForm.sessionOnly}
-              nano={keyForm.nano}
-              nanoInstead={keyForm.nanoInstead}
-              nanoProgress={keyForm.nanoProgress}
-              resetKey={keyForm.resetKey}
-              callbacks={{
-                onSave: (key) => void onKeySave(key),
-                onError: (text) => setKeyForm({ error: text }),
-                onSessionOnlyChange: (checked) => void onSessionOnlyChange(checked),
-                onNanoEnable: () => void enableNanoAndResume(),
-                onConsentDecision: (agreed) => void onConsentDecision(agreed),
-              }}
-            />
-          </>
         ) : null}
         {state.result.consent ? (
           <KeySetup
@@ -2914,7 +2989,7 @@ const SidepanelApp = () => {
         <SourceChips sources={state.sources} />
       </div>
       </section>
-      <section id="board-panel" role="tabpanel" aria-labelledby="tab-board" hidden={main || undefined}>
+      <section id="board-panel" role="tabpanel" aria-labelledby="tab-board" hidden={selected('board') ? undefined : true}>
       <div id="board-slot">
         <TripBoard
           items={state.boardItems}
@@ -2926,6 +3001,41 @@ const SidepanelApp = () => {
           onRetryPin={() => void onRetryPin()}
         />
       </div>
+      </section>
+      <section id="settings-panel" role="tabpanel" aria-labelledby="tab-settings" hidden={selected('settings') ? undefined : true}>
+        <h2 id="settings-heading">{msg('settingsKeyHeading')}</h2>
+        {state.showOrphaned ? <p className="key-notice">{msg('keyReenterNotice')}</p> : null}
+        {!state.keySaved || state.replacing ? (
+          <KeySetup
+            mode="setup"
+            pending={keyForm.pending}
+            error={keyForm.error}
+            sessionOnly={keyForm.sessionOnly}
+            nano={keyForm.nano}
+            nanoInstead={keyForm.nanoInstead}
+            nanoProgress={keyForm.nanoProgress}
+            resetKey={keyForm.resetKey}
+            callbacks={{
+              onSave: (key) => void onKeySave(key),
+              onError: (text) => setKeyForm({ error: text }),
+              onSessionOnlyChange: (checked) => void onSessionOnlyChange(checked),
+              onNanoEnable: () => void enableNanoAndResume(),
+              onConsentDecision: (agreed) => void onConsentDecision(agreed),
+            }}
+          />
+        ) : (
+          <>
+            <p id="key-saved-status">{msg('keySavedStatus')}</p>
+            <div className="confirm-actions">
+              <button type="button" onClick={() => store.set({ replacing: true })}>
+                {msg('keyReplaceButton')}
+              </button>
+              <button type="button" onClick={() => onRemoveKey()}>
+                {msg('clearKeyButton')}
+              </button>
+            </div>
+          </>
+        )}
       </section>
       <footer id="page-footer">
         <p id="privacy-line">{state.privacy}</p>
@@ -2957,6 +3067,13 @@ export const initPanel = (): void => {
   showIdle();
   void loadShortcutLine();
   void renderBoard();
+  void refreshLock().then(() => {
+    if (!store.get().unlocked) {
+      selectTab('settings');
+    }
+  });
+  chrome.storage.local.onChanged.addListener(onLockAreaChanged);
+  chrome.storage.session.onChanged.addListener(onLockAreaChanged);
 
   chrome.storage.session.onChanged.addListener((changes) => {
     const change = changes['tripRequest'];

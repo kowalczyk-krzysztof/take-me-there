@@ -224,10 +224,19 @@ describe('sidepanel', () => {
 
   it('switches tabs with roving focus, counts pins, and surfaces runs', async () => {
     const mock = await setup();
-    await plantKeyAndConsent();
-    const i18n = vi.spyOn(chrome.i18n, 'getMessage');
     const tabMain = document.querySelector('#tab-main') as HTMLButtonElement;
     const tabBoard = document.querySelector('#tab-board') as HTMLButtonElement;
+    // Locked first run lands on settings with main disabled.
+    await waitFor(() => {
+      expect(document.querySelector('#tab-settings')?.getAttribute('aria-selected')).toBe('true');
+    });
+    expect(tabMain.getAttribute('aria-disabled')).toBe('true');
+    await plantKeyAndConsent();
+    await waitFor(() => {
+      expect(tabMain.getAttribute('aria-disabled')).toBeNull();
+    });
+    tabMain.click();
+    const i18n = vi.spyOn(chrome.i18n, 'getMessage');
     expect(tabMain.textContent).toBe('mainTab');
     expect(tabMain.getAttribute('aria-selected')).toBe('true');
     expect(tabMain.tabIndex).toBe(0);
@@ -266,13 +275,85 @@ describe('sidepanel', () => {
     expect(i18n).toHaveBeenCalledWith('boardTitle', '1');
   });
 
+  it('skips the disabled main tab in keyboard navigation', async () => {
+    await setup();
+    const tabMain = document.querySelector('#tab-main') as HTMLButtonElement;
+    const tabBoard = document.querySelector('#tab-board') as HTMLButtonElement;
+    const tabSettings = document.querySelector('#tab-settings') as HTMLButtonElement;
+    await waitFor(() => {
+      expect(tabSettings.getAttribute('aria-selected')).toBe('true');
+    });
+    tabMain.click();
+    expect(tabMain.getAttribute('aria-selected')).toBe('false');
+    tabSettings.focus();
+    tabSettings.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    expect(document.activeElement).toBe(tabBoard);
+    tabBoard.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }));
+    expect(document.activeElement).toBe(tabBoard);
+    tabBoard.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }));
+    expect(document.activeElement).toBe(tabSettings);
+    expect(tabMain.getAttribute('aria-selected')).toBe('false');
+  });
+
+  it('replaces the saved key from settings and returns to main', async () => {
+    await setup();
+    await plantKeyAndConsent();
+    const tabMain = document.querySelector('#tab-main') as HTMLButtonElement;
+    await waitFor(() => {
+      expect(tabMain.getAttribute('aria-disabled')).toBeNull();
+    });
+    (document.querySelector('#tab-settings') as HTMLButtonElement).click();
+    await waitFor(() => {
+      expect(document.querySelector('#key-saved-status')?.textContent).toBe('keySavedStatus');
+    });
+    const actions = [...document.querySelectorAll('#settings-panel .confirm-actions button')];
+    expect(actions.map((button) => button.textContent)).toEqual(['keyReplaceButton', 'clearKeyButton']);
+    (actions[0] as HTMLButtonElement).click();
+    await waitFor(() => {
+      expect(document.querySelector('#settings-panel #key-input')).not.toBeNull();
+    });
+    fetchMock.mockResolvedValueOnce(new Response('[]', { status: 200 }));
+    (document.querySelector('#settings-panel #key-input') as HTMLInputElement).value = 'LLM_new';
+    (document.querySelector('#settings-panel form') as HTMLFormElement).dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true }),
+    );
+    await waitFor(() => {
+      expect(tabMain.getAttribute('aria-selected')).toBe('true');
+    });
+    const { loadKey } = await import('./key_vault');
+    expect(await loadKey('muse')).toEqual({ state: 'ok', key: 'LLM_new' });
+  });
+
+  it('clears the key from settings and locks the main tab', async () => {
+    await setup();
+    await plantKeyAndConsent();
+    const tabMain = document.querySelector('#tab-main') as HTMLButtonElement;
+    await waitFor(() => {
+      expect(tabMain.getAttribute('aria-disabled')).toBeNull();
+    });
+    (document.querySelector('#tab-settings') as HTMLButtonElement).click();
+    await waitFor(() => {
+      expect(document.querySelector('#key-saved-status')).not.toBeNull();
+    });
+    const actions = [...document.querySelectorAll('#settings-panel .confirm-actions button')];
+    (actions[1] as HTMLButtonElement).click();
+    await waitFor(() => {
+      expect(tabMain.getAttribute('aria-disabled')).toBe('true');
+    });
+    expect(document.querySelector('#tab-settings')?.getAttribute('aria-selected')).toBe('true');
+    expect(document.querySelector('#settings-panel #key-input')).not.toBeNull();
+    const { loadKey } = await import('./key_vault');
+    expect((await loadKey('muse')).state).toBe('missing');
+  });
+
   it('shows inline key setup when no key is saved', async () => {
     const mock = await setup();
     await mock.session.set({ tripRequest: READY() });
     await waitFor(() => {
-      expect(document.querySelector('#key-input')).not.toBeNull();
+      expect(document.querySelector('#status-region')?.textContent).toBe('statusKeyNeeded');
     });
-    expect(document.querySelector('#status-region')?.textContent).toBe('statusKeyNeeded');
+    expect(document.querySelector('#settings-panel')?.hasAttribute('hidden')).toBe(false);
+    expect(document.querySelector('#key-input')).not.toBeNull();
     const img = document.querySelector('#preview-frame img') as HTMLImageElement | null;
     expect(img?.src).toContain('oia.jpg');
   });
@@ -335,7 +416,7 @@ describe('sidepanel', () => {
       .mockResolvedValueOnce(chatResponse(VALID_PLACE))
       .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
     (document.querySelector('#key-input') as HTMLInputElement).value = 'LLM_good';
-    (document.querySelector('#result-slot form') as HTMLFormElement).dispatchEvent(
+    (document.querySelector('#settings-panel form') as HTMLFormElement).dispatchEvent(
       new Event('submit', { bubbles: true, cancelable: true }),
     );
     await waitFor(() => {
@@ -417,7 +498,7 @@ describe('sidepanel', () => {
     });
     expect(document.querySelector('#status-region')?.textContent).toBe('statusVideoConfirmNeeded');
     expect(fetchMock).not.toHaveBeenCalled();
-    const buttons = [...document.querySelectorAll('.confirm-actions button')];
+    const buttons = [...document.querySelectorAll('#result-slot .confirm-actions button')];
     expect(buttons.map((button) => button.textContent)).toEqual([
       'videoConfirmAgree',
       'videoConfirmCancel',
@@ -441,9 +522,9 @@ describe('sidepanel', () => {
       }),
     });
     await waitFor(() => {
-      expect(document.querySelector('.confirm-actions .primary')).not.toBeNull();
+      expect(document.querySelector('#result-slot .confirm-actions .primary')).not.toBeNull();
     });
-    (document.querySelector('.confirm-actions .primary') as HTMLButtonElement).click();
+    (document.querySelector('#result-slot .confirm-actions .primary') as HTMLButtonElement).click();
     await waitFor(() => {
       const card = document.querySelector('#result-slot');
       expect(card?.querySelector('h2')?.textContent).toBe('Oia');
@@ -470,7 +551,7 @@ describe('sidepanel', () => {
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalled();
     });
-    expect(document.querySelector('.confirm-actions')).toBeNull();
+    expect(document.querySelector('#result-slot .confirm-actions')).toBeNull();
   });
 
   it('discards the staged video when the confirm is declined', async () => {
@@ -484,9 +565,9 @@ describe('sidepanel', () => {
       }),
     });
     await waitFor(() => {
-      expect(document.querySelectorAll('.confirm-actions button')).toHaveLength(2);
+      expect(document.querySelectorAll('#result-slot .confirm-actions button')).toHaveLength(2);
     });
-    const cancel = [...document.querySelectorAll('.confirm-actions button')][1] as HTMLButtonElement;
+    const cancel = [...document.querySelectorAll('#result-slot .confirm-actions button')][1] as HTMLButtonElement;
     cancel.click();
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe(
@@ -1516,12 +1597,12 @@ describe('sidepanel', () => {
     }).observe(statusRegion, { childList: true, characterData: true, subtree: true });
     await mock.session.set({ tripRequest: READY() });
     await waitFor(() => {
-      const setupEl = document.querySelector('#result-slot');
+      const setupEl = document.querySelector('#settings-panel');
       expect(setupEl?.querySelector('.nano-section button')?.textContent).toBe(
         'nanoTry',
       );
     });
-    const setupEl = document.querySelector('#result-slot') as HTMLElement;
+    const setupEl = document.querySelector('#settings-panel') as HTMLElement;
     (setupEl.querySelector('.nano-section button') as HTMLButtonElement).click();
     await waitFor(() => {
       const card = document.querySelector('#result-slot');

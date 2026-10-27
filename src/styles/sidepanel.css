@@ -40,8 +40,14 @@ main {
   font-weight: 600;
 }
 
+#tab-bar [role="tab"][aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 #main-panel,
-#board-panel {
+#board-panel,
+#settings-panel {
   display: flex;
   flex-direction: column;
   gap: 12px;

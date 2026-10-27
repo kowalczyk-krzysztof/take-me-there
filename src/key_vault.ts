@@ -17,6 +17,8 @@ export type KeyStatus = { state: 'ok'; key: string } | { state: 'missing'; orpha
 
 const storageKey = (providerId: string): string => `apiKey:${providerId}`;
 
+export const isVaultKey = (key: string): boolean => key.startsWith('apiKey:');
+
 const toBase64 = (bytes: Uint8Array): string => {
   let binary = '';
   for (let i = 0; i < bytes.length; i += 0x8000) {

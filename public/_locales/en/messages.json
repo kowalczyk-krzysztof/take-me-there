@@ -983,7 +983,23 @@
     "description": "Main panel tab label."
   },
   "tabsLabel": {
-    "message": "Main and trip board",
+    "message": "Main, trip board, and settings",
     "description": "Accessible name for the panel tab list."
+  },
+  "settingsTab": {
+    "message": "Settings",
+    "description": "Settings panel tab label."
+  },
+  "settingsKeyHeading": {
+    "message": "API key",
+    "description": "Settings section heading for the API key."
+  },
+  "keySavedStatus": {
+    "message": "An API key is saved.",
+    "description": "Settings status when a key is stored."
+  },
+  "keyReplaceButton": {
+    "message": "Use a different key",
+    "description": "Settings button revealing the key form for replacement."
   }
 }
