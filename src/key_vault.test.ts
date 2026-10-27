@@ -2,14 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('idb-keyval', () => {
   const stores = new Map<string, Map<unknown, unknown>>();
-  function area(id: string): Map<unknown, unknown> {
+  const area = (id: string): Map<unknown, unknown> => {
     let found = stores.get(id);
     if (!found) {
       found = new Map();
       stores.set(id, found);
     }
     return found;
-  }
+  };
   return {
     createStore: (db: string, name: string): string => `${db}:${name}`,
     get: async (key: unknown, store: string): Promise<unknown> => area(store).get(key),
@@ -29,9 +29,9 @@ import * as idbKeyval from 'idb-keyval';
 import { clearKey, loadKey, saveKey, type KeyRecord } from './key_vault';
 import { installChromeMock, uninstallChromeMock, type ChromeMock } from './test/chrome_mock';
 
-function resetIdb(): void {
+const resetIdb = (): void => {
   (idbKeyval as unknown as { __reset: () => void }).__reset();
-}
+};
 
 let mock: ChromeMock;
 

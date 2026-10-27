@@ -13,14 +13,488 @@
   },
   "panelIdle": {
     "message": "Right-click an image on any page, then choose Plan a trip there.",
-    "description": "Side panel idle hint (scaffold)."
+    "description": "Side panel idle hint."
   },
-  "panelCollecting": {
-    "message": "Collecting page context...",
-    "description": "Status while the worker scrapes page signals (scaffold)."
+  "shortcutLine": {
+    "message": "Keyboard shortcut: $1",
+    "description": "Idle hint line showing the real panel shortcut.",
+    "placeholders": {
+      "shortcut": { "content": "$1", "example": "Ctrl+Shift+Period" }
+    }
   },
-  "panelReady": {
-    "message": "Page context ready. Full place analysis arrives in the next step.",
-    "description": "Status once signals are collected (scaffold)."
+  "shortcutUnset": {
+    "message": "No keyboard shortcut assigned - set one at chrome://extensions/shortcuts",
+    "description": "Idle hint line when no shortcut is assigned."
+  },
+  "statusAnalyzing": {
+    "message": "Analyzing image…",
+    "description": "Status announcement when analysis starts."
+  },
+  "statusFoundWriting": {
+    "message": "Found $1 - writing trip guide…",
+    "description": "Status announcement when the place is identified.",
+    "placeholders": {
+      "place": { "content": "$1", "example": "Oia" }
+    }
+  },
+  "statusSearchingWeb": {
+    "message": "Searching the web…",
+    "description": "Status announcement when grounding starts."
+  },
+  "statusGuideReady": {
+    "message": "Trip guide ready",
+    "description": "Status announcement when the guide completes."
+  },
+  "statusGuideReadySources": {
+    "message": "Trip guide ready - $1 sources",
+    "description": "Status announcement when the guide completes with sources.",
+    "placeholders": {
+      "count": { "content": "$1", "example": "3" }
+    }
+  },
+  "statusCacheHit": {
+    "message": "Showing saved result - $1",
+    "description": "Single status announcement for cache hits.",
+    "placeholders": {
+      "place": { "content": "$1", "example": "Oia" }
+    }
+  },
+  "statusCanceledNew": {
+    "message": "Analysis canceled - analyzing new image",
+    "description": "Coalesced announcement when a click supersedes a run."
+  },
+  "statusManualGuide": {
+    "message": "Writing trip guide…",
+    "description": "Status announcement when a manual guide starts."
+  },
+  "statusKeyNeeded": {
+    "message": "Add your Muse API key to analyze this image.",
+    "description": "Status announcement when the key setup appears."
+  },
+  "statusConsentNeeded": {
+    "message": "Review what is sent and agree to analyze this image.",
+    "description": "Status announcement when the consent gate appears."
+  },
+  "statusConsentDeclined": {
+    "message": "Analysis discarded.",
+    "description": "Status announcement when consent is declined."
+  },
+  "statusManualNoKey": {
+    "message": "Booking links ready - add a key for the trip guide.",
+    "description": "Status announcement for a keyless manual destination."
+  },
+  "statusNoPlace": {
+    "message": "No specific place found.",
+    "description": "Status announcement for the no-place terminal state."
+  },
+  "statusValidatingKey": {
+    "message": "Validating key…",
+    "description": "Status announcement while a key is validated."
+  },
+  "statusKeySaved": {
+    "message": "Key saved",
+    "description": "Status announcement when a key is saved."
+  },
+  "statusKeyCleared": {
+    "message": "Key cleared.",
+    "description": "Status announcement when a key is cleared."
+  },
+  "statusKeyWorks": {
+    "message": "Key works.",
+    "description": "Status announcement when a tested key is accepted."
+  },
+  "statusMonthlyReset": {
+    "message": "Monthly total reset",
+    "description": "Status announcement when the cost total is reset."
+  },
+  "alertAuth": {
+    "message": "Your API key was rejected. Check the key and try again.",
+    "description": "Alert for authentication failures."
+  },
+  "alertRateLimited": {
+    "message": "Rate limited - try again in a moment.",
+    "description": "Alert for rate limiting."
+  },
+  "alertServer": {
+    "message": "The service had a problem - try again.",
+    "description": "Alert for server errors."
+  },
+  "alertNetwork": {
+    "message": "Network problem - check your connection and retry.",
+    "description": "Alert for network errors."
+  },
+  "alertInvalidResponse": {
+    "message": "Could not read the model's answer - retry.",
+    "description": "Alert for validation failures."
+  },
+  "alertStreamError": {
+    "message": "Guide interrupted - retry to continue.",
+    "description": "Alert for stream errors."
+  },
+  "alertNotConfigured": {
+    "message": "The custom provider is not configured.",
+    "description": "Alert for a misconfigured provider."
+  },
+  "errorAuthTitle": {
+    "message": "Check your API key",
+    "description": "Error card title for rejected keys."
+  },
+  "errorAuthBody": {
+    "message": "The key was rejected. Fix it below and the analysis resumes.",
+    "description": "Error card body for rejected keys."
+  },
+  "errorRateTitle": {
+    "message": "Rate limited",
+    "description": "Error card title for rate limiting."
+  },
+  "errorRateBody": {
+    "message": "Too many requests - wait a moment, then retry.",
+    "description": "Error card body for rate limiting."
+  },
+  "errorServerTitle": {
+    "message": "Service problem",
+    "description": "Error card title for server errors."
+  },
+  "errorServerBody": {
+    "message": "The service had a problem - retry.",
+    "description": "Error card body for server errors."
+  },
+  "errorNetworkTitle": {
+    "message": "Network problem",
+    "description": "Error card title for network errors."
+  },
+  "errorNetworkBody": {
+    "message": "Check your connection, then retry.",
+    "description": "Error card body for network errors."
+  },
+  "errorInvalidTitle": {
+    "message": "Unreadable answer",
+    "description": "Error card title for validation failures."
+  },
+  "errorInvalidBody": {
+    "message": "Could not read the model's answer - retry.",
+    "description": "Error card body for validation failures."
+  },
+  "errorStreamTitle": {
+    "message": "Guide interrupted",
+    "description": "Error card title for stream errors."
+  },
+  "errorStreamBody": {
+    "message": "The guide stopped early - retry to continue.",
+    "description": "Error card body for stream errors."
+  },
+  "errorDataTitle": {
+    "message": "Image too large",
+    "description": "Error card title for oversized inline images."
+  },
+  "errorDataBody": {
+    "message": "This inline image is too large to pass along - try a smaller one.",
+    "description": "Error card body for oversized inline images."
+  },
+  "retryButton": {
+    "message": "Retry",
+    "description": "Error card retry button."
+  },
+  "lookAgainButton": {
+    "message": "It's a place - look again",
+    "description": "No-place card escalation button."
+  },
+  "reanalyzeButton": {
+    "message": "Re-analyze",
+    "description": "Wrong-place re-analysis button."
+  },
+  "editDestinationButton": {
+    "message": "Edit destination",
+    "description": "Wrong-place manual edit button."
+  },
+  "notThisPlace": {
+    "message": "Not this place?",
+    "description": "Wrong-place disclosure summary."
+  },
+  "agreeButton": {
+    "message": "Agree & analyze",
+    "description": "Consent gate agreement button."
+  },
+  "declineButton": {
+    "message": "Not now",
+    "description": "Consent gate decline button."
+  },
+  "saveKeyButton": {
+    "message": "Save key",
+    "description": "Key form save button."
+  },
+  "validatingButton": {
+    "message": "Validating…",
+    "description": "Key form save button while validating."
+  },
+  "showKeyButton": {
+    "message": "Show key",
+    "description": "Key field reveal button."
+  },
+  "hideKeyButton": {
+    "message": "Hide key",
+    "description": "Key field hide button."
+  },
+  "clearKeyButton": {
+    "message": "Clear key",
+    "description": "Options clear-key button."
+  },
+  "testKeyButton": {
+    "message": "Test key",
+    "description": "Options test-key button."
+  },
+  "resetCostButton": {
+    "message": "Reset monthly cost total",
+    "description": "Options cost reset button."
+  },
+  "manualGoButton": {
+    "message": "Plan trip",
+    "description": "Manual destination submit button."
+  },
+  "keyLabel": {
+    "message": "Muse API key",
+    "description": "Key field label."
+  },
+  "keyHint": {
+    "message": "Starts with LLM_ - created in the dev.meta.ai dashboard.",
+    "description": "Key field hint."
+  },
+  "keyPlaceholder": {
+    "message": "LLM_…",
+    "description": "Key field placeholder."
+  },
+  "keyErrorEmpty": {
+    "message": "Paste a key first.",
+    "description": "Key form empty error."
+  },
+  "keyErrorRejected": {
+    "message": "Key rejected - check it and try again.",
+    "description": "Key form rejection error."
+  },
+  "keyErrorNetwork": {
+    "message": "Could not reach the service - try again.",
+    "description": "Key form network error."
+  },
+  "keyErrorRetry": {
+    "message": "Could not validate the key - try again.",
+    "description": "Key form transient validation error."
+  },
+  "keyReenterNotice": {
+    "message": "Please re-enter your key - the saved copy could not be read.",
+    "description": "Notice when the vault copy is orphaned."
+  },
+  "sessionOnlyLabel": {
+    "message": "Session-only mode (forget the key when the browser closes)",
+    "description": "Session-only checkbox label."
+  },
+  "dashboardLink": {
+    "message": "Get a key in the dev.meta.ai dashboard",
+    "description": "Dashboard link text."
+  },
+  "securityNotice": {
+    "message": "Your API key is encrypted before it's saved (AES-GCM, with a non-extractable key kept in this browser profile) and never leaves this device except to authenticate requests to api.meta.ai. Someone with full access to your computer account could still recover it, so only save it on a trusted device - or enable session-only mode, which keeps the key in memory and forgets it when the browser closes.",
+    "description": "Canonical key security notice."
+  },
+  "keyHygiene": {
+    "message": "Create a dedicated key just for this extension, paste it only into the official Web Store install or a build you made yourself from this repo (a modified clone could steal it), and revoke it anytime in the dev.meta.ai dashboard.",
+    "description": "Key hygiene lines."
+  },
+  "consentTitle": {
+    "message": "Before the first analysis",
+    "description": "Consent gate heading."
+  },
+  "consentBody": {
+    "message": "Analyzing sends the clicked image (its web address or, for inline images, captured frames, and on-demand retries, its pixels), nearby page text (title, captions, metadata), and the page's address to Meta's Muse API using your key. For private images, the image's address itself can grant access to it. Scanning a page sends that page's travel images and their captions the same way (even when the \"image only\" toggle is on), and planning a trip from your board sends the pinned thumbnails, their place names, and the addresses of the sites you pinned them from. Meta may run web searches to ground the trip guide. Per Meta's API terms, standard (non-contributor) models are not trained on your content.",
+    "description": "Canonical data-transmission disclosure."
+  },
+  "onboardingHowto": {
+    "message": "Right-click any image on any page and choose Plan a trip there. Muse AI identifies the place and the side panel plans your trip.",
+    "description": "Onboarding how-it-works line."
+  },
+  "onboardingTryHint": {
+    "message": "Try it now: open a photo-rich page such as a Wikipedia landmark article, right-click a photo, and choose Plan a trip there.",
+    "description": "Onboarding try-it hint."
+  },
+  "optionsKeyHeading": {
+    "message": "API key",
+    "description": "Options key section heading."
+  },
+  "optionsCostHeading": {
+    "message": "API cost",
+    "description": "Options cost section heading."
+  },
+  "optionsCostMonth": {
+    "message": "Estimated API cost this month: $1",
+    "description": "Options monthly total label.",
+    "placeholders": {
+      "amount": { "content": "$1", "example": "$1.23" }
+    }
+  },
+  "imageOnlyLabel": {
+    "message": "Send the image only - no page text",
+    "description": "Image-only toggle label."
+  },
+  "optionsPrivacyHeading": {
+    "message": "Storage and privacy",
+    "description": "Options privacy section heading."
+  },
+  "optionsPrivacyBody": {
+    "message": "Your key is stored encrypted on this device. Page text and image addresses are sent to api.meta.ai only when you analyze something. Cost totals stay on this device. Nothing is sent anywhere else.",
+    "description": "Options privacy disclosure."
+  },
+  "manualLabel": {
+    "message": "Plan a trip to…",
+    "description": "Manual destination label."
+  },
+  "manualPlaceholder": {
+    "message": "City or place name",
+    "description": "Manual destination placeholder."
+  },
+  "bestGuessBadge": {
+    "message": "Best guess",
+    "description": "Low-confidence badge text."
+  },
+  "sourcesHeading": {
+    "message": "Sources",
+    "description": "Sources row heading."
+  },
+  "newTabSuffix": {
+    "message": ", opens in new tab",
+    "description": "Visually-hidden new-tab suffix for links."
+  },
+  "bookingLink_maps": {
+    "message": "Google Maps",
+    "description": "Booking tile label."
+  },
+  "bookingLink_flights": {
+    "message": "Google Flights",
+    "description": "Booking tile label."
+  },
+  "bookingLink_hotels": {
+    "message": "Google Hotels",
+    "description": "Booking tile label."
+  },
+  "bookingLink_airbnb": {
+    "message": "Airbnb",
+    "description": "Booking tile label."
+  },
+  "bookingLink_booking": {
+    "message": "Booking.com",
+    "description": "Booking tile label."
+  },
+  "bookingLink_getyourguide": {
+    "message": "GetYourGuide",
+    "description": "Booking tile label."
+  },
+  "bookingLink_tripadvisor": {
+    "message": "TripAdvisor",
+    "description": "Booking tile label."
+  },
+  "bookingLink_expedia": {
+    "message": "Expedia",
+    "description": "Booking tile label."
+  },
+  "truncatedNotice": {
+    "message": "Guide truncated.",
+    "description": "Notice when the guide hits the character cap."
+  },
+  "guideInterrupted": {
+    "message": "Guide interrupted.",
+    "description": "Notice kept with partial guide text."
+  },
+  "noPlaceTitle": {
+    "message": "Couldn't spot a specific place in this photo",
+    "description": "No-place card title."
+  },
+  "noPlaceBody": {
+    "message": "Try another photo, look again with more effort, or type a destination below.",
+    "description": "No-place card body."
+  },
+  "fallbackPrefix": {
+    "message": "From the page:",
+    "description": "Prefix for the page-signal fallback link."
+  },
+  "costLine": {
+    "message": "This analysis ≈ $1 · this month ≈ $2",
+    "description": "Per-run and monthly cost readout.",
+    "placeholders": {
+      "run": { "content": "$1", "example": "$0.01" },
+      "month": { "content": "$2", "example": "$1.23" }
+    }
+  },
+  "costLineTokens": {
+    "message": "Tokens this run: $1 in, $2 out",
+    "description": "Token readout without rates.",
+    "placeholders": {
+      "in": { "content": "$1", "example": "1200" },
+      "out": { "content": "$2", "example": "300" }
+    }
+  },
+  "costLineCache": {
+    "message": "from cache - no API cost",
+    "description": "Cache-hit cost line."
+  },
+  "privacyImage": {
+    "message": "Sent to Meta's Muse API with your key: this image's address, nearby page text, and the page address",
+    "description": "Privacy footer for image analyses."
+  },
+  "privacyImageOnly": {
+    "message": "Sent to Meta's Muse API with your key: this image's address only",
+    "description": "Privacy footer for image-only analyses."
+  },
+  "privacyManual": {
+    "message": "Sent to Meta's Muse API with your key: the destination name",
+    "description": "Privacy footer for manual destinations."
+  },
+  "privacyCache": {
+    "message": "From cache - nothing was sent.",
+    "description": "Privacy footer for cache hits."
+  },
+  "privacyIdle": {
+    "message": "Analyzing sends image and page context to Meta's Muse API - details appear with each analysis.",
+    "description": "Privacy footer when idle."
+  },
+  "privacyLocalOnly": {
+    "message": "Booking links are built on this device - add a key for the trip guide.",
+    "description": "Privacy footer for keyless manual destinations."
+  },
+  "privacyLinksSummary": {
+    "message": "About booking links",
+    "description": "Booking-links disclosure summary."
+  },
+  "privacyLinksBody": {
+    "message": "Clicking a booking link sends the destination name to that site. Links open in a new tab.",
+    "description": "Booking-links disclosure body."
+  },
+  "previewHeading": {
+    "message": "Image being analyzed",
+    "description": "Preview header heading."
+  },
+  "previewAltImage": {
+    "message": "Image being analyzed",
+    "description": "Preview image alt text."
+  },
+  "previewAltIdentified": {
+    "message": "Image identified as $1",
+    "description": "Preview image alt text after identification.",
+    "placeholders": {
+      "place": { "content": "$1", "example": "Oia" }
+    }
+  },
+  "previewUnavailable": {
+    "message": "Image preview unavailable",
+    "description": "Visible placeholder text."
+  },
+  "loadingReading": {
+    "message": "Reading the photo…",
+    "description": "Cosmetic loading line."
+  },
+  "loadingIdentifying": {
+    "message": "Identifying the place…",
+    "description": "Cosmetic loading line."
+  },
+  "loadingWriting": {
+    "message": "Writing your trip guide…",
+    "description": "Cosmetic loading line."
   }
 }

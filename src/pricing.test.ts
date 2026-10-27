@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   MUSE_SPARK_RATES,
   estimateCostUsd,
+  formatUsd,
   readMonthSpend,
   recordMonthSpend,
   resetMonthSpend,
@@ -59,5 +60,12 @@ describe('pricing', () => {
     expect(Object.keys(totals)).toHaveLength(24);
     expect(totals['2024-01']).toBeUndefined();
     expect(totals['2026-01']).toBe(0.01);
+  });
+
+  it('formats small and large amounts', () => {
+    expect(formatUsd(0)).toBe('$0.00');
+    expect(formatUsd(-1)).toBe('$0.00');
+    expect(formatUsd(0.011)).toBe('$0.011');
+    expect(formatUsd(1.235)).toBe('$1.24');
   });
 });

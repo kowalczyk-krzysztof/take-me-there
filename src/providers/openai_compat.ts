@@ -39,7 +39,7 @@ export class OpenAiCompatProvider implements Provider {
     };
   }
 
-  getRates(_modelId: string): ModelRates | undefined {
+  getRates(): ModelRates | undefined {
     const { inputRatePerM, outputRatePerM } = this.config;
     if (typeof inputRatePerM === 'number' && typeof outputRatePerM === 'number') {
       return { inputUsdPerMTok: inputRatePerM, outputUsdPerMTok: outputRatePerM };

@@ -11,16 +11,16 @@ export interface GuideRenderer {
   readonly charCount: number;
 }
 
-export function createGuideRenderer(
+export const createGuideRenderer = (
   container: HTMLElement,
   truncatedNotice: string,
   maxChars: number = MAX_GUIDE_CHARS,
-): GuideRenderer {
+): GuideRenderer => {
   let buffer = '';
   let finished = false;
   let wasTruncated = false;
 
-  function render(): void {
+  const render = (): void => {
     container.replaceChildren();
     const visible = buffer.length > maxChars ? buffer.slice(0, maxChars) : buffer;
     if (visible.length < buffer.length) {
@@ -33,7 +33,7 @@ export function createGuideRenderer(
       note.textContent = truncatedNotice;
       container.append(note);
     }
-  }
+  };
 
   return {
     push(text: string): void {
@@ -54,14 +54,14 @@ export function createGuideRenderer(
       return buffer.length;
     },
   };
-}
+};
 
-function renderBlocks(container: HTMLElement, text: string): void {
+const renderBlocks = (container: HTMLElement, text: string): void => {
   const lines = text.split('\n');
   let paragraph: string[] = [];
   let list: HTMLUListElement | null = null;
 
-  function flushParagraph(): void {
+  const flushParagraph = (): void => {
     if (paragraph.length === 0) {
       return;
     }
@@ -69,7 +69,7 @@ function renderBlocks(container: HTMLElement, text: string): void {
     renderInline(p, paragraph.join(' '));
     container.append(p);
     paragraph = [];
-  }
+  };
 
   for (const rawLine of lines) {
     const line = rawLine.trim();
@@ -103,9 +103,9 @@ function renderBlocks(container: HTMLElement, text: string): void {
     paragraph.push(line);
   }
   flushParagraph();
-}
+};
 
-function renderInline(parent: HTMLElement, text: string): void {
+const renderInline = (parent: HTMLElement, text: string): void => {
   for (const part of text.split(/(\*\*[^*]+\*\*)/g)) {
     const bold = /^\*\*([^*]+)\*\*$/.exec(part);
     if (bold) {
@@ -116,4 +116,4 @@ function renderInline(parent: HTMLElement, text: string): void {
       parent.append(document.createTextNode(part));
     }
   }
-}
+};

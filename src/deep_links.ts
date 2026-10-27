@@ -13,7 +13,7 @@ export const MAX_DESTINATION_CHARS = 120;
 // the template resolves. Flip this after that verification pass.
 export const UNVERIFIED_PORTALS_ENABLED = false;
 
-export function buildDestination(placeName: string, city: string, country: string): string {
+export const buildDestination = (placeName: string, city: string, country: string): string => {
   const seen = new Set<string>();
   const parts: string[] = [];
   for (const raw of [placeName, city, country]) {
@@ -29,13 +29,12 @@ export function buildDestination(placeName: string, city: string, country: strin
     parts.push(cleaned);
   }
   return capDestination(parts.join(', '));
-}
+};
 
-export function capDestination(destination: string): string {
-  return destination.trim().replace(/\s+/g, ' ').slice(0, MAX_DESTINATION_CHARS);
-}
+export const capDestination = (destination: string): string =>
+  destination.trim().replace(/\s+/g, ' ').slice(0, MAX_DESTINATION_CHARS);
 
-export function buildLinks(destination: string): BookingLink[] {
+export const buildLinks = (destination: string): BookingLink[] => {
   const capped = capDestination(destination);
   const query = encodeURIComponent(capped);
   const links: BookingLink[] = [
@@ -56,4 +55,4 @@ export function buildLinks(destination: string): BookingLink[] {
     );
   }
   return links;
-}
+};

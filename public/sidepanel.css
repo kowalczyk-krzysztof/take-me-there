@@ -1,14 +1,5 @@
-:root {
-  color-scheme: light dark;
-  --text: #1a1a1a;
-  --background: #ffffff;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #e8e8e8;
-    --background: #1a1a1a;
-  }
+html {
+  scroll-padding-top: 170px;
 }
 
 body {
@@ -18,14 +9,119 @@ body {
   color: var(--text);
   background: var(--background);
   margin: 0;
+}
+
+main {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   padding: 16px;
 }
 
-.visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
+#preview-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--background);
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--surface);
+}
+
+#preview-frame {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 96px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
   overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+#preview-frame img {
+  max-width: 100%;
+  max-height: 160px;
+  display: block;
+}
+
+#manual-form {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 8px;
+}
+
+#manual-label {
+  grid-column: 1 / -1;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+#manual-input {
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--background);
+  color: var(--text);
+  font: inherit;
+  min-width: 0;
+}
+
+#manual-go {
+  padding: 8px 14px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+#guide-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#guide-content h3,
+#guide-content h4,
+#guide-content p,
+#guide-content ul {
+  margin: 0;
+}
+
+#guide-content ul {
+  padding-left: 20px;
+}
+
+#search-line {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 0 0 8px;
+}
+
+.guide-interrupted {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.key-notice {
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+
+#page-footer {
+  border-top: 1px solid var(--surface);
+  padding-top: 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+#page-footer p {
+  margin: 0 0 8px;
+}
+
+#page-footer summary {
+  cursor: pointer;
 }

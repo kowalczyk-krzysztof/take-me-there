@@ -23,18 +23,19 @@ export interface Usage {
   flatFeesUsd: number;
 }
 
-export function emptyUsage(): Usage {
-  return { inputTokens: 0, outputTokens: 0, searchCount: 0, flatFeesUsd: 0 };
-}
+export const emptyUsage = (): Usage => ({
+  inputTokens: 0,
+  outputTokens: 0,
+  searchCount: 0,
+  flatFeesUsd: 0,
+});
 
-export function addUsage(a: Usage, b: Usage): Usage {
-  return {
-    inputTokens: a.inputTokens + b.inputTokens,
-    outputTokens: a.outputTokens + b.outputTokens,
-    searchCount: a.searchCount + b.searchCount,
-    flatFeesUsd: a.flatFeesUsd + b.flatFeesUsd,
-  };
-}
+export const addUsage = (a: Usage, b: Usage): Usage => ({
+  inputTokens: a.inputTokens + b.inputTokens,
+  outputTokens: a.outputTokens + b.outputTokens,
+  searchCount: a.searchCount + b.searchCount,
+  flatFeesUsd: a.flatFeesUsd + b.flatFeesUsd,
+});
 
 export type ProviderErrorCode =
   | 'auth'
@@ -61,15 +62,15 @@ export class ProviderError extends Error {
   }
 }
 
-export function requireKey(key: string): void {
+export const requireKey = (key: string): void => {
   if (!key) {
     throw new ProviderError('no_key', 'missing API key', false);
   }
-}
+};
 
 // Error bodies can echo request details, so map by status only and keep the
 // messages generic. The panel maps codes to localized cards.
-export function responseError(res: Response): ProviderError {
+export const responseError = (res: Response): ProviderError => {
   if (res.status === 401 || res.status === 403) {
     return new ProviderError('auth', `request rejected with status ${res.status}`, false);
   }
@@ -80,23 +81,25 @@ export function responseError(res: Response): ProviderError {
     return new ProviderError('server', `server error ${res.status}`, true);
   }
   return new ProviderError('server', `unexpected status ${res.status}`, false);
-}
+};
 
-export function toNetworkError(err: unknown, signal?: AbortSignal): ProviderError {
+export const toNetworkError = (err: unknown, signal?: AbortSignal): ProviderError => {
   if (signal?.aborted || (err as { name?: string })?.name === 'AbortError') {
     return new ProviderError('aborted', 'request aborted', false);
   }
   return new ProviderError('network', 'network request failed', true);
-}
+};
 
-export function toStreamError(err: unknown, signal: AbortSignal): ProviderError {
+export const toStreamError = (err: unknown, signal: AbortSignal): ProviderError => {
   if (signal.aborted || (err as { name?: string })?.name === 'AbortError') {
     return new ProviderError('aborted', 'request aborted', false);
   }
   return new ProviderError('stream_error', 'stream parse error', true);
-}
+};
 
-export function readChatUsage(data: unknown): { inputTokens: number; outputTokens: number } | undefined {
+export const readChatUsage = (
+  data: unknown,
+): { inputTokens: number; outputTokens: number } | undefined => {
   const usage = (data as { usage?: { prompt_tokens?: unknown; completion_tokens?: unknown } })
     ?.usage;
   if (!usage || typeof usage.prompt_tokens !== 'number') {
@@ -106,17 +109,16 @@ export function readChatUsage(data: unknown): { inputTokens: number; outputToken
     inputTokens: usage.prompt_tokens,
     outputTokens: typeof usage.completion_tokens === 'number' ? usage.completion_tokens : 0,
   };
-}
+};
 
 // Section-9 rule: model output re-entering a prompt is truncated and stripped
 // of control characters so page-shaped text cannot steer a second hop.
-export function sanitizePromptHint(value: string, maxLength = 80): string {
-  return value
+export const sanitizePromptHint = (value: string, maxLength = 80): string =>
+  value
     .replace(/[\u0000-\u001F\u007F]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, maxLength);
-}
 
 export type ChatContentPart =
   | { type: 'text'; text: string }
@@ -165,10 +167,10 @@ export interface Provider {
   testKey(key: string): Promise<void>;
   identifyPlace(key: string, input: IdentifyInput): Promise<IdentifyResult>;
   streamGuide(key: string, input: GuideInput): AsyncGenerator<GuideEvent, void, void>;
-  getRates(modelId: string): ModelRates | undefined;
+  getRates(): ModelRates | undefined;
 }
 
-export function formatSignalsForPrompt(signals: PageSignals, imageOnly: boolean): string {
+export const formatSignalsForPrompt = (signals: PageSignals, imageOnly: boolean): string => {
   if (imageOnly) {
     return '(page text withheld by the user setting)';
   }
@@ -194,7 +196,7 @@ export function formatSignalsForPrompt(signals: PageSignals, imageOnly: boolean)
     }
   }
   return lines.length > 0 ? lines.join('\n') : '(no page signals)';
-}
+};
 
 export interface IdentifyMessageOptions {
   signalsText: string;
@@ -204,7 +206,7 @@ export interface IdentifyMessageOptions {
   strictReminder?: boolean;
 }
 
-export function buildIdentifyMessages(opts: IdentifyMessageOptions): ChatMessage[] {
+export const buildIdentifyMessages = (opts: IdentifyMessageOptions): ChatMessage[] => {
   const developer: ChatMessage = {
     role: 'developer',
     content:
@@ -236,9 +238,9 @@ export function buildIdentifyMessages(opts: IdentifyMessageOptions): ChatMessage
       ],
     },
   ];
-}
+};
 
-export function buildGuidePrompt(destination: string, language?: string): string {
+export const buildGuidePrompt = (destination: string, language?: string): string => {
   let prompt =
     `Write a concise trip guide for ${destination}: a 2-3 sentence overview, 4-6 highlight ` +
     'bullets, the best time to visit, and how to get there. Keep it factual and skip places you are unsure about.';
@@ -246,7 +248,7 @@ export function buildGuidePrompt(destination: string, language?: string): string
     prompt += ` Write the guide in ${language}.`;
   }
   return prompt;
-}
+};
 
 export interface IdentifyRequest {
   url: string;
@@ -255,24 +257,24 @@ export interface IdentifyRequest {
 
 const TEXT_FALLBACK_CONFIDENCE_CAP = 0.4;
 
-export async function runIdentify(
+export const runIdentify = async (
   key: string,
   input: IdentifyInput,
   buildRequest: (messages: ChatMessage[], schema: Record<string, unknown>) => IdentifyRequest,
-): Promise<IdentifyResult> {
+): Promise<IdentifyResult> => {
   requireKey(key);
   await assertConsent();
   return identifyAttempt(input, key, emptyUsage(), buildRequest, false, false);
-}
+};
 
-async function identifyAttempt(
+const identifyAttempt = async (
   input: IdentifyInput,
   key: string,
   usage: Usage,
   buildRequest: (messages: ChatMessage[], schema: Record<string, unknown>) => IdentifyRequest,
   textOnly: boolean,
   strictReminder: boolean,
-): Promise<IdentifyResult> {
+): Promise<IdentifyResult> => {
   const messages = buildIdentifyMessages({
     signalsText: input.signalsText,
     imageUrl: textOnly ? null : input.imageUrl,
@@ -327,9 +329,9 @@ async function identifyAttempt(
     return identifyAttempt(input, key, usage, buildRequest, textOnly, true);
   }
   throw invalidResponse(usage, 'model output failed validation');
-}
+};
 
-function tryParsePlace(data: unknown): PlaceResult | undefined {
+const tryParsePlace = (data: unknown): PlaceResult | undefined => {
   const content = (data as { choices?: Array<{ message?: { content?: unknown } }> })?.choices?.[0]
     ?.message?.content;
   if (typeof content !== 'string') {
@@ -357,13 +359,13 @@ function tryParsePlace(data: unknown): PlaceResult | undefined {
     country: place.country.slice(0, 100),
     oneLiner: place.oneLiner.slice(0, 300),
   };
-}
+};
 
-function invalidResponse(usage: Usage, message: string): ProviderError {
+const invalidResponse = (usage: Usage, message: string): ProviderError => {
   const err = new ProviderError('invalid_response', message, true);
   err.usage = { ...usage };
   return err;
-}
+};
 
 export type ChatStreamEvent =
   | { type: 'delta'; text: string }
@@ -376,11 +378,10 @@ export const SSE_MAX_BUFFER = 1024 * 1024;
 // Text decoding stage of the SSE pipeline. The cast bridges DOM stream
 // variance (TextDecoderStream.writable accepts any BufferSource); the
 // runtime pairing is the documented pipeThrough chain.
-export function decodeStream(body: ReadableStream<Uint8Array>): ReadableStream<string> {
-  return body.pipeThrough(
+export const decodeStream = (body: ReadableStream<Uint8Array>): ReadableStream<string> =>
+  body.pipeThrough(
     new TextDecoderStream() as unknown as ReadableWritablePair<string, Uint8Array>,
   );
-}
 
 export async function* iterateChatStream(
   body: ReadableStream<Uint8Array>,
@@ -483,7 +484,7 @@ const DEFAULT_SETTINGS: ExtensionSettings = {
   sessionOnly: false,
 };
 
-export async function loadSettings(): Promise<ExtensionSettings> {
+export const loadSettings = async (): Promise<ExtensionSettings> => {
   try {
     const stored = (await chrome.storage.local.get(SETTINGS_STORAGE_KEY)) as {
       settings?: Partial<ExtensionSettings>;
@@ -515,13 +516,13 @@ export async function loadSettings(): Promise<ExtensionSettings> {
   } catch {
     return structuredClone(DEFAULT_SETTINGS);
   }
-}
+};
 
-export async function saveSettings(settings: ExtensionSettings): Promise<void> {
+export const saveSettings = async (settings: ExtensionSettings): Promise<void> => {
   await chrome.storage.local.set({ [SETTINGS_STORAGE_KEY]: settings });
-}
+};
 
-export async function hasConsented(): Promise<boolean> {
+export const hasConsented = async (): Promise<boolean> => {
   try {
     const stored = (await chrome.storage.local.get(CONSENT_STORAGE_KEY)) as {
       consentGiven?: unknown;
@@ -530,15 +531,15 @@ export async function hasConsented(): Promise<boolean> {
   } catch {
     return false;
   }
-}
+};
 
-export async function setConsented(): Promise<void> {
+export const setConsented = async (): Promise<void> => {
   await chrome.storage.local.set({ [CONSENT_STORAGE_KEY]: true });
-}
+};
 
 // Single chokepoint: every remote model call passes through here. Test-key
 // validation is exempt (it sends no image or page data).
-export async function assertConsent(): Promise<void> {
+export const assertConsent = async (): Promise<void> => {
   if (!(await hasConsented())) {
     throw new ProviderError(
       'consent_required',
@@ -546,22 +547,22 @@ export async function assertConsent(): Promise<void> {
       false,
     );
   }
-}
+};
 
 const museProvider = new MuseProvider();
 
-export function getProvider(settings: ExtensionSettings, id?: string): Provider {
+export const getProvider = (settings: ExtensionSettings, id?: string): Provider => {
   const wanted = id ?? settings.activeProviderId;
   if (wanted === 'openai_compat') {
     return new OpenAiCompatProvider(settings.openaiCompat);
   }
   return museProvider;
-}
+};
 
-export async function getActiveProvider(): Promise<{
+export const getActiveProvider = async (): Promise<{
   provider: Provider;
   settings: ExtensionSettings;
-}> {
+}> => {
   const settings = await loadSettings();
   return { provider: getProvider(settings), settings };
-}
+};

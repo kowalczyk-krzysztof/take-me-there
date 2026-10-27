@@ -32,6 +32,11 @@ export default defineConfig((_env, argv) => {
     module: {
       rules: [
         {
+          test: /\.css$/,
+          resourceQuery: /raw/,
+          type: 'asset/source',
+        },
+        {
           test: /\.ts$/,
           exclude: [/node_modules/],
           loader: 'builtin:swc-loader',

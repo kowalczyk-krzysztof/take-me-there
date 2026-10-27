@@ -16,7 +16,7 @@ import {
 import { installChromeMock, uninstallChromeMock } from '../test/chrome_mock';
 import type { PageSignals } from '../types';
 
-function validSignals(): PageSignals {
+const validSignals = (): PageSignals => {
   return {
     imgFound: true,
     alt: 'Blue domes',
@@ -35,7 +35,7 @@ function validSignals(): PageSignals {
     imgFileSlug: 'oia',
     jsonLd: [],
   };
-}
+};
 
 const DEFAULTS: ExtensionSettings = {
   activeProviderId: 'muse',

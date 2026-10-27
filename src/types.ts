@@ -20,11 +20,11 @@ export type PlaceResult = z.infer<typeof PLACE_SCHEMA>;
 // a top-level $schema key, which the strict subset forbids, so drop it here.
 // $ref/$defs must never appear: the unit test fails the build if a later
 // schema edit introduces them.
-export function placeJsonSchema(): Record<string, unknown> {
+export const placeJsonSchema = (): Record<string, unknown> => {
   const emitted = z.toJSONSchema(PLACE_SCHEMA) as unknown as Record<string, unknown>;
   const { $schema: _dropped, ...schema } = emitted;
   return schema;
-}
+};
 
 const JSON_LD_SCHEMA = z.strictObject({
   types: z.array(z.string()),

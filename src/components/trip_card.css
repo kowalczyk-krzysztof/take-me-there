@@ -1,0 +1,83 @@
+:host { display: block; }
+
+h2 {
+  font-size: 18px;
+  margin: 0 0 4px;
+}
+
+.subtitle {
+  margin: 0 0 4px;
+  color: var(--muted);
+}
+
+.oneliner { margin: 0 0 8px; }
+
+.badge {
+  display: inline-block;
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--badge-surface);
+  color: var(--badge);
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+.hint { margin: 0 0 4px; }
+
+.shortcut {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cosmetic {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 8px 0 0;
+  min-height: 20px;
+}
+
+details { margin-top: 8px; }
+
+summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.disagree-buttons {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+button {
+  font: inherit;
+  padding: 8px 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+button.primary {
+  background: var(--link);
+  color: var(--background);
+  border-color: transparent;
+}
+
+.fallback {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+a { color: var(--link); }

@@ -12,26 +12,23 @@ const VALID_PLACE = {
   oneLiner: 'Blue domes over the caldera.',
 };
 
-function config(overrides: Partial<OpenAiCompatSettings> = {}): OpenAiCompatSettings {
-  return {
-    baseURL: 'https://llm.example.com/v1/',
-    model: 'test-model',
-    structuredOutput: 'json_object',
-    ...overrides,
-  };
-}
+const config = (overrides: Partial<OpenAiCompatSettings> = {}): OpenAiCompatSettings => ({
+  baseURL: 'https://llm.example.com/v1/',
+  model: 'test-model',
+  structuredOutput: 'json_object',
+  ...overrides,
+});
 
-function chatResponse(place: unknown) {
-  return new Response(
+const chatResponse = (place: unknown) =>
+  new Response(
     JSON.stringify({
       choices: [{ message: { content: JSON.stringify(place) } }],
       usage: { prompt_tokens: 40, completion_tokens: 20 },
     }),
     { status: 200 },
   );
-}
 
-function sseResponse(chunks: string[]) {
+const sseResponse = (chunks: string[]) => {
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
@@ -45,7 +42,7 @@ function sseResponse(chunks: string[]) {
     status: 200,
     headers: { 'Content-Type': 'text/event-stream' },
   });
-}
+};
 
 let mock: ChromeMock;
 const fetchMock = vi.fn();
@@ -61,21 +58,19 @@ afterEach(() => {
   uninstallChromeMock();
 });
 
-function input() {
-  return {
-    imageUrl: 'https://cdn.example.com/oia.jpg',
-    signalsText: 'page title: X',
-    signal: new AbortController().signal,
-  };
-}
+const input = () => ({
+  imageUrl: 'https://cdn.example.com/oia.jpg',
+  signalsText: 'page title: X',
+  signal: new AbortController().signal,
+});
 
-async function collect(gen: AsyncGenerator<GuideEvent, void, void>): Promise<GuideEvent[]> {
+const collect = async (gen: AsyncGenerator<GuideEvent, void, void>): Promise<GuideEvent[]> => {
   const out: GuideEvent[] = [];
   for await (const event of gen) {
     out.push(event);
   }
   return out;
-}
+};
 
 describe('openai_compat', () => {
   it('identifies with json_object and client-side validation', async () => {
@@ -148,9 +143,9 @@ describe('openai_compat', () => {
   });
 
   it('exposes user-supplied rates or nothing', () => {
-    expect(new OpenAiCompatProvider(config()).getRates('anything')).toBeUndefined();
+    expect(new OpenAiCompatProvider(config()).getRates()).toBeUndefined();
     expect(
-      new OpenAiCompatProvider(config({ inputRatePerM: 2, outputRatePerM: 6 })).getRates('m'),
+      new OpenAiCompatProvider(config({ inputRatePerM: 2, outputRatePerM: 6 })).getRates(),
     ).toEqual({ inputUsdPerMTok: 2, outputUsdPerMTok: 6 });
   });
 

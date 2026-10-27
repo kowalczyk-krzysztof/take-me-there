@@ -1,46 +1,1299 @@
-// Scaffold panel: shows the handoff state for each image click. The full
-// state machine, provider calls, and components arrive in a later step.
-export {};
-const statusEl = document.getElementById('status');
-const titleEl = document.getElementById('title');
+// Panel state machine: handoff intake, key and consent gates, cached or live
+// analysis with streamed guides, disagree flows, and the cost footer.
+import './components/booking_grid';
+import './components/key_setup';
+import './components/source_chips';
+import './components/trip_card';
+import type { BookingGridElement } from './components/booking_grid';
+import type {
+  ConsentDecisionDetail,
+  KeySaveRequestDetail,
+  KeySetupElement,
+  SessionOnlyChangeDetail,
+} from './components/key_setup';
+import type { SourceChipsElement } from './components/source_chips';
+import type { TripCardElement } from './components/trip_card';
+import { adoptSharedStyles, prefersReducedMotion } from './components/shared_styles';
+import { buildDestination, capDestination } from './deep_links';
+import { loadKey, saveKey } from './key_vault';
+import { estimateCostUsd, formatUsd, recordMonthSpend } from './pricing';
+import { createGuideRenderer } from './render_markdown';
+import { TRIP_REQUEST_SCHEMA, type PageSignals, type PlaceResult, type TripRequest } from './types';
+import {
+  ProviderError,
+  addUsage,
+  emptyUsage,
+  formatSignalsForPrompt,
+  getActiveProvider,
+  hasConsented,
+  loadSettings,
+  saveSettings,
+  setConsented,
+  type ExtensionSettings,
+  type GuideSource,
+  type Provider,
+  type Usage,
+} from './providers/index';
 
-document.title = chrome.i18n.getMessage('appName');
-if (titleEl) {
-  titleEl.textContent = chrome.i18n.getMessage('appName');
+const msg = (key: string, subs?: string | string[]): string =>
+  chrome.i18n.getMessage(key, subs);
+
+const SKELETON_DELAY_MS = 200;
+const SKELETON_MIN_MS = 300;
+const STALE_COLLECTING_MS = 5000;
+const MAX_PREVIEW_DATA_URL = 2000000;
+const CACHE_SLOTS = 10;
+const CACHE_INDEX_KEY = 'cacheKeys';
+const SCROLL_NEAR_BOTTOM_PX = 80;
+
+export interface CacheEntry {
+  place: PlaceResult;
+  guide: string;
+  sources: GuideSource[];
+  usage: Usage;
+  searchedWeb: boolean;
 }
 
-interface TripRequest {
-  requestId: string;
-  status: string;
-}
+export const isAllowedPreviewUrl = (srcUrl: string): boolean => {
+  if (srcUrl.startsWith('data:')) {
+    return srcUrl.length <= MAX_PREVIEW_DATA_URL && srcUrl.startsWith('data:image/');
+  }
+  try {
+    const parsed = new URL(srcUrl);
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:';
+  } catch {
+    return false;
+  }
+};
+
+export const hashCacheKey = async (srcUrl: string, pageUrl: string): Promise<string> => {
+  const digest = await crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode(`${srcUrl}|${pageUrl}`),
+  );
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+};
+
+const cacheKeyFor = (hash: string): string => `cache:${hash}`;
+
+const isCacheEntry = (value: unknown): value is CacheEntry => {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+  const entry = value as Partial<CacheEntry>;
+  return (
+    typeof entry.guide === 'string' &&
+    Array.isArray(entry.sources) &&
+    !!entry.place &&
+    typeof entry.place === 'object' &&
+    typeof (entry.place as PlaceResult).placeName === 'string' &&
+    !!entry.usage &&
+    typeof entry.usage === 'object'
+  );
+};
+
+const readCacheIndex = async (): Promise<string[]> => {
+  try {
+    const stored = (await chrome.storage.session.get(CACHE_INDEX_KEY)) as {
+      cacheKeys?: unknown;
+    };
+    return Array.isArray(stored.cacheKeys)
+      ? stored.cacheKeys.filter((key): key is string => typeof key === 'string')
+      : [];
+  } catch {
+    return [];
+  }
+};
+
+export const getCacheEntry = async (hash: string): Promise<CacheEntry | undefined> => {
+  try {
+    const stored = (await chrome.storage.session.get(cacheKeyFor(hash))) as Record<string, unknown>;
+    const entry = stored[cacheKeyFor(hash)];
+    if (!isCacheEntry(entry)) {
+      return undefined;
+    }
+    const index = (await readCacheIndex()).filter((key) => key !== hash);
+    index.unshift(hash);
+    await chrome.storage.session.set({ [CACHE_INDEX_KEY]: index.slice(0, CACHE_SLOTS) });
+    return entry;
+  } catch {
+    return undefined;
+  }
+};
+
+export const setCacheEntry = async (hash: string, entry: CacheEntry): Promise<void> => {
+  try {
+    await chrome.storage.session.set({ [cacheKeyFor(hash)]: entry });
+    const index = (await readCacheIndex()).filter((key) => key !== hash);
+    index.unshift(hash);
+    const evicted = index.slice(CACHE_SLOTS);
+    await chrome.storage.session.set({ [CACHE_INDEX_KEY]: index.slice(0, CACHE_SLOTS) });
+    for (const key of evicted) {
+      await chrome.storage.session.remove(cacheKeyFor(key));
+    }
+  } catch {
+    // Cache writes are best-effort; a failure never breaks the analysis.
+  }
+};
+
+const EMPTY_SIGNALS: PageSignals = {
+  imgFound: false,
+  alt: '',
+  imgTitle: '',
+  figcaption: '',
+  nearestHeading: '',
+  nearestParagraph: '',
+  ogTitle: '',
+  ogDescription: '',
+  ogSiteName: '',
+  docTitle: '',
+  metaDescription: '',
+  canonical: '',
+  pageHost: '',
+  urlSlug: '',
+  imgFileSlug: '',
+  jsonLd: [],
+};
+
+type PendingRun =
+  | { kind: 'request'; request: TripRequest }
+  | { kind: 'manual'; destination: string };
+
+let initialized = false;
+let pageTitle: HTMLElement;
+let previewHeading: HTMLElement;
+let previewFrame: HTMLElement;
+let statusRegion: HTMLElement;
+let alertRegion: HTMLElement;
+let resultSlot: HTMLElement;
+let linksSlot: HTMLElement;
+let guideSlot: HTMLElement;
+let searchLine: HTMLElement;
+let guideContent: HTMLElement;
+let sourcesSlot: HTMLElement;
+let sourcesHeading: HTMLElement;
+let manualForm: HTMLFormElement;
+let manualInput: HTMLInputElement;
+let manualGo: HTMLButtonElement;
+let privacyLine: HTMLElement;
+let linksNoteSummary: HTMLElement;
+let linksNoteBody: HTMLElement;
+let costLine: HTMLElement;
+let tripCard: TripCardElement;
+let keySetup: KeySetupElement;
+let bookingGrid: BookingGridElement;
+let sourceChips: SourceChipsElement;
 
 let highestRequestId = '';
+let highestStatusRank = -1;
+let activeController: AbortController | null = null;
+let analysisInFlight = false;
+let currentRunId: string | null = null;
+let runUsage: Usage = emptyUsage();
+let activeRequest: TripRequest | null = null;
+let activeProvider: Provider | null = null;
+let runSettings: ExtensionSettings | null = null;
+let pendingRun: PendingRun | null = null;
+let lastRun: PendingRun | null = null;
+let currentCacheKey = '';
+let currentPlace: PlaceResult | null = null;
+let currentDestination = '';
+let currentSources: GuideSource[] = [];
+let currentView = '';
+let shortcutText = '';
+let manualCounter = 0;
+let skeletonTimer: ReturnType<typeof setTimeout> | undefined;
+let skeletonFor = '';
+let skeletonShownAt = 0;
+let staleTimer: ReturnType<typeof setTimeout> | undefined;
+let userScrolled = false;
+const lookAgainUsed = new Set<string>();
 
-function render(request: TripRequest | undefined): void {
-  if (!statusEl) {
+const req = <T extends HTMLElement>(id: string): T => {
+  const el = document.getElementById(id);
+  if (!el) {
+    throw new Error(`panel shell is missing #${id}`);
+  }
+  return el as T;
+};
+
+const announceStatus = (key: string, subs?: string | string[]): void => {
+  statusRegion.textContent = msg(key, subs);
+};
+
+const announceAlert = (key: string, subs?: string | string[]): void => {
+  alertRegion.textContent = msg(key, subs);
+};
+
+const composedActiveElement = (): Element | null => {
+  let active: Element | null = document.activeElement;
+  while (active?.shadowRoot?.activeElement) {
+    active = active.shadowRoot.activeElement;
+  }
+  return active;
+};
+
+const isTyping = (): boolean => {
+  const active = composedActiveElement();
+  return (
+    !!active &&
+    (active.tagName === 'INPUT' ||
+      active.tagName === 'TEXTAREA' ||
+      (active as HTMLElement).isContentEditable)
+  );
+};
+
+const focusResultHeading = (): void => {
+  if (isTyping()) {
     return;
   }
-  if (!request) {
-    statusEl.textContent = chrome.i18n.getMessage('panelIdle');
+  tripCard.focusHeading();
+};
+
+// Every result-slot swap runs through here so a swap that removes the
+// focused subtree falls back to the persistent preview heading.
+const swapResultSlot = (build: () => void): void => {
+  const before = composedActiveElement();
+  build();
+  if (before && !before.isConnected) {
+    previewHeading.focus({ preventScroll: true });
+  }
+};
+
+const updatePreview = (srcUrl: string | null): void => {
+  previewFrame.replaceChildren();
+  if (srcUrl && isAllowedPreviewUrl(srcUrl)) {
+    const img = document.createElement('img');
+    img.referrerPolicy = 'no-referrer';
+    img.alt = msg('previewAltImage');
+    img.onerror = () => {
+      showPreviewPlaceholder();
+    };
+    img.src = srcUrl;
+    previewFrame.append(img);
+  } else {
+    showPreviewPlaceholder();
+  }
+};
+
+const showPreviewPlaceholder = (): void => {
+  previewFrame.replaceChildren();
+  const text = document.createElement('span');
+  text.textContent = msg('previewUnavailable');
+  previewFrame.append(text);
+};
+
+const setPreviewIdentified = (placeName: string): void => {
+  const img = previewFrame.querySelector('img');
+  if (img) {
+    img.alt = msg('previewAltIdentified', placeName);
+  }
+};
+
+const clearContentSlots = (): void => {
+  linksSlot.hidden = true;
+  linksSlot.replaceChildren();
+  guideSlot.hidden = true;
+  searchLine.hidden = true;
+  guideContent.replaceChildren();
+  guideContent.removeAttribute('aria-busy');
+  sourcesSlot.hidden = true;
+  sourceChips.setSources([]);
+  if (sourceChips.isConnected) {
+    sourceChips.remove();
+  }
+};
+
+const showLinks = (destination: string): void => {
+  linksSlot.replaceChildren(bookingGrid);
+  bookingGrid.setDestination(destination);
+  linksSlot.hidden = false;
+};
+
+const showSources = (sources: GuideSource[]): void => {
+  if (!sourceChips.isConnected) {
+    sourcesSlot.append(sourceChips);
+  }
+  sourceChips.setSources(sources);
+  sourcesSlot.hidden = sources.length === 0;
+};
+
+type PrivacyMode = 'image' | 'image-only' | 'manual' | 'cache' | 'idle' | 'local-only';
+
+const updatePrivacy = (mode: PrivacyMode): void => {
+  const key =
+    mode === 'image'
+      ? 'privacyImage'
+      : mode === 'image-only'
+        ? 'privacyImageOnly'
+        : mode === 'manual'
+          ? 'privacyManual'
+          : mode === 'cache'
+            ? 'privacyCache'
+            : mode === 'local-only'
+              ? 'privacyLocalOnly'
+              : 'privacyIdle';
+  privacyLine.textContent = msg(key);
+};
+
+const clearCost = (): void => {
+  costLine.textContent = '';
+};
+
+const priceAndRecord = async (provider: Provider): Promise<void> => {
+  const usd = estimateCostUsd(runUsage, provider.getRates());
+  if (usd === null) {
+    costLine.textContent = msg('costLineTokens', [
+      String(runUsage.inputTokens),
+      String(runUsage.outputTokens),
+    ]);
     return;
   }
+  let monthTotal = usd;
+  try {
+    monthTotal = await recordMonthSpend(usd);
+  } catch {
+    // The run figure still renders; only the monthly total is stale.
+  }
+  costLine.textContent = msg('costLine', [formatUsd(usd), formatUsd(monthTotal)]);
+};
+
+const cancelSkeleton = (): void => {
+  skeletonFor = '';
+  if (skeletonTimer !== undefined) {
+    clearTimeout(skeletonTimer);
+    skeletonTimer = undefined;
+  }
+};
+
+const showSkeleton = (id: string): void => {
+  cancelSkeleton();
+  skeletonFor = id;
+  skeletonTimer = setTimeout(() => {
+    if (skeletonFor !== id) {
+      return;
+    }
+    swapResultSlot(() => {
+      resultSlot.replaceChildren(tripCard);
+      tripCard.setCard({ view: 'loading' });
+    });
+    currentView = 'loading';
+    skeletonShownAt = Date.now();
+  }, SKELETON_DELAY_MS);
+};
+
+const settleSkeleton = async (): Promise<void> => {
+  cancelSkeleton();
+  if (skeletonShownAt > 0) {
+    const elapsed = Date.now() - skeletonShownAt;
+    if (elapsed < SKELETON_MIN_MS) {
+      await new Promise((resolve) => setTimeout(resolve, SKELETON_MIN_MS - elapsed));
+    }
+    skeletonShownAt = 0;
+  }
+};
+
+const showIdle = (): void => {
+  cancelSkeleton();
+  currentView = 'idle';
+  swapResultSlot(() => {
+    resultSlot.replaceChildren(tripCard);
+    tripCard.setCard({ view: 'idle', hint: msg('panelIdle'), shortcut: shortcutText });
+  });
+  clearContentSlots();
+  updatePrivacy('idle');
+  clearCost();
+};
+
+const showOnboarding = (orphaned: boolean): void => {
+  cancelSkeleton();
+  currentView = 'onboarding';
+  clearContentSlots();
+  swapResultSlot(() => {
+    resultSlot.replaceChildren();
+    if (orphaned) {
+      const notice = document.createElement('p');
+      notice.className = 'key-notice';
+      notice.textContent = msg('keyReenterNotice');
+      resultSlot.append(notice);
+    }
+    keySetup.showSetup();
+    keySetup.setSessionOnly(runSettings?.sessionOnly ?? false);
+    resultSlot.append(keySetup);
+  });
+  updatePrivacy('idle');
+  clearCost();
+};
+
+const showConsent = (focusGate: boolean): void => {
+  cancelSkeleton();
+  currentView = 'consent';
+  clearContentSlots();
+  swapResultSlot(() => {
+    resultSlot.replaceChildren(keySetup);
+    keySetup.showConsent();
+  });
+  if (focusGate && !isTyping()) {
+    keySetup.focusConsentHeading();
+  }
+};
+
+const autoScrollGuide = (): void => {
+  if (userScrolled || prefersReducedMotion()) {
+    return;
+  }
+  if (typeof window.scrollTo === 'function') {
+    window.scrollTo(0, document.body.scrollHeight);
+  }
+};
+
+const onWindowScroll = (): void => {
+  userScrolled =
+    window.innerHeight + window.scrollY < document.body.scrollHeight - SCROLL_NEAR_BOTTOM_PX;
+};
+
+const abortActive = (): void => {
+  if (activeController) {
+    activeController.abort();
+    activeController = null;
+  }
+};
+
+const beginRun = (runId: string): void => {
+  if (currentRunId !== runId) {
+    currentRunId = runId;
+    runUsage = emptyUsage();
+  }
+};
+
+const clearStaleTimer = (): void => {
+  if (staleTimer !== undefined) {
+    clearTimeout(staleTimer);
+    staleTimer = undefined;
+  }
+};
+
+const wipeStoredRequest = async (requestId: string): Promise<void> => {
+  try {
+    const stored = (await chrome.storage.session.get('tripRequest')) as {
+      tripRequest?: { requestId?: string };
+    };
+    if (stored.tripRequest?.requestId === requestId) {
+      await chrome.storage.session.set({ tripRequest: { requestId, status: 'ready' } });
+    }
+  } catch {
+    // Best-effort minimization; the data ages out with the session.
+  }
+};
+
+const fallbackFor = (signals: PageSignals): { label: string; href: string } | null => {
+  const best = [signals.jsonLd[0]?.name, signals.ogTitle, signals.alt, signals.docTitle].find(
+    (candidate) => candidate && candidate.trim(),
+  );
+  if (!best) {
+    return null;
+  }
+  const label = best.trim().slice(0, 80);
+  return {
+    label,
+    href: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(label)}`,
+  };
+};
+
+type RunOutcome = 'result' | 'no-place' | 'error' | 'aborted';
+
+const renderResultHeader = async (place: PlaceResult, announce: boolean): Promise<void> => {
+  await settleSkeleton();
+  cancelSkeleton();
+  currentView = 'result';
+  swapResultSlot(() => {
+    resultSlot.replaceChildren(tripCard);
+    tripCard.setCard({
+      view: 'result',
+      place,
+      lowConfidence: place.confidence < 0.6,
+    });
+  });
+  showLinks(currentDestination);
+  setPreviewIdentified(place.placeName);
+  if (announce) {
+    announceStatus('statusFoundWriting', place.placeName);
+  }
+};
+
+const renderNoPlace = async (request: TripRequest, origin: 'gesture' | 'panel'): Promise<void> => {
+  await settleSkeleton();
+  cancelSkeleton();
+  currentView = 'no-place';
+  const signals = request.signals ?? EMPTY_SIGNALS;
+  swapResultSlot(() => {
+    resultSlot.replaceChildren(tripCard);
+    tripCard.setCard({
+      view: 'no-place',
+      showLookAgain: !lookAgainUsed.has(currentCacheKey),
+      fallback: fallbackFor(signals),
+    });
+  });
+  clearContentSlots();
+  announceStatus('statusNoPlace');
+  if (origin === 'panel' && tripCard.isConnected) {
+    focusResultHeading();
+  }
+};
+
+const renderErrorCard = (
+  titleKey: string,
+  bodyKey: string,
+  showRetry: boolean,
+  withKeySetup: boolean,
+): void => {
+  cancelSkeleton();
+  currentView = 'error';
+  swapResultSlot(() => {
+    resultSlot.replaceChildren(tripCard);
+    tripCard.setCard({
+      view: 'error',
+      title: msg(titleKey),
+      body: msg(bodyKey),
+      showRetry,
+    });
+    if (withKeySetup) {
+      keySetup.showSetup();
+      keySetup.setSessionOnly(runSettings?.sessionOnly ?? false);
+      resultSlot.append(keySetup);
+    }
+  });
+};
+
+const showProviderError = (
+  err: unknown,
+  request: TripRequest | null,
+  forManual: boolean,
+): void => {
+  if (!(err instanceof ProviderError)) {
+    renderErrorCard('errorServerTitle', 'errorServerBody', true, false);
+    announceAlert('alertServer');
+    updatePrivacy(forManual ? 'manual' : 'image');
+    return;
+  }
+  if (err.code === 'aborted') {
+    return;
+  }
+  if (err.code === 'consent_required') {
+    pendingRun = request ? { kind: 'request', request } : pendingRun;
+    showConsent(false);
+    announceStatus('statusConsentNeeded');
+    return;
+  }
+  if (err.code === 'no_key') {
+    pendingRun = request ? { kind: 'request', request } : pendingRun;
+    showOnboarding(false);
+    announceStatus('statusKeyNeeded');
+    return;
+  }
+  if (err.code === 'auth') {
+    pendingRun =
+      request != null
+        ? { kind: 'request', request }
+        : forManual
+          ? { kind: 'manual', destination: currentDestination }
+          : pendingRun;
+    renderErrorCard('errorAuthTitle', 'errorAuthBody', false, true);
+    announceAlert('alertAuth');
+    updatePrivacy(forManual ? 'manual' : 'image');
+    return;
+  }
+  const titles: Record<string, [string, string, string]> = {
+    rate_limited: ['errorRateTitle', 'errorRateBody', 'alertRateLimited'],
+    server: ['errorServerTitle', 'errorServerBody', 'alertServer'],
+    network: ['errorNetworkTitle', 'errorNetworkBody', 'alertNetwork'],
+    invalid_response: ['errorInvalidTitle', 'errorInvalidBody', 'alertInvalidResponse'],
+    stream_error: ['errorStreamTitle', 'errorStreamBody', 'alertStreamError'],
+    not_configured: ['errorServerTitle', 'alertNotConfigured', 'alertNotConfigured'],
+  };
+  const [titleKey, bodyKey, alertKey] = titles[err.code] ?? [
+    'errorServerTitle',
+    'errorServerBody',
+    'alertServer',
+  ];
+  renderErrorCard(titleKey, bodyKey, true, false);
+  announceAlert(alertKey);
+  updatePrivacy(forManual ? 'manual' : 'image');
+};
+
+const recordPartialUsage = (err: unknown, provider: Provider): void => {
+  if (err instanceof ProviderError && err.usage) {
+    runUsage = addUsage(runUsage, err.usage);
+    void priceAndRecord(provider);
+  }
+};
+
+interface StreamArgs {
+  provider: Provider;
+  key: string;
+  destination: string;
+  signal: AbortSignal;
+  cacheKey: string | null;
+  privacy: 'image' | 'image-only' | 'manual';
+  origin: 'gesture' | 'panel';
+}
+
+const streamGuideRun = async (args: StreamArgs): Promise<RunOutcome> => {
+  const { provider, key, destination, signal, cacheKey, privacy, origin } = args;
+  const renderer = createGuideRenderer(guideContent, msg('truncatedNotice'));
+  guideSlot.hidden = false;
+  userScrolled = false;
+  guideContent.setAttribute('aria-busy', 'true');
+  let guideSource = '';
+  const sources: GuideSource[] = [];
+  let searchedWeb = false;
+  try {
+    const events = provider.streamGuide(key, {
+      destination,
+      signal,
+      language: chrome.i18n.getUILanguage(),
+    });
+    for await (const event of events) {
+      if (event.type === 'delta') {
+        guideSource += event.text;
+        renderer.push(event.text);
+        autoScrollGuide();
+      } else if (event.type === 'searching') {
+        searchedWeb = true;
+        searchLine.textContent = msg('statusSearchingWeb');
+        searchLine.hidden = false;
+        announceStatus('statusSearchingWeb');
+      } else if (event.type === 'sources') {
+        sources.push(...event.sources);
+        currentSources = [...sources];
+        showSources(sources);
+      } else if (event.type === 'usage') {
+        runUsage = addUsage(runUsage, event.usage);
+      }
+    }
+  } catch (err) {
+    guideContent.removeAttribute('aria-busy');
+    searchLine.hidden = true;
+    resultSlot.removeAttribute('aria-busy');
+    if (err instanceof ProviderError && err.code === 'aborted') {
+      return 'aborted';
+    }
+    const notice = document.createElement('p');
+    notice.className = 'guide-interrupted';
+    notice.textContent = msg('guideInterrupted');
+    guideContent.append(notice);
+    recordPartialUsage(err, provider);
+    showProviderError(err, activeRequest, privacy === 'manual');
+    analysisInFlight = false;
+    return 'error';
+  }
+  renderer.finish();
+  guideContent.removeAttribute('aria-busy');
+  searchLine.hidden = true;
+  resultSlot.removeAttribute('aria-busy');
+  if (cacheKey && currentPlace) {
+    await setCacheEntry(cacheKey, {
+      place: currentPlace,
+      guide: guideSource,
+      sources: [...sources],
+      usage: { ...runUsage },
+      searchedWeb,
+    });
+  }
+  await priceAndRecord(provider);
+  updatePrivacy(privacy);
+  if (sources.length > 0) {
+    announceStatus('statusGuideReadySources', String(sources.length));
+  } else {
+    announceStatus('statusGuideReady');
+  }
+  if (origin === 'panel') {
+    focusResultHeading();
+  }
+  analysisInFlight = false;
+  return 'result';
+};
+
+interface IdentifyArgs {
+  request: TripRequest;
+  provider: Provider;
+  settings: ExtensionSettings;
+  key: string;
+  origin: 'gesture' | 'panel';
+  insist: boolean;
+  rejectedPlace?: string;
+}
+
+const identifyAndGuide = async (args: IdentifyArgs): Promise<RunOutcome> => {
+  const { request, provider, settings, key, origin, insist, rejectedPlace } = args;
+  activeProvider = provider;
+  const controller = new AbortController();
+  activeController = controller;
+  const signal = controller.signal;
+  const finishController = (): void => {
+    if (activeController === controller) {
+      activeController = null;
+    }
+  };
+  const signals = request.signals ?? EMPTY_SIGNALS;
+  const signalsText = formatSignalsForPrompt(signals, settings.imageOnly);
+  let identify;
+  try {
+    identify = await provider.identifyPlace(key, {
+      imageUrl: request.srcUrl,
+      signalsText,
+      signal,
+      insist,
+      rejectedPlace,
+    });
+  } catch (err) {
+    finishController();
+    if (err instanceof ProviderError && err.code === 'aborted') {
+      return 'aborted';
+    }
+    recordPartialUsage(err, provider);
+    showProviderError(err, request, false);
+    analysisInFlight = false;
+    return 'error';
+  }
+  runUsage = addUsage(runUsage, identify.usage);
+  currentPlace = identify.place;
+  await wipeStoredRequest(request.requestId);
+  await setCacheEntry(currentCacheKey, {
+    place: identify.place,
+    guide: '',
+    sources: [],
+    usage: { ...runUsage },
+    searchedWeb: false,
+  });
+  if (!identify.place.identified) {
+    finishController();
+    await renderNoPlace(request, origin);
+    await priceAndRecord(provider);
+    updatePrivacy(settings.imageOnly ? 'image-only' : 'image');
+    analysisInFlight = false;
+    return 'no-place';
+  }
+  const destination = buildDestination(
+    identify.place.placeName,
+    identify.place.city,
+    identify.place.country,
+  );
+  currentDestination = destination;
+  currentSources = [];
+  await renderResultHeader(identify.place, true);
+  const outcome = await streamGuideRun({
+    provider,
+    key,
+    destination,
+    signal,
+    cacheKey: currentCacheKey,
+    privacy: settings.imageOnly ? 'image-only' : 'image',
+    origin,
+  });
+  finishController();
+  return outcome;
+};
+
+const renderCached = (entry: CacheEntry, origin: 'gesture' | 'panel'): void => {
+  cancelSkeleton();
+  currentPlace = entry.place;
+  currentSources = [...entry.sources];
+  if (!entry.place.identified) {
+    currentView = 'no-place';
+    swapResultSlot(() => {
+      resultSlot.replaceChildren(tripCard);
+      tripCard.setCard({
+        view: 'no-place',
+        showLookAgain: !lookAgainUsed.has(currentCacheKey),
+        fallback: activeRequest ? fallbackFor(activeRequest.signals ?? EMPTY_SIGNALS) : null,
+      });
+    });
+    clearContentSlots();
+    costLine.textContent = msg('costLineCache');
+    updatePrivacy('cache');
+    announceStatus('statusNoPlace');
+    if (origin === 'panel') {
+      focusResultHeading();
+    }
+    return;
+  }
+  currentDestination = buildDestination(
+    entry.place.placeName,
+    entry.place.city,
+    entry.place.country,
+  );
+  currentView = 'result';
+  swapResultSlot(() => {
+    resultSlot.replaceChildren(tripCard);
+    tripCard.setCard({
+      view: 'result',
+      place: entry.place,
+      lowConfidence: entry.place.confidence < 0.6,
+    });
+  });
+  showLinks(currentDestination);
+  const renderer = createGuideRenderer(guideContent, msg('truncatedNotice'));
+  guideSlot.hidden = false;
+  renderer.push(entry.guide);
+  renderer.finish();
+  if (entry.sources.length > 0) {
+    showSources(entry.sources);
+  } else {
+    sourcesSlot.hidden = true;
+  }
+  setPreviewIdentified(entry.place.placeName);
+  costLine.textContent = msg('costLineCache');
+  updatePrivacy('cache');
+  announceStatus('statusCacheHit', entry.place.placeName);
+  if (origin === 'panel') {
+    focusResultHeading();
+  }
+};
+
+const runAnalysis = async (request: TripRequest, origin: 'gesture' | 'panel'): Promise<void> => {
+  abortActive();
+  clearStaleTimer();
+  const superseded = analysisInFlight;
+  analysisInFlight = true;
+  beginRun(request.requestId);
+  activeRequest = request;
+  lastRun = { kind: 'request', request };
+  pendingRun = null;
+  updatePreview(request.srcUrl || null);
+  clearCost();
+  const { provider, settings } = await getActiveProvider();
+  activeProvider = provider;
+  runSettings = settings;
+  const keyStatus = await loadKey(provider.id);
+  if (keyStatus.state !== 'ok') {
+    analysisInFlight = false;
+    pendingRun = { kind: 'request', request };
+    showOnboarding(keyStatus.orphaned);
+    announceStatus('statusKeyNeeded');
+    return;
+  }
+  if (!(await hasConsented())) {
+    analysisInFlight = false;
+    pendingRun = { kind: 'request', request };
+    showConsent(false);
+    announceStatus('statusConsentNeeded');
+    return;
+  }
+  if (request.dataPending || !request.srcUrl) {
+    analysisInFlight = false;
+    renderErrorCard('errorDataTitle', 'errorDataBody', false, false);
+    announceAlert('errorDataBody');
+    updatePrivacy('idle');
+    return;
+  }
+  currentCacheKey = await hashCacheKey(request.srcUrl, request.pageUrl ?? '');
+  const cached = await getCacheEntry(currentCacheKey);
+  if (cached) {
+    analysisInFlight = false;
+    activeController = null;
+    renderCached(cached, origin);
+    return;
+  }
+  announceStatus(superseded ? 'statusCanceledNew' : 'statusAnalyzing');
+  showSkeleton(request.requestId);
+  await identifyAndGuide({
+    request,
+    provider,
+    settings,
+    key: keyStatus.key,
+    origin,
+    insist: false,
+  });
+};
+
+const handle = async (value: unknown): Promise<void> => {
+  const probe = (value ?? {}) as { requestId?: unknown; srcUrl?: unknown };
+  if (typeof probe.requestId === 'string' && typeof probe.srcUrl !== 'string') {
+    return;
+  }
+  const parsed = TRIP_REQUEST_SCHEMA.safeParse(value);
+  if (!parsed.success) {
+    return;
+  }
+  const request = parsed.data;
+  const rank = request.status === 'ready' ? 1 : 0;
   if (request.requestId < highestRequestId) {
     return;
   }
-  highestRequestId = request.requestId;
-  statusEl.textContent =
-    request.status === 'ready'
-      ? chrome.i18n.getMessage('panelReady')
-      : chrome.i18n.getMessage('panelCollecting');
-}
-
-void chrome.storage.session.get('tripRequest').then((stored) => {
-  render((stored as { tripRequest?: TripRequest }).tripRequest);
-});
-
-chrome.storage.session.onChanged.addListener((changes) => {
-  const change = changes['tripRequest'];
-  if (change) {
-    render(change.newValue as TripRequest | undefined);
+  if (request.requestId === highestRequestId && rank <= highestStatusRank) {
+    return;
   }
-});
+  highestRequestId = request.requestId;
+  highestStatusRank = rank;
+  updatePreview(request.srcUrl || null);
+  if (request.status === 'collecting') {
+    announceStatus('statusAnalyzing');
+    showSkeleton(request.requestId);
+    clearStaleTimer();
+    const id = request.requestId;
+    staleTimer = setTimeout(() => {
+      if (highestRequestId === id && highestStatusRank === 0) {
+        highestStatusRank = -1;
+        updatePreview(null);
+        showIdle();
+      }
+    }, STALE_COLLECTING_MS);
+    return;
+  }
+  await runAnalysis(request, 'gesture');
+};
+
+const lookAgain = async (): Promise<void> => {
+  const request = activeRequest;
+  if (!request?.srcUrl || !currentCacheKey || lookAgainUsed.has(currentCacheKey)) {
+    return;
+  }
+  lookAgainUsed.add(currentCacheKey);
+  analysisInFlight = true;
+  resultSlot.setAttribute('aria-busy', 'true');
+  announceStatus('statusAnalyzing');
+  try {
+    const { provider, settings } = await getActiveProvider();
+    activeProvider = provider;
+    runSettings = settings;
+    const keyStatus = await loadKey(provider.id);
+    if (keyStatus.state !== 'ok' || !(await hasConsented())) {
+      pendingRun = { kind: 'request', request };
+      if (keyStatus.state !== 'ok') {
+        showOnboarding(keyStatus.orphaned);
+        announceStatus('statusKeyNeeded');
+      } else {
+        showConsent(false);
+        announceStatus('statusConsentNeeded');
+      }
+      analysisInFlight = false;
+      return;
+    }
+    const outcome = await identifyAndGuide({
+      request,
+      provider,
+      settings,
+      key: keyStatus.key,
+      origin: 'panel',
+      insist: true,
+    });
+    if (outcome === 'no-place' && !isTyping()) {
+      manualInput.focus();
+    }
+  } finally {
+    resultSlot.removeAttribute('aria-busy');
+  }
+};
+
+const reanalyze = async (): Promise<void> => {
+  const request = activeRequest;
+  if (!request?.srcUrl || !currentPlace) {
+    return;
+  }
+  analysisInFlight = true;
+  resultSlot.setAttribute('aria-busy', 'true');
+  announceStatus('statusAnalyzing');
+  try {
+    const { provider, settings } = await getActiveProvider();
+    activeProvider = provider;
+    runSettings = settings;
+    const keyStatus = await loadKey(provider.id);
+    if (keyStatus.state !== 'ok' || !(await hasConsented())) {
+      pendingRun = { kind: 'request', request };
+      if (keyStatus.state !== 'ok') {
+        showOnboarding(keyStatus.orphaned);
+        announceStatus('statusKeyNeeded');
+      } else {
+        showConsent(false);
+        announceStatus('statusConsentNeeded');
+      }
+      analysisInFlight = false;
+      return;
+    }
+    await identifyAndGuide({
+      request,
+      provider,
+      settings,
+      key: keyStatus.key,
+      origin: 'panel',
+      insist: false,
+      rejectedPlace: currentPlace.placeName,
+    });
+  } finally {
+    resultSlot.removeAttribute('aria-busy');
+  }
+};
+
+const retry = async (): Promise<void> => {
+  const target = lastRun;
+  if (!target) {
+    return;
+  }
+  clearContentSlots();
+  if (target.kind === 'manual') {
+    await handleManualSubmit(target.destination, false);
+  } else {
+    await runAnalysis(target.request, 'panel');
+  }
+};
+
+const handleManualSubmit = async (destinationRaw: string, fresh: boolean): Promise<void> => {
+  const destination = capDestination(destinationRaw);
+  if (!destination) {
+    return;
+  }
+  abortActive();
+  analysisInFlight = true;
+  if (fresh) {
+    manualCounter += 1;
+  }
+  beginRun(`manual-${manualCounter}`);
+  lastRun = { kind: 'manual', destination };
+  currentDestination = destination;
+  currentSources = [];
+  showLinks(destination);
+  clearCost();
+  const { provider, settings } = await getActiveProvider();
+  activeProvider = provider;
+  runSettings = settings;
+  const keyStatus = await loadKey(provider.id);
+  if (keyStatus.state !== 'ok') {
+    analysisInFlight = false;
+    announceStatus('statusManualNoKey');
+    updatePrivacy('local-only');
+    return;
+  }
+  if (!(await hasConsented())) {
+    analysisInFlight = false;
+    pendingRun = { kind: 'manual', destination };
+    showConsent(false);
+    announceStatus('statusConsentNeeded');
+    return;
+  }
+  announceStatus('statusManualGuide');
+  const place: PlaceResult = {
+    identified: true,
+    placeName: destination,
+    city: '',
+    country: '',
+    confidence: 1,
+    oneLiner: '',
+  };
+  currentPlace = place;
+  currentView = 'result';
+  swapResultSlot(() => {
+    resultSlot.replaceChildren(tripCard);
+    tripCard.setCard({ view: 'result', place, lowConfidence: false });
+  });
+  const controller = new AbortController();
+  activeController = controller;
+  const outcome = await streamGuideRun({
+    provider,
+    key: keyStatus.key,
+    destination,
+    signal: controller.signal,
+    cacheKey: null,
+    privacy: 'manual',
+    origin: 'panel',
+  });
+  if (activeController === controller) {
+    activeController = null;
+  }
+  if (outcome === 'aborted') {
+    analysisInFlight = false;
+  }
+};
+
+const resumePending = async (): Promise<void> => {
+  const pending = pendingRun;
+  pendingRun = null;
+  if (!pending) {
+    showIdle();
+    return;
+  }
+  if (pending.kind === 'manual') {
+    await handleManualSubmit(pending.destination, false);
+  } else {
+    await runAnalysis(pending.request, 'panel');
+  }
+};
+
+const onKeySave = async (detail: KeySaveRequestDetail): Promise<void> => {
+  keySetup.setPending(true);
+  announceStatus('statusValidatingKey');
+  const { provider, settings } = await getActiveProvider();
+  activeProvider = provider;
+  runSettings = settings;
+  try {
+    await provider.testKey(detail.key);
+  } catch (err) {
+    keySetup.setPending(false);
+    if (err instanceof ProviderError && err.code === 'auth') {
+      keySetup.setError(msg('keyErrorRejected'));
+    } else if (err instanceof ProviderError && err.code === 'network') {
+      keySetup.setError(msg('keyErrorNetwork'));
+    } else {
+      keySetup.setError(msg('keyErrorRetry'));
+    }
+    return;
+  }
+  try {
+    await saveKey(provider.id, detail.key, detail.sessionOnly);
+    runSettings = { ...settings, sessionOnly: detail.sessionOnly };
+    await saveSettings(runSettings);
+  } catch {
+    keySetup.setPending(false);
+    keySetup.setError(msg('keyErrorRetry'));
+    return;
+  }
+  keySetup.setPending(false);
+  keySetup.clear();
+  announceStatus('statusKeySaved');
+  if (!(await hasConsented())) {
+    showConsent(true);
+    return;
+  }
+  await resumePending();
+};
+
+const onConsentDecision = async (detail: ConsentDecisionDetail): Promise<void> => {
+  if (!detail.agreed) {
+    pendingRun = null;
+    analysisInFlight = false;
+    updatePreview(null);
+    showIdle();
+    announceStatus('statusConsentDeclined');
+    return;
+  }
+  await setConsented();
+  await resumePending();
+};
+
+const onSessionOnlyChange = async (detail: SessionOnlyChangeDetail): Promise<void> => {
+  try {
+    const { provider, settings } = await getActiveProvider();
+    runSettings = { ...settings, sessionOnly: detail.checked };
+    await saveSettings(runSettings);
+    const loaded = await loadKey(provider.id);
+    if (loaded.state === 'ok') {
+      await saveKey(provider.id, loaded.key, detail.checked);
+    }
+  } catch {
+    // Best effort; the checkbox state stays as the user set it.
+  }
+};
+
+const loadShortcutLine = async (): Promise<void> => {
+  let text = msg('shortcutUnset');
+  try {
+    const commands = await chrome.commands.getAll();
+    const action = commands.find((command) => command.name === '_execute_action');
+    if (action?.shortcut) {
+      text = msg('shortcutLine', action.shortcut);
+    }
+  } catch {
+    // Keep the unset line.
+  }
+  shortcutText = text;
+  if (currentView === 'idle') {
+    tripCard.setCard({ view: 'idle', hint: msg('panelIdle'), shortcut: text });
+  }
+};
+
+export const initPanel = (): void => {
+  if (initialized) {
+    return;
+  }
+  if (!document.getElementById('status-region')) {
+    return;
+  }
+  initialized = true;
+  adoptSharedStyles(document);
+  pageTitle = req('page-title');
+  previewHeading = req('preview-heading');
+  previewFrame = req('preview-frame');
+  statusRegion = req('status-region');
+  alertRegion = req('alert-region');
+  resultSlot = req('result-slot');
+  linksSlot = req('links-slot');
+  guideSlot = req('guide-slot');
+  searchLine = req('search-line');
+  guideContent = req('guide-content');
+  sourcesSlot = req('sources-slot');
+  sourcesHeading = req('sources-heading');
+  manualForm = req<HTMLFormElement>('manual-form');
+  manualInput = req<HTMLInputElement>('manual-input');
+  manualGo = req<HTMLButtonElement>('manual-go');
+  privacyLine = req('privacy-line');
+  linksNoteSummary = req('links-note-summary');
+  linksNoteBody = req('links-note-body');
+  costLine = req('cost-line');
+
+  document.title = msg('appName');
+  document.documentElement.lang = msg('@@ui_locale').replace('_', '-');
+  document.documentElement.dir = msg('@@bidi_dir');
+  pageTitle.textContent = msg('appName');
+  previewHeading.textContent = msg('previewHeading');
+  sourcesHeading.textContent = msg('sourcesHeading');
+  req('manual-label').textContent = msg('manualLabel');
+  manualInput.placeholder = msg('manualPlaceholder');
+  manualGo.textContent = msg('manualGoButton');
+  linksNoteSummary.textContent = msg('privacyLinksSummary');
+  linksNoteBody.textContent = msg('privacyLinksBody');
+
+  tripCard = document.createElement('trip-card') as TripCardElement;
+  keySetup = document.createElement('key-setup') as KeySetupElement;
+  bookingGrid = document.createElement('booking-grid') as BookingGridElement;
+  sourceChips = document.createElement('source-chips') as SourceChipsElement;
+
+  tripCard.addEventListener('trip-retry', () => {
+    void retry();
+  });
+  tripCard.addEventListener('trip-look-again', () => {
+    void lookAgain();
+  });
+  tripCard.addEventListener('trip-reanalyze', () => {
+    void reanalyze();
+  });
+  tripCard.addEventListener('trip-edit-destination', () => {
+    manualInput.focus();
+    manualInput.select();
+  });
+  keySetup.addEventListener('key-save-request', (event) => {
+    void onKeySave((event as CustomEvent<KeySaveRequestDetail>).detail);
+  });
+  keySetup.addEventListener('consent-decision', (event) => {
+    void onConsentDecision((event as CustomEvent<ConsentDecisionDetail>).detail);
+  });
+  keySetup.addEventListener('session-only-change', (event) => {
+    void onSessionOnlyChange((event as CustomEvent<SessionOnlyChangeDetail>).detail);
+  });
+  manualForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    void handleManualSubmit(manualInput.value, true);
+  });
+  window.addEventListener('scroll', onWindowScroll, { passive: true });
+
+  updatePreview(null);
+  showIdle();
+  void loadShortcutLine();
+
+  chrome.storage.session.onChanged.addListener((changes) => {
+    const change = changes['tripRequest'];
+    if (change) {
+      void handle(change.newValue);
+    }
+  });
+  void chrome.storage.session.get('tripRequest').then((stored) => {
+    const initial = (stored as { tripRequest?: unknown }).tripRequest;
+    if (initial === undefined) {
+      return;
+    }
+    void handle(initial);
+  });
+};
+
+if (typeof document !== 'undefined') {
+  initPanel();
+}

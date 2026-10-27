@@ -8,8 +8,37 @@
   </head>
   <body>
     <main>
-      <h1 id="title" class="visually-hidden"></h1>
-      <p id="status" role="status"></p>
+      <h1 id="page-title" class="visually-hidden"></h1>
+      <header id="preview-header">
+        <h2 id="preview-heading" class="visually-hidden" tabindex="-1"></h2>
+        <div id="preview-frame"><span id="preview-placeholder"></span></div>
+      </header>
+      <div id="status-region" role="status" class="visually-hidden"></div>
+      <div id="alert-region" role="alert" class="visually-hidden"></div>
+      <div id="result-slot"></div>
+      <div id="links-slot" hidden></div>
+      <div id="guide-slot" hidden>
+        <p id="search-line" hidden></p>
+        <div id="guide-content"></div>
+      </div>
+      <div id="sources-slot" hidden>
+        <h3 id="sources-heading" class="visually-hidden"></h3>
+      </div>
+      <div id="actions-slot">
+        <form id="manual-form">
+          <label id="manual-label" for="manual-input"></label>
+          <input id="manual-input" type="text" autocomplete="off" spellcheck="false">
+          <button id="manual-go" type="submit"></button>
+        </form>
+      </div>
+      <footer id="page-footer">
+        <p id="privacy-line"></p>
+        <details id="links-note">
+          <summary id="links-note-summary"></summary>
+          <p id="links-note-body"></p>
+        </details>
+        <p id="cost-line"></p>
+      </footer>
     </main>
     <script src="sidepanel.js"></script>
   </body>

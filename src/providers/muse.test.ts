@@ -17,20 +17,24 @@ const VALID_PLACE = {
   oneLiner: 'Blue domes over the caldera.',
 };
 
-function chatResponse(place: unknown, usage = { prompt_tokens: 100, completion_tokens: 50 }) {
-  return new Response(
+const chatResponse = (
+  place: unknown,
+  usage = { prompt_tokens: 100, completion_tokens: 50 },
+) =>
+  new Response(
     JSON.stringify({ choices: [{ message: { content: JSON.stringify(place) } }], usage }),
     { status: 200 },
   );
-}
 
-function rawChatResponse(content: string, usage = { prompt_tokens: 100, completion_tokens: 50 }) {
-  return new Response(JSON.stringify({ choices: [{ message: { content } }], usage }), {
+const rawChatResponse = (
+  content: string,
+  usage = { prompt_tokens: 100, completion_tokens: 50 },
+) =>
+  new Response(JSON.stringify({ choices: [{ message: { content } }], usage }), {
     status: 200,
   });
-}
 
-function sseResponse(chunks: string[]) {
+const sseResponse = (chunks: string[]) => {
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
@@ -44,24 +48,22 @@ function sseResponse(chunks: string[]) {
     status: 200,
     headers: { 'Content-Type': 'text/event-stream' },
   });
-}
+};
 
-function identifyInput(overrides: Partial<IdentifyInput> = {}): IdentifyInput {
-  return {
-    imageUrl: 'https://cdn.example.com/oia.jpg',
-    signalsText: 'page title: Santorini guide',
-    signal: new AbortController().signal,
-    ...overrides,
-  };
-}
+const identifyInput = (overrides: Partial<IdentifyInput> = {}): IdentifyInput => ({
+  imageUrl: 'https://cdn.example.com/oia.jpg',
+  signalsText: 'page title: Santorini guide',
+  signal: new AbortController().signal,
+  ...overrides,
+});
 
-async function collect(gen: AsyncGenerator<GuideEvent, void, void>): Promise<GuideEvent[]> {
+const collect = async (gen: AsyncGenerator<GuideEvent, void, void>): Promise<GuideEvent[]> => {
   const out: GuideEvent[] = [];
   for await (const event of gen) {
     out.push(event);
   }
   return out;
-}
+};
 
 let mock: ChromeMock;
 const fetchMock = vi.fn();
@@ -78,14 +80,14 @@ afterEach(() => {
   uninstallChromeMock();
 });
 
-async function consented(): Promise<void> {
+const consented = async (): Promise<void> => {
   await setConsented();
-}
+};
 
-function requestBody(callIndex = 0): Record<string, any> {
+const requestBody = (callIndex = 0): Record<string, any> => {
   const init = fetchMock.mock.calls[callIndex][1] as RequestInit;
   return JSON.parse(init.body as string) as Record<string, any>;
-}
+};
 
 describe('muse identify', () => {
   it('parses structured output and maps usage', async () => {
@@ -247,9 +249,11 @@ describe('muse streamGuide', () => {
     '\n',
   ].join('');
 
-  function input(overrides = {}) {
-    return { destination: 'Oia, Greece', signal: new AbortController().signal, ...overrides };
-  }
+  const input = (overrides = {}) => ({
+    destination: 'Oia, Greece',
+    signal: new AbortController().signal,
+    ...overrides,
+  });
 
   it('parses grounded responses split across chunk boundaries', async () => {
     await consented();

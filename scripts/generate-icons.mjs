@@ -9,7 +9,7 @@ const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const outDir = path.join(root, 'public', 'icons');
 mkdirSync(outDir, { recursive: true });
 
-function crc32(buffer) {
+const crc32 = (buffer) => {
   let crc = 0xffffffff;
   for (const byte of buffer) {
     crc ^= byte;
@@ -18,18 +18,18 @@ function crc32(buffer) {
     }
   }
   return (crc ^ 0xffffffff) >>> 0;
-}
+};
 
-function chunk(type, data) {
+const chunk = (type, data) => {
   const length = Buffer.alloc(4);
   length.writeUInt32BE(data.length);
   const body = Buffer.concat([Buffer.from(type, 'ascii'), data]);
   const crc = Buffer.alloc(4);
   crc.writeUInt32BE(crc32(body));
   return Buffer.concat([length, body, crc]);
-}
+};
 
-function icon(size) {
+const icon = (size) => {
   const bg = [38, 54, 68, 255];
   const cream = [240, 235, 220, 255];
   const transparent = [0, 0, 0, 0];

@@ -1,0 +1,78 @@
+:host, :root {
+  --focus-color: #0b5fff;
+  --text: #1a1a1a;
+  --muted: #5a5a5a;
+  --background: #ffffff;
+  --surface: #f2f2f2;
+  --border: #767676;
+  --link: #0b4fd6;
+  --badge: #5c3d00;
+  --badge-surface: #ffe9a8;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :host, :root {
+    --focus-color: #8ab4ff;
+    --text: #e8e8e8;
+    --muted: #b5b5b5;
+    --background: #1a1a1a;
+    --surface: #2a2a2a;
+    --border: #9a9a9a;
+    --link: #8ab4ff;
+    --badge: #ffe9a8;
+    --badge-surface: #5c3d00;
+  }
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus-color);
+  outline-offset: 2px;
+}
+
+button, a, input, select, summary {
+  min-height: 24px;
+  min-width: 24px;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.skeleton-block {
+  background: var(--surface);
+  border-radius: 4px;
+  min-height: 14px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .skeleton-block {
+    background: linear-gradient(90deg, var(--surface) 25%, var(--border) 50%, var(--surface) 75%);
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.4s linear infinite;
+  }
+
+  @keyframes skeleton-shimmer {
+    from { background-position: 200% 0; }
+    to { background-position: -200% 0; }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-block {
+    animation: none;
+  }
+
+  .typing-caret {
+    display: none;
+  }
+}

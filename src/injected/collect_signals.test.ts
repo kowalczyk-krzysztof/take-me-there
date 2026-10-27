@@ -4,10 +4,10 @@ import { collectSignals } from './collect_signals';
 
 const PAGE_URL = 'https://example.com/travel/santorini-guide?ref=home#top';
 
-function setPageUrl(url: string): void {
+const setPageUrl = (url: string): void => {
   const w = window as unknown as { happyDOM?: { setURL: (url: string) => void } };
   w.happyDOM?.setURL(url);
-}
+};
 
 beforeEach(() => {
   setPageUrl(PAGE_URL);

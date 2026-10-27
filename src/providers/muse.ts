@@ -41,8 +41,8 @@ export class MuseProvider implements Provider {
     structuredOutput: 'json_schema',
   };
 
-  getRates(modelId: string): ModelRates | undefined {
-    return MUSE_SPARK_RATES[modelId];
+  getRates(): ModelRates | undefined {
+    return MUSE_SPARK_RATES[MODEL];
   }
 
   async testKey(key: string): Promise<void> {

@@ -31,7 +31,7 @@ export interface PageSignalData {
   jsonLd: JsonLdPlace[];
 }
 
-export function collectSignals(srcUrl: string): PageSignalData {
+export const collectSignals = (srcUrl: string): PageSignalData => {
   const abs = (u: string): string => {
     try {
       return new URL(u, document.baseURI).href;
@@ -80,14 +80,15 @@ export function collectSignals(srcUrl: string): PageSignalData {
     if ((s.textContent || '').length > 200000) continue; // huge/hostile JSON-LD: skip, don't parse
     try {
       const nodes: Array<unknown> = [];
-      (function walk(n: unknown): void {
+      const walk = (n: unknown): void => {
         if (nodes.length >= 2000) return; // bound traversal on crafted trees
         if (Array.isArray(n)) n.forEach(walk);
         else if (n && typeof n === 'object') {
           nodes.push(n);
           Object.values(n).forEach(walk);
         }
-      })(JSON.parse(s.textContent || ''));
+      };
+      walk(JSON.parse(s.textContent || ''));
       for (const n of nodes) {
         const record = n as Record<string, any>;
         const types = ([] as Array<unknown>)
@@ -162,4 +163,4 @@ export function collectSignals(srcUrl: string): PageSignalData {
     out.nearestParagraph = out.nearestParagraph.slice(0, 120);
   }
   return out;
-}
+};

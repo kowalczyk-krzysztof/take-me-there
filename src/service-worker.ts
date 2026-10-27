@@ -36,16 +36,16 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   void handleImageClick(info.srcUrl ?? '', info.pageUrl ?? null, info.frameId ?? 0, tab.id);
 });
 
-async function handleImageClick(
+const handleImageClick = async (
   srcUrl: string,
   pageUrl: string | null,
   frameId: number,
   tabId: number,
-): Promise<void> {
+): Promise<void> => {
   requestCounter += 1;
   const requestId = `${Date.now()}-${requestCounter}`;
   // storage.session is small and shared: huge inline payloads stay out of it.
-  // The panel treats a blank srcUrl with dataPending as "fetch on load".
+  // The panel treats a blank srcUrl with dataPending as an error state.
   const dataPending = srcUrl.startsWith('data:') && srcUrl.length > MAX_INLINE_DATA_URL;
   const storedSrcUrl = dataPending ? '' : srcUrl;
   await chrome.storage.session.set({
@@ -60,13 +60,13 @@ async function handleImageClick(
   });
   const signals = await scrapeWithTimeout(tabId, frameId, srcUrl);
   await writeTerminalState(requestId, storedSrcUrl, dataPending, pageUrl, tabId, signals);
-}
+};
 
-async function scrapeWithTimeout(
+const scrapeWithTimeout = async (
   tabId: number,
   frameId: number,
   srcUrl: string,
-): Promise<Record<string, unknown>> {
+): Promise<Record<string, unknown>> => {
   try {
     const results = await withTimeout(
       chrome.scripting.executeScript({
@@ -85,24 +85,24 @@ async function scrapeWithTimeout(
     // analysis still proceeds, image-only.
     return {};
   }
-}
+};
 
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> => {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_resolve, reject) => {
     timer = setTimeout(() => reject(new Error('inject timeout')), ms);
   });
   return Promise.race([promise.finally(() => clearTimeout(timer)), timeout]);
-}
+};
 
-async function writeTerminalState(
+const writeTerminalState = async (
   requestId: string,
   srcUrl: string,
   dataPending: boolean,
   pageUrl: string | null,
   tabId: number,
   signals: Record<string, unknown>,
-): Promise<void> {
+): Promise<void> => {
   const record = {
     requestId,
     status: 'ready',
@@ -127,11 +127,11 @@ async function writeTerminalState(
       // Last resort: keep the collecting record; the next click recovers.
     }
   }
-}
+};
 
-async function isCurrentRequest(requestId: string): Promise<boolean> {
+const isCurrentRequest = async (requestId: string): Promise<boolean> => {
   const stored = (await chrome.storage.session.get('tripRequest')) as {
     tripRequest?: { requestId?: string };
   };
   return stored.tripRequest?.requestId === requestId;
-}
+};

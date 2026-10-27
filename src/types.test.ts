@@ -7,7 +7,7 @@ import {
   placeJsonSchema,
 } from './types';
 
-function forbiddenKeys(value: unknown, path = '$'): string[] {
+const forbiddenKeys = (value: unknown, path = '$'): string[] => {
   const hits: string[] = [];
   if (Array.isArray(value)) {
     value.forEach((item, index) => hits.push(...forbiddenKeys(item, `${path}[${index}]`)));
@@ -20,9 +20,9 @@ function forbiddenKeys(value: unknown, path = '$'): string[] {
     }
   }
   return hits;
-}
+};
 
-function assertStrictSubset(schema: Record<string, unknown>, path = '$'): void {
+const assertStrictSubset = (schema: Record<string, unknown>, path = '$'): void => {
   expect(schema.type, `${path} is an object`).toBe('object');
   expect(schema.additionalProperties, `${path} forbids extra keys`).toBe(false);
   const props = schema.properties as Record<string, Record<string, unknown>>;
@@ -38,7 +38,7 @@ function assertStrictSubset(schema: Record<string, unknown>, path = '$'): void {
       assertStrictSubset(prop, `${path}.${name}`);
     }
   }
-}
+};
 
 const VALID_PLACE = {
   identified: true,
@@ -49,7 +49,7 @@ const VALID_PLACE = {
   oneLiner: 'Blue domes over the caldera.',
 };
 
-function validSignals() {
+const validSignals = () => {
   return {
     imgFound: true,
     alt: 'Blue domes',
@@ -68,7 +68,7 @@ function validSignals() {
     imgFileSlug: 'oia',
     jsonLd: [],
   };
-}
+};
 
 describe('place schema pipeline', () => {
   it('emits exactly the strict subset Muse requires', () => {

@@ -10,9 +10,7 @@ beforeEach(() => {
   document.body.append(container);
 });
 
-function tagNames(): string[] {
-  return [...container.children].map((el) => el.tagName);
-}
+const tagNames = (): string[] => [...container.children].map((el) => el.tagName);
 
 describe('render_markdown', () => {
   it('emits real structure and clamps heading levels', () => {

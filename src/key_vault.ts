@@ -15,28 +15,26 @@ export interface KeyRecord {
 
 export type KeyStatus = { state: 'ok'; key: string } | { state: 'missing'; orphaned: boolean };
 
-function storageKey(providerId: string): string {
-  return `apiKey:${providerId}`;
-}
+const storageKey = (providerId: string): string => `apiKey:${providerId}`;
 
-function toBase64(bytes: Uint8Array): string {
+const toBase64 = (bytes: Uint8Array): string => {
   let binary = '';
   for (let i = 0; i < bytes.length; i += 0x8000) {
     binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   }
   return btoa(binary);
-}
+};
 
-function fromBase64(text: string): Uint8Array<ArrayBuffer> {
+const fromBase64 = (text: string): Uint8Array<ArrayBuffer> => {
   const binary = atob(text);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i += 1) {
     bytes[i] = binary.charCodeAt(i);
   }
   return bytes;
-}
+};
 
-async function getOrCreateWrappingKey(): Promise<CryptoKey> {
+const getOrCreateWrappingKey = async (): Promise<CryptoKey> => {
   const existing = (await get(WRAPPING_KEY_ID, vaultStore)) as CryptoKey | undefined;
   if (existing) {
     return existing;
@@ -47,13 +45,13 @@ async function getOrCreateWrappingKey(): Promise<CryptoKey> {
   ]);
   await set(WRAPPING_KEY_ID, created, vaultStore);
   return created;
-}
+};
 
-export async function saveKey(
+export const saveKey = async (
   providerId: string,
   key: string,
   sessionOnly: boolean,
-): Promise<void> {
+): Promise<void> => {
   if (!key) {
     throw new Error('cannot save an empty key');
   }
@@ -73,9 +71,9 @@ export async function saveKey(
     await chrome.storage.local.set({ [name]: record });
     await chrome.storage.session.remove(name);
   }
-}
+};
 
-export async function loadKey(providerId: string): Promise<KeyStatus> {
+export const loadKey = async (providerId: string): Promise<KeyStatus> => {
   const name = storageKey(providerId);
   const fromSession = (await chrome.storage.session.get(name)) as Record<
     string,
@@ -105,10 +103,10 @@ export async function loadKey(providerId: string): Promise<KeyStatus> {
     await clearKey(providerId);
     return { state: 'missing', orphaned: true };
   }
-}
+};
 
-export async function clearKey(providerId: string): Promise<void> {
+export const clearKey = async (providerId: string): Promise<void> => {
   const name = storageKey(providerId);
   await chrome.storage.session.remove(name);
   await chrome.storage.local.remove(name);
-}
+};
