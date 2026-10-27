@@ -138,7 +138,6 @@ export interface IdentifyInput {
   imageUrl: string;
   signalsText: string;
   signal: AbortSignal;
-  insist?: boolean;
   rejectedPlace?: string;
   // Rung 2: when set, the video part wins over imageUrl.
   videoUrl?: string;
@@ -228,7 +227,6 @@ export const formatSignalsForPrompt = (signals: PageSignals, imageOnly: boolean)
 export interface IdentifyMessageOptions {
   signalsText: string;
   imageUrl: string | null;
-  insist: boolean;
   rejectedPlace?: string;
   strictReminder?: boolean;
   videoUrl?: string | null;
@@ -247,9 +245,10 @@ export const buildIdentifyMessages = (opts: IdentifyMessageOptions): ChatMessage
   if (opts.rejectedPlace) {
     text += ` The user says this is NOT ${opts.rejectedPlace}. Identify the next most likely place.`;
   }
-  if (opts.insist) {
-    text += ` The user confirms this ${noun} shows a real place. Name the most likely specific place; do not return identified:false - express doubt via a low confidence instead.`;
-  }
+  // Guess-permissive by default: the panel gates on confidence, so a wrong
+  // guess costs a no-place card while a strict refusal costs a second call.
+  // identified:false is reserved for frames that clearly show no place.
+  text += ` When the place is uncertain, name the most likely specific place with a low confidence instead of returning identified:false. Return identified:false only when the ${noun} clearly shows no place at all (a person close-up, a pet, text on screen, or abstract imagery).`;
   if (opts.strictReminder) {
     text += ' Return ONLY JSON matching this schema, with no other text.';
   }
@@ -406,7 +405,6 @@ const identifyAttempt = async (
   const messages = buildIdentifyMessages({
     signalsText: input.signalsText,
     imageUrl: textOnly ? null : input.imageUrl,
-    insist: input.insist ?? false,
     rejectedPlace: input.rejectedPlace ? sanitizePromptHint(input.rejectedPlace) : undefined,
     strictReminder,
     videoUrl: textOnly ? null : (input.videoUrl ?? null),

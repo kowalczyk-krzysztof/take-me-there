@@ -75,6 +75,11 @@ button.primary {
   border-color: transparent;
 }
 
+button[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: default;
+}
+
 .fallback {
   font-size: 13px;
   color: var(--muted);

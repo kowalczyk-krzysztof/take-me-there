@@ -76,9 +76,7 @@ export class MuseProvider implements Provider {
     if (input.videoUrl) {
       return this.identifyVideo(key, input);
     }
-    return runIdentify(key, input, (messages, schema) =>
-      this.identifyRequest(messages, schema, input.insist ?? false),
-    );
+    return runIdentify(key, input, (messages, schema) => this.identifyRequest(messages, schema));
   }
 
   // Rung 2: json_schema x video is undocumented, so the schema attempt may
@@ -87,7 +85,7 @@ export class MuseProvider implements Provider {
   private async identifyVideo(key: string, input: IdentifyInput): Promise<IdentifyResult> {
     try {
       return await runIdentify(key, input, (messages, schema) =>
-        this.identifyRequest(messages, schema, input.insist ?? false),
+        this.identifyRequest(messages, schema),
       );
     } catch (err) {
       if (err instanceof ProviderError && err.status === 400) {
@@ -194,7 +192,6 @@ export class MuseProvider implements Provider {
           { role: 'user', content: text },
         ],
         placeJsonSchema(),
-        input.insist ?? false,
       );
       let res: Response;
       try {
@@ -229,16 +226,17 @@ export class MuseProvider implements Provider {
     throw invalidResponse(usage, 'model output failed validation');
   }
 
+  // Single effort-first path: every identify runs at medium effort with the
+  // guess-permissive prompt. There is no weak first pass to retry out of.
   private identifyRequest(
     messages: ChatMessage[],
     schema: Record<string, unknown>,
-    insist: boolean,
   ): IdentifyRequest {
     return {
       url: `${API_BASE}/chat/completions`,
       body: {
         model: MODEL,
-        reasoning_effort: insist ? 'medium' : 'low',
+        reasoning_effort: 'medium',
         max_completion_tokens: IDENTIFY_MAX_TOKENS,
         messages,
         response_format: {

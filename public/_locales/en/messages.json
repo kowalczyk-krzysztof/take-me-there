@@ -187,9 +187,17 @@
     "message": "Retry",
     "description": "Error card retry button."
   },
+  "retryingButton": {
+    "message": "Retrying…",
+    "description": "Retry button loading state."
+  },
   "lookAgainButton": {
     "message": "It's a place - look again",
     "description": "No-place card escalation button."
+  },
+  "lookingAgainButton": {
+    "message": "Looking again…",
+    "description": "Look-again button loading state."
   },
   "reanalyzeButton": {
     "message": "Re-analyze",

@@ -873,12 +873,16 @@ interface IdentifyArgs {
   settings: ExtensionSettings;
   key: string;
   origin: 'gesture' | 'panel';
-  insist: boolean;
   rejectedPlace?: string;
 }
 
+// Guesses below this confidence render the no-place card instead of a
+// guide: the model was told to guess rather than refuse, so the panel owns
+// the refusal line. Tune against live traffic.
+const NO_PLACE_MIN_CONFIDENCE = 0.35;
+
 const identifyAndGuide = async (args: IdentifyArgs): Promise<RunOutcome> => {
-  const { request, provider, settings, key, origin, insist, rejectedPlace } = args;
+  const { request, provider, settings, key, origin, rejectedPlace } = args;
   activeProvider = provider;
   const controller = new AbortController();
   activeController = controller;
@@ -897,7 +901,6 @@ const identifyAndGuide = async (args: IdentifyArgs): Promise<RunOutcome> => {
       imageUrl: request.frame?.dataUrl ?? request.srcUrl,
       signalsText,
       signal,
-      insist,
       rejectedPlace,
       videoUrl: videoUrlForRequest(request, provider),
     });
@@ -921,8 +924,10 @@ const identifyAndGuide = async (args: IdentifyArgs): Promise<RunOutcome> => {
     usage: { ...runUsage },
     searchedWeb: false,
   });
-  if (!identify.place.identified) {
+  if (!identify.place.identified || identify.place.confidence < NO_PLACE_MIN_CONFIDENCE) {
     finishController();
+    // Stash the guess: look-again rejects it to force a different candidate.
+    currentPlace = identify.place;
     await renderNoPlace(request, origin);
     await priceAndRecord(provider);
     updatePrivacy(privacy);
@@ -1090,7 +1095,6 @@ const runVideoAnalysis = async (
     settings,
     key,
     origin,
-    insist: false,
   });
 };
 
@@ -1150,7 +1154,6 @@ const runAnalysis = async (request: TripRequest, origin: 'gesture' | 'panel'): P
     settings,
     key: keyStatus.key,
     origin,
-    insist: false,
   });
 };
 
@@ -1223,7 +1226,7 @@ const lookAgain = async (): Promise<void> => {
       settings,
       key: keyStatus.key,
       origin: 'panel',
-      insist: true,
+      rejectedPlace: currentPlace?.placeName || undefined,
     });
   } finally {
     resultSlot.removeAttribute('aria-busy');
@@ -1261,7 +1264,6 @@ const reanalyze = async (): Promise<void> => {
       settings,
       key: keyStatus.key,
       origin: 'panel',
-      insist: false,
       rejectedPlace: currentPlace.placeName,
     });
   } finally {

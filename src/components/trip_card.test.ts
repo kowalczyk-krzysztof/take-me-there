@@ -179,4 +179,30 @@ describe('trip-card', () => {
     });
     expect(root.querySelector('.maps-link')).toBeNull();
   });
+
+  it('fires retry once with a loading state', () => {
+    const { el, root } = mount();
+    el.setCard({ view: 'error', title: 'Fail', body: 'Why', showRetry: true });
+    const retry = root.querySelector('.primary') as HTMLButtonElement;
+    const fired = vi.fn();
+    el.addEventListener('trip-retry', fired);
+    retry.click();
+    retry.click();
+    expect(fired).toHaveBeenCalledTimes(1);
+    expect(retry.getAttribute('aria-disabled')).toBe('true');
+    expect(retry.textContent).toBe('retryingButton');
+  });
+
+  it('fires look-again once with a loading state', () => {
+    const { el, root } = mount();
+    el.setCard({ view: 'no-place', showLookAgain: true, fallback: null });
+    const lookAgain = root.querySelector('.primary') as HTMLButtonElement;
+    const fired = vi.fn();
+    el.addEventListener('trip-look-again', fired);
+    lookAgain.click();
+    lookAgain.click();
+    expect(fired).toHaveBeenCalledTimes(1);
+    expect(lookAgain.getAttribute('aria-disabled')).toBe('true');
+    expect(lookAgain.textContent).toBe('lookingAgainButton');
+  });
 });

@@ -104,7 +104,7 @@ describe('muse identify', () => {
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer LLM_key');
     const body = requestBody();
     expect(body.model).toBe('muse-spark-1.3');
-    expect(body.reasoning_effort).toBe('low');
+    expect(body.reasoning_effort).toBe('medium');
     expect(body.max_completion_tokens).toBe(2048);
     expect(body.response_format.type).toBe('json_schema');
     expect(body.response_format.json_schema.schema.additionalProperties).toBe(false);
@@ -196,18 +196,18 @@ describe('muse identify', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('sanitizes the rejected place and escalates effort on insist', async () => {
+  it('sanitizes the rejected place on guess-escalating retries', async () => {
     await consented();
     fetchMock.mockResolvedValue(chatResponse(VALID_PLACE));
     await provider.identifyPlace(
       'LLM_key',
-      identifyInput({ insist: true, rejectedPlace: 'Paris\nHACK' }),
+      identifyInput({ rejectedPlace: 'Paris\nHACK' }),
     );
     const body = requestBody();
     expect(body.reasoning_effort).toBe('medium');
     const text = body.messages[1].content[0].text as string;
     expect(text).toContain('NOT Paris HACK.');
-    expect(text).toContain('user confirms');
+    expect(text).toContain('low confidence instead of returning identified:false');
   });
 
   it('validates keys against the models endpoint', async () => {

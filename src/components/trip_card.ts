@@ -238,12 +238,9 @@ export class TripCardElement extends HTMLElement {
     body.textContent = msg('noPlaceBody');
     this.root.append(heading, body);
     if (showLookAgain) {
-      const lookAgain = document.createElement('button');
-      lookAgain.type = 'button';
-      lookAgain.className = 'primary';
-      lookAgain.textContent = msg('lookAgainButton');
-      lookAgain.addEventListener('click', () => this.emit('trip-look-again'));
-      this.root.append(lookAgain);
+      this.root.append(
+        this.oneShotButton(msg('lookAgainButton'), msg('lookingAgainButton'), 'trip-look-again'),
+      );
     }
     if (fallback) {
       this.root.append(this.fallbackLine(fallback));
@@ -263,12 +260,9 @@ export class TripCardElement extends HTMLElement {
     bodyEl.textContent = body;
     this.root.append(heading, bodyEl);
     if (showRetry) {
-      const retry = document.createElement('button');
-      retry.type = 'button';
-      retry.className = 'primary';
-      retry.textContent = msg('retryButton');
-      retry.addEventListener('click', () => this.emit('trip-retry'));
-      this.root.append(retry);
+      this.root.append(
+        this.oneShotButton(msg('retryButton'), msg('retryingButton'), 'trip-retry'),
+      );
     }
     if (fallback) {
       this.root.append(this.fallbackLine(fallback));
@@ -298,6 +292,24 @@ export class TripCardElement extends HTMLElement {
       clearInterval(this.rotateTimer);
       this.rotateTimer = undefined;
     }
+  }
+
+  // Re-run buttons fire once: aria-disabled (never native disabled on the
+  // focused control) plus a loading label, reset by the next render.
+  private oneShotButton(label: string, loadingLabel: string, event: string): HTMLButtonElement {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'primary';
+    button.textContent = label;
+    button.addEventListener('click', () => {
+      if (button.getAttribute('aria-disabled') === 'true') {
+        return;
+      }
+      button.setAttribute('aria-disabled', 'true');
+      button.textContent = loadingLabel;
+      this.emit(event);
+    });
+    return button;
   }
 
   private emit(name: string): void {

@@ -255,6 +255,36 @@ describe('sidepanel', () => {
     });
   });
 
+  it('gates low-confidence guesses behind the no-place card', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    const GUESS = { ...VALID_PLACE, confidence: 0.2 };
+    fetchMock
+      .mockResolvedValueOnce(chatResponse(GUESS))
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
+      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
+    await mock.session.set({ tripRequest: READY() });
+    await waitFor(() => {
+      const card = document.querySelector('trip-card');
+      expect(card?.shadowRoot?.querySelector('h2')?.textContent).toBe('noPlaceTitle');
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const card = document.querySelector('trip-card') as HTMLElement;
+    (card.shadowRoot?.querySelector('.primary') as HTMLButtonElement).click();
+    await waitFor(() => {
+      expect(card.shadowRoot?.querySelector('h2')?.textContent).toBe('Oia');
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    const init = fetchMock.mock.calls[1][1] as RequestInit;
+    const body = JSON.parse(init.body as string) as {
+      messages: Array<{ content: Array<{ text?: string }> | string }>;
+      reasoning_effort: string;
+    };
+    const parts = body.messages[1].content as Array<{ text?: string }>;
+    expect(parts[0].text).toContain('NOT Oia');
+    expect(body.reasoning_effort).toBe('medium');
+  });
+
   it('holds back guide preamble and renders from the heading', async () => {
     const mock = await setup();
     await plantKeyAndConsent();

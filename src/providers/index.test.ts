@@ -122,7 +122,6 @@ describe('prompt builders', () => {
     const [developer, user] = buildIdentifyMessages({
       signalsText: 'page title: X',
       imageUrl: 'https://cdn.example.com/oia.jpg',
-      insist: false,
     });
     expect(developer.role).toBe('developer');
     expect(user.role).toBe('user');
@@ -135,18 +134,17 @@ describe('prompt builders', () => {
     ]);
   });
 
-  it('builds text-only messages with insist, rejected, and reminder variants', () => {
+  it('builds text-only messages with rejected and reminder variants', () => {
     const [, user] = buildIdentifyMessages({
       signalsText: 'signals',
       imageUrl: null,
-      insist: true,
       rejectedPlace: 'Paris',
       strictReminder: true,
     });
     expect(typeof user.content).toBe('string');
     const text = user.content as string;
     expect(text).toContain('NOT Paris');
-    expect(text).toContain('user confirms');
+    expect(text).toContain('low confidence instead of returning identified:false');
     expect(text).toContain('ONLY JSON');
   });
 
@@ -165,7 +163,6 @@ describe('prompt builders', () => {
     const [developer, user] = buildIdentifyMessages({
       signalsText: 'page title: X',
       imageUrl: 'https://cdn.example.com/oia.jpg',
-      insist: false,
       videoUrl: 'https://cdn.example.com/trip.mp4',
     });
     expect(developer.content).toContain('from videos');
@@ -262,11 +259,10 @@ describe('prompt builders', () => {
     const [, user] = buildIdentifyMessages({
       signalsText: 'signals',
       imageUrl: 'https://cdn.example.com/oia.jpg',
-      insist: true,
     });
     const parts = user.content as Array<{ type: string; text?: string }>;
     expect(parts[0].text).toContain('shown in this image');
-    expect(parts[0].text).toContain('confirms this image shows');
+    expect(parts[0].text).toContain('low confidence instead of returning identified:false');
   });
 });
 
