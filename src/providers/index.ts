@@ -284,7 +284,8 @@ export const buildIdentifyMessages = (opts: IdentifyMessageOptions): ChatMessage
 export const buildGuidePrompt = (destination: string, language?: string): string => {
   let prompt =
     `Write a concise trip guide for ${destination}: a 2-3 sentence overview, 4-6 highlight ` +
-    'bullets, the best time to visit, and how to get there. Keep it factual and skip places you are unsure about.';
+    'bullets, the best time to visit, and how to get there. Keep it factual and skip places you are unsure about. ' +
+    "Begin your answer immediately with the '## ' heading naming the place: no preamble, no acknowledgement.";
   if (language) {
     prompt += ` Write the guide in ${language}.`;
   }

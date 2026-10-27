@@ -155,6 +155,12 @@ describe('prompt builders', () => {
     expect(buildGuidePrompt('Oia, Greece', 'de')).toContain('in de');
   });
 
+  it('orders the guide to start at the heading with no preamble', () => {
+    const prompt = buildGuidePrompt('Oia, Greece');
+    expect(prompt).toContain("'## ' heading");
+    expect(prompt).toContain('no preamble, no acknowledgement');
+  });
+
   it('builds the nested video message shape, winning over imageUrl', () => {
     const [developer, user] = buildIdentifyMessages({
       signalsText: 'page title: X',

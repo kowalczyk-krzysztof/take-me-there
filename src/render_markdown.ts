@@ -4,6 +4,26 @@
 // full re-render can never strand half-open structures mid-stream.
 export const MAX_GUIDE_CHARS = 20000;
 
+// Offset of the first rendered heading, or -1 when the source holds none
+// yet. The streamer holds back everything before it, so model
+// throat-clearing ("I'll research X for you…") never reaches the reader;
+// only the final result renders. Glued markers ("…guide.## Place", which
+// models emit without a newline) count, single hashes do not (C# prose).
+export const findGuideStart = (source: string): number => {
+  let offset = 0;
+  for (const line of source.split('\n')) {
+    if (/^#{1,6}\s+\S/.test(line)) {
+      return offset;
+    }
+    const mid = /#{2,6}\s+\S/.exec(line);
+    if (mid) {
+      return offset + mid.index;
+    }
+    offset += line.length + 1;
+  }
+  return -1;
+};
+
 export interface GuideRenderer {
   push(text: string): void;
   finish(): void;

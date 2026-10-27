@@ -32,7 +32,7 @@ import {
 import { buildDestination, buildLinks, mapsDirUrl } from './deep_links';
 import { loadKey, saveKey } from './key_vault';
 import { estimateCostUsd, formatUsd, recordMonthSpend } from './pricing';
-import { createGuideRenderer } from './render_markdown';
+import { createGuideRenderer, findGuideStart } from './render_markdown';
 import {
   TRIP_REQUEST_SCHEMA,
   type ItineraryPlan,
@@ -780,6 +780,7 @@ const streamGuideRun = async (args: StreamArgs): Promise<RunOutcome> => {
   let guideSource = '';
   const sources: GuideSource[] = [];
   let searchedWeb = false;
+  let guideStarted = false;
   try {
     const events = provider.streamGuide(key, {
       destination,
@@ -790,8 +791,17 @@ const streamGuideRun = async (args: StreamArgs): Promise<RunOutcome> => {
     for await (const event of events) {
       if (event.type === 'delta') {
         guideSource += event.text;
-        renderer.push(event.text);
-        autoScrollGuide();
+        if (!guideStarted) {
+          const start = findGuideStart(guideSource);
+          if (start >= 0) {
+            guideStarted = true;
+            renderer.push(guideSource.slice(start));
+            autoScrollGuide();
+          }
+        } else {
+          renderer.push(event.text);
+          autoScrollGuide();
+        }
       } else if (event.type === 'searching') {
         searchedWeb = true;
         searchLine.textContent = msg('statusSearchingWeb');
@@ -820,6 +830,13 @@ const streamGuideRun = async (args: StreamArgs): Promise<RunOutcome> => {
     showProviderError(err, activeRequest, privacy);
     analysisInFlight = false;
     return 'error';
+  }
+  if (!guideStarted) {
+    // Degenerate stream with no heading: render everything rather than
+    // dropping content the hold-back rule cannot place.
+    renderer.push(guideSource);
+  } else {
+    guideSource = guideSource.slice(findGuideStart(guideSource));
   }
   renderer.finish();
   guideContent.removeAttribute('aria-busy');
@@ -1419,7 +1436,8 @@ const narrationPrompt = (pins: BoardPin[], plan: ItineraryPlan): string => {
   }
   let prompt =
     `Narrate this trip itinerary day by day with a '## Day N: title' heading per day, ` +
-    `4-6 highlight bullets across the trip, best months, and transport notes where relevant. Day plan:\n${dayPlan}`;
+    `4-6 highlight bullets across the trip, best months, and transport notes where relevant. ` +
+    `Begin your answer immediately with the '## Day 1' heading: no preamble, no acknowledgement. Day plan:\n${dayPlan}`;
   const language = chrome.i18n.getUILanguage();
   if (language) {
     prompt += ` Write the narration in ${language}.`;

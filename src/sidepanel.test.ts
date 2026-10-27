@@ -255,6 +255,34 @@ describe('sidepanel', () => {
     });
   });
 
+  it('holds back guide preamble and renders from the heading', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    fetchMock
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
+      .mockResolvedValueOnce(
+        sseResponse([
+          'event: response.output_text.delta\n',
+          'data: {"delta":"I will research Oia to build your factual trip guide."}\n',
+          '\n',
+          'event: response.output_text.delta\n',
+          'data: {"delta":"## Oia\\nHello world"}\n',
+          '\n',
+          'event: response.completed\n',
+          'data: {"response":{"usage":{"input_tokens":100,"output_tokens":50}}}\n',
+          '\n',
+        ]),
+      );
+    await mock.session.set({ tripRequest: READY() });
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('statusGuideReady');
+    });
+    const content = document.querySelector('#guide-content');
+    expect(content?.textContent).toContain('Hello world');
+    expect(content?.textContent).not.toContain('research Oia');
+    expect(content?.querySelector('h3')?.textContent).toBe('Oia');
+  });
+
   it('gates the first video analysis behind the frame confirm', async () => {
     const mock = await setup();
     await plantKeyAndConsent();

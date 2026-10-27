@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { beforeEach, describe, expect, it } from 'vitest';
-import { createGuideRenderer } from './render_markdown';
+import { createGuideRenderer, findGuideStart } from './render_markdown';
 
 let container: HTMLElement;
 
@@ -71,5 +71,32 @@ describe('render_markdown', () => {
     render.push(' ignored');
     expect(render.charCount).toBe(5);
     expect(container.textContent).toBe('Hello');
+  });
+});
+
+describe('findGuideStart', () => {
+  it('cuts throat-clearing before the first heading', () => {
+    const glued = "I'll research Martissant to build your factual trip guide.## Martissant";
+    expect(findGuideStart(glued)).toBe(glued.indexOf('## Martissant'));
+    const spaced = 'One moment please. ## Martissant, Port-au-Prince';
+    expect(findGuideStart(spaced)).toBe(spaced.indexOf('## Martissant'));
+  });
+
+  it('returns zero for heading-first guides and -1 without headings', () => {
+    expect(findGuideStart('## Oia\nHello')).toBe(0);
+    expect(findGuideStart('# Oia')).toBe(0);
+    expect(findGuideStart('Hello world')).toBe(-1);
+    expect(findGuideStart('')).toBe(-1);
+  });
+
+  it('ignores hashtag lookalikes and bare markers', () => {
+    expect(findGuideStart('#hashtag\n## Real')).toBe('#hashtag\n'.length);
+    expect(findGuideStart('## \n## Real')).toBe('## \n'.length);
+    expect(findGuideStart('C# notes\nno heading')).toBe(-1);
+    expect(findGuideStart('100# coverage')).toBe(-1);
+  });
+
+  it('finds headings past blank lines and CRLF endings', () => {
+    expect(findGuideStart('preamble\n\n### Day 1\r\ntext')).toBe('preamble\n\n'.length);
   });
 });
