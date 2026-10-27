@@ -1,7 +1,4 @@
-// Self-contained video-frame capturer, serialized into the page by
-// chrome.scripting.executeScript (Booster 2, rung 1). Same hard rules as
-// collectSignals: no imports, no closures over module scope (every constant
-// lives inside the function body), JSON-only argument and return value.
+// Serialized into the page: no imports, no module-scope closures, JSON-only argument and return.
 
 export type FrameFailureReason =
   | 'no-match'

@@ -1,7 +1,4 @@
-// Self-contained page-image collector for D2 page scans, serialized into
-// the page by chrome.scripting.executeScript. Same hard rules as
-// collectSignals: no imports, no closures over module scope (every constant
-// lives inside the function body), JSON-only return value.
+// Serialized into the page: no imports, no module-scope closures, JSON-only return.
 export interface HarvestedImage {
   url: string;
   caption: string;

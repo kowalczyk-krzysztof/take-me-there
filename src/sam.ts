@@ -1,7 +1,3 @@
-// Booster 3 (stretch): sam-3.1 crop-to-landmark for "look again". The model
-// answers token-grammar text (`<|box;x1=..;y1=..;x2=..;y2=..;w=..;h=..|>`);
-// masks are never decoded. Every coordinate is validated before anything is
-// drawn or cropped, and any failure degrades to the full image.
 import { encodeBase64, FETCH_JPEG_QUALITY, FETCH_MAX_SIDE } from './image_fetch';
 
 export interface SamTokenBox {

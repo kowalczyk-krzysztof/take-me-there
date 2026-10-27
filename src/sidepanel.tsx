@@ -912,8 +912,8 @@ const showProviderError = (
   fetchRetryAvailable = false,
 ): void => {
   const privacy = privacyOverride ?? errorPrivacy(request);
-  // Milestone 2: a 400 on the image-bearing identify means the model could
-  // not fetch the remote image, so the card offers the byte-fetch retry.
+  // A 400 on the image-bearing identify means the model could not fetch
+  // the remote image, so the card offers the byte-fetch retry.
   const fetchRetry =
     fetchRetryAvailable &&
     err instanceof ProviderError &&
@@ -1339,7 +1339,7 @@ const runVideoAnalysis = async (
   });
 };
 
-// ---- Page scan (D2) ----
+// ---- Page scan ----
 
 const scanPlaceResult = (place: ScannedPlace): PlaceResult => ({
   identified: true,
@@ -1676,7 +1676,7 @@ const handle = async (value: unknown): Promise<void> => {
   await runAnalysis(request, 'gesture');
 };
 
-// ---- SAM crop-to-landmark (Booster 3) ----
+// ---- SAM crop-to-landmark ----
 
 const SAM_OVERLAY_DWELL_MS = 1200;
 
@@ -1931,10 +1931,10 @@ const retry = async (): Promise<void> => {
   }
 };
 
-// Milestone 2: the model could not fetch the remote image, so the panel
-// downloads the bytes itself (per-origin grant, credentials omitted) and
-// retries with a data: URL. The grant is removed in the finally so it never
-// outlives the click.
+// The model could not fetch the remote image, so the panel downloads the
+// bytes itself (per-origin grant, credentials omitted) and retries with a
+// data: URL. The grant is removed in the finally so it never outlives the
+// click.
 const fetchRetry = async (): Promise<void> => {
   const target =
     lastRun?.kind === 'request' ? lastRun.request : (
@@ -1996,7 +1996,7 @@ const fetchRetry = async (): Promise<void> => {
   }
 };
 
-// ---- Destination duel (D3) + alternates (D4) ----
+// ---- Destination duel + alternates ----
 
 const FINDING_KEYS: Record<AlternateIntent, string> = {
   cheaper: 'alternatesFindingCheaper',
@@ -2289,7 +2289,7 @@ const onPlanInstead = async (index: number): Promise<void> => {
   if (!target || currentView !== 'result') {
     return;
   }
-  // Model-produced destinations re-enter through the section-9 rule.
+  // Model-produced destinations are sanitized before re-entering a prompt.
   const destination = sanitizePromptHint(buildDestination(target.placeName, '', target.country));
   if (!destination) {
     return;
@@ -2331,7 +2331,7 @@ const onPlanInstead = async (index: number): Promise<void> => {
   }
 };
 
-// ---- Trip Board (D1) ----
+// ---- Trip Board ----
 
 const pinDisplayName = (pin: BoardPin): string =>
   buildDestination(pin.place.placeName, pin.place.city, pin.place.country);

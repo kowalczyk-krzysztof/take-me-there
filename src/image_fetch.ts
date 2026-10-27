@@ -1,7 +1,3 @@
-// Milestone 2: unreachable-image retry. Fetches the clicked image's bytes
-// in the panel (per-origin grant, credentials omitted), downscales to a
-// bounded JPEG, and returns a data: URL for the retry. The caller owns the
-// permissions request/remove lifecycle; this module only moves bytes.
 export const FETCH_MAX_BYTES = 10000000;
 export const FETCH_MAX_SIDE = 1280;
 export const FETCH_JPEG_QUALITY = 0.85;

@@ -499,9 +499,9 @@ export class MuseProvider implements Provider {
     throw invalidResponse(usage, 'model output failed validation');
   }
 
-  // Booster 3: one sam-3.1 segmentation call with a bare-noun prompt. The
-  // answer is token-grammar text (parsed by sam.ts); empty text is a valid
-  // no-match, never an error.
+  // One sam-3.1 segmentation call with a bare-noun prompt. The answer is
+  // token-grammar text (parsed by sam.ts); empty text is a valid no-match,
+  // never an error.
   async segmentLandmark(key: string, input: SegmentInput): Promise<SegmentResult> {
     requireKey(key);
     await assertConsent();

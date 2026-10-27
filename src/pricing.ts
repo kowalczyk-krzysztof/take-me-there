@@ -15,7 +15,7 @@ export const MUSE_SPARK_RATES: Record<string, ModelRates> = {
 
 // Web grounding bills per search query on top of tokens.
 export const WEB_SEARCH_COST_USD = 0.0025;
-// Flat fee per sam-3.1 image call (the stretch crop feature).
+// Flat fee per sam-3.1 image call.
 export const SAM_IMAGE_COST_USD = 0.0025;
 
 export const estimateCostUsd = (usage: Usage, rates?: ModelRates): number | null => {

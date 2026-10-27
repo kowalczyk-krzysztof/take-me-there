@@ -1,7 +1,3 @@
-// On-device fallback provider (Milestone 3): Chrome's built-in Prompt API
-// (Gemini Nano). Fully feature-detected so the extension's floor stands;
-// nothing leaves the browser, so neither the key vault nor the Meta consent
-// gate applies. Best effort by design: callers always label Nano results.
 import type { ModelRates } from '../pricing';
 import {
   alternatesJsonSchema,

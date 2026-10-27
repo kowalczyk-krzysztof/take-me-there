@@ -1,8 +1,3 @@
-// Trip board persistence (D1): pinned places live in storage.local with
-// thumbnails at rest. Dedupe by hashed (placeName, country) tuple with
-// length-prefixed components (a pipe in a name cannot collide); FIFO
-// eviction at the cap; storage failures throw so the panel can surface the
-// no-thumbnail retry instead of lying about the pin.
 import type { PlaceResult } from './types';
 
 export interface BoardPin {

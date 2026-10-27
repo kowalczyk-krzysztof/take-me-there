@@ -126,8 +126,8 @@ export const readChatUsage = (
   };
 };
 
-// Section-9 rule: model output re-entering a prompt is truncated and stripped
-// of control characters so page-shaped text cannot steer a second hop.
+// Model output re-entering a prompt is truncated and stripped of control
+// characters so page-shaped text cannot steer a second hop.
 export const sanitizePromptHint = (value: string, maxLength = 80): string =>
   value
     .replace(/[\u0000-\u001F\u007F]+/g, ' ')
@@ -428,8 +428,8 @@ export const parseScanContent = (json: unknown): ScannedPlace[] | undefined => {
   return [...best.values()];
 };
 
-// Head-to-head duel over two known places. Compared names re-enter through
-// the section-9 sanitize rule; the verdict is a "pick this one if..."
+// Head-to-head duel over two known places. Compared names are sanitized
+// before re-entering the prompt; the verdict is a "pick this one if..."
 // one-liner, never a bare winner.
 export const buildDuelMessages = (
   a: DuelSide,
@@ -720,9 +720,9 @@ export const extractResponsesStructured = (data: unknown): ResponsesStructured |
 };
 
 // One multi-image structuring call over the pinned stops. Stored pin names
-// re-enter the prompt through the section-9 sanitize rule; thumbnails ride
-// as image parts (board cap 24, far under the 50-image limit); pins without
-// pixels contribute name and host only.
+// are sanitized before re-entering the prompt; thumbnails ride as image
+// parts (board cap 24, far under the 50-image limit); pins without pixels
+// contribute name and host only.
 export const buildItineraryMessages = (
   pins: ItineraryPin[],
   strictReminder: boolean,
@@ -868,8 +868,7 @@ const identifyAttempt = async (
         throw err;
       }
       // Image AND text paths failed: surface the original image-400 (with
-      // the accrued usage) so the panel can offer the Milestone-2
-      // byte-fetch retry.
+      // the accrued usage) so the panel can offer the byte-fetch retry.
       const imageError = new ProviderError(
         'server',
         'image unreachable and text fallback failed',
