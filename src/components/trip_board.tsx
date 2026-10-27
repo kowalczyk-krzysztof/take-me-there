@@ -1,11 +1,9 @@
 import { createRoot, type Root } from 'react-dom/client';
 import { flushSync } from 'react-dom';
-import { injectComponentStyles } from './shared_styles';
-import elementCss from './trip_board.css?raw';
+import styles from './trip_board.module.css';
 import { msg } from '../utils/i18n';
 import { emit } from '../utils/events';
 
-injectComponentStyles('trip-board', elementCss);
 
 export interface BoardItemView {
   placeName: string;
@@ -37,9 +35,9 @@ const BoardItem = ({ host, item }: { host: HTMLElement; item: BoardItemView }) =
     ) : (
       <div className="thumb-monogram" aria-hidden="true">{item.title.trim().charAt(0)}</div>
     )}
-    <div className="item-text">
-      <p className="item-name">{item.title}</p>
-      <p className="item-host">{item.host}</p>
+    <div className={styles['item-text']}>
+      <p className={styles['item-name']}>{item.title}</p>
+      <p className={styles['item-host']}>{item.host}</p>
     </div>
     <button
       type="button"
@@ -70,20 +68,20 @@ const BoardView = ({
 }) => (
   <section aria-labelledby="board-heading">
     <h2 id="board-heading">
-      <button type="button" className="disclosure" aria-expanded={open} onClick={onToggle}>
+      <button type="button" className={styles.disclosure} aria-expanded={open} onClick={onToggle}>
         {msg('boardTitle', String(items.length))}
       </button>
     </h2>
     <div className="board-body" hidden={!open || undefined}>
       {confirming !== null ? (
         <>
-          <h2 tabIndex={-1} className="confirm-heading">
+          <h2 tabIndex={-1} className={styles['confirm-heading']}>
             {msg('boardClearTitle', String(confirming))}
           </h2>
-          <div className="confirm-actions">
+          <div className={styles['confirm-actions']}>
             <button
               type="button"
-              className="primary"
+              className={styles.primary}
               onClick={() => emit(host, 'trip-clear-confirm')}
             >
               {msg('boardClear')}
@@ -96,7 +94,7 @@ const BoardView = ({
       ) : (
         <>
           {items.length === 0 ? (
-            <p className="empty">{msg('boardEmpty')}</p>
+            <p className={styles.empty}>{msg('boardEmpty')}</p>
           ) : (
             <ul aria-labelledby="board-heading">
               {items.map((item) => (
@@ -104,10 +102,10 @@ const BoardView = ({
               ))}
             </ul>
           )}
-          <div className="plan-row">
+          <div className={styles['plan-row']}>
             <button
               type="button"
-              className="primary plan-button"
+              className={`${styles.primary} plan-button`}
               aria-disabled={!canPlan || undefined}
               onClick={() => {
                 if (canPlan) {
@@ -117,14 +115,14 @@ const BoardView = ({
             >
               {msg('boardPlan')}
             </button>
-            {!canPlan ? <p className="plan-note">{msg('boardPlanNote')}</p> : null}
+            {!canPlan ? <p className={styles['plan-note']}>{msg('boardPlanNote')}</p> : null}
           </div>
           {items.length > 0 ? (
-            <button type="button" className="clear-button" onClick={onClear}>
+            <button type="button" className={styles['clear-button']} onClick={onClear}>
               {msg('boardClear')}
             </button>
           ) : null}
-          <p className="notice" hidden={notice.text === null || undefined}>
+          <p className={styles.notice} hidden={notice.text === null || undefined}>
             {notice.text !== null ? <span>{notice.text}</span> : null}
             {notice.text !== null && notice.retry ? (
               <button type="button" onClick={() => emit(host, 'trip-retry-pin')}>
@@ -147,6 +145,7 @@ export class TripBoardElement extends HTMLElement {
   private confirming: number | null = null;
 
   connectedCallback(): void {
+    this.classList.add(styles.root);
     this.root ??= createRoot(this);
     this.render();
   }

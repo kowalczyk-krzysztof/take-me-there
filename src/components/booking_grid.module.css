@@ -1,10 +1,10 @@
-booking-grid {
+.root {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
 }
 
-booking-grid .tile {
+.root .tile {
   display: flex;
   align-items: center;
   justify-content: center;

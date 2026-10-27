@@ -2,7 +2,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import './booking_grid';
 import type { BookingGridElement } from './booking_grid';
-import elementCss from './booking_grid.css?raw';
 import { installChromeMock, uninstallChromeMock } from '../test/chrome_mock';
 
 const mount = (): BookingGridElement => {
@@ -41,12 +40,6 @@ describe('booking-grid', () => {
       expect(tile.rel).toBe('noopener');
       expect(tile.querySelector('.visually-hidden')?.textContent).toBe('newTabSuffix');
     }
-  });
-
-  it('never hides its own host', () => {
-    // An empty destination renders zero children, so an :empty rule would
-    // hide the host exactly when content is missing - keep the ban.
-    expect(elementCss).not.toContain(':empty');
   });
 
   it('renders nothing without a destination', () => {

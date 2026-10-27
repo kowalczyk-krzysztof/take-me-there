@@ -4,6 +4,7 @@
   "description": "Right-click any image to identify the place with Muse AI and plan a trip from the side panel.",
   "private": true,
   "type": "module",
+  "sideEffects": ["*.css", "./src/components/*.tsx"],
   "scripts": {
     "dev": "rspack build --config rspack.config.mjs --mode development --watch",
     "build": "rspack build --config rspack.config.mjs --mode production",

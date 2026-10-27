@@ -1,11 +1,8 @@
 import type { GuideSource } from '../providers/index';
 import { createRoot, type Root } from 'react-dom/client';
 import { flushSync } from 'react-dom';
-import { injectComponentStyles } from './shared_styles';
-import elementCss from './source_chips.css?raw';
+import styles from './source_chips.module.css';
 import { msg } from '../utils/i18n';
-
-injectComponentStyles('source-chips', elementCss);
 
 const safeHttpUrl = (raw: string): string | null => {
   try {
@@ -35,7 +32,7 @@ const SourceChipsView = ({ sources }: { sources: GuideSource[] }) => (
         return null;
       }
       return (
-        <a key={`${href}-${index}`} href={href} target="_blank" rel="noopener noreferrer" className="chip">
+        <a key={`${href}-${index}`} href={href} target="_blank" rel="noopener noreferrer" className={styles.chip}>
           {hostnameOf(href)}
           <span className="visually-hidden">{msg('newTabSuffix')}</span>
         </a>
@@ -50,6 +47,7 @@ export class SourceChipsElement extends HTMLElement {
 
   setSources(sources: GuideSource[]): void {
     this.sources = sources;
+    this.classList.add(styles.root);
     this.root ??= createRoot(this);
     flushSync(() => {
       this.root?.render(<SourceChipsView sources={this.sources} />);

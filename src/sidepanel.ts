@@ -38,7 +38,7 @@ import type {
   TripRemovePinDetail,
 } from './components/trip_board';
 import type { TripCardElement } from './components/trip_card';
-import { ensureSharedStyles, prefersReducedMotion } from './components/shared_styles';
+import { prefersReducedMotion } from './utils/dom';
 import {
   clearBoard,
   dedupeKeyFor,
@@ -97,6 +97,8 @@ import {
   type Usage,
 } from './providers/index';
 import { msg } from './utils/i18n';
+import './styles/sidepanel.css';
+import './components/shared_styles.css';
 
 const SKELETON_DELAY_MS = 200;
 const SKELETON_MIN_MS = 300;
@@ -2670,7 +2672,6 @@ export const initPanel = (): void => {
     return;
   }
   initialized = true;
-  ensureSharedStyles();
   pageTitle = req('page-title');
   previewHeading = req('preview-heading');
   previewFrame = req('preview-frame');

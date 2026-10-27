@@ -1,11 +1,9 @@
 import { createRoot, type Root } from 'react-dom/client';
 import { flushSync } from 'react-dom';
-import { injectComponentStyles } from './shared_styles';
-import elementCss from './key_setup.css?raw';
+import styles from './key_setup.module.css';
 import { msg } from '../utils/i18n';
 import { emit } from '../utils/events';
 
-injectComponentStyles('key-setup', elementCss);
 
 const DASHBOARD_URL = 'https://dev.meta.ai';
 
@@ -37,8 +35,8 @@ const NanoSection = ({
   }
   if (nano === 'downloading') {
     return (
-      <div className="nano-section">
-        <p className="hint" id="nano-hint">{msg('nanoDownloadHint')}</p>
+      <div className={styles['nano-section']}>
+        <p className={styles.hint} id="nano-hint">{msg('nanoDownloadHint')}</p>
         <progress
           id="nano-progress"
           max={100}
@@ -49,12 +47,12 @@ const NanoSection = ({
     );
   }
   return (
-    <div className="nano-section">
-      <p className="hint" id="nano-hint">{msg('nanoDownloadHint')}</p>
-      {nano === 'failed' ? <p className="error">{msg('nanoDownloadFail')}</p> : null}
+    <div className={styles['nano-section']}>
+      <p className={styles.hint} id="nano-hint">{msg('nanoDownloadHint')}</p>
+      {nano === 'failed' ? <p className={styles.error}>{msg('nanoDownloadFail')}</p> : null}
       <button
         type="button"
-        className="secondary"
+        className={styles.secondary}
         aria-describedby="nano-hint"
         onClick={() => emit(host, 'nano-enable')}
       >
@@ -76,6 +74,7 @@ export class KeySetupElement extends HTMLElement {
   private nanoProgress: number | null = null;
 
   connectedCallback(): void {
+    this.classList.add(styles.root);
     this.root ??= createRoot(this);
     this.addEventListener('change', this.onChange);
     this.render();
@@ -182,18 +181,18 @@ export class KeySetupElement extends HTMLElement {
         this.view === 'consent' ? (
           <>
             <h2 tabIndex={-1}>{msg('consentTitle')}</h2>
-            <p className="consent-body">{msg('consentBody')}</p>
-            <div className="button-row">
+            <p className={styles['consent-body']}>{msg('consentBody')}</p>
+            <div className={styles['button-row']}>
               <button
                 type="button"
-                className="primary"
+                className={styles.primary}
                 onClick={() => emit(host, 'consent-decision', { agreed: true } satisfies ConsentDecisionDetail)}
               >
                 {msg('agreeButton')}
               </button>
               <button
                 type="button"
-                className="secondary"
+                className={styles.secondary}
                 onClick={() => emit(host, 'consent-decision', { agreed: false } satisfies ConsentDecisionDetail)}
               >
                 {msg('declineButton')}
@@ -217,7 +216,7 @@ export class KeySetupElement extends HTMLElement {
               emit(host, 'key-save-request', { key, sessionOnly: this.sessionOnly } satisfies KeySaveRequestDetail);
             }}
           >
-            <label className="field-label" htmlFor="key-input">{msg('keyLabel')}</label>
+            <label className={styles['field-label']} htmlFor="key-input">{msg('keyLabel')}</label>
             <input
               id="key-input"
               type={this.revealed ? 'text' : 'password'}
@@ -228,17 +227,17 @@ export class KeySetupElement extends HTMLElement {
               aria-invalid={this.error === null ? undefined : 'true'}
               placeholder={msg('keyPlaceholder')}
             />
-            <p className="hint" id="key-hint">{msg('keyHint')}</p>
-            <p className="dashboard">
+            <p className={styles.hint} id="key-hint">{msg('keyHint')}</p>
+            <p className={styles.dashboard}>
               <a href={DASHBOARD_URL} target="_blank" rel="noopener noreferrer">
                 {msg('dashboardLink')}
                 <span className="visually-hidden">{msg('newTabSuffix')}</span>
               </a>
             </p>
-            <p className="error" id="key-error" hidden={this.error === null || undefined}>
+            <p className={styles.error} id="key-error" hidden={this.error === null || undefined}>
               {this.error}
             </p>
-            <label className="checkbox-row">
+            <label className={styles['checkbox-row']}>
               {/* Uncontrolled + keyed: programmatic setSessionOnly
                   remounts with the new default; user toggles never
                   re-render, so the DOM keeps the user's value. */}
@@ -250,17 +249,17 @@ export class KeySetupElement extends HTMLElement {
               />
               <span>{msg('sessionOnlyLabel')}</span>
             </label>
-            <div className="button-row">
+            <div className={styles['button-row']}>
               <button
                 type="submit"
-                className="primary"
+                className={styles.primary}
                 aria-disabled={this.pending || undefined}
               >
                 {msg(this.pending ? 'validatingButton' : 'saveKeyButton')}
               </button>
               <button
                 type="button"
-                className="secondary"
+                className={styles.secondary}
                 aria-pressed={this.revealed ? 'true' : 'false'}
                 onClick={() => {
                   this.revealed = !this.revealed;
@@ -276,8 +275,8 @@ export class KeySetupElement extends HTMLElement {
               nanoInstead={this.nanoInstead}
               nanoProgress={this.nanoProgress}
             />
-            <p className="notice">{msg('securityNotice')}</p>
-            <p className="hygiene">{msg('keyHygiene')}</p>
+            <p className={styles.notice}>{msg('securityNotice')}</p>
+            <p className={styles.hygiene}>{msg('keyHygiene')}</p>
           </form>
         ),
       );

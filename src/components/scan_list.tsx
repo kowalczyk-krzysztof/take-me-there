@@ -1,11 +1,9 @@
 import { createRoot, type Root } from 'react-dom/client';
 import { flushSync } from 'react-dom';
-import { injectComponentStyles } from './shared_styles';
-import elementCss from './scan_list.css?raw';
+import styles from './scan_list.module.css';
 import { msg } from '../utils/i18n';
 import { emit } from '../utils/events';
 
-injectComponentStyles('scan-list', elementCss);
 
 export interface ScanItemView {
   placeName: string;
@@ -38,7 +36,7 @@ const PinSelectedButton = ({
 }) => (
   <button
     type="button"
-    className="primary pin-selected"
+    className={`${styles.primary} ${styles['pin-selected']}`}
     onClick={() => {
       const indices = items
         .map((item, index) => ({ item, index }))
@@ -61,7 +59,7 @@ const ScanCard = ({
   index: number;
   initialChecked: boolean;
 }) => (
-  <div className="scan-card" role="group" aria-label={item.title}>
+  <div className={styles['scan-card']} role="group" aria-label={item.title}>
     {item.image ? (
       <img
         alt=""
@@ -70,9 +68,9 @@ const ScanCard = ({
         onError={(event) => event.currentTarget.remove()}
       />
     ) : (
-      <div className="thumb-placeholder" aria-hidden="true" />
+      <div className={styles['thumb-placeholder']} aria-hidden="true" />
     )}
-    <label className="select-row">
+    <label className={styles['select-row']}>
       {/* Uncontrolled: a delegated native change listener on the host
           tracks toggles, so programmatic sets fire it too. */}
       <input
@@ -82,7 +80,7 @@ const ScanCard = ({
       />
       <span>{item.title}</span>
     </label>
-    <div className="card-actions">
+    <div className={styles['card-actions']}>
       <button
         type="button"
         onClick={() => emit(host, 'scan-guide', { index } satisfies ScanGuideDetail)}
@@ -109,6 +107,7 @@ export class ScanListElement extends HTMLElement {
   private epoch = 0;
 
   connectedCallback(): void {
+    this.classList.add(styles.root);
     this.root ??= createRoot(this);
     this.addEventListener('change', this.onChange);
     this.render();
@@ -170,14 +169,14 @@ export class ScanListElement extends HTMLElement {
           <section aria-busy={loading} aria-labelledby="scan-heading">
             <h2 id="scan-heading" tabIndex={-1}>{msg('scanTitle')}</h2>
             {loading ? (
-              <div className="skeleton-grid" aria-hidden="true">
+              <div className={styles['skeleton-grid']} aria-hidden="true">
                 {[0, 1, 2, 3, 4, 5].map((index) => (
-                  <div key={index} className="skeleton-block skeleton-card" />
+                  <div key={index} className={`skeleton-block ${styles['skeleton-card']}`} />
                 ))}
               </div>
             ) : (
               <>
-                <div className="scan-results" key={epoch}>
+                <div className={styles['scan-results']} key={epoch}>
                   {items.map((item, index) => (
                     <ScanCard key={index} host={host} item={item} index={index} initialChecked={checked.has(item.title)} />
                   ))}

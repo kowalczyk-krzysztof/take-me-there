@@ -1,11 +1,9 @@
 import { createRoot, type Root } from 'react-dom/client';
 import { flushSync } from 'react-dom';
-import { injectComponentStyles } from './shared_styles';
-import elementCss from './compare_table.css?raw';
+import styles from './compare_table.module.css';
 import { msg } from '../utils/i18n';
 import { emit } from '../utils/events';
 
-injectComponentStyles('compare-table', elementCss);
 
 export interface DuelRowView {
   criterion: string;
@@ -46,7 +44,7 @@ const DuelTable = ({ state }: { state: Extract<DuelState, { mode: 'loading' | 'r
                 <td>{row.b}</td>
               </tr>
             ))}
-            <tr className="verdict">
+            <tr className={styles.verdict}>
               <th scope="row">{msg('duelVerdict')}</th>
               <td colSpan={2}>{state.verdict}</td>
             </tr>
@@ -61,6 +59,7 @@ export class CompareTableElement extends HTMLElement {
   private state: DuelState = { mode: 'loading', a: '', b: '' };
 
   connectedCallback(): void {
+    this.classList.add(styles.root);
     this.root ??= createRoot(this);
     this.render();
   }
@@ -92,9 +91,9 @@ export class CompareTableElement extends HTMLElement {
       flushSync(() => {
         this.root?.render(
           state.mode === 'error' ? (
-            <div className="duel-error">
+            <div className={styles['duel-error']}>
               <p>{msg('duelError', [state.a, state.b])}</p>
-              <button type="button" className="primary" onClick={() => emit(host, 'duel-retry')}>
+              <button type="button" className={styles.primary} onClick={() => emit(host, 'duel-retry')}>
                 {msg('duelRetry')}
               </button>
             </div>

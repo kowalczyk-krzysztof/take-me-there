@@ -7,7 +7,6 @@ import type {
   KeySetupElement,
   SessionOnlyChangeDetail,
 } from './components/key_setup';
-import { ensureSharedStyles } from './components/shared_styles';
 import { clearKey, loadKey, saveKey } from './key_vault';
 import { formatUsd, readMonthSpend, resetMonthSpend } from './pricing';
 import {
@@ -17,6 +16,8 @@ import {
   saveSettings,
 } from './providers/index';
 import { msg } from './utils/i18n';
+import './styles/options.css';
+import './components/shared_styles.css';
 
 const req = <T extends HTMLElement>(id: string): T => {
   const el = document.getElementById(id);
@@ -36,7 +37,6 @@ export const initOptions = (): void => {
     return;
   }
   initialized = true;
-  ensureSharedStyles();
 
   document.title = msg('appName');
   document.documentElement.lang = msg('@@ui_locale').replace('_', '-');

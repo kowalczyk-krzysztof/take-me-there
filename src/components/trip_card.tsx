@@ -2,12 +2,11 @@ import { useEffect, useRef, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import type { PlaceResult } from '../types';
-import { injectComponentStyles, prefersReducedMotion } from './shared_styles';
-import elementCss from './trip_card.css?raw';
+import { prefersReducedMotion } from '../utils/dom';
+import styles from './trip_card.module.css';
 import { msg } from '../utils/i18n';
 import { emit } from '../utils/events';
 
-injectComponentStyles('trip-card', elementCss);
 
 export interface ItineraryStopView {
   name: string;
@@ -85,8 +84,8 @@ const ROTATE_MS = 2500;
 
 const IdleView = ({ hint, shortcut }: { hint: string; shortcut: string }) => (
   <>
-    <p className="hint">{hint}</p>
-    <p className="shortcut">{shortcut}</p>
+    <p className={styles.hint}>{hint}</p>
+    <p className={styles.shortcut}>{shortcut}</p>
   </>
 );
 
@@ -102,11 +101,11 @@ const LoadingView = () => {
     return () => clearInterval(timer);
   }, []);
   return (
-    <div className="skeleton" aria-hidden="true">
+    <div className={styles.skeleton} aria-hidden="true">
       {['60%', '40%', '100%', '100%'].map((width, index) => (
         <div key={index} className="skeleton-block" style={{ width }} />
       ))}
-      <p className="cosmetic">{msg(LOADING_LINES[index])}</p>
+      <p className={styles.cosmetic}>{msg(LOADING_LINES[index])}</p>
     </div>
   );
 };
@@ -127,7 +126,7 @@ const OneShotButton = ({
   return (
     <button
       type="button"
-      className="primary"
+      className={styles.primary}
       aria-disabled={fired || undefined}
       onClick={() => {
         if (firedRef.current) {
@@ -144,7 +143,7 @@ const OneShotButton = ({
 };
 
 const FallbackLine = ({ fallback }: { fallback: { label: string; href: string } }) => (
-  <p className="fallback">
+  <p className={styles.fallback}>
     <span>{`${msg('fallbackPrefix')} `}</span>
     <a href={fallback.href} target="_blank" rel="noopener">
       {fallback.label}
@@ -160,14 +159,14 @@ const ChipsRow = ({ host, alternates }: { host: HTMLElement; alternates: Alterna
     { intent: 'similar', key: 'alternatesSimilar' },
   ];
   return (
-    <div className="chips-row">
+    <div className={styles['chips-row']}>
       {intents.map(({ intent, key }) => {
         const busy = alternates.state === 'loading' && alternates.intent === intent;
         return (
           <button
             key={intent}
             type="button"
-            className="chip"
+            className={styles.chip}
             data-intent={intent}
             aria-disabled={busy || undefined}
             onClick={() => {
@@ -187,33 +186,33 @@ const ChipsRow = ({ host, alternates }: { host: HTMLElement; alternates: Alterna
 
 const AlternatesView = ({ host, alternates }: { host: HTMLElement; alternates: AlternatesView }) => {
   if (alternates.state === 'idle') {
-    return <div className="alternates" hidden />;
+    return <div className={styles.alternates} hidden />;
   }
   if (alternates.state === 'loading') {
     return (
-      <div className="alternates" aria-busy="true">
-        <div className="alternates-skeletons" aria-hidden="true">
+      <div className={styles.alternates} aria-busy="true">
+        <div className={styles['alternates-skeletons']} aria-hidden="true">
           {[0, 1, 2].map((index) => (
-            <div key={index} className="skeleton-block skeleton-card" />
+            <div key={index} className={`skeleton-block ${styles['skeleton-card']}`} />
           ))}
         </div>
       </div>
     );
   }
   return (
-    <div className="alternates" aria-busy="false">
+    <div className={styles.alternates} aria-busy="false">
       {alternates.cards.map((card, index) => (
-        <div key={index} className="alternate-card">
-          <div className="alternate-head">
+        <div key={index} className={styles['alternate-card']}>
+          <div className={styles['alternate-head']}>
             <div className="thumb-monogram" aria-hidden="true">{card.name.trim().charAt(0)}</div>
-            <p className="alternate-name">{card.name}</p>
+            <p className={styles['alternate-name']}>{card.name}</p>
           </div>
-          <p className="alternate-why">{card.why}</p>
-          <p className="alternate-month">{msg('alternatesBestMonth', card.bestMonth)}</p>
-          <div className="alternate-actions">
+          <p className={styles['alternate-why']}>{card.why}</p>
+          <p className={styles['alternate-month']}>{msg('alternatesBestMonth', card.bestMonth)}</p>
+          <div className={styles['alternate-actions']}>
             <button
               type="button"
-              className="pin-button"
+              className={styles['pin-button']}
               aria-pressed={card.pinned}
               onClick={() => {
                 emit(host, 'trip-pin-alternate', { index } satisfies TripPinAlternateDetail);
@@ -239,7 +238,7 @@ const AlternatesView = ({ host, alternates }: { host: HTMLElement; alternates: A
 const CompareRow = ({ host, options }: { host: HTMLElement; options: CompareOptionView[] }) => {
   const selectRef = useRef<HTMLSelectElement>(null);
   return (
-    <div className="compare-row">
+    <div className={styles['compare-row']}>
       <label>
         {msg('compareLabel')}
         <select ref={selectRef}>
@@ -280,21 +279,21 @@ const ResultView = ({
         {lowConfidence ? (
           <>
             {' '}
-            <span className="badge">{msg('bestGuessBadge')}</span>
+            <span className={styles.badge}>{msg('bestGuessBadge')}</span>
           </>
         ) : null}
         {onDevice ? (
           <>
             {' '}
-            <span className="badge nano-badge">{msg('nanoBadge')}</span>
+            <span className={`${styles.badge} nano-badge`}>{msg('nanoBadge')}</span>
           </>
         ) : null}
       </h2>
-      {subtitle ? <p className="subtitle">{subtitle}</p> : null}
-      {place.oneLiner ? <p className="oneliner">{place.oneLiner}</p> : null}
+      {subtitle ? <p className={styles.subtitle}>{subtitle}</p> : null}
+      {place.oneLiner ? <p className={styles.oneliner}>{place.oneLiner}</p> : null}
       <button
         type="button"
-        className="pin-button"
+        className={styles['pin-button']}
         aria-pressed={pinned}
         onClick={() => emit(host, 'trip-pin')}
       >
@@ -305,7 +304,7 @@ const ResultView = ({
       {compareOptions.length > 0 ? <CompareRow host={host} options={compareOptions} /> : null}
       <details>
         <summary>{msg('notThisPlace')}</summary>
-        <div className="disagree-buttons">
+        <div className={styles['disagree-buttons']}>
           <button type="button" onClick={() => emit(host, 'trip-reanalyze')}>
             {msg('reanalyzeButton')}
           </button>
@@ -325,15 +324,15 @@ const ItineraryView = ({
 }) => (
   <>
     <h2 tabIndex={-1}>{title}</h2>
-    <ol className="stop-list">
+    <ol className={styles['stop-list']}>
       {stops.map((stop) => (
         <li key={stop.name}>
-          <p className="stop-name">{stop.name}</p>
+          <p className={styles['stop-name']}>{stop.name}</p>
           {stop.nights !== null ? (
-            <p className="stop-nights">{msg('itineraryNights', String(stop.nights))}</p>
+            <p className={styles['stop-nights']}>{msg('itineraryNights', String(stop.nights))}</p>
           ) : null}
           {stop.links.length > 0 ? (
-            <p className="stop-links">
+            <p className={styles['stop-links']}>
               {stop.links.map((link, index) => (
                 <span key={link.id}>
                   {index > 0 ? ' · ' : null}
@@ -349,7 +348,7 @@ const ItineraryView = ({
       ))}
     </ol>
     {mapsUrl ? (
-      <a className="maps-link" href={mapsUrl} target="_blank" rel="noopener">
+      <a className={styles['maps-link']} href={mapsUrl} target="_blank" rel="noopener">
         {mapsLabel}
         <span className="visually-hidden">{msg('newTabSuffix')}</span>
       </a>
@@ -490,6 +489,7 @@ export class TripCardElement extends HTMLElement {
   private epoch = 0;
 
   connectedCallback(): void {
+    this.classList.add(styles.root);
     this.root ??= createRoot(this);
     this.render({ view: 'loading' });
   }

@@ -1,17 +1,15 @@
 import { buildLinks } from '../deep_links';
 import { createRoot, type Root } from 'react-dom/client';
 import { flushSync } from 'react-dom';
-import { injectComponentStyles } from './shared_styles';
-import elementCss from './booking_grid.css?raw';
+import styles from './booking_grid.module.css';
 import { msg } from '../utils/i18n';
 
-injectComponentStyles('booking-grid', elementCss);
 
 const BookingGridView = ({ destination }: { destination: string }) => (
   <>
     {destination
       ? buildLinks(destination).map((link) => (
-          <a key={link.id} href={link.href} target="_blank" rel="noopener" className="tile">
+          <a key={link.id} href={link.href} target="_blank" rel="noopener" className={styles.tile}>
             {msg(`bookingLink_${link.id}`)}
             <span className="visually-hidden">{msg('newTabSuffix')}</span>
           </a>
@@ -26,6 +24,7 @@ export class BookingGridElement extends HTMLElement {
 
   setDestination(destination: string): void {
     this.destination = destination;
+    this.classList.add(styles.root);
     this.root ??= createRoot(this);
     flushSync(() => {
       this.root?.render(<BookingGridView destination={this.destination} />);

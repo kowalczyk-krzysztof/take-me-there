@@ -6,7 +6,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from '@rspack/cli';
-import { CopyRspackPlugin } from '@rspack/core';
+import { CopyRspackPlugin, SwcJsMinimizerRspackPlugin } from '@rspack/core';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 
@@ -24,17 +24,25 @@ export default defineConfig((_env, argv) => {
     output: {
       path: path.join(root, 'dist'),
       filename: '[name].js',
+      cssFilename: '[name].css',
       clean: true,
+    },
+    experiments: {
+      css: true,
     },
     resolve: {
       extensions: ['.tsx', '.ts', '.js'],
     },
     module: {
+      parser: {
+        'css/auto': {
+          namedExports: false,
+        },
+      },
       rules: [
         {
           test: /\.css$/,
-          resourceQuery: /raw/,
-          type: 'asset/source',
+          type: 'css/auto',
         },
         {
           test: /\.tsx?$/,
@@ -54,6 +62,9 @@ export default defineConfig((_env, argv) => {
     optimization: {
       splitChunks: false,
       runtimeChunk: false,
+      // JS minify only: the CSS minifier silently truncates multi-module
+      // output, and 14 KB of unminified local CSS is fine.
+      minimizer: [new SwcJsMinimizerRspackPlugin()],
     },
     devtool: isProd ? false : 'inline-source-map',
     plugins: [

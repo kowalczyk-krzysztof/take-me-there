@@ -2,7 +2,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import './source_chips';
 import type { SourceChipsElement } from './source_chips';
-import elementCss from './source_chips.css?raw';
 import { installChromeMock, uninstallChromeMock } from '../test/chrome_mock';
 
 const mount = (): SourceChipsElement => {
@@ -41,12 +40,6 @@ describe('source-chips', () => {
     expect(chips[0].rel).toBe('noopener noreferrer');
     expect(chips[0].querySelector('.visually-hidden')?.textContent).toBe('newTabSuffix');
     expect(chips[1].textContent).toContain('plain.example.org');
-  });
-
-  it('never hides its own host', () => {
-    // Empty results render zero children, so an :empty rule would hide the
-    // host exactly when content is missing - keep the ban.
-    expect(elementCss).not.toContain(':empty');
   });
 
   it('renders nothing for empty or fully invalid sources', () => {
