@@ -101,6 +101,19 @@ describe('trip-card', () => {
     expect(root.querySelector('.oneliner')).toBeNull();
   });
 
+  it('keeps the full description on the clamped oneliner', () => {
+    const oneLiner = 'A very long description that the stylesheet clamps to three lines.';
+    const root = renderCard({
+      view: 'result',
+      place: { ...PLACE, oneLiner },
+      lowConfidence: false,
+      pinned: false,
+    }).container;
+    const oneliner = root.querySelector('.oneliner') as HTMLElement;
+    expect(oneliner.textContent).toBe(oneLiner);
+    expect(oneliner.getAttribute('title')).toBe(oneLiner);
+  });
+
   it('renders intent chips that emit one-shot alternates events', () => {
     const onAlternates = vi.fn();
     const root = renderCard(

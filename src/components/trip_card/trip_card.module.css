@@ -4,7 +4,14 @@
 }.root .subtitle {
   margin: 0 0 4px;
   color: var(--muted);
-}.root .oneliner { margin: 0 0 8px; }.root .badge {
+}.root .oneliner {
+  margin: 0 0 8px;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}.root .badge {
   display: inline-block;
   font-size: 12px;
   padding: 2px 8px;

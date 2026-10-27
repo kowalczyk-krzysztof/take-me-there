@@ -38,7 +38,7 @@ export const ResultView = ({
         ) : null}
       </h2>
       {subtitle ? <p className={styles.subtitle}>{subtitle}</p> : null}
-      {place.oneLiner ? <p className={styles.oneliner}>{place.oneLiner}</p> : null}
+      {place.oneLiner ? <p className={styles.oneliner} title={place.oneLiner}>{place.oneLiner}</p> : null}
       <button
         type="button"
         className={styles['pin-button']}
