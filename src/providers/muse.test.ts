@@ -717,3 +717,69 @@ describe('muse findAlternates', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
+
+describe('muse segmentLandmark', () => {
+  const segmentResponse = (text: string) =>
+    new Response(
+      JSON.stringify({
+        output: [
+          {
+            type: 'message',
+            content: [{ type: 'output_text', text, annotations: [] }],
+          },
+        ],
+        usage: { input_tokens: 900, output_tokens: 40 },
+      }),
+      { status: 200 },
+    );
+
+  it('sends the verified sam-3.1 shape and prices the flat fee', async () => {
+    await consented();
+    fetchMock.mockResolvedValue(
+      segmentResponse('Found <|box;x1=1;y1=2;x2=3;y2=4;w=10;h=10|> here.'),
+    );
+    const result = await provider.segmentLandmark('LLM_key', {
+      imageDataUrl: 'data:image/jpeg;base64,AAA',
+      signal: new AbortController().signal,
+    });
+    expect(result.text).toContain('<|box;');
+    expect(result.usage).toEqual({
+      inputTokens: 900,
+      outputTokens: 40,
+      searchCount: 0,
+      flatFeesUsd: 0.0025,
+    });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain('/responses');
+    const body = JSON.parse(init.body as string) as {
+      model: string;
+      input: Array<{ content: Array<{ type: string; text?: string; image_url?: string }> }>;
+      metadata: Record<string, string>;
+      stream: boolean;
+    };
+    expect(body.model).toBe('sam-3.1');
+    expect(body.input[0].content[0]).toEqual({ type: 'input_text', text: 'building' });
+    expect(body.input[0].content[1]?.image_url).toBe('data:image/jpeg;base64,AAA');
+    expect(body.metadata).toEqual({ include_confidence: 'true' });
+    expect(body.stream).toBe(false);
+    expect('tools' in body).toBe(false);
+  });
+
+  it('treats empty text as a no-match and rejects transport failures', async () => {
+    await consented();
+    fetchMock.mockResolvedValueOnce(segmentResponse(''));
+    const result = await provider.segmentLandmark('LLM_key', {
+      imageDataUrl: 'data:image/jpeg;base64,AAA',
+      signal: new AbortController().signal,
+    });
+    expect(result.text).toBe('');
+    fetchMock.mockReset();
+    fetchMock.mockResolvedValueOnce(new Response('boom', { status: 500 }));
+    await expect(
+      provider.segmentLandmark('LLM_key', {
+        imageDataUrl: 'data:image/jpeg;base64,AAA',
+        signal: new AbortController().signal,
+      }),
+    ).rejects.toMatchObject({ code: 'server' });
+  });
+});

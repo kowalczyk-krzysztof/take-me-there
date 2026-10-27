@@ -1153,6 +1153,153 @@ describe('sidepanel', () => {
     });
   });
 
+  it('looks again through a SAM crop', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    const permsRequest = vi.fn().mockResolvedValue(true);
+    const permsRemove = vi.fn().mockResolvedValue(undefined);
+    (chrome as unknown as { permissions: unknown }).permissions = {
+      request: permsRequest,
+      remove: permsRemove,
+    };
+    vi.stubGlobal('createImageBitmap', vi.fn().mockResolvedValue({ width: 400, height: 300, close: vi.fn() }));
+    vi.stubGlobal(
+      'OffscreenCanvas',
+      vi.fn().mockImplementation(function (this: unknown) {
+        return {
+          getContext: () => ({ drawImage: vi.fn() }),
+          convertToBlob: async () => new Blob(['pixels']),
+        };
+      }),
+    );
+    const GUESS = { ...VALID_PLACE, confidence: 0.2 };
+    fetchMock
+      .mockResolvedValueOnce(chatResponse(GUESS))
+      .mockResolvedValueOnce(new Response(new Uint8Array([1, 2, 3])))
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            output: [
+              {
+                type: 'message',
+                content: [
+                  {
+                    type: 'output_text',
+                    text: 'Crop <|box;x1=100;y1=100;x2=600;y2=500;w=1000;h=1000|> here.',
+                    annotations: [],
+                  },
+                ],
+              },
+            ],
+            usage: { input_tokens: 900, output_tokens: 40 },
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
+      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
+    await mock.session.set({ tripRequest: READY() });
+    await waitFor(() => {
+      const card = document.querySelector('trip-card');
+      expect(card?.shadowRoot?.querySelector('h2')?.textContent).toBe('noPlaceTitle');
+    });
+    const card = document.querySelector('trip-card') as HTMLElement;
+    (card.shadowRoot?.querySelector('.primary') as HTMLButtonElement).click();
+    await waitFor(() => {
+      expect(card.shadowRoot?.querySelector('h2')?.textContent).toBe('Oia');
+    });
+    expect(permsRequest).toHaveBeenCalledWith({ origins: ['https://cdn.example.com/*'] });
+    expect(permsRemove).toHaveBeenCalledWith({ origins: ['https://cdn.example.com/*'] });
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+    const samUrl = fetchMock.mock.calls[2][0] as string;
+    expect(samUrl).toContain('/responses');
+    const samInit = fetchMock.mock.calls[2][1] as RequestInit;
+    expect(JSON.parse(samInit.body as string) as { model: string }).toMatchObject({
+      model: 'sam-3.1',
+    });
+    const retryInit = fetchMock.mock.calls[3][1] as RequestInit;
+    const retryBody = JSON.parse(retryInit.body as string) as {
+      messages: Array<{ content: Array<{ type: string; image_url?: { url: string } }> }>;
+    };
+    const imagePart = retryBody.messages[1].content.find((part) => part.type === 'image_url');
+    expect(imagePart?.image_url?.url.startsWith('data:image/jpeg;base64,')).toBe(true);
+    const preview = document.querySelector('#preview-frame img') as HTMLImageElement;
+    expect(preview.src.startsWith('data:image/jpeg;base64,')).toBe(true);
+    expect(preview.alt).toBe('previewAltIdentified');
+    expect(document.querySelector('.preview-caption')?.textContent).toBe('samZoomCaption');
+  });
+
+  it('falls back to the full image when SAM fails or finds nothing', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    const permsRequest = vi.fn().mockResolvedValue(true);
+    (chrome as unknown as { permissions: unknown }).permissions = {
+      request: permsRequest,
+      remove: vi.fn().mockResolvedValue(undefined),
+    };
+    vi.stubGlobal('createImageBitmap', vi.fn().mockResolvedValue({ width: 400, height: 300, close: vi.fn() }));
+    vi.stubGlobal(
+      'OffscreenCanvas',
+      vi.fn().mockImplementation(function (this: unknown) {
+        return {
+          getContext: () => ({ drawImage: vi.fn() }),
+          convertToBlob: async () => new Blob(['pixels']),
+        };
+      }),
+    );
+    const GUESS = { ...VALID_PLACE, confidence: 0.2 };
+    const samEmpty = new Response(
+      JSON.stringify({
+        output: [{ type: 'message', content: [{ type: 'output_text', text: '', annotations: [] }] }],
+        usage: { input_tokens: 900, output_tokens: 5 },
+      }),
+      { status: 200 },
+    );
+    fetchMock
+      .mockResolvedValueOnce(chatResponse(GUESS))
+      .mockResolvedValueOnce(new Response(new Uint8Array([1, 2, 3])))
+      .mockResolvedValueOnce(new Response('boom', { status: 500 }))
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
+      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]))
+      .mockResolvedValueOnce(chatResponse(GUESS))
+      .mockResolvedValueOnce(new Response(new Uint8Array([1, 2, 3])))
+      .mockResolvedValueOnce(samEmpty)
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
+      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
+    const imageOf = (callIndex: number): string | undefined => {
+      const init = fetchMock.mock.calls[callIndex][1] as RequestInit;
+      const body = JSON.parse(init.body as string) as {
+        messages: Array<{ content: Array<{ type: string; image_url?: { url: string } }> }>;
+      };
+      return body.messages[1].content.find((part) => part.type === 'image_url')?.image_url?.url;
+    };
+    await mock.session.set({ tripRequest: READY() });
+    await waitFor(() => {
+      const card = document.querySelector('trip-card');
+      expect(card?.shadowRoot?.querySelector('h2')?.textContent).toBe('noPlaceTitle');
+    });
+    let card = document.querySelector('trip-card') as HTMLElement;
+    (card.shadowRoot?.querySelector('.primary') as HTMLButtonElement).click();
+    await waitFor(() => {
+      expect(card.shadowRoot?.querySelector('h2')?.textContent).toBe('Oia');
+    });
+    expect(imageOf(3)).toBe('https://cdn.example.com/oia.jpg');
+    await mock.session.set({
+      tripRequest: READY({ requestId: '200-2', srcUrl: 'https://cdn.example.com/fira.jpg' }),
+    });
+    await waitFor(() => {
+      const retry = document.querySelector('trip-card');
+      expect(retry?.shadowRoot?.querySelector('h2')?.textContent).toBe('noPlaceTitle');
+    });
+    card = document.querySelector('trip-card') as HTMLElement;
+    (card.shadowRoot?.querySelector('.primary') as HTMLButtonElement).click();
+    await waitFor(() => {
+      expect(card.shadowRoot?.querySelector('h2')?.textContent).toBe('Oia');
+    });
+    expect(imageOf(8)).toBe('https://cdn.example.com/fira.jpg');
+    expect(fetchMock).toHaveBeenCalledTimes(10);
+  });
+
   it('renders honest cards with fallback links for unreadable video', async () => {
     const mock = await setup();
     await plantKeyAndConsent();

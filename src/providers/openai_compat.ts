@@ -47,6 +47,8 @@ import {
   type ProviderCapabilities,
   type ScanInput,
   type ScanResult,
+  type SegmentInput,
+  type SegmentResult,
   type Usage,
 } from './index';
 
@@ -264,6 +266,16 @@ export class OpenAiCompatProvider implements Provider {
       parseAlternatesContent,
     );
     return { alternatives, sources: [], usage: { ...usage } };
+  }
+
+  async segmentLandmark(key: string, _input: SegmentInput): Promise<SegmentResult> {
+    requireKey(key);
+    await assertConsent();
+    throw new ProviderError(
+      'not_configured',
+      'segmentation is not configured on this provider',
+      false,
+    );
   }
 
   async *streamGuide(key: string, input: GuideInput): AsyncGenerator<GuideEvent, void, void> {

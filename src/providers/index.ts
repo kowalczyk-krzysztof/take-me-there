@@ -247,6 +247,7 @@ export interface Provider {
   scanPlaces(key: string, input: ScanInput): Promise<ScanResult>;
   duelPlaces(key: string, input: DuelInput): Promise<DuelResult>;
   findAlternates(key: string, input: AlternatesInput): Promise<AlternatesResult>;
+  segmentLandmark(key: string, input: SegmentInput): Promise<SegmentResult>;
   getRates(): ModelRates | undefined;
 }
 
@@ -586,6 +587,16 @@ export const extractChatJson = (data: unknown): unknown => {
   }
 };
 
+export interface SegmentInput {
+  imageDataUrl: string;
+  signal: AbortSignal;
+}
+
+export interface SegmentResult {
+  text: string;
+  usage: Usage;
+}
+
 export interface ResponsesStructured {
   json: unknown;
   sources: GuideSource[];
@@ -593,6 +604,44 @@ export interface ResponsesStructured {
   inputTokens: number;
   outputTokens: number;
 }
+
+export interface ResponsesText {
+  text: string;
+  inputTokens: number;
+  outputTokens: number;
+}
+
+// First output_text block of a non-streaming Responses envelope, with token
+// usage. Token-grammar answers (SAM boxes) are text, never JSON.
+export const extractResponsesText = (data: unknown): ResponsesText | undefined => {
+  const root = (data ?? {}) as {
+    output?: unknown;
+    usage?: { input_tokens?: unknown; output_tokens?: unknown };
+  };
+  if (!Array.isArray(root.output)) {
+    return undefined;
+  }
+  for (const item of root.output) {
+    const entry = (item ?? {}) as {
+      type?: unknown;
+      content?: Array<{ type?: unknown; text?: unknown }>;
+    };
+    if (entry.type !== 'message' || !Array.isArray(entry.content)) {
+      continue;
+    }
+    for (const block of entry.content) {
+      if (block?.type === 'output_text' && typeof block.text === 'string') {
+        return {
+          text: block.text,
+          inputTokens: typeof root.usage?.input_tokens === 'number' ? root.usage.input_tokens : 0,
+          outputTokens:
+            typeof root.usage?.output_tokens === 'number' ? root.usage.output_tokens : 0,
+        };
+      }
+    }
+  }
+  return undefined;
+};
 
 // Pull the first structured text block out of a non-streaming Responses
 // envelope, with citations, search count, and token usage alongside.

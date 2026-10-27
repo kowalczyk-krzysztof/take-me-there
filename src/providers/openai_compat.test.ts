@@ -330,3 +330,17 @@ describe('compat findAlternates', () => {
     expect(init.body as string).toContain('smaller crowds');
   });
 });
+
+describe('compat segmentLandmark', () => {
+  it('throws not_configured without fetching', async () => {
+    await setConsented();
+    const provider = new OpenAiCompatProvider(config());
+    await expect(
+      provider.segmentLandmark('sk_key', {
+        imageDataUrl: 'data:image/jpeg;base64,AAA',
+        signal: new AbortController().signal,
+      }),
+    ).rejects.toMatchObject({ code: 'not_configured' });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});

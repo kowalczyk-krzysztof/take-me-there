@@ -31,6 +31,7 @@ main {
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
   min-height: 96px;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -44,6 +45,26 @@ main {
   max-width: 100%;
   max-height: 160px;
   display: block;
+}
+
+.sam-box {
+  position: absolute;
+  border: 3px solid var(--link);
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+.preview-caption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin: 0;
+  padding: 2px 6px;
+  font-size: 12px;
+  text-align: center;
+  background: var(--surface);
+  color: var(--text);
 }
 
 #guide-content {

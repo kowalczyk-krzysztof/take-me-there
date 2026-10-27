@@ -2,7 +2,7 @@
 // json_schema is verified); the trip guide streams from the web-grounded
 // Responses API with a chat-completions fallback behind the transport flag.
 import { EventSourceParserStream, type EventSourceMessage } from 'eventsource-parser/stream';
-import { MUSE_SPARK_RATES, type ModelRates } from '../pricing';
+import { MUSE_SPARK_RATES, SAM_IMAGE_COST_USD, type ModelRates } from '../pricing';
 import {
   alternatesJsonSchema,
   duelJsonSchema,
@@ -26,6 +26,7 @@ import {
   emptyUsage,
   extractChatJson,
   extractResponsesStructured,
+  extractResponsesText,
   fetchChatCompletion,
   invalidResponse,
   parseAlternatesContent,
@@ -58,6 +59,8 @@ import {
   type ProviderCapabilities,
   type ScanInput,
   type ScanResult,
+  type SegmentInput,
+  type SegmentResult,
   type Usage,
 } from './index';
 
@@ -72,7 +75,7 @@ export class MuseProvider implements Provider {
   readonly capabilities: ProviderCapabilities = {
     video: true,
     webGrounding: true,
-    segmentation: false,
+    segmentation: true,
     structuredOutput: 'json_schema',
   };
 
@@ -493,6 +496,57 @@ export class MuseProvider implements Provider {
       return { alternatives: chat.value, sources: chat.sources, usage: { ...usage } };
     }
     throw invalidResponse(usage, 'model output failed validation');
+  }
+
+  // Booster 3: one sam-3.1 segmentation call with a bare-noun prompt. The
+  // answer is token-grammar text (parsed by sam.ts); empty text is a valid
+  // no-match, never an error.
+  async segmentLandmark(key: string, input: SegmentInput): Promise<SegmentResult> {
+    requireKey(key);
+    await assertConsent();
+    const usage = emptyUsage();
+    let res: Response;
+    try {
+      res = await fetch(`${API_BASE}/responses`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+        body: JSON.stringify({
+          model: 'sam-3.1',
+          input: [
+            {
+              type: 'message',
+              role: 'user',
+              content: [
+                { type: 'input_text', text: 'building' },
+                { type: 'input_image', image_url: input.imageDataUrl },
+              ],
+            },
+          ],
+          metadata: { include_confidence: 'true' },
+          stream: false,
+        }),
+        signal: input.signal,
+      });
+    } catch (err) {
+      throw toNetworkError(err, input.signal);
+    }
+    if (!res.ok) {
+      throw responseError(res);
+    }
+    let data: unknown;
+    try {
+      data = (await res.json()) as unknown;
+    } catch {
+      throw invalidResponse(usage, 'segmentation response is not JSON');
+    }
+    const extracted = extractResponsesText(data);
+    if (!extracted) {
+      throw invalidResponse(usage, 'segmentation response has no text');
+    }
+    usage.inputTokens += extracted.inputTokens;
+    usage.outputTokens += extracted.outputTokens;
+    usage.flatFeesUsd += SAM_IMAGE_COST_USD;
+    return { text: extracted.text, usage: { ...usage } };
   }
 
   async *streamGuide(key: string, input: GuideInput): AsyncGenerator<GuideEvent, void, void> {

@@ -808,6 +808,18 @@
     "message": "Permission for that server was denied.",
     "description": "Custom server denial error."
   },
+  "samZoomed": {
+    "message": "Zoomed in on the landmark for a second look",
+    "description": "SAM crop announcement."
+  },
+  "samZoomCaption": {
+    "message": "Zoomed in on the landmark",
+    "description": "SAM crop preview caption."
+  },
+  "previewAltCrop": {
+    "message": "Cropped view of the landmark being re-analyzed",
+    "description": "SAM crop preview alt text."
+  },
   "boardNoticePinFail": {
     "message": "Couldn't pin $1 - storage is unavailable.",
     "description": "Visible pin-failure notice.",

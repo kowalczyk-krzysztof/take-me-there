@@ -9,6 +9,7 @@ import {
   buildScanMessages,
   extractChatJson,
   extractResponsesStructured,
+  extractResponsesText,
   formatSignalsForPrompt,
   getActiveProvider,
   getProvider,
@@ -430,6 +431,22 @@ describe('prompt builders', () => {
         output: [{ type: 'message', content: [{ type: 'output_text', text: 'nope' }] }],
       }),
     ).toBeUndefined();
+  });
+
+  it('extracts raw response text for token-grammar answers', () => {
+    const data = {
+      output: [
+        { type: 'web_search_call' },
+        {
+          type: 'message',
+          content: [{ type: 'output_text', text: 'boxes here', annotations: [] }],
+        },
+      ],
+      usage: { input_tokens: 10, output_tokens: 5 },
+    };
+    expect(extractResponsesText(data)).toEqual({ text: 'boxes here', inputTokens: 10, outputTokens: 5 });
+    expect(extractResponsesText({})).toBeUndefined();
+    expect(extractResponsesText({ output: [] })).toBeUndefined();
   });
 });
 

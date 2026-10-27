@@ -49,6 +49,13 @@ import {
 import { buildDestination, buildLinks, mapsDirUrl } from './deep_links';
 import { downscaleToJpegDataUrl, fetchImageBytes } from './image_fetch';
 import { loadKey, saveKey } from './key_vault';
+import {
+  cropToSamBox,
+  dataUrlToBytes,
+  parseSamBoxes,
+  selectSamBox,
+  type SamPixelBox,
+} from './sam';
 import { estimateCostUsd, formatUsd, recordMonthSpend } from './pricing';
 import { createGuideRenderer, findGuideStart } from './render_markdown';
 import {
@@ -1509,6 +1516,159 @@ const handle = async (value: unknown): Promise<void> => {
   await runAnalysis(request, 'gesture');
 };
 
+// ---- SAM crop-to-landmark (Booster 3) ----
+
+const SAM_OVERLAY_DWELL_MS = 1200;
+
+interface SamCrop {
+  dataUrl: string;
+  box: SamPixelBox;
+  width: number;
+  height: number;
+}
+
+// Best-effort landmark crop for "look again": any failure (denied origin,
+// undecodable bytes, SAM error, no valid box, superseding gesture) falls
+// back to the full image. Never throws.
+const trySamCrop = async (
+  request: TripRequest,
+  provider: Provider,
+  key: string,
+): Promise<SamCrop | null> => {
+  try {
+    return await samCropAttempt(request, provider, key);
+  } catch {
+    return null;
+  }
+};
+
+const samCropAttempt = async (
+  request: TripRequest,
+  provider: Provider,
+  key: string,
+): Promise<SamCrop | null> => {
+  const direct =
+    request.frame?.dataUrl ??
+    (request.srcUrl.startsWith('data:image/') ? request.srcUrl : null);
+  let inputBytes = direct ? dataUrlToBytes(direct) : null;
+  if (!inputBytes) {
+    if (request.mediaType || request.scanImages || !request.srcUrl.startsWith('https://')) {
+      return null;
+    }
+    let origin: string;
+    try {
+      origin = new URL(request.srcUrl).origin;
+    } catch {
+      return null;
+    }
+    let granted = false;
+    try {
+      granted = await chrome.permissions.request({ origins: [`${origin}/*`] });
+    } catch {
+      granted = false;
+    }
+    if (!granted) {
+      return null;
+    }
+    try {
+      inputBytes = await fetchImageBytes(request.srcUrl, new AbortController().signal);
+    } catch {
+      return null;
+    } finally {
+      try {
+        await chrome.permissions.remove({ origins: [`${origin}/*`] });
+      } catch {
+        // The grant is already gone; nothing to clean up.
+      }
+    }
+  }
+  if (!inputBytes) {
+    return null;
+  }
+  // One normalized bitmap feeds both the SAM call and the crop, so box
+  // fractions always match the pixels being cut.
+  let samDataUrl: string;
+  try {
+    samDataUrl = await downscaleToJpegDataUrl(inputBytes);
+  } catch {
+    return null;
+  }
+  const normBytes = dataUrlToBytes(samDataUrl);
+  if (!normBytes) {
+    return null;
+  }
+  let bitmap: ImageBitmap;
+  try {
+    bitmap = await createImageBitmap(new Blob([normBytes as BlobPart]));
+  } catch {
+    return null;
+  }
+  try {
+    const segment = await provider.segmentLandmark(key, {
+      imageDataUrl: samDataUrl,
+      signal: new AbortController().signal,
+    });
+    runUsage = addUsage(runUsage, segment.usage);
+    const box = selectSamBox(
+      parseSamBoxes(segment.text),
+      bitmap.width,
+      bitmap.height,
+    );
+    if (!box || activeRequest !== request || highestRequestId !== request.requestId) {
+      return null;
+    }
+    showSamOverlay(box, bitmap.width, bitmap.height);
+    announceStatus('samZoomed');
+    if (!prefersReducedMotion()) {
+      await new Promise((resolve) => setTimeout(resolve, SAM_OVERLAY_DWELL_MS));
+    }
+    if (activeRequest !== request || highestRequestId !== request.requestId) {
+      return null;
+    }
+    const dataUrl = await cropToSamBox(bitmap, box);
+    showSamCrop(dataUrl);
+    return { dataUrl, box, width: bitmap.width, height: bitmap.height };
+  } catch {
+    return null;
+  } finally {
+    bitmap.close();
+  }
+};
+
+// The overlay is a static box (no draw animation in either motion mode);
+// reduced motion additionally skips the dwell and swaps instantly.
+const showSamOverlay = (box: SamPixelBox, width: number, height: number): void => {
+  const img = previewFrame.querySelector('img');
+  if (!img) {
+    return;
+  }
+  const frameRect = previewFrame.getBoundingClientRect();
+  const imgRect = img.getBoundingClientRect();
+  const overlay = document.createElement('div');
+  overlay.className = 'sam-box';
+  overlay.setAttribute('aria-hidden', 'true');
+  overlay.style.left = `${imgRect.left - frameRect.left + (box.x1 / width) * imgRect.width}px`;
+  overlay.style.top = `${imgRect.top - frameRect.top + (box.y1 / height) * imgRect.height}px`;
+  overlay.style.width = `${((box.x2 - box.x1) / width) * imgRect.width}px`;
+  overlay.style.height = `${((box.y2 - box.y1) / height) * imgRect.height}px`;
+  previewFrame.append(overlay);
+};
+
+const showSamCrop = (dataUrl: string): void => {
+  previewFrame.replaceChildren();
+  const img = document.createElement('img');
+  img.referrerPolicy = 'no-referrer';
+  img.alt = msg('previewAltCrop');
+  img.onerror = () => {
+    showPreviewPlaceholder();
+  };
+  img.src = dataUrl;
+  const caption = document.createElement('p');
+  caption.className = 'preview-caption';
+  caption.textContent = msg('samZoomCaption');
+  previewFrame.append(img, caption);
+};
+
 const lookAgain = async (): Promise<void> => {
   const request = activeRequest;
   if (!request?.srcUrl || !currentCacheKey || lookAgainUsed.has(currentCacheKey)) {
@@ -1535,8 +1695,21 @@ const lookAgain = async (): Promise<void> => {
       analysisInFlight = false;
       return;
     }
+    let samCrop: SamCrop | null = null;
+    if (provider.capabilities.segmentation) {
+      samCrop = await trySamCrop(request, provider, keyStatus.key);
+      if (activeRequest !== request || highestRequestId !== request.requestId) {
+        return;
+      }
+    }
+    const identifyRequest =
+      samCrop && request.frame
+        ? { ...request, frame: { ...request.frame, dataUrl: samCrop.dataUrl } }
+        : samCrop
+          ? { ...request, srcUrl: samCrop.dataUrl }
+          : request;
     await identifyAndGuide({
-      request,
+      request: identifyRequest,
       provider,
       settings,
       key: keyStatus.key,
