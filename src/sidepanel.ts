@@ -48,7 +48,7 @@ import {
 } from './board_store';
 import { buildDestination, buildLinks, mapsDirUrl } from './deep_links';
 import { downscaleToJpegDataUrl, fetchImageBytes } from './image_fetch';
-import { loadKey, saveKey } from './key_vault';
+import { loadKey, saveKey, type KeyStatus } from './key_vault';
 import {
   cropToSamBox,
   dataUrlToBytes,
@@ -84,6 +84,8 @@ import {
   loadSettings,
   saveSettings,
   setConsented,
+  downloadNanoModel,
+  nanoAvailability,
   sanitizePromptHint,
   type AlternateIntent,
   type DuelSide,
@@ -110,6 +112,7 @@ export interface CacheEntry {
   sources: GuideSource[];
   usage: Usage;
   searchedWeb: boolean;
+  onDevice?: boolean;
 }
 
 export const isAllowedPreviewUrl = (srcUrl: string): boolean => {
@@ -268,6 +271,7 @@ let runSettings: ExtensionSettings | null = null;
 let pendingRun: PendingRun | null = null;
 let lastRun: PendingRun | null = null;
 let currentCacheKey = '';
+let currentOnDevice = false;
 let currentPlace: PlaceResult | null = null;
 let currentDestination = '';
 let currentSources: GuideSource[] = [];
@@ -400,7 +404,8 @@ type PrivacyMode =
   | 'video-frame'
   | 'video-url'
   | 'board'
-  | 'names';
+  | 'names'
+  | 'local-only';
 
 const updatePrivacy = (mode: PrivacyMode): void => {
   const keys: Record<PrivacyMode, string> = {
@@ -412,6 +417,7 @@ const updatePrivacy = (mode: PrivacyMode): void => {
     'video-url': 'privacyVideoUrl',
     board: 'privacyBoard',
     names: 'privacyNames',
+    'local-only': 'privacyLocal',
   };
   privacyLine.textContent = msg(keys[mode]);
 };
@@ -421,6 +427,16 @@ const clearCost = (): void => {
 };
 
 const priceAndRecord = async (provider: Provider): Promise<void> => {
+  const rates = provider.getRates();
+  if (
+    rates &&
+    rates.inputUsdPerMTok === 0 &&
+    rates.outputUsdPerMTok === 0 &&
+    runUsage.flatFeesUsd === 0
+  ) {
+    costLine.textContent = msg('nanoFreeLine');
+    return;
+  }
   const usd = estimateCostUsd(runUsage, provider.getRates());
   if (usd === null) {
     costLine.textContent = msg('costLineTokens', [
@@ -515,6 +531,88 @@ const showOnboarding = (orphaned: boolean): void => {
   });
   updatePrivacy('idle');
   clearCost();
+  void refreshNanoSection(false);
+};
+
+// Milestone 3: the key form grows the on-device alternative wherever Nano
+// could serve (onboarding, auth errors, eviction). Unavailable hardware
+// keeps the plain "needs a Muse key" message.
+const refreshNanoSection = async (instead: boolean): Promise<void> => {
+  const state = await nanoAvailability();
+  if (state === 'readily' || state === 'downloadable' || state === 'downloading') {
+    keySetup.setNano(state === 'readily' ? 'ready' : 'downloadable', { instead });
+  } else {
+    keySetup.setNano('hidden');
+  }
+};
+
+const runNanoDownload = async (onDone: () => Promise<void>): Promise<void> => {
+  keySetup.setNano('downloading');
+  announceStatus('nanoDownloadStart');
+  let announcedMid = false;
+  try {
+    await downloadNanoModel((frac) => {
+      keySetup.setNanoProgress(frac);
+      if (!announcedMid && frac >= 0.5) {
+        announcedMid = true;
+        announceStatus('nanoDownloadMid');
+      }
+    });
+  } catch {
+    keySetup.setNano('failed');
+    announceAlert('nanoDownloadFail');
+    return;
+  }
+  announceStatus('nanoDownloadReady');
+  const settings = await loadSettings();
+  await saveSettings({ ...settings, preferOnDevice: true });
+  await onDone();
+};
+
+const enableNanoAndResume = async (): Promise<void> => {
+  const state = await nanoAvailability();
+  if (state === 'unavailable') {
+    keySetup.setNano('hidden');
+    announceAlert('nanoUnavailable');
+    return;
+  }
+  if (state === 'readily') {
+    const settings = await loadSettings();
+    await saveSettings({ ...settings, preferOnDevice: true });
+    await resumePending();
+    return;
+  }
+  await runNanoDownload(() => resumePending());
+};
+
+const showNanoDownload = (): void => {
+  cancelSkeleton();
+  currentView = 'nano';
+  swapResultSlot(() => {
+    resultSlot.replaceChildren(keySetup);
+    keySetup.showSetup();
+    keySetup.setSessionOnly(runSettings?.sessionOnly ?? false);
+    keySetup.setNano('downloading');
+  });
+};
+
+// "Try on-device instead" from a rate-limit or network error card: capable
+// hardware downloads (with progress) or resumes immediately; anything else
+// gets the honest unavailable announcement.
+const tryNanoInstead = async (): Promise<void> => {
+  const state = await nanoAvailability();
+  if (state === 'unavailable') {
+    announceAlert('nanoUnavailable');
+    return;
+  }
+  if (state === 'readily') {
+    const settings = await loadSettings();
+    await saveSettings({ ...settings, preferOnDevice: true });
+    await retry();
+    return;
+  }
+  showNanoDownload();
+  await runNanoDownload(() => retry());
 };
 
 const showConsent = (focusGate: boolean): void => {
@@ -596,6 +694,11 @@ const onWindowScroll = (): void => {
     window.innerHeight + window.scrollY < document.body.scrollHeight - SCROLL_NEAR_BOTTOM_PX;
 };
 
+// On-device runs carry no key: the provider ignores it, and neither the
+// vault nor the Meta consent gate applies (nothing leaves the browser).
+const runKey = (keyStatus: KeyStatus): string =>
+  keyStatus.state === 'ok' ? keyStatus.key : '';
+
 const abortActive = (): void => {
   if (activeController) {
     activeController.abort();
@@ -676,11 +779,17 @@ const privacyForRequest = (
   settings: ExtensionSettings,
   provider: Provider,
 ): PrivacyMode => {
+  if (provider.capabilities.onDevice) {
+    return 'local-only';
+  }
   if (request.mediaType === 'video') {
     return videoUrlForRequest(request, provider) ? 'video-url' : 'video-frame';
   }
   return settings.imageOnly ? 'image-only' : 'image';
 };
+
+const auxPrivacy = (provider: Provider, mode: PrivacyMode): PrivacyMode =>
+  provider.capabilities.onDevice ? 'local-only' : mode;
 
 const isPlacePinned = async (place: PlaceResult): Promise<boolean> => {
   try {
@@ -702,6 +811,7 @@ const renderResultHeader = async (place: PlaceResult, announce: boolean): Promis
   cancelSkeleton();
   currentView = 'result';
   currentAlternates = null;
+  currentOnDevice = activeProvider?.capabilities.onDevice === true;
   const props = await resultCardProps(place);
   swapResultSlot(() => {
     resultSlot.replaceChildren(tripCard);
@@ -742,6 +852,7 @@ const renderErrorCard = (
   withKeySetup: boolean,
   fallback: { label: string; href: string } | null = null,
   showFetchRetry = false,
+  showNanoInstead = false,
 ): void => {
   cancelSkeleton();
   currentView = 'error';
@@ -755,6 +866,7 @@ const renderErrorCard = (
       showRetry,
       fallback,
       showFetchRetry,
+      showNanoInstead,
     });
     if (withKeySetup) {
       keySetup.showSetup();
@@ -767,8 +879,11 @@ const renderErrorCard = (
 // Error-path footer: video runs report their rung (a frame-carrying request
 // ran rung 1, a frameless one ran rung 2), everything else keeps the old rule.
 const errorPrivacy = (request: TripRequest | null): PrivacyMode => {
+  if (activeProvider?.capabilities.onDevice) {
+    return 'local-only';
+  }
   if (request?.mediaType === 'video') {
-    return request.frame ? 'video-frame' : 'video-url';
+    return request.frame ? 'video-url' : 'video-frame';
   }
   return 'image';
 };
@@ -817,6 +932,18 @@ const showProviderError = (
     renderErrorCard('errorAuthTitle', 'errorAuthBody', false, true);
     announceAlert('alertAuth');
     updatePrivacy(privacy);
+    void refreshNanoSection(true);
+    return;
+  }
+  if (err.code === 'not_configured') {
+    // The on-device model was evicted (or the custom server was never
+    // configured): the key form stays for the remote path, with the Nano
+    // section as the re-enable loop.
+    pendingRun = request != null ? { kind: 'request', request } : pendingRun;
+    renderErrorCard('errorServerTitle', 'alertNotConfigured', true, true);
+    announceAlert('alertNotConfigured');
+    updatePrivacy(privacy);
+    void refreshNanoSection(true);
     return;
   }
   const titles: Record<string, [string, string, string]> = {
@@ -825,14 +952,17 @@ const showProviderError = (
     network: ['errorNetworkTitle', 'errorNetworkBody', 'alertNetwork'],
     invalid_response: ['errorInvalidTitle', 'errorInvalidBody', 'alertInvalidResponse'],
     stream_error: ['errorStreamTitle', 'errorStreamBody', 'alertStreamError'],
-    not_configured: ['errorServerTitle', 'alertNotConfigured', 'alertNotConfigured'],
   };
   const [titleKey, bodyKey, alertKey] = titles[err.code] ?? [
     'errorServerTitle',
     'errorServerBody',
     'alertServer',
   ];
-  renderErrorCard(titleKey, bodyKey, true, false, null, fetchRetry);
+  // Rate limits and network failures offer the on-device escape hatch; the
+  // click probes availability, so an incapable device gets an honest
+  // announcement instead of a download prompt.
+  const nanoInstead = err.code === 'rate_limited' || err.code === 'network';
+  renderErrorCard(titleKey, bodyKey, true, false, null, fetchRetry, nanoInstead);
   announceAlert(alertKey);
   updatePrivacy(privacy);
 };
@@ -934,12 +1064,15 @@ const streamGuideRun = async (args: StreamArgs): Promise<RunOutcome> => {
       sources: [...sources],
       usage: { ...runUsage },
       searchedWeb,
+      onDevice: provider.capabilities.onDevice === true ? true : undefined,
     });
   }
   await priceAndRecord(provider);
   updatePrivacy(privacy);
   if (args.completeKey) {
     announceStatus(args.completeKey);
+  } else if (provider.capabilities.onDevice) {
+    announceStatus('nanoGuideReady');
   } else if (sources.length > 0) {
     announceStatus('statusGuideReadySources', String(sources.length));
   } else {
@@ -1075,6 +1208,7 @@ const renderCached = async (entry: CacheEntry, origin: 'gesture' | 'panel'): Pro
   );
   currentView = 'result';
   currentAlternates = null;
+  currentOnDevice = entry.onDevice === true;
   const props = await resultCardProps(entry.place);
   swapResultSlot(() => {
     resultSlot.replaceChildren(tripCard);
@@ -1228,7 +1362,7 @@ const runScan = async (
   origin: 'gesture' | 'panel',
 ): Promise<void> => {
   const images = request.scanImages ?? [];
-  const privacy: PrivacyMode = settings.imageOnly ? 'image-only' : 'image';
+  const privacy: PrivacyMode = auxPrivacy(provider, settings.imageOnly ? 'image-only' : 'image');
   if (images.length === 0) {
     analysisInFlight = false;
     renderErrorCard('scanEmptyTitle', 'scanEmptyBody', false, false);
@@ -1309,21 +1443,21 @@ const runScanGuide = async (
   activeProvider = provider;
   runSettings = settings;
   const keyStatus = await loadKey(provider.id);
-  if (keyStatus.state !== 'ok') {
+  if (!provider.capabilities.onDevice && keyStatus.state !== 'ok') {
     analysisInFlight = false;
     pendingRun = { kind: 'scan-guide', request, index };
     showOnboarding(keyStatus.orphaned);
     announceStatus('statusKeyNeeded');
     return;
   }
-  if (!(await hasConsented())) {
+  if (!provider.capabilities.onDevice && !(await hasConsented())) {
     analysisInFlight = false;
     pendingRun = { kind: 'scan-guide', request, index };
     showConsent(false);
     announceStatus('statusConsentNeeded');
     return;
   }
-  const privacy: PrivacyMode = settings.imageOnly ? 'image-only' : 'image';
+  const privacy: PrivacyMode = auxPrivacy(provider, settings.imageOnly ? 'image-only' : 'image');
   currentCacheKey = await hashCacheKey(
     thumb ?? `scan:${result.placeName},${result.country}`,
     request.pageUrl ?? '',
@@ -1353,7 +1487,7 @@ const runScanGuide = async (
   activeController = controller;
   await streamGuideRun({
     provider,
-    key: keyStatus.key,
+    key: runKey(keyStatus),
     destination,
     signal: controller.signal,
     cacheKey: currentCacheKey,
@@ -1427,14 +1561,14 @@ const runAnalysis = async (request: TripRequest, origin: 'gesture' | 'panel'): P
   activeProvider = provider;
   runSettings = settings;
   const keyStatus = await loadKey(provider.id);
-  if (keyStatus.state !== 'ok') {
+  if (!provider.capabilities.onDevice && keyStatus.state !== 'ok') {
     analysisInFlight = false;
     pendingRun = { kind: 'request', request };
     showOnboarding(keyStatus.orphaned);
     announceStatus('statusKeyNeeded');
     return;
   }
-  if (!(await hasConsented())) {
+  if (!provider.capabilities.onDevice && !(await hasConsented())) {
     analysisInFlight = false;
     pendingRun = { kind: 'request', request };
     showConsent(false);
@@ -1442,11 +1576,11 @@ const runAnalysis = async (request: TripRequest, origin: 'gesture' | 'panel'): P
     return;
   }
   if (request.mediaType === 'video') {
-    await runVideoAnalysis(request, provider, settings, keyStatus.key, origin, superseded);
+    await runVideoAnalysis(request, provider, settings, runKey(keyStatus), origin, superseded);
     return;
   }
   if (request.scanImages !== undefined) {
-    await runScan(request, provider, settings, keyStatus.key, origin);
+    await runScan(request, provider, settings, runKey(keyStatus), origin);
     return;
   }
   if (request.dataPending || !request.srcUrl) {
@@ -1470,7 +1604,7 @@ const runAnalysis = async (request: TripRequest, origin: 'gesture' | 'panel'): P
     request,
     provider,
     settings,
-    key: keyStatus.key,
+    key: runKey(keyStatus),
     origin,
   });
 };
@@ -1683,9 +1817,9 @@ const lookAgain = async (): Promise<void> => {
     activeProvider = provider;
     runSettings = settings;
     const keyStatus = await loadKey(provider.id);
-    if (keyStatus.state !== 'ok' || !(await hasConsented())) {
+    if (!provider.capabilities.onDevice && (keyStatus.state !== 'ok' || !(await hasConsented()))) {
       pendingRun = { kind: 'request', request };
-      if (keyStatus.state !== 'ok') {
+      if (!provider.capabilities.onDevice && keyStatus.state !== 'ok') {
         showOnboarding(keyStatus.orphaned);
         announceStatus('statusKeyNeeded');
       } else {
@@ -1697,7 +1831,7 @@ const lookAgain = async (): Promise<void> => {
     }
     let samCrop: SamCrop | null = null;
     if (provider.capabilities.segmentation) {
-      samCrop = await trySamCrop(request, provider, keyStatus.key);
+      samCrop = await trySamCrop(request, provider, runKey(keyStatus));
       if (activeRequest !== request || highestRequestId !== request.requestId) {
         return;
       }
@@ -1712,7 +1846,7 @@ const lookAgain = async (): Promise<void> => {
       request: identifyRequest,
       provider,
       settings,
-      key: keyStatus.key,
+      key: runKey(keyStatus),
       origin: 'panel',
       rejectedPlace: currentPlace?.placeName || undefined,
     });
@@ -1734,9 +1868,9 @@ const reanalyze = async (): Promise<void> => {
     activeProvider = provider;
     runSettings = settings;
     const keyStatus = await loadKey(provider.id);
-    if (keyStatus.state !== 'ok' || !(await hasConsented())) {
+    if (!provider.capabilities.onDevice && (keyStatus.state !== 'ok' || !(await hasConsented()))) {
       pendingRun = { kind: 'request', request };
-      if (keyStatus.state !== 'ok') {
+      if (!provider.capabilities.onDevice && keyStatus.state !== 'ok') {
         showOnboarding(keyStatus.orphaned);
         announceStatus('statusKeyNeeded');
       } else {
@@ -1750,7 +1884,7 @@ const reanalyze = async (): Promise<void> => {
       request,
       provider,
       settings,
-      key: keyStatus.key,
+      key: runKey(keyStatus),
       origin: 'panel',
       rejectedPlace: currentPlace.placeName,
     });
@@ -1895,6 +2029,7 @@ const resultCardProps = async (
   place: PlaceResult;
   lowConfidence: boolean;
   pinned: boolean;
+  onDevice: boolean;
   compareOptions: CompareOptionView[];
   alternates: AlternatesView;
 }> => ({
@@ -1902,6 +2037,7 @@ const resultCardProps = async (
   place,
   lowConfidence: place.confidence < 0.6,
   pinned: await isPlacePinned(place),
+  onDevice: currentOnDevice,
   compareOptions: await compareOptionViews(place),
   alternates: alternatesView(),
 });
@@ -1929,11 +2065,11 @@ const runDuel = async (
   activeProvider = provider;
   runSettings = settings;
   const keyStatus = await loadKey(provider.id);
-  if (keyStatus.state !== 'ok') {
+  if (!provider.capabilities.onDevice && keyStatus.state !== 'ok') {
     announceStatus('statusKeyNeeded');
     return;
   }
-  if (!(await hasConsented())) {
+  if (!provider.capabilities.onDevice && !(await hasConsented())) {
     announceStatus('statusConsentNeeded');
     return;
   }
@@ -1945,7 +2081,7 @@ const runDuel = async (
   announceStatus('duelStatus', [a.name, b.name]);
   let result;
   try {
-    result = await provider.duelPlaces(keyStatus.key, { a, b, signal: controller.signal });
+    result = await provider.duelPlaces(runKey(keyStatus), { a, b, signal: controller.signal });
   } catch (err) {
     if (duelController === controller) {
       duelController = null;
@@ -1957,7 +2093,7 @@ const runDuel = async (
       return;
     }
     recordPartialUsage(err, provider);
-    updatePrivacy('names');
+    updatePrivacy(auxPrivacy(provider, 'names'));
     duelTable.setError();
     if (err instanceof ProviderError && err.code === 'no_key') {
       announceAlert('statusKeyNeeded');
@@ -1979,7 +2115,7 @@ const runDuel = async (
   showSources(result.sources);
   duelTable.setResults(aTitle, bTitle, result.criteria, result.verdict);
   await priceAndRecord(provider);
-  updatePrivacy('names');
+  updatePrivacy(auxPrivacy(provider, 'names'));
   announceStatus('duelReady');
 };
 
@@ -2041,7 +2177,7 @@ const runAlternates = async (intent: AlternateIntent): Promise<void> => {
   activeProvider = provider;
   runSettings = settings;
   const keyStatus = await loadKey(provider.id);
-  if (keyStatus.state !== 'ok') {
+  if (!provider.capabilities.onDevice && keyStatus.state !== 'ok') {
     if (mine !== alternatesRunId) {
       return;
     }
@@ -2050,7 +2186,7 @@ const runAlternates = async (intent: AlternateIntent): Promise<void> => {
     announceStatus('statusKeyNeeded');
     return;
   }
-  if (!(await hasConsented())) {
+  if (!provider.capabilities.onDevice && !(await hasConsented())) {
     if (mine !== alternatesRunId) {
       return;
     }
@@ -2061,7 +2197,7 @@ const runAlternates = async (intent: AlternateIntent): Promise<void> => {
   }
   let result;
   try {
-    result = await provider.findAlternates(keyStatus.key, {
+    result = await provider.findAlternates(runKey(keyStatus), {
       placeName: place.placeName,
       city: place.city,
       country: place.country,
@@ -2081,7 +2217,7 @@ const runAlternates = async (intent: AlternateIntent): Promise<void> => {
     alternatesLoading = null;
     await refreshResultCard();
     recordPartialUsage(err, provider);
-    updatePrivacy('names');
+    updatePrivacy(auxPrivacy(provider, 'names'));
     announceAlert('alternatesFail');
     return;
   }
@@ -2098,7 +2234,7 @@ const runAlternates = async (intent: AlternateIntent): Promise<void> => {
   currentSources = [...result.sources];
   showSources(result.sources);
   await priceAndRecord(provider);
-  updatePrivacy('names');
+  updatePrivacy(auxPrivacy(provider, 'names'));
   announceStatus('alternatesReady', String(result.alternatives.length));
 };
 
@@ -2120,11 +2256,11 @@ const onPlanInstead = async (detail: TripPlanInsteadDetail): Promise<void> => {
   activeProvider = provider;
   runSettings = settings;
   const keyStatus = await loadKey(provider.id);
-  if (keyStatus.state !== 'ok') {
+  if (!provider.capabilities.onDevice && keyStatus.state !== 'ok') {
     announceStatus('statusKeyNeeded');
     return;
   }
-  if (!(await hasConsented())) {
+  if (!provider.capabilities.onDevice && !(await hasConsented())) {
     announceStatus('statusConsentNeeded');
     return;
   }
@@ -2141,11 +2277,11 @@ const onPlanInstead = async (detail: TripPlanInsteadDetail): Promise<void> => {
   activeController = controller;
   await streamGuideRun({
     provider,
-    key: keyStatus.key,
+    key: runKey(keyStatus),
     destination,
     signal: controller.signal,
     cacheKey: null,
-    privacy: 'names',
+    privacy: auxPrivacy(provider, 'names'),
     origin: 'panel',
   });
   if (activeController === controller) {
@@ -2344,14 +2480,14 @@ const planTrip = async (): Promise<void> => {
   activeProvider = provider;
   runSettings = settings;
   const keyStatus = await loadKey(provider.id);
-  if (keyStatus.state !== 'ok') {
+  if (!provider.capabilities.onDevice && keyStatus.state !== 'ok') {
     analysisInFlight = false;
     pendingRun = { kind: 'itinerary' };
     showOnboarding(keyStatus.orphaned);
     announceStatus('statusKeyNeeded');
     return;
   }
-  if (!(await hasConsented())) {
+  if (!provider.capabilities.onDevice && !(await hasConsented())) {
     analysisInFlight = false;
     pendingRun = { kind: 'itinerary' };
     showConsent(false);
@@ -2372,7 +2508,7 @@ const planTrip = async (): Promise<void> => {
   activeController = controller;
   let result;
   try {
-    result = await provider.planItinerary(keyStatus.key, {
+    result = await provider.planItinerary(runKey(keyStatus), {
       pins: pins.map((pin) => ({
         name: pinDisplayName(pin),
         host: pin.sourceHost,
@@ -2395,15 +2531,15 @@ const planTrip = async (): Promise<void> => {
   runUsage = addUsage(runUsage, result.usage);
   await settleSkeleton();
   renderItineraryCard(pins, result.plan);
-  updatePrivacy('board');
+  updatePrivacy(auxPrivacy(provider, 'board'));
   focusResultHeading();
   await streamGuideRun({
     provider,
-    key: keyStatus.key,
+    key: runKey(keyStatus),
     destination: result.plan.stops.join(', '),
     signal: controller.signal,
     cacheKey: null,
-    privacy: 'board',
+    privacy: auxPrivacy(provider, 'board'),
     origin: 'panel',
     prompt: narrationPrompt(pins, result.plan),
     completeKey: 'statusItineraryReady',
@@ -2460,7 +2596,7 @@ const onKeySave = async (detail: KeySaveRequestDetail): Promise<void> => {
   keySetup.setPending(false);
   keySetup.clear();
   announceStatus('statusKeySaved');
-  if (!(await hasConsented())) {
+  if (!provider.capabilities.onDevice && !(await hasConsented())) {
     showConsent(true);
     return;
   }
@@ -2562,6 +2698,9 @@ export const initPanel = (): void => {
   tripCard.addEventListener('trip-fetch-retry', () => {
     void fetchRetry();
   });
+  tripCard.addEventListener('trip-nano', () => {
+    void tryNanoInstead();
+  });
   tripCard.addEventListener('trip-look-again', () => {
     void lookAgain();
   });
@@ -2612,6 +2751,9 @@ export const initPanel = (): void => {
   });
   keySetup.addEventListener('session-only-change', (event) => {
     void onSessionOnlyChange((event as CustomEvent<SessionOnlyChangeDetail>).detail);
+  });
+  keySetup.addEventListener('nano-enable', () => {
+    void enableNanoAndResume();
   });
   window.addEventListener('scroll', onWindowScroll, { passive: true });
 

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   assertConsent,
   buildAlternatesMessages,
@@ -54,6 +54,7 @@ const DEFAULTS: ExtensionSettings = {
   openaiCompat: { baseURL: '', model: '', structuredOutput: 'json_object' },
   imageOnly: false,
   sessionOnly: false,
+  preferOnDevice: false,
 };
 
 beforeEach(() => {
@@ -480,8 +481,19 @@ describe('settings and registry', () => {
     const compat = getProvider({ ...DEFAULTS, activeProviderId: 'openai_compat' });
     expect(compat.id).toBe('openai_compat');
     expect(compat.capabilities.webGrounding).toBe(false);
+    expect(getProvider(DEFAULTS, 'chrome_nano').id).toBe('chrome_nano');
     const active = await getActiveProvider();
     expect(active.provider.id).toBe('muse');
     expect(active.settings).toEqual(DEFAULTS);
+  });
+
+  it('routes to Nano while readily available and falls back otherwise', async () => {
+    await saveSettings({ ...DEFAULTS, preferOnDevice: true });
+    vi.stubGlobal('LanguageModel', { availability: async () => 'readily' });
+    expect((await getActiveProvider()).provider.id).toBe('chrome_nano');
+    vi.stubGlobal('LanguageModel', { availability: async () => 'downloadable' });
+    expect((await getActiveProvider()).provider.id).toBe('muse');
+    vi.unstubAllGlobals();
+    expect((await getActiveProvider()).provider.id).toBe('muse');
   });
 });

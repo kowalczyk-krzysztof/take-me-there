@@ -820,6 +820,66 @@
     "message": "Cropped view of the landmark being re-analyzed",
     "description": "SAM crop preview alt text."
   },
+  "nanoTry": {
+    "message": "Try on-device (basic, free)",
+    "description": "Onboarding Nano button."
+  },
+  "nanoTryInstead": {
+    "message": "Try on-device instead",
+    "description": "Error-card Nano button."
+  },
+  "nanoDownloadHint": {
+    "message": "Chrome downloads a one-time AI model (~2 GB) from Google; after that, analysis runs fully on this device.",
+    "description": "Nano download hint."
+  },
+  "nanoDownloading": {
+    "message": "Downloading on-device model",
+    "description": "Nano progress accessible name."
+  },
+  "nanoDownloadStart": {
+    "message": "Model download started - this can take several minutes",
+    "description": "Nano download start announcement."
+  },
+  "nanoDownloadMid": {
+    "message": "Model download is halfway there",
+    "description": "Nano download midpoint announcement."
+  },
+  "nanoDownloadReady": {
+    "message": "On-device model ready",
+    "description": "Nano download completion announcement."
+  },
+  "nanoDownloadFail": {
+    "message": "On-device model download failed.",
+    "description": "Nano download failure text."
+  },
+  "nanoUnavailable": {
+    "message": "On-device AI is not available on this device.",
+    "description": "Nano unavailable announcement."
+  },
+  "nanoBadge": {
+    "message": "on-device result - best effort",
+    "description": "On-device result badge."
+  },
+  "nanoGuideReady": {
+    "message": "Trip guide ready - analyzed on this device",
+    "description": "On-device guide completion announcement."
+  },
+  "nanoFreeLine": {
+    "message": "on-device - free",
+    "description": "On-device cost line."
+  },
+  "nanoReady": {
+    "message": "On-device AI is ready.",
+    "description": "Onboarding Nano ready announcement."
+  },
+  "privacyLocal": {
+    "message": "Analyzed on this device - nothing was sent anywhere.",
+    "description": "Privacy footer for on-device runs."
+  },
+  "preferOnDeviceLabel": {
+    "message": "Prefer on-device AI when available (free, basic)",
+    "description": "Options on-device toggle label."
+  },
   "boardNoticePinFail": {
     "message": "Couldn't pin $1 - storage is unavailable.",
     "description": "Visible pin-failure notice.",

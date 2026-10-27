@@ -186,6 +186,7 @@ describe('handoff schemas', () => {
         webGrounding: true,
         segmentation: false,
         structuredOutput: 'json_schema',
+        onDevice: false,
       }).success,
     ).toBe(true);
     expect(

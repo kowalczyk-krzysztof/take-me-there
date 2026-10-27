@@ -103,3 +103,15 @@ h2 {
 }
 
 .consent-body { margin: 0 0 12px; }
+
+.nano-section {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nano-section progress {
+  width: 100%;
+}

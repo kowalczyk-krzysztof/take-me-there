@@ -77,6 +77,7 @@ export class MuseProvider implements Provider {
     webGrounding: true,
     segmentation: true,
     structuredOutput: 'json_schema',
+    onDevice: false,
   };
 
   getRates(): ModelRates | undefined {

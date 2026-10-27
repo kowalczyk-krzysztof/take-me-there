@@ -134,4 +134,49 @@ describe('key-setup', () => {
     el.focusConsentHeading();
     expect((root.activeElement as HTMLElement)?.tagName).toBe('H2');
   });
+
+  it('hides the Nano section by default', () => {
+    const { root } = mount();
+    expect(root.querySelector('.nano-section')).toBeNull();
+  });
+
+  it('renders the Nano enable button with the download hint', () => {
+    const { el, root } = mount();
+    (root.querySelector('#key-input') as HTMLInputElement).value = 'LLM_draft';
+    let enabled = 0;
+    el.addEventListener('nano-enable', () => {
+      enabled += 1;
+    });
+    el.setNano('downloadable');
+    const section = root.querySelector('.nano-section');
+    expect(section?.querySelector('#nano-hint')?.textContent).toBe('nanoDownloadHint');
+    const button = section?.querySelector('button') as HTMLButtonElement;
+    expect(button.textContent).toBe('nanoTry');
+    expect(button.getAttribute('aria-describedby')).toBe('nano-hint');
+    button.click();
+    expect(enabled).toBe(1);
+    // The key draft survives the section rebuild.
+    expect((root.querySelector('#key-input') as HTMLInputElement).value).toBe('LLM_draft');
+    el.setNano('ready', { instead: true });
+    expect(root.querySelector('.nano-section button')?.textContent).toBe('nanoTryInstead');
+  });
+
+  it('renders named progress while downloading and an error with retry', () => {
+    const { el, root } = mount();
+    el.setNano('downloading');
+    const bar = root.querySelector('#nano-progress') as HTMLProgressElement;
+    expect(bar.getAttribute('aria-label')).toBe('nanoDownloading');
+    expect(bar.hasAttribute('value')).toBe(false);
+    el.setNanoProgress(0.5);
+    expect(bar.value).toBe(50);
+    el.setNano('failed');
+    expect(root.querySelector('#nano-progress')).toBeNull();
+    expect(root.querySelector('.nano-section .error')?.textContent).toBe('nanoDownloadFail');
+    let enabled = 0;
+    el.addEventListener('nano-enable', () => {
+      enabled += 1;
+    });
+    (root.querySelector('.nano-section button') as HTMLButtonElement).click();
+    expect(enabled).toBe(1);
+  });
 });

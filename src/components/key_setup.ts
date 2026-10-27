@@ -19,6 +19,8 @@ export interface SessionOnlyChangeDetail {
   checked: boolean;
 }
 
+export type NanoSectionState = 'hidden' | 'ready' | 'downloadable' | 'downloading' | 'failed';
+
 const msg = (key: string, subs?: string | string[]): string =>
   chrome.i18n.getMessage(key, subs);
 
@@ -32,6 +34,9 @@ export class KeySetupElement extends HTMLElement {
   private saveButton?: HTMLButtonElement;
   private showButton?: HTMLButtonElement;
   private revealed = false;
+  private nano: NanoSectionState = 'hidden';
+  private nanoInstead = false;
+  private nanoProgress: number | null = null;
 
   constructor() {
     super();
@@ -44,6 +49,8 @@ export class KeySetupElement extends HTMLElement {
   }
 
   showSetup(): void {
+    this.nano = 'hidden';
+    this.nanoProgress = null;
     this.renderSetup();
   }
 
@@ -107,6 +114,33 @@ export class KeySetupElement extends HTMLElement {
 
   getDraft(): KeySaveRequestDetail {
     return { key: (this.input?.value ?? '').trim(), sessionOnly: this.sessionOnly };
+  }
+
+  setNano(state: NanoSectionState, opts: { instead?: boolean } = {}): void {
+    this.nano = state;
+    this.nanoInstead = opts.instead ?? false;
+    if (state !== 'downloading') {
+      this.nanoProgress = null;
+    }
+    // Rebuilds the form, so the key draft rides along.
+    const draft = this.input?.value ?? '';
+    this.renderSetup();
+    if (this.input) {
+      this.input.value = draft;
+    }
+  }
+
+  setNanoProgress(frac: number | null): void {
+    this.nanoProgress = frac;
+    const bar = this.root.querySelector<HTMLProgressElement>('#nano-progress');
+    if (!bar) {
+      return;
+    }
+    if (frac === null) {
+      bar.removeAttribute('value');
+    } else {
+      bar.value = Math.min(1, Math.max(0, frac)) * 100;
+    }
   }
 
   private clearView(): void {
@@ -214,7 +248,12 @@ export class KeySetupElement extends HTMLElement {
     hygiene.className = 'hygiene';
     hygiene.textContent = msg('keyHygiene');
 
-    form.append(label, input, hint, dashboard, error, checkRow, buttons, notice, hygiene);
+    form.append(label, input, hint, dashboard, error, checkRow, buttons);
+    const nano = this.renderNano();
+    if (nano) {
+      form.append(nano);
+    }
+    form.append(notice, hygiene);
     form.addEventListener('submit', (event) => {
       event.preventDefault();
       if (this.pending) {
@@ -241,6 +280,46 @@ export class KeySetupElement extends HTMLElement {
     this.errorEl = error;
     this.saveButton = save;
     this.showButton = show;
+  }
+
+  private renderNano(): HTMLElement | null {
+    if (this.nano === 'hidden') {
+      return null;
+    }
+    const section = document.createElement('div');
+    section.className = 'nano-section';
+    const hint = document.createElement('p');
+    hint.className = 'hint';
+    hint.id = 'nano-hint';
+    hint.textContent = msg('nanoDownloadHint');
+    section.append(hint);
+    if (this.nano === 'downloading') {
+      const bar = document.createElement('progress');
+      bar.id = 'nano-progress';
+      bar.max = 100;
+      bar.setAttribute('aria-label', msg('nanoDownloading'));
+      if (this.nanoProgress !== null) {
+        bar.value = Math.min(1, Math.max(0, this.nanoProgress)) * 100;
+      }
+      section.append(bar);
+      return section;
+    }
+    if (this.nano === 'failed') {
+      const error = document.createElement('p');
+      error.className = 'error';
+      error.textContent = msg('nanoDownloadFail');
+      section.append(error);
+    }
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'secondary';
+    button.setAttribute('aria-describedby', 'nano-hint');
+    button.textContent = msg(this.nanoInstead ? 'nanoTryInstead' : 'nanoTry');
+    button.addEventListener('click', () => {
+      this.dispatchEvent(new CustomEvent('nano-enable', { bubbles: true, composed: true }));
+    });
+    section.append(button);
+    return section;
   }
 
   private renderConsent(): void {

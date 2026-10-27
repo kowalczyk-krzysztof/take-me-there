@@ -48,6 +48,7 @@ export type CardState =
     place: PlaceResult;
     lowConfidence: boolean;
     pinned: boolean;
+    onDevice?: boolean;
     compareOptions?: CompareOptionView[];
     alternates?: AlternatesView;
   }
@@ -59,6 +60,7 @@ export type CardState =
     showRetry: boolean;
     fallback?: { label: string; href: string } | null;
     showFetchRetry?: boolean;
+    showNanoInstead?: boolean;
   }
   | {
     view: 'itinerary';
@@ -110,6 +112,7 @@ export class TripCardElement extends HTMLElement {
           state.place,
           state.lowConfidence,
           state.pinned,
+          state.onDevice ?? false,
           state.compareOptions ?? [],
           state.alternates ?? { state: 'idle' },
         );
@@ -124,6 +127,7 @@ export class TripCardElement extends HTMLElement {
           state.showRetry,
           state.fallback ?? null,
           state.showFetchRetry ?? false,
+          state.showNanoInstead ?? false,
         );
         break;
       case 'itinerary':
@@ -174,6 +178,7 @@ export class TripCardElement extends HTMLElement {
     place: PlaceResult,
     lowConfidence: boolean,
     pinned: boolean,
+    onDevice: boolean,
     compareOptions: CompareOptionView[],
     alternates: AlternatesView,
   ): void {
@@ -185,6 +190,12 @@ export class TripCardElement extends HTMLElement {
       const badge = document.createElement('span');
       badge.className = 'badge';
       badge.textContent = msg('bestGuessBadge');
+      heading.append(' ', badge);
+    }
+    if (onDevice) {
+      const badge = document.createElement('span');
+      badge.className = 'badge nano-badge';
+      badge.textContent = msg('nanoBadge');
       heading.append(' ', badge);
     }
     const subtitle = [place.city, place.country].filter((part) => part).join(', ');
@@ -410,6 +421,7 @@ export class TripCardElement extends HTMLElement {
     showRetry: boolean,
     fallback: { label: string; href: string } | null,
     showFetchRetry: boolean,
+    showNanoInstead: boolean,
   ): void {
     const heading = document.createElement('h2');
     heading.tabIndex = -1;
@@ -425,6 +437,11 @@ export class TripCardElement extends HTMLElement {
     if (showFetchRetry) {
       this.root.append(
         this.oneShotButton(msg('fetchRetryButton'), msg('fetchRetryLoading'), 'trip-fetch-retry'),
+      );
+    }
+    if (showNanoInstead) {
+      this.root.append(
+        this.oneShotButton(msg('nanoTryInstead'), msg('nanoDownloading'), 'trip-nano'),
       );
     }
     if (fallback) {

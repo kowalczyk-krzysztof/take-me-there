@@ -210,6 +210,24 @@ describe('trip-card', () => {
     expect(seen).toEqual(['fetch']);
   });
 
+  it('labels on-device results and offers the on-device escape hatch', () => {
+    const { el, root } = mount();
+    el.setCard({ view: 'result', place: PLACE, lowConfidence: false, pinned: false });
+    expect(root.querySelector('.nano-badge')).toBeNull();
+    el.setCard({ view: 'result', place: PLACE, lowConfidence: false, pinned: false, onDevice: true });
+    expect(root.querySelector('.nano-badge')?.textContent).toBe('nanoBadge');
+    let nanos = 0;
+    el.addEventListener('trip-nano', () => {
+      nanos += 1;
+    });
+    el.setCard({ view: 'error', title: 'T', body: 'B', showRetry: true, showNanoInstead: true });
+    const buttons = root.querySelectorAll('button');
+    expect(buttons).toHaveLength(2);
+    expect(buttons[1]?.textContent).toBe('nanoTryInstead');
+    (buttons[1] as HTMLButtonElement).click();
+    expect(nanos).toBe(1);
+  });
+
   it('focuses its heading on request', () => {
     const { el, root } = mount();
     el.setCard({ view: 'result', place: PLACE, lowConfidence: false, pinned: false });

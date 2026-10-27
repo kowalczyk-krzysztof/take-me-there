@@ -65,6 +65,7 @@ export class OpenAiCompatProvider implements Provider {
       webGrounding: false,
       segmentation: false,
       structuredOutput: config.structuredOutput,
+      onDevice: false,
     };
   }
 

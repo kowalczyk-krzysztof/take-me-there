@@ -22,6 +22,10 @@ import {
 } from '../types';
 import { MuseProvider } from './muse';
 import { OpenAiCompatProvider } from './openai_compat';
+import { ChromeNanoProvider, downloadNanoModel, nanoAvailability } from './chrome_nano';
+
+export { downloadNanoModel, nanoAvailability };
+export type { NanoAvailability } from './chrome_nano';
 
 export type { ProviderCapabilities } from '../types';
 
@@ -387,19 +391,11 @@ export const buildScanMessages = (
 // Client-side batch validation: shape-parse, drop malformed entries,
 // truncate strings, keep the best guess per place. Index pairing happens in
 // the panel (invalid index → placeholder, never a wrong image).
-export const parseScanBatch = (data: unknown): ScannedPlace[] | undefined => {
-  const content = (data as { choices?: Array<{ message?: { content?: unknown } }> })?.choices?.[0]
-    ?.message?.content;
-  if (typeof content !== 'string') {
-    return undefined;
-  }
-  let json: unknown;
-  try {
-    json = JSON.parse(content);
-  } catch {
-    return undefined;
-  }
-  const places = (json as { places?: unknown })?.places;
+export const parseScanBatch = (data: unknown): ScannedPlace[] | undefined =>
+  parseScanContent(extractChatJson(data));
+
+export const parseScanContent = (json: unknown): ScannedPlace[] | undefined => {
+  const places = (json as { places?: unknown } | null)?.places;
   if (!Array.isArray(places)) {
     return undefined;
   }
@@ -768,16 +764,13 @@ const MAX_ITINERARY_DAYS = 31;
 export const parseItineraryPlan = (
   data: unknown,
   stopNames: string[],
+): ItineraryPlan | undefined => parseItineraryContent(extractChatJson(data), stopNames);
+
+export const parseItineraryContent = (
+  json: unknown,
+  stopNames: string[],
 ): ItineraryPlan | undefined => {
-  const content = (data as { choices?: Array<{ message?: { content?: unknown } }> })?.choices?.[0]
-    ?.message?.content;
-  if (typeof content !== 'string') {
-    return undefined;
-  }
-  let json: unknown;
-  try {
-    json = JSON.parse(content);
-  } catch {
+  if (json === undefined) {
     return undefined;
   }
   const parsed = looseItinerarySchema().safeParse(json);
@@ -911,18 +904,7 @@ const identifyAttempt = async (
   throw invalidResponse(usage, 'model output failed validation');
 };
 
-export const tryParsePlace = (data: unknown): PlaceResult | undefined => {
-  const content = (data as { choices?: Array<{ message?: { content?: unknown } }> })?.choices?.[0]
-    ?.message?.content;
-  if (typeof content !== 'string') {
-    return undefined;
-  }
-  let json: unknown;
-  try {
-    json = JSON.parse(content);
-  } catch {
-    return undefined;
-  }
+export const tryParsePlaceJson = (json: unknown): PlaceResult | undefined => {
   const parsed = PLACE_SCHEMA.safeParse(json);
   if (!parsed.success) {
     return undefined;
@@ -940,6 +922,39 @@ export const tryParsePlace = (data: unknown): PlaceResult | undefined => {
     oneLiner: place.oneLiner.slice(0, 300),
   };
 };
+
+export const tryParsePlace = (data: unknown): PlaceResult | undefined => {
+  const content = (data as { choices?: Array<{ message?: { content?: unknown } }> })?.choices?.[0]
+    ?.message?.content;
+  if (typeof content !== 'string') {
+    return undefined;
+  }
+  let json: unknown;
+  try {
+    json = JSON.parse(content);
+  } catch {
+    return undefined;
+  }
+  return tryParsePlaceJson(json);
+};
+
+// Serialize chat messages to flat text for APIs without a chat transport.
+// Image and video parts are skipped: the caller attaches pixels separately
+// or runs text-only.
+export const chatToText = (messages: ChatMessage[]): string =>
+  messages
+    .map((message) => {
+      const content = message.content;
+      const text =
+        typeof content === 'string'
+          ? content
+          : content
+              .map((part) => (part.type === 'text' ? part.text : ''))
+              .filter((part) => part)
+              .join('\n');
+      return `${message.role}: ${text}`;
+    })
+    .join('\n\n');
 
 export const invalidResponse = (usage: Usage, message: string): ProviderError => {
   const err = new ProviderError('invalid_response', message, true);
@@ -1092,6 +1107,7 @@ export interface ExtensionSettings {
   openaiCompat: OpenAiCompatSettings;
   imageOnly: boolean;
   sessionOnly: boolean;
+  preferOnDevice: boolean;
 }
 
 const DEFAULT_SETTINGS: ExtensionSettings = {
@@ -1099,6 +1115,7 @@ const DEFAULT_SETTINGS: ExtensionSettings = {
   openaiCompat: { baseURL: '', model: '', structuredOutput: 'json_object' },
   imageOnly: false,
   sessionOnly: false,
+  preferOnDevice: false,
 };
 
 export const loadSettings = async (): Promise<ExtensionSettings> => {
@@ -1129,6 +1146,7 @@ export const loadSettings = async (): Promise<ExtensionSettings> => {
       },
       imageOnly: s.imageOnly === true,
       sessionOnly: s.sessionOnly === true,
+      preferOnDevice: s.preferOnDevice === true,
     };
   } catch {
     return structuredClone(DEFAULT_SETTINGS);
@@ -1167,11 +1185,15 @@ export const assertConsent = async (): Promise<void> => {
 };
 
 const museProvider = new MuseProvider();
+const nanoProvider = new ChromeNanoProvider();
 
 export const getProvider = (settings: ExtensionSettings, id?: string): Provider => {
   const wanted = id ?? settings.activeProviderId;
   if (wanted === 'openai_compat') {
     return new OpenAiCompatProvider(settings.openaiCompat);
+  }
+  if (wanted === 'chrome_nano') {
+    return nanoProvider;
   }
   return museProvider;
 };
@@ -1181,5 +1203,10 @@ export const getActiveProvider = async (): Promise<{
   settings: ExtensionSettings;
 }> => {
   const settings = await loadSettings();
+  // Prefer-on-device is a soft routing wish: Nano serves only while readily
+  // available, otherwise the configured remote provider answers as usual.
+  if (settings.preferOnDevice && (await nanoAvailability()) === 'readily') {
+    return { provider: nanoProvider, settings };
+  }
   return { provider: getProvider(settings), settings };
 };

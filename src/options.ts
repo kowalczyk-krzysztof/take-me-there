@@ -49,6 +49,7 @@ export const initOptions = (): void => {
   req<HTMLButtonElement>('clear-key').textContent = msg('clearKeyButton');
   req<HTMLButtonElement>('reset-cost').textContent = msg('resetCostButton');
   req('image-only-label').textContent = msg('imageOnlyLabel');
+  req('prefer-on-device-label').textContent = msg('preferOnDeviceLabel');
   req('provider-heading').textContent = msg('optionsProviderHeading');
   req('provider-muse-label').textContent = msg('providerMuse');
   req('provider-compat-label').textContent = msg('providerCompat');
@@ -97,6 +98,7 @@ export const initOptions = (): void => {
   void loadSettings().then((settings) => {
     keySetup.setSessionOnly(settings.sessionOnly);
     imageOnlyBox.checked = settings.imageOnly;
+    req<HTMLInputElement>('prefer-on-device').checked = settings.preferOnDevice;
     const compatActive = settings.activeProviderId === 'openai_compat';
     museRadio.checked = !compatActive;
     compatRadio.checked = compatActive;
@@ -205,6 +207,16 @@ export const initOptions = (): void => {
     void (async () => {
       const settings = await loadSettings();
       await saveSettings({ ...settings, imageOnly: imageOnlyBox.checked });
+    })();
+  });
+
+  req<HTMLInputElement>('prefer-on-device').addEventListener('change', (event) => {
+    void (async () => {
+      const settings = await loadSettings();
+      await saveSettings({
+        ...settings,
+        preferOnDevice: (event.target as HTMLInputElement).checked,
+      });
     })();
   });
 

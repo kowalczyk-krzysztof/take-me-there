@@ -10,8 +10,10 @@ import { adoptSharedStyles } from './components/shared_styles';
 import { loadKey, saveKey } from './key_vault';
 import {
   ProviderError,
+  downloadNanoModel,
   getActiveProvider,
   loadSettings,
+  nanoAvailability,
   saveSettings,
 } from './providers/index';
 
@@ -110,6 +112,39 @@ export const initOnboarding = (): void => {
       // Best effort; the checkbox state stays as the user set it.
     });
   });
+
+  keySetup.addEventListener('nano-enable', () => {
+    void (async () => {
+      const state = await nanoAvailability();
+      if (state === 'unavailable') {
+        keySetup.setNano('hidden');
+        statusRegion.textContent = msg('nanoUnavailable');
+        return;
+      }
+      if (state !== 'readily') {
+        keySetup.setNano('downloading');
+        statusRegion.textContent = msg('nanoDownloadStart');
+        try {
+          await downloadNanoModel((frac) => keySetup.setNanoProgress(frac));
+        } catch {
+          keySetup.setNano('failed');
+          statusRegion.textContent = msg('nanoDownloadFail');
+          return;
+        }
+        statusRegion.textContent = msg('nanoDownloadReady');
+      }
+      const settings = await loadSettings();
+      await saveSettings({ ...settings, preferOnDevice: true });
+      keySetup.setNano('hidden');
+      statusRegion.textContent = msg('nanoReady');
+    })();
+  });
+  void (async () => {
+    const state = await nanoAvailability();
+    if (state === 'readily' || state === 'downloadable' || state === 'downloading') {
+      keySetup.setNano(state === 'readily' ? 'ready' : 'downloadable');
+    }
+  })();
 };
 
 if (typeof document !== 'undefined') {

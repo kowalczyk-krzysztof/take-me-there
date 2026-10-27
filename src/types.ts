@@ -270,5 +270,6 @@ export const PROVIDER_CAPABILITIES_SCHEMA = z.strictObject({
   webGrounding: z.boolean(),
   segmentation: z.boolean(),
   structuredOutput: z.enum(['json_schema', 'json_object', 'none']),
+  onDevice: z.boolean(),
 });
 export type ProviderCapabilities = z.infer<typeof PROVIDER_CAPABILITIES_SCHEMA>;
