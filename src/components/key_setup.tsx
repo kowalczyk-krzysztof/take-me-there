@@ -2,6 +2,8 @@ import { createRoot, type Root } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import { injectComponentStyles } from './shared_styles';
 import elementCss from './key_setup.css?raw';
+import { msg } from '../utils/i18n';
+import { emit } from '../utils/events';
 
 injectComponentStyles('key-setup', elementCss);
 
@@ -21,13 +23,6 @@ export interface SessionOnlyChangeDetail {
 }
 
 export type NanoSectionState = 'hidden' | 'ready' | 'downloadable' | 'downloading' | 'failed';
-
-const msg = (key: string, subs?: string | string[]): string =>
-  chrome.i18n.getMessage(key, subs);
-
-const emit = (host: HTMLElement, name: string, detail?: unknown): void => {
-  host.dispatchEvent(new CustomEvent(name, { detail, bubbles: true, composed: true }));
-};
 
 const NanoSection = ({
   host, nano, nanoInstead, nanoProgress,

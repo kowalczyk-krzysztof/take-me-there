@@ -96,9 +96,7 @@ import {
   type Provider,
   type Usage,
 } from './providers/index';
-
-const msg = (key: string, subs?: string | string[]): string =>
-  chrome.i18n.getMessage(key, subs);
+import { msg } from './utils/i18n';
 
 const SKELETON_DELAY_MS = 200;
 const SKELETON_MIN_MS = 300;

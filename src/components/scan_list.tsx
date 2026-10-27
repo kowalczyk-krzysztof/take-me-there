@@ -2,11 +2,10 @@ import { createRoot, type Root } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import { injectComponentStyles } from './shared_styles';
 import elementCss from './scan_list.css?raw';
+import { msg } from '../utils/i18n';
+import { emit } from '../utils/events';
 
 injectComponentStyles('scan-list', elementCss);
-
-const msg = (key: string, subs?: string | string[]): string =>
-  chrome.i18n.getMessage(key, subs);
 
 export interface ScanItemView {
   placeName: string;
@@ -27,10 +26,6 @@ export interface ScanPinDetail {
 export interface ScanPinSelectedDetail {
   indices: number[];
 }
-
-const emit = (host: HTMLElement, name: string, detail?: unknown): void => {
-  host.dispatchEvent(new CustomEvent(name, { detail, bubbles: true, composed: true }));
-};
 
 // Own component so the label lookup runs in tree order (after the cards),
 // matching the old render sequence.

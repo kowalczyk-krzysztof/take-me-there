@@ -2,11 +2,10 @@ import { createRoot, type Root } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import { injectComponentStyles } from './shared_styles';
 import elementCss from './trip_board.css?raw';
+import { msg } from '../utils/i18n';
+import { emit } from '../utils/events';
 
 injectComponentStyles('trip-board', elementCss);
-
-const msg = (key: string, subs?: string | string[]): string =>
-  chrome.i18n.getMessage(key, subs);
 
 export interface BoardItemView {
   placeName: string;
@@ -25,10 +24,6 @@ interface NoticeView {
   text: string | null;
   retry: boolean;
 }
-
-const emit = (host: HTMLElement, name: string, detail?: unknown): void => {
-  host.dispatchEvent(new CustomEvent(name, { detail, bubbles: true, composed: true }));
-};
 
 const BoardItem = ({ host, item }: { host: HTMLElement; item: BoardItemView }) => (
   <li>

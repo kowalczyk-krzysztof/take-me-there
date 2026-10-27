@@ -16,9 +16,7 @@ import {
   nanoAvailability,
   saveSettings,
 } from './providers/index';
-
-const msg = (key: string, subs?: string | string[]): string =>
-  chrome.i18n.getMessage(key, subs);
+import { msg } from './utils/i18n';
 
 const req = <T extends HTMLElement>(id: string): T => {
   const el = document.getElementById(id);

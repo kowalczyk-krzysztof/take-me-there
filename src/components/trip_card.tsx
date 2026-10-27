@@ -4,6 +4,8 @@ import { flushSync } from 'react-dom';
 import type { PlaceResult } from '../types';
 import { injectComponentStyles, prefersReducedMotion } from './shared_styles';
 import elementCss from './trip_card.css?raw';
+import { msg } from '../utils/i18n';
+import { emit } from '../utils/events';
 
 injectComponentStyles('trip-card', elementCss);
 
@@ -78,15 +80,8 @@ export type CardState =
     mapsLabel: string;
   };
 
-const msg = (key: string, subs?: string | string[]): string =>
-  chrome.i18n.getMessage(key, subs);
-
 const LOADING_LINES = ['loadingReading', 'loadingIdentifying', 'loadingWriting'];
 const ROTATE_MS = 2500;
-
-const emit = (host: HTMLElement, name: string, detail?: unknown): void => {
-  host.dispatchEvent(new CustomEvent(name, { detail, bubbles: true, composed: true }));
-};
 
 const IdleView = ({ hint, shortcut }: { hint: string; shortcut: string }) => (
   <>

@@ -5,6 +5,7 @@ import { captureVideoFrame, type CaptureVideoFrameResult } from './injected/capt
 import { collectPageImages } from './injected/collect_page_images';
 import { collectSignals } from './injected/collect_signals';
 import type { ScannedImage } from './types';
+import { msg } from './utils/i18n';
 
 const MENU_ID = 'plan-trip';
 const SCAN_MENU_ID = 'scan-page';
@@ -17,12 +18,12 @@ chrome.runtime.onInstalled.addListener((details) => {
   chrome.contextMenus.removeAll(() => {
     chrome.contextMenus.create({
       id: MENU_ID,
-      title: chrome.i18n.getMessage('menuTitle'),
+      title: msg('menuTitle'),
       contexts: ['image', 'video'],
     });
     chrome.contextMenus.create({
       id: SCAN_MENU_ID,
-      title: chrome.i18n.getMessage('scanMenuTitle'),
+      title: msg('scanMenuTitle'),
       contexts: ['page'],
     });
   });

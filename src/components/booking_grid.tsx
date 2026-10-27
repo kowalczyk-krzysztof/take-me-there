@@ -3,11 +3,9 @@ import { createRoot, type Root } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import { injectComponentStyles } from './shared_styles';
 import elementCss from './booking_grid.css?raw';
+import { msg } from '../utils/i18n';
 
 injectComponentStyles('booking-grid', elementCss);
-
-const msg = (key: string, subs?: string | string[]): string =>
-  chrome.i18n.getMessage(key, subs);
 
 const BookingGridView = ({ destination }: { destination: string }) => (
   <>

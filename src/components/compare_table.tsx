@@ -2,11 +2,10 @@ import { createRoot, type Root } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import { injectComponentStyles } from './shared_styles';
 import elementCss from './compare_table.css?raw';
+import { msg } from '../utils/i18n';
+import { emit } from '../utils/events';
 
 injectComponentStyles('compare-table', elementCss);
-
-const msg = (key: string, subs?: string | string[]): string =>
-  chrome.i18n.getMessage(key, subs);
 
 export interface DuelRowView {
   criterion: string;
@@ -18,10 +17,6 @@ type DuelState =
   | { mode: 'loading'; a: string; b: string }
   | { mode: 'ready'; a: string; b: string; rows: DuelRowView[]; verdict: string }
   | { mode: 'error'; a: string; b: string };
-
-const emit = (host: HTMLElement, name: string): void => {
-  host.dispatchEvent(new CustomEvent(name, { bubbles: true, composed: true }));
-};
 
 const DuelTable = ({ state }: { state: Extract<DuelState, { mode: 'loading' | 'ready' }> }) => (
   <table aria-busy={state.mode === 'loading'}>
