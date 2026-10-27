@@ -273,4 +273,157 @@ describe('sidepanel', () => {
       expect(document.querySelector('#guide-content')?.textContent).toContain('Hello world');
     });
   });
+
+  it('gates the first video analysis behind the frame confirm', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    await mock.session.set({
+      tripRequest: READY({
+        srcUrl: 'blob:https://example.com/aaa',
+        mediaType: 'video',
+        frame: { dataUrl: 'data:image/jpeg,frame', time: 12.5 },
+      }),
+    });
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot h2')?.textContent).toBe('videoConfirmTitle');
+    });
+    expect(document.querySelector('#status-region')?.textContent).toBe('statusVideoConfirmNeeded');
+    expect(fetchMock).not.toHaveBeenCalled();
+    const buttons = [...document.querySelectorAll('.confirm-actions button')];
+    expect(buttons.map((button) => button.textContent)).toEqual([
+      'videoConfirmAgree',
+      'videoConfirmCancel',
+    ]);
+    const img = document.querySelector('#preview-frame img') as HTMLImageElement | null;
+    expect(img?.getAttribute('src')).toBe('data:image/jpeg,frame');
+    expect(img?.alt).toBe('previewAltFrame');
+  });
+
+  it('analyzes the captured frame after the video confirm', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    fetchMock
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
+      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
+    await mock.session.set({
+      tripRequest: READY({
+        srcUrl: 'blob:https://example.com/aaa',
+        mediaType: 'video',
+        frame: { dataUrl: 'data:image/jpeg,frame', time: 12.5 },
+      }),
+    });
+    await waitFor(() => {
+      expect(document.querySelector('.confirm-actions .primary')).not.toBeNull();
+    });
+    (document.querySelector('.confirm-actions .primary') as HTMLButtonElement).click();
+    await waitFor(() => {
+      const card = document.querySelector('trip-card');
+      expect(card?.shadowRoot?.querySelector('h2')?.textContent).toBe('Oia');
+    });
+    const init = fetchMock.mock.calls[0][1] as RequestInit;
+    const body = JSON.parse(init.body as string) as {
+      messages: Array<{ content: Array<{ image_url?: { url: string } }> }>;
+    };
+    expect(body.messages[1].content[1].image_url?.url).toBe('data:image/jpeg,frame');
+    expect(document.querySelector('#privacy-line')?.textContent).toBe('privacyVideoFrame');
+    // The gate is one-time: the next video analyzes without asking.
+    fetchMock.mockClear();
+    fetchMock
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
+      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
+    await mock.session.set({
+      tripRequest: READY({
+        requestId: '200-2',
+        srcUrl: 'blob:https://example.com/bbb',
+        mediaType: 'video',
+        frame: { dataUrl: 'data:image/jpeg,frame2', time: 3 },
+      }),
+    });
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalled();
+    });
+    expect(document.querySelector('.confirm-actions')).toBeNull();
+  });
+
+  it('discards the staged video when the confirm is declined', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    await mock.session.set({
+      tripRequest: READY({
+        srcUrl: 'blob:https://example.com/aaa',
+        mediaType: 'video',
+        frame: { dataUrl: 'data:image/jpeg,frame', time: 12.5 },
+      }),
+    });
+    await waitFor(() => {
+      expect(document.querySelectorAll('.confirm-actions button')).toHaveLength(2);
+    });
+    const cancel = [...document.querySelectorAll('.confirm-actions button')][1] as HTMLButtonElement;
+    cancel.click();
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe(
+        'statusVideoConfirmDeclined',
+      );
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('runs rung 2 for tainted mp4 video with the video part', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    const { setVideoConsented } = await import('./video');
+    await setVideoConsented();
+    fetchMock
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
+      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
+    await mock.session.set({
+      tripRequest: READY({
+        srcUrl: 'https://cdn.example.com/trip.mp4',
+        mediaType: 'video',
+        frameError: 'tainted',
+      }),
+    });
+    await waitFor(() => {
+      const card = document.querySelector('trip-card');
+      expect(card?.shadowRoot?.querySelector('h2')?.textContent).toBe('Oia');
+    });
+    const init = fetchMock.mock.calls[0][1] as RequestInit;
+    const body = JSON.parse(init.body as string) as {
+      messages: Array<{ content: Array<{ type: string }> }>;
+    };
+    expect(body.messages[1].content[1].type).toBe('video_url');
+    expect(document.querySelector('#privacy-line')?.textContent).toBe('privacyVideoUrl');
+  });
+
+  it('renders honest cards with fallback links for unreadable video', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    await mock.session.set({
+      tripRequest: READY({
+        srcUrl: 'blob:https://example.com/aaa',
+        mediaType: 'video',
+        frameError: 'drm',
+      }),
+    });
+    await waitFor(() => {
+      const card = document.querySelector('trip-card');
+      expect(card?.shadowRoot?.querySelector('h2')?.textContent).toBe('errorVideoTitle');
+    });
+    expect(document.querySelector('#alert-region')?.textContent).toBe('alertVideoUnreadable');
+    expect(fetchMock).not.toHaveBeenCalled();
+    const card = document.querySelector('trip-card');
+    expect(card?.shadowRoot?.querySelector('.fallback a')).not.toBeNull();
+    await mock.session.set({
+      tripRequest: READY({
+        requestId: '300-3',
+        srcUrl: 'blob:https://example.com/bbb',
+        mediaType: 'video',
+        frameError: 'no-match',
+      }),
+    });
+    await waitFor(() => {
+      const retry = document.querySelector('trip-card');
+      expect(retry?.shadowRoot?.querySelector('h2')?.textContent).toBe('errorVideoMatchTitle');
+    });
+  });
 });

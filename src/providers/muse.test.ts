@@ -219,6 +219,86 @@ describe('muse identify', () => {
   });
 });
 
+describe('muse video identify (rung 2)', () => {
+  const videoInput = (overrides: Partial<IdentifyInput> = {}): IdentifyInput =>
+    identifyInput({
+      imageUrl: 'https://cdn.example.com/trip.mp4',
+      videoUrl: 'https://cdn.example.com/trip.mp4',
+      ...overrides,
+    });
+
+  it('sends the video part with the schema constraint', async () => {
+    await consented();
+    fetchMock.mockResolvedValue(chatResponse(VALID_PLACE));
+    const result = await provider.identifyPlace('LLM_key', videoInput());
+    expect(result.place).toEqual(VALID_PLACE);
+    expect(result.textFallback).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const body = requestBody();
+    expect(body.response_format.type).toBe('json_schema');
+    expect(body.messages[1].content).toEqual([
+      { type: 'text', text: expect.stringContaining('shown in this video') },
+      { type: 'video_url', video_url: { url: 'https://cdn.example.com/trip.mp4' } },
+    ]);
+  });
+
+  it('falls back to describe-then-normalize when schema x video 400s', async () => {
+    await consented();
+    fetchMock
+      .mockResolvedValueOnce(new Response('schema x video rejected', { status: 400 }))
+      .mockResolvedValueOnce(
+        rawChatResponse('The video shows the blue domes of Oia, Santorini, Greece.'),
+      )
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE));
+    const result = await provider.identifyPlace('LLM_key', videoInput());
+    expect(result.place).toEqual(VALID_PLACE);
+    expect(result.textFallback).toBe(true);
+    expect(result.usage).toEqual({
+      inputTokens: 200,
+      outputTokens: 100,
+      searchCount: 0,
+      flatFeesUsd: 0,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    const describe = requestBody(1);
+    expect(describe.response_format).toBeUndefined();
+    expect(describe.messages[1].content[1]).toEqual({
+      type: 'video_url',
+      video_url: { url: 'https://cdn.example.com/trip.mp4' },
+    });
+    const normalize = requestBody(2);
+    expect(normalize.response_format.type).toBe('json_schema');
+    expect(normalize.messages[1].content).toContain('VIDEO DESCRIPTION');
+    expect(normalize.messages[1].content).toContain('blue domes of Oia');
+  });
+
+  it('surfaces the second failure instead of looping fallbacks', async () => {
+    await consented();
+    fetchMock
+      .mockResolvedValueOnce(new Response('schema x video rejected', { status: 400 }))
+      .mockResolvedValueOnce(new Response('video rejected', { status: 400 }));
+    await expect(provider.identifyPlace('LLM_key', videoInput())).rejects.toMatchObject({
+      code: 'server',
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    // The second call is the two-step describe (video part, no schema), not
+    // the image path's signals-only retry.
+    const second = requestBody(1);
+    expect(second.response_format).toBeUndefined();
+    expect(second.messages[1].content[1].type).toBe('video_url');
+  });
+
+  it('does not two-step on non-400 failures', async () => {
+    await consented();
+    fetchMock.mockResolvedValue(new Response('nope', { status: 401 }));
+    await expect(provider.identifyPlace('LLM_key', videoInput())).rejects.toMatchObject({
+      code: 'auth',
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+});
+
 describe('muse streamGuide', () => {
   const RESPONSES_SSE = [
     ': comment line\n',

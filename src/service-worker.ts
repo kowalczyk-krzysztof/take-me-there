@@ -1,6 +1,7 @@
 // Minimal service worker for the scaffold and gesture spike: menu wiring,
 // open-first panel gesture, request handoff through storage.session, and a
 // timeout-raced page-signal scrape with a compare-and-set terminal write.
+import { captureVideoFrame, type CaptureVideoFrameResult } from './injected/capture_video_frame';
 import { collectSignals } from './injected/collect_signals';
 
 const MENU_ID = 'plan-trip';
@@ -14,7 +15,7 @@ chrome.runtime.onInstalled.addListener((details) => {
     chrome.contextMenus.create({
       id: MENU_ID,
       title: chrome.i18n.getMessage('menuTitle'),
-      contexts: ['image'],
+      contexts: ['image', 'video'],
     });
   });
   chrome.sidePanel
@@ -33,6 +34,10 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   // GESTURE RULE: sidePanel.open must run before any await in this handler.
   // Anything awaited first drops the user gesture and open() rejects.
   void chrome.sidePanel.open({ tabId: tab.id });
+  if (info.mediaType === 'video') {
+    void handleVideoClick(info.srcUrl ?? '', info.pageUrl ?? null, info.frameId ?? 0, tab.id);
+    return;
+  }
   void handleImageClick(info.srcUrl ?? '', info.pageUrl ?? null, info.frameId ?? 0, tab.id);
 });
 
@@ -59,7 +64,62 @@ const handleImageClick = async (
     },
   });
   const signals = await scrapeWithTimeout(tabId, frameId, srcUrl);
-  await writeTerminalState(requestId, storedSrcUrl, dataPending, pageUrl, tabId, signals);
+  await writeTerminalState(requestId, {
+    requestId,
+    status: 'ready',
+    srcUrl: storedSrcUrl,
+    dataPending,
+    pageUrl,
+    tabId,
+    signals,
+  });
+};
+
+const handleVideoClick = async (
+  srcUrl: string,
+  pageUrl: string | null,
+  frameId: number,
+  tabId: number,
+): Promise<void> => {
+  requestCounter += 1;
+  const requestId = `${Date.now()}-${requestCounter}`;
+  const dataPending = srcUrl.startsWith('data:') && srcUrl.length > MAX_INLINE_DATA_URL;
+  const storedSrcUrl = dataPending ? '' : srcUrl;
+  await chrome.storage.session.set({
+    tripRequest: {
+      requestId,
+      status: 'collecting',
+      srcUrl: storedSrcUrl,
+      dataPending,
+      pageUrl,
+      tabId,
+      mediaType: 'video',
+    },
+  });
+  // Page signals and the frame capture race side by side: the panel wants
+  // both, and sequential injections would double the worst case.
+  const [signals, captured] = await Promise.all([
+    scrapeWithTimeout(tabId, frameId, srcUrl),
+    captureWithTimeout(tabId, frameId, srcUrl),
+  ]);
+  const frame =
+    captured && captured.ok
+      ? { dataUrl: captured.dataUrl, time: captured.time }
+      : undefined;
+  const frameError =
+    captured && !captured.ok ? captured.reason : captured ? undefined : 'no-match';
+  await writeTerminalState(requestId, {
+    requestId,
+    status: 'ready',
+    srcUrl: storedSrcUrl,
+    dataPending,
+    pageUrl,
+    tabId,
+    signals,
+    mediaType: 'video',
+    frame,
+    frameError,
+  });
 };
 
 const scrapeWithTimeout = async (
@@ -87,6 +147,28 @@ const scrapeWithTimeout = async (
   }
 };
 
+// Null means the injection itself failed (timeout, chrome:// page,
+// cross-origin frame): distinct from the function reporting a miss.
+const captureWithTimeout = async (
+  tabId: number,
+  frameId: number,
+  srcUrl: string,
+): Promise<CaptureVideoFrameResult | null> => {
+  try {
+    const results = await withTimeout(
+      chrome.scripting.executeScript({
+        target: { tabId, frameIds: [frameId] },
+        func: captureVideoFrame as unknown as () => void,
+        args: [srcUrl],
+      }),
+      INJECT_TIMEOUT_MS,
+    );
+    return (results[0]?.result ?? null) as CaptureVideoFrameResult | null;
+  } catch {
+    return null;
+  }
+};
+
 const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> => {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_resolve, reject) => {
@@ -95,33 +177,36 @@ const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> => {
   return Promise.race([promise.finally(() => clearTimeout(timer)), timeout]);
 };
 
-const writeTerminalState = async (
-  requestId: string,
-  srcUrl: string,
-  dataPending: boolean,
-  pageUrl: string | null,
-  tabId: number,
-  signals: Record<string, unknown>,
-): Promise<void> => {
-  const record = {
-    requestId,
-    status: 'ready',
-    srcUrl,
-    dataPending,
-    pageUrl,
-    tabId,
-    signals,
-  };
+interface TerminalRecord {
+  requestId: string;
+  status: 'ready';
+  srcUrl: string;
+  dataPending: boolean;
+  pageUrl: string | null;
+  tabId: number;
+  signals: Record<string, unknown>;
+  mediaType?: 'video';
+  frame?: { dataUrl: string; time: number };
+  frameError?: string;
+}
+
+const writeTerminalState = async (requestId: string, record: TerminalRecord): Promise<void> => {
   try {
     if (await isCurrentRequest(requestId)) {
       await chrome.storage.session.set({ tripRequest: record });
     }
   } catch {
-    // Quota or transient failure: retry once with signals stripped so the
-    // panel still reaches a terminal state.
+    // Quota or transient failure: retry once with the heavy payloads
+    // stripped (a rejected frame surfaces as too-large) so the panel still
+    // reaches a terminal state.
     try {
       if (await isCurrentRequest(requestId)) {
-        await chrome.storage.session.set({ tripRequest: { ...record, signals: {} } });
+        const slim: TerminalRecord = { ...record, signals: {} };
+        if (slim.frame) {
+          delete slim.frame;
+          slim.frameError = 'too-large';
+        }
+        await chrome.storage.session.set({ tripRequest: slim });
       }
     } catch {
       // Last resort: keep the collecting record; the next click recovers.

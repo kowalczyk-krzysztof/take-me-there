@@ -125,3 +125,25 @@ main {
 #page-footer summary {
   cursor: pointer;
 }
+
+.confirm-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.confirm-actions button {
+  font: inherit;
+  padding: 8px 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.confirm-actions button.primary {
+  background: var(--link);
+  color: var(--background);
+  border-color: transparent;
+}

@@ -21,7 +21,7 @@ for (const file of files) {
   console.log(`verify: ${file} ${(text.length / 1024).toFixed(1)} KB`);
 }
 const worker = readFileSync(path.join(dist, 'service-worker.js'), 'utf8');
-for (const marker of ['plan-trip', 'application/ld+json', 'imgFound']) {
+for (const marker of ['plan-trip', 'application/ld+json', 'imgFound', 'videoWidth', 'no-match']) {
   if (!worker.includes(marker)) {
     console.error(`verify: service-worker.js lacks expected marker: ${marker}`);
     failed = true;

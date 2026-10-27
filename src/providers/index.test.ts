@@ -8,6 +8,7 @@ import {
   getProvider,
   hasConsented,
   loadSettings,
+  responseError,
   saveSettings,
   sanitizePromptHint,
   setConsented,
@@ -150,6 +151,42 @@ describe('prompt builders', () => {
   it('builds the guide prompt with an optional language', () => {
     expect(buildGuidePrompt('Oia, Greece')).toContain('Oia, Greece');
     expect(buildGuidePrompt('Oia, Greece', 'de')).toContain('in de');
+  });
+
+  it('builds the nested video message shape, winning over imageUrl', () => {
+    const [developer, user] = buildIdentifyMessages({
+      signalsText: 'page title: X',
+      imageUrl: 'https://cdn.example.com/oia.jpg',
+      insist: false,
+      videoUrl: 'https://cdn.example.com/trip.mp4',
+    });
+    expect(developer.content).toContain('from videos');
+    expect(user.content).toEqual([
+      { type: 'text', text: expect.stringContaining('shown in this video') },
+      {
+        type: 'video_url',
+        video_url: { url: 'https://cdn.example.com/trip.mp4' },
+      },
+    ]);
+  });
+
+  it('carries the HTTP status on mapped errors', () => {
+    expect(responseError(new Response(null, { status: 400 })).status).toBe(400);
+    expect(responseError(new Response(null, { status: 429 }))).toMatchObject({
+      code: 'rate_limited',
+      status: 429,
+    });
+  });
+
+  it('keeps image nouns when no video URL is set', () => {
+    const [, user] = buildIdentifyMessages({
+      signalsText: 'signals',
+      imageUrl: 'https://cdn.example.com/oia.jpg',
+      insist: true,
+    });
+    const parts = user.content as Array<{ type: string; text?: string }>;
+    expect(parts[0].text).toContain('shown in this image');
+    expect(parts[0].text).toContain('confirms this image shows');
   });
 });
 

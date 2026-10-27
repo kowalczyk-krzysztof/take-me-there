@@ -9,7 +9,13 @@ export type CardState =
   | { view: 'loading' }
   | { view: 'result'; place: PlaceResult; lowConfidence: boolean }
   | { view: 'no-place'; showLookAgain: boolean; fallback: { label: string; href: string } | null }
-  | { view: 'error'; title: string; body: string; showRetry: boolean };
+  | {
+    view: 'error';
+    title: string;
+    body: string;
+    showRetry: boolean;
+    fallback?: { label: string; href: string } | null;
+  };
 
 const msg = (key: string, subs?: string | string[]): string =>
   chrome.i18n.getMessage(key, subs);
@@ -55,7 +61,7 @@ export class TripCardElement extends HTMLElement {
         this.renderNoPlace(state.showLookAgain, state.fallback);
         break;
       case 'error':
-        this.renderError(state.title, state.body, state.showRetry);
+        this.renderError(state.title, state.body, state.showRetry, state.fallback ?? null);
         break;
     }
   }
@@ -159,25 +165,16 @@ export class TripCardElement extends HTMLElement {
       this.root.append(lookAgain);
     }
     if (fallback) {
-      const line = document.createElement('p');
-      line.className = 'fallback';
-      const prefix = document.createElement('span');
-      prefix.textContent = `${msg('fallbackPrefix')} `;
-      const link = document.createElement('a');
-      link.href = fallback.href;
-      link.target = '_blank';
-      link.rel = 'noopener';
-      link.textContent = fallback.label;
-      const suffix = document.createElement('span');
-      suffix.className = 'visually-hidden';
-      suffix.textContent = msg('newTabSuffix');
-      link.append(suffix);
-      line.append(prefix, link);
-      this.root.append(line);
+      this.root.append(this.fallbackLine(fallback));
     }
   }
 
-  private renderError(title: string, body: string, showRetry: boolean): void {
+  private renderError(
+    title: string,
+    body: string,
+    showRetry: boolean,
+    fallback: { label: string; href: string } | null,
+  ): void {
     const heading = document.createElement('h2');
     heading.tabIndex = -1;
     heading.textContent = title;
@@ -192,6 +189,27 @@ export class TripCardElement extends HTMLElement {
       retry.addEventListener('click', () => this.emit('trip-retry'));
       this.root.append(retry);
     }
+    if (fallback) {
+      this.root.append(this.fallbackLine(fallback));
+    }
+  }
+
+  private fallbackLine(fallback: { label: string; href: string }): HTMLElement {
+    const line = document.createElement('p');
+    line.className = 'fallback';
+    const prefix = document.createElement('span');
+    prefix.textContent = `${msg('fallbackPrefix')} `;
+    const link = document.createElement('a');
+    link.href = fallback.href;
+    link.target = '_blank';
+    link.rel = 'noopener';
+    link.textContent = fallback.label;
+    const suffix = document.createElement('span');
+    suffix.className = 'visually-hidden';
+    suffix.textContent = msg('newTabSuffix');
+    link.append(suffix);
+    line.append(prefix, link);
+    return line;
   }
 
   private stopRotation(): void {

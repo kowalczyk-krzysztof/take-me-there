@@ -28,6 +28,8 @@ this same table.
 | Key validation (on save) | Your API key, in the Authorization header | `https://api.meta.ai/v1/models` | Confirm the key works before anything else |
 | Image analysis (after "Agree & analyze") | The image's web address (URL), the page URL and title, and short capped page-text snippets (alt text, captions, headings, nearby text, at most a few KB total) | `https://api.meta.ai` | Identify the place and write the guide |
 | Grounded guide | The same request, plus Meta may run web searches on the place topic to ground facts | `https://api.meta.ai` | Current facts with cited sources |
+| Video frame analysis (after the one-time video confirm) | The captured frame's pixels (a JPEG data URL), the page URL and title, and short capped page-text snippets | `https://api.meta.ai` | Identify the place in the frame |
+| Full-video analysis (after the one-time video confirm) | The video's web address (Meta's servers fetch the video, including its soundtrack), plus the same page context | `https://api.meta.ai` | Identify the place from motion and audio |
 | Booking-link click | The destination name, embedded in the link URL you clicked | The booking site you chose (Google, Airbnb, Booking.com, GetYourGuide, TripAdvisor, Expedia) | Open that site's search results |
 | Manual-destination mode | Nothing leaves the browser | Nowhere | Links are built locally with no AI call |
 

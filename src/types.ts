@@ -58,8 +58,20 @@ export const PAGE_SIGNALS_SCHEMA = z.strictObject({
 });
 export type PageSignals = z.infer<typeof PAGE_SIGNALS_SCHEMA>;
 
+// Frame-capture failure reasons, mirrored from the self-contained injected
+// module (which cannot import this file).
+export const FRAME_FAILURE_SCHEMA = z.enum([
+  'no-match',
+  'no-dimensions',
+  'tainted',
+  'drm',
+  'too-large',
+]);
+export type FrameFailureReason = z.infer<typeof FRAME_FAILURE_SCHEMA>;
+
 // The worker-to-panel handoff record. Signals ride along only once the
-// scrape settles (the 'ready' terminal write).
+// scrape settles (the 'ready' terminal write); video clicks add the media
+// marker plus either the captured frame or its failure reason.
 export const TRIP_REQUEST_SCHEMA = z.strictObject({
   requestId: z.string(),
   status: z.enum(['collecting', 'ready']),
@@ -68,6 +80,14 @@ export const TRIP_REQUEST_SCHEMA = z.strictObject({
   pageUrl: z.nullable(z.string()),
   tabId: z.number(),
   signals: z.optional(PAGE_SIGNALS_SCHEMA),
+  mediaType: z.optional(z.enum(['image', 'video'])),
+  frame: z.optional(
+    z.strictObject({
+      dataUrl: z.string(),
+      time: z.number(),
+    }),
+  ),
+  frameError: z.optional(FRAME_FAILURE_SCHEMA),
 });
 export type TripRequest = z.infer<typeof TRIP_REQUEST_SCHEMA>;
 

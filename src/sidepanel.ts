@@ -20,6 +20,12 @@ import { estimateCostUsd, formatUsd, recordMonthSpend } from './pricing';
 import { createGuideRenderer } from './render_markdown';
 import { TRIP_REQUEST_SCHEMA, type PageSignals, type PlaceResult, type TripRequest } from './types';
 import {
+  frameCacheSeed,
+  hasVideoConsented,
+  isMp4RungUsable,
+  setVideoConsented,
+} from './video';
+import {
   ProviderError,
   addUsage,
   emptyUsage,
@@ -260,12 +266,12 @@ const swapResultSlot = (build: () => void): void => {
   }
 };
 
-const updatePreview = (srcUrl: string | null): void => {
+const updatePreview = (srcUrl: string | null, kind: 'image' | 'frame' = 'image'): void => {
   previewFrame.replaceChildren();
   if (srcUrl && isAllowedPreviewUrl(srcUrl)) {
     const img = document.createElement('img');
     img.referrerPolicy = 'no-referrer';
-    img.alt = msg('previewAltImage');
+    img.alt = msg(kind === 'frame' ? 'previewAltFrame' : 'previewAltImage');
     img.onerror = () => {
       showPreviewPlaceholder();
     };
@@ -318,7 +324,15 @@ const showSources = (sources: GuideSource[]): void => {
   sourcesSlot.hidden = sources.length === 0;
 };
 
-type PrivacyMode = 'image' | 'image-only' | 'manual' | 'cache' | 'idle' | 'local-only';
+type PrivacyMode =
+  | 'image'
+  | 'image-only'
+  | 'manual'
+  | 'cache'
+  | 'idle'
+  | 'local-only'
+  | 'video-frame'
+  | 'video-url';
 
 const updatePrivacy = (mode: PrivacyMode): void => {
   const key =
@@ -332,7 +346,11 @@ const updatePrivacy = (mode: PrivacyMode): void => {
             ? 'privacyCache'
             : mode === 'local-only'
               ? 'privacyLocalOnly'
-              : 'privacyIdle';
+              : mode === 'video-frame'
+                ? 'privacyVideoFrame'
+                : mode === 'video-url'
+                  ? 'privacyVideoUrl'
+                  : 'privacyIdle';
   privacyLine.textContent = msg(key);
 };
 
@@ -438,6 +456,58 @@ const showConsent = (focusGate: boolean): void => {
   }
 };
 
+// First-video gate: the same blocking inline-state pattern as consent
+// (heading, disclosure, agree + explicit decline in DOM order), rendered in
+// the light DOM because no key form is involved.
+const showVideoConfirm = (rung2: boolean, focusGate: boolean): void => {
+  cancelSkeleton();
+  currentView = 'video-confirm';
+  clearContentSlots();
+  const heading = document.createElement('h2');
+  heading.tabIndex = -1;
+  heading.textContent = msg('videoConfirmTitle');
+  const body = document.createElement('p');
+  body.textContent = msg('videoConfirmBody');
+  const actions = document.createElement('div');
+  actions.className = 'confirm-actions';
+  const agree = document.createElement('button');
+  agree.type = 'button';
+  agree.className = 'primary';
+  agree.textContent = msg('videoConfirmAgree');
+  agree.addEventListener('click', () => void onVideoConfirmAgree());
+  const cancel = document.createElement('button');
+  cancel.type = 'button';
+  cancel.textContent = msg('videoConfirmCancel');
+  cancel.addEventListener('click', () => onVideoConfirmCancel());
+  actions.append(agree, cancel);
+  const parts: HTMLElement[] = [heading, body];
+  if (rung2) {
+    const note = document.createElement('p');
+    note.textContent = msg('videoConfirmRung2Note');
+    parts.push(note);
+  }
+  parts.push(actions);
+  swapResultSlot(() => {
+    resultSlot.replaceChildren(...parts);
+  });
+  if (focusGate && !isTyping()) {
+    heading.focus();
+  }
+};
+
+const onVideoConfirmAgree = async (): Promise<void> => {
+  await setVideoConsented();
+  await resumePending();
+};
+
+const onVideoConfirmCancel = (): void => {
+  pendingRun = null;
+  analysisInFlight = false;
+  updatePreview(null);
+  showIdle();
+  announceStatus('statusVideoConfirmDeclined');
+};
+
 const autoScrollGuide = (): void => {
   if (userScrolled || prefersReducedMotion()) {
     return;
@@ -502,6 +572,31 @@ const fallbackFor = (signals: PageSignals): { label: string; href: string } | nu
 
 type RunOutcome = 'result' | 'no-place' | 'error' | 'aborted';
 
+// Rung-2 media for a video request: only when no frame was captured, the URL
+// is server-fetchable, and the provider speaks video. Centralized so re-runs
+// (look again, re-analyze, retry) route exactly like the first attempt.
+const videoUrlForRequest = (
+  request: TripRequest,
+  provider: Provider,
+): string | undefined =>
+  request.mediaType === 'video' &&
+  !request.frame &&
+  provider.capabilities.video &&
+  isMp4RungUsable(request.srcUrl)
+    ? request.srcUrl
+    : undefined;
+
+const privacyForRequest = (
+  request: TripRequest,
+  settings: ExtensionSettings,
+  provider: Provider,
+): PrivacyMode => {
+  if (request.mediaType === 'video') {
+    return videoUrlForRequest(request, provider) ? 'video-url' : 'video-frame';
+  }
+  return settings.imageOnly ? 'image-only' : 'image';
+};
+
 const renderResultHeader = async (place: PlaceResult, announce: boolean): Promise<void> => {
   await settleSkeleton();
   cancelSkeleton();
@@ -546,6 +641,7 @@ const renderErrorCard = (
   bodyKey: string,
   showRetry: boolean,
   withKeySetup: boolean,
+  fallback: { label: string; href: string } | null = null,
 ): void => {
   cancelSkeleton();
   currentView = 'error';
@@ -556,6 +652,7 @@ const renderErrorCard = (
       title: msg(titleKey),
       body: msg(bodyKey),
       showRetry,
+      fallback,
     });
     if (withKeySetup) {
       keySetup.showSetup();
@@ -563,6 +660,18 @@ const renderErrorCard = (
       resultSlot.append(keySetup);
     }
   });
+};
+
+// Error-path footer: video runs report their rung (a frame-carrying request
+// ran rung 1, a frameless one ran rung 2), everything else keeps the old rule.
+const errorPrivacy = (request: TripRequest | null, forManual: boolean): PrivacyMode => {
+  if (forManual) {
+    return 'manual';
+  }
+  if (request?.mediaType === 'video') {
+    return request.frame ? 'video-frame' : 'video-url';
+  }
+  return 'image';
 };
 
 const showProviderError = (
@@ -573,7 +682,7 @@ const showProviderError = (
   if (!(err instanceof ProviderError)) {
     renderErrorCard('errorServerTitle', 'errorServerBody', true, false);
     announceAlert('alertServer');
-    updatePrivacy(forManual ? 'manual' : 'image');
+    updatePrivacy(errorPrivacy(request, forManual));
     return;
   }
   if (err.code === 'aborted') {
@@ -600,7 +709,7 @@ const showProviderError = (
           : pendingRun;
     renderErrorCard('errorAuthTitle', 'errorAuthBody', false, true);
     announceAlert('alertAuth');
-    updatePrivacy(forManual ? 'manual' : 'image');
+    updatePrivacy(errorPrivacy(request, forManual));
     return;
   }
   const titles: Record<string, [string, string, string]> = {
@@ -618,7 +727,7 @@ const showProviderError = (
   ];
   renderErrorCard(titleKey, bodyKey, true, false);
   announceAlert(alertKey);
-  updatePrivacy(forManual ? 'manual' : 'image');
+  updatePrivacy(errorPrivacy(request, forManual));
 };
 
 const recordPartialUsage = (err: unknown, provider: Provider): void => {
@@ -634,7 +743,7 @@ interface StreamArgs {
   destination: string;
   signal: AbortSignal;
   cacheKey: string | null;
-  privacy: 'image' | 'image-only' | 'manual';
+  privacy: PrivacyMode;
   origin: 'gesture' | 'panel';
 }
 
@@ -737,14 +846,16 @@ const identifyAndGuide = async (args: IdentifyArgs): Promise<RunOutcome> => {
   };
   const signals = request.signals ?? EMPTY_SIGNALS;
   const signalsText = formatSignalsForPrompt(signals, settings.imageOnly);
+  const privacy = privacyForRequest(request, settings, provider);
   let identify;
   try {
     identify = await provider.identifyPlace(key, {
-      imageUrl: request.srcUrl,
+      imageUrl: request.frame?.dataUrl ?? request.srcUrl,
       signalsText,
       signal,
       insist,
       rejectedPlace,
+      videoUrl: videoUrlForRequest(request, provider),
     });
   } catch (err) {
     finishController();
@@ -770,7 +881,7 @@ const identifyAndGuide = async (args: IdentifyArgs): Promise<RunOutcome> => {
     finishController();
     await renderNoPlace(request, origin);
     await priceAndRecord(provider);
-    updatePrivacy(settings.imageOnly ? 'image-only' : 'image');
+    updatePrivacy(privacy);
     analysisInFlight = false;
     return 'no-place';
   }
@@ -788,7 +899,7 @@ const identifyAndGuide = async (args: IdentifyArgs): Promise<RunOutcome> => {
     destination,
     signal,
     cacheKey: currentCacheKey,
-    privacy: settings.imageOnly ? 'image-only' : 'image',
+    privacy,
     origin,
   });
   finishController();
@@ -851,6 +962,92 @@ const renderCached = (entry: CacheEntry, origin: 'gesture' | 'panel'): void => {
   }
 };
 
+type VideoRoute =
+  | { kind: 'frame' }
+  | { kind: 'rung2' }
+  | { kind: 'error'; titleKey: string; bodyKey: string };
+
+const routeVideoRequest = (request: TripRequest, provider: Provider): VideoRoute => {
+  if (request.frame) {
+    return { kind: 'frame' };
+  }
+  if (request.frameError === 'drm') {
+    return { kind: 'error', titleKey: 'errorVideoTitle', bodyKey: 'errorVideoBody' };
+  }
+  if (isMp4RungUsable(request.srcUrl)) {
+    if (provider.capabilities.video) {
+      return { kind: 'rung2' };
+    }
+    return { kind: 'error', titleKey: 'errorVideoTitle', bodyKey: 'errorVideoProviderBody' };
+  }
+  if (request.frameError === 'no-match') {
+    return { kind: 'error', titleKey: 'errorVideoMatchTitle', bodyKey: 'errorVideoMatchBody' };
+  }
+  return { kind: 'error', titleKey: 'errorVideoTitle', bodyKey: 'errorVideoBody' };
+};
+
+const runVideoAnalysis = async (
+  request: TripRequest,
+  provider: Provider,
+  settings: ExtensionSettings,
+  key: string,
+  origin: 'gesture' | 'panel',
+  superseded: boolean,
+): Promise<void> => {
+  const route = routeVideoRequest(request, provider);
+  if (route.kind === 'error') {
+    analysisInFlight = false;
+    updatePreview(null);
+    renderErrorCard(
+      route.titleKey,
+      route.bodyKey,
+      false,
+      false,
+      fallbackFor(request.signals ?? EMPTY_SIGNALS),
+    );
+    announceAlert('alertVideoUnreadable');
+    updatePrivacy('idle');
+    return;
+  }
+  if (!(await hasVideoConsented())) {
+    analysisInFlight = false;
+    pendingRun = { kind: 'request', request };
+    updatePreview(request.frame?.dataUrl ?? null, request.frame ? 'frame' : 'image');
+    showVideoConfirm(route.kind === 'rung2', origin === 'panel');
+    announceStatus('statusVideoConfirmNeeded');
+    return;
+  }
+  if (route.kind === 'frame' && request.frame) {
+    updatePreview(request.frame.dataUrl, 'frame');
+    currentCacheKey = await hashCacheKey(
+      frameCacheSeed(request.frame.time),
+      request.pageUrl ?? '',
+    );
+  } else {
+    updatePreview(null);
+    currentCacheKey = await hashCacheKey(request.srcUrl, request.pageUrl ?? '');
+  }
+  const cached = await getCacheEntry(currentCacheKey);
+  if (cached) {
+    analysisInFlight = false;
+    activeController = null;
+    renderCached(cached, origin);
+    return;
+  }
+  announceStatus(
+    superseded ? 'statusCanceledNew' : route.kind === 'frame' ? 'statusAnalyzingFrame' : 'statusAnalyzingVideo',
+  );
+  showSkeleton(request.requestId);
+  await identifyAndGuide({
+    request,
+    provider,
+    settings,
+    key,
+    origin,
+    insist: false,
+  });
+};
+
 const runAnalysis = async (request: TripRequest, origin: 'gesture' | 'panel'): Promise<void> => {
   abortActive();
   clearStaleTimer();
@@ -878,6 +1075,10 @@ const runAnalysis = async (request: TripRequest, origin: 'gesture' | 'panel'): P
     pendingRun = { kind: 'request', request };
     showConsent(false);
     announceStatus('statusConsentNeeded');
+    return;
+  }
+  if (request.mediaType === 'video') {
+    await runVideoAnalysis(request, provider, settings, keyStatus.key, origin, superseded);
     return;
   }
   if (request.dataPending || !request.srcUrl) {

@@ -496,5 +496,77 @@
   "loadingWriting": {
     "message": "Writing your trip guide…",
     "description": "Cosmetic loading line."
+  },
+  "videoConfirmTitle": {
+    "message": "Analyze this video?",
+    "description": "First-video confirm heading."
+  },
+  "videoConfirmBody": {
+    "message": "This captures the current video frame and sends it to Meta - continue?",
+    "description": "First-video confirm disclosure."
+  },
+  "videoConfirmRung2Note": {
+    "message": "The frame could not be captured, so the full video and its soundtrack will be sent instead.",
+    "description": "Extra confirm line when rung 2 will run."
+  },
+  "videoConfirmAgree": {
+    "message": "Capture & analyze",
+    "description": "First-video confirm button."
+  },
+  "videoConfirmCancel": {
+    "message": "Cancel",
+    "description": "First-video decline button."
+  },
+  "previewAltFrame": {
+    "message": "Captured video frame being analyzed",
+    "description": "Preview alt text for a captured frame."
+  },
+  "statusAnalyzingFrame": {
+    "message": "Analyzing the frame you clicked…",
+    "description": "Status announcement when frame analysis starts."
+  },
+  "statusAnalyzingVideo": {
+    "message": "Analyzing the video you clicked…",
+    "description": "Status announcement when full-video analysis starts."
+  },
+  "statusVideoConfirmNeeded": {
+    "message": "Video confirmation needed.",
+    "description": "Status announcement for the first-video gate."
+  },
+  "statusVideoConfirmDeclined": {
+    "message": "Video analysis canceled.",
+    "description": "Status announcement when the video confirm is declined."
+  },
+  "errorVideoTitle": {
+    "message": "Can't read this video",
+    "description": "Error card title for unreadable video."
+  },
+  "errorVideoBody": {
+    "message": "No frame could be captured from this video (it may be protected). Use the suggested link when one is shown, or analyze another image.",
+    "description": "Error card body for unreadable video."
+  },
+  "errorVideoMatchTitle": {
+    "message": "Couldn't match the video",
+    "description": "Error card title when the video element is not found."
+  },
+  "errorVideoMatchBody": {
+    "message": "The clicked video could not be found on the page. Click the video again, or analyze another image.",
+    "description": "Error card body when the video element is not found."
+  },
+  "errorVideoProviderBody": {
+    "message": "The frame could not be captured and the active provider cannot analyze video directly.",
+    "description": "Error card body when rung 2 is unavailable."
+  },
+  "alertVideoUnreadable": {
+    "message": "Video unreadable. Suggested links are shown.",
+    "description": "Alert announcement for video failures."
+  },
+  "privacyVideoFrame": {
+    "message": "Sent to Meta's Muse API with your key: this captured video frame, nearby page text, and the page address.",
+    "description": "Privacy footer for frame analysis."
+  },
+  "privacyVideoUrl": {
+    "message": "Sent to Meta's Muse API with your key: this video and its soundtrack, nearby page text, and the page address.",
+    "description": "Privacy footer for full-video analysis."
   }
 }
