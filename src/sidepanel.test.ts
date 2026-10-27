@@ -38,11 +38,11 @@ const mountShell = (): void => {
   document.body.innerHTML = body;
 };
 
-const waitFor = async (fn: () => void, timeoutMs = 5000): Promise<void> => {
+const waitFor = async (fn: () => unknown, timeoutMs = 5000): Promise<void> => {
   const start = Date.now();
   for (;;) {
     try {
-      fn();
+      await fn();
       return;
     } catch (err) {
       if (Date.now() - start > timeoutMs) {
@@ -626,6 +626,212 @@ describe('sidepanel', () => {
     });
     expect(structure.response_format.type).toBe('json_schema');
     expect(structure.messages[1].content[0].type).toBe('text');
+  });
+
+  it('renders the scan skeleton while the harvest is collecting', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    await mock.session.set({
+      tripRequest: READY({
+        status: 'collecting',
+        srcUrl: '',
+        signals: undefined,
+        scanImages: [],
+      }),
+    });
+    await waitFor(() => {
+      const list = document.querySelector('scan-list');
+      expect(list?.shadowRoot?.querySelector('h2')?.textContent).toBe('scanTitle');
+    });
+    const list = document.querySelector('scan-list');
+    const grid = list?.shadowRoot?.querySelector('.skeleton-grid');
+    expect(grid?.getAttribute('aria-hidden')).toBe('true');
+    expect(grid?.querySelectorAll('.skeleton-block')).toHaveLength(6);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('scans the harvest into a paired shortlist', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    fetchMock.mockResolvedValueOnce(
+      chatResponse({
+        places: [
+          { placeName: 'Oia', city: 'Oia', country: 'Greece', confidence: 0.9, imageIndex: 1 },
+          { placeName: 'Fira', city: 'Fira', country: 'Greece', confidence: 0.8, imageIndex: 9 },
+        ],
+      }),
+    );
+    await mock.session.set({
+      tripRequest: READY({
+        srcUrl: '',
+        signals: undefined,
+        scanImages: [
+          { url: 'https://img.example.com/a.jpg', caption: '', heading: '', width: 800, height: 600 },
+          { url: 'https://img.example.com/b.jpg', caption: '', heading: '', width: 800, height: 600 },
+        ],
+      }),
+    });
+    await waitFor(() => {
+      const list = document.querySelector('scan-list');
+      expect(list?.shadowRoot?.querySelectorAll('.scan-card')).toHaveLength(2);
+    });
+    expect(document.querySelector('#status-region')?.textContent).toBe('scanFound');
+    const list = document.querySelector('scan-list');
+    const cards = list?.shadowRoot?.querySelectorAll('.scan-card');
+    expect(cards?.[0]?.querySelector('img')?.getAttribute('src')).toBe('https://img.example.com/b.jpg');
+    expect(cards?.[1]?.querySelector('img')).toBeNull();
+    expect(cards?.[1]?.querySelector('.thumb-placeholder')).not.toBeNull();
+    expect(cards?.[0]?.querySelector('.pin-button')?.getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('shows honest cards for empty harvests and empty results', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    await mock.session.set({
+      tripRequest: READY({ srcUrl: '', signals: undefined, scanImages: [] }),
+    });
+    await waitFor(() => {
+      const card = document.querySelector('trip-card');
+      expect(card?.shadowRoot?.querySelector('h2')?.textContent).toBe('scanEmptyTitle');
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+    fetchMock.mockResolvedValueOnce(chatResponse({ places: [] }));
+    await mock.session.set({
+      tripRequest: READY({
+        requestId: '200-2',
+        srcUrl: '',
+        signals: undefined,
+        scanImages: [
+          { url: 'https://img.example.com/a.jpg', caption: '', heading: '', width: 800, height: 600 },
+        ],
+      }),
+    });
+    await waitFor(() => {
+      const card = document.querySelector('trip-card');
+      expect(card?.shadowRoot?.querySelector('h2')?.textContent).toBe('scanNoneTitle');
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('streams a scan guide with no second identify pass', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    fetchMock
+      .mockResolvedValueOnce(
+        chatResponse({
+          places: [
+            { placeName: 'Oia', city: 'Oia', country: 'Greece', confidence: 0.9, imageIndex: 0 },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
+    await mock.session.set({
+      tripRequest: READY({
+        srcUrl: '',
+        signals: undefined,
+        scanImages: [
+          { url: 'https://img.example.com/a.jpg', caption: '', heading: '', width: 800, height: 600 },
+        ],
+      }),
+    });
+    await waitFor(() => {
+      const list = document.querySelector('scan-list');
+      expect(list?.shadowRoot?.querySelectorAll('.scan-card')).toHaveLength(1);
+    });
+    const list = document.querySelector('scan-list') as HTMLElement;
+    (list.shadowRoot?.querySelector('.scan-card button') as HTMLButtonElement).click();
+    await waitFor(() => {
+      const card = document.querySelector('trip-card');
+      expect(card?.shadowRoot?.querySelector('h2')?.textContent).toBe('Oia');
+    });
+    await waitFor(() => {
+      expect(document.querySelector('#guide-content')?.textContent).toContain('Hello world');
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('pins scan cards singly and in bulk', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    const { listPins } = await import('./board_store');
+    fetchMock.mockResolvedValueOnce(
+      chatResponse({
+        places: [
+          { placeName: 'Oia', city: 'Oia', country: 'Greece', confidence: 0.9, imageIndex: 0 },
+          { placeName: 'Fira', city: 'Fira', country: 'Greece', confidence: 0.8, imageIndex: 1 },
+        ],
+      }),
+    );
+    await mock.session.set({
+      tripRequest: READY({
+        srcUrl: '',
+        signals: undefined,
+        scanImages: [
+          { url: 'https://img.example.com/a.jpg', caption: '', heading: '', width: 800, height: 600 },
+          { url: 'https://img.example.com/b.jpg', caption: '', heading: '', width: 800, height: 600 },
+        ],
+      }),
+    });
+    await waitFor(() => {
+      const list = document.querySelector('scan-list');
+      expect(list?.shadowRoot?.querySelectorAll('.scan-card')).toHaveLength(2);
+    });
+    const list = document.querySelector('scan-list') as HTMLElement;
+    const cards = list.shadowRoot?.querySelectorAll('.scan-card');
+    (cards?.[0]?.querySelector('.pin-button') as HTMLButtonElement).click();
+    await waitFor(async () => {
+      expect(await listPins()).toHaveLength(1);
+    });
+    expect((await listPins())[0]?.imageUrl).toBe('https://img.example.com/a.jpg');
+    await waitFor(() => {
+      const pressed = document
+        .querySelector('scan-list')
+        ?.shadowRoot?.querySelectorAll('.scan-card')[0]
+        ?.querySelector('.pin-button')
+        ?.getAttribute('aria-pressed');
+      expect(pressed).toBe('true');
+    });
+    for (const box of list.shadowRoot?.querySelectorAll('input[type="checkbox"]') ?? []) {
+      (box as HTMLInputElement).click();
+    }
+    (list.shadowRoot?.querySelector('.pin-selected') as HTMLButtonElement).click();
+    await waitFor(async () => {
+      expect(await listPins()).toHaveLength(2);
+    });
+  });
+
+  it('retries a failed scan from the error card', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    fetchMock
+      .mockResolvedValueOnce(new Response('boom', { status: 500 }))
+      .mockResolvedValueOnce(
+        chatResponse({
+          places: [
+            { placeName: 'Oia', city: 'Oia', country: 'Greece', confidence: 0.9, imageIndex: 0 },
+          ],
+        }),
+      );
+    await mock.session.set({
+      tripRequest: READY({
+        srcUrl: '',
+        signals: undefined,
+        scanImages: [
+          { url: 'https://img.example.com/a.jpg', caption: '', heading: '', width: 800, height: 600 },
+        ],
+      }),
+    });
+    await waitFor(() => {
+      const card = document.querySelector('trip-card');
+      expect(card?.shadowRoot?.querySelector('h2')?.textContent).toBe('errorServerTitle');
+    });
+    const card = document.querySelector('trip-card') as HTMLElement;
+    (card.shadowRoot?.querySelector('.primary') as HTMLButtonElement).click();
+    await waitFor(() => {
+      const list = document.querySelector('scan-list');
+      expect(list?.shadowRoot?.querySelectorAll('.scan-card')).toHaveLength(1);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('renders honest cards with fallback links for unreadable video', async () => {

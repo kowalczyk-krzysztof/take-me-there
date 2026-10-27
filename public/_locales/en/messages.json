@@ -582,6 +582,51 @@
       "place": { "content": "$1", "example": "Oia" }
     }
   },
+  "scanTitle": {
+    "message": "Places found on this page",
+    "description": "Scan state heading."
+  },
+  "scanMenuTitle": {
+    "message": "Scan page for places",
+    "description": "Page context menu item."
+  },
+  "scanGuide": {
+    "message": "Guide for $1",
+    "description": "Scan card Guide button.",
+    "placeholders": {
+      "place": { "content": "$1", "example": "Oia" }
+    }
+  },
+  "scanPinSelected": {
+    "message": "Pin selected ($1)",
+    "description": "Scan shortlist bulk-pin button.",
+    "placeholders": {
+      "count": { "content": "$1", "example": "2" }
+    }
+  },
+  "scanEmptyTitle": {
+    "message": "No images to scan",
+    "description": "Scan error title when the harvest is empty."
+  },
+  "scanEmptyBody": {
+    "message": "This page has no large images to identify places from.",
+    "description": "Scan error body when the harvest is empty."
+  },
+  "scanNoneTitle": {
+    "message": "No places found",
+    "description": "Scan error title when no place was recognized."
+  },
+  "scanNoneBody": {
+    "message": "The scan finished but no recognizable places were found.",
+    "description": "Scan error body when no place was recognized."
+  },
+  "scanFound": {
+    "message": "Found $1 places on this page",
+    "description": "Scan completion announcement.",
+    "placeholders": {
+      "count": { "content": "$1", "example": "3" }
+    }
+  },
   "boardNoticePinFail": {
     "message": "Couldn't pin $1 - storage is unavailable.",
     "description": "Visible pin-failure notice.",

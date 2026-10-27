@@ -3,16 +3,18 @@
 // configured mode (json_schema when the endpoint supports it, otherwise
 // json_object with client-side validation doing the real work).
 import type { ModelRates } from '../pricing';
-import { itineraryJsonSchema } from '../types';
+import { itineraryJsonSchema, scanBatchJsonSchema } from '../types';
 import {
   ProviderError,
   assertConsent,
   buildGuidePrompt,
   buildItineraryMessages,
+  buildScanMessages,
   emptyUsage,
   fetchChatCompletion,
   invalidResponse,
   parseItineraryPlan,
+  parseScanBatch,
   postChatStream,
   requireKey,
   responseError,
@@ -29,6 +31,8 @@ import {
   type OpenAiCompatSettings,
   type Provider,
   type ProviderCapabilities,
+  type ScanInput,
+  type ScanResult,
 } from './index';
 
 const IDENTIFY_MAX_TOKENS = 2048;
@@ -134,6 +138,41 @@ export class OpenAiCompatProvider implements Provider {
       const plan = parseItineraryPlan(data, stopNames);
       if (plan) {
         return { plan, usage: { ...usage } };
+      }
+    }
+    throw invalidResponse(usage, 'model output failed validation');
+  }
+
+  async scanPlaces(key: string, input: ScanInput): Promise<ScanResult> {
+    requireKey(key);
+    await assertConsent();
+    const base = this.baseURL();
+    const usage = emptyUsage();
+    if (input.images.length === 0) {
+      throw invalidResponse(usage, 'no images to scan');
+    }
+    for (const strictReminder of [false, true]) {
+      const data = await fetchChatCompletion(
+        `${base}/chat/completions`,
+        key,
+        {
+          model: this.config.model,
+          max_completion_tokens: IDENTIFY_MAX_TOKENS,
+          messages: buildScanMessages(input.images, strictReminder),
+          response_format:
+            this.config.structuredOutput === 'json_schema'
+              ? {
+                  type: 'json_schema',
+                  json_schema: { name: 'scan_batch', schema: scanBatchJsonSchema() },
+                }
+              : { type: 'json_object' },
+        },
+        input.signal,
+        usage,
+      );
+      const places = parseScanBatch(data);
+      if (places) {
+        return { places, usage: { ...usage } };
       }
     }
     throw invalidResponse(usage, 'model output failed validation');

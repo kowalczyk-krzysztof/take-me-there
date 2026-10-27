@@ -249,3 +249,28 @@ describe('compat planItinerary', () => {
     expect(init.body as string).toContain('Custom narration prompt.');
   });
 });
+
+describe('compat scanPlaces', () => {
+  const VALID_BATCH = {
+    places: [{ placeName: 'Oia', city: 'Oia', country: 'Greece', confidence: 0.9, imageIndex: 0 }],
+  };
+
+  const scanInput = () => ({
+    images: [
+      { url: 'https://cdn.example.com/a.jpg', caption: 'Blue domes', heading: '', width: 800, height: 600 },
+    ],
+    signal: new AbortController().signal,
+  });
+
+  it('uses the configured envelope for batches', async () => {
+    await setConsented();
+    fetchMock.mockResolvedValue(chatResponse(VALID_BATCH));
+    const provider = new OpenAiCompatProvider(config());
+    const result = await provider.scanPlaces('sk_key', scanInput());
+    expect(result.places).toHaveLength(1);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://llm.example.com/v1/chat/completions');
+    const body = JSON.parse(init.body as string) as Record<string, Record<string, unknown>>;
+    expect((body.response_format as Record<string, string>).type).toBe('json_object');
+  });
+});

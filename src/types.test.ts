@@ -7,6 +7,8 @@ import {
   itineraryJsonSchema,
   itinerarySchema,
   placeJsonSchema,
+  scanBatchJsonSchema,
+  scanPlaceSchema,
 } from './types';
 
 const forbiddenKeys = (value: unknown, path = '$'): string[] => {
@@ -190,5 +192,33 @@ describe('handoff schemas', () => {
         structuredOutput: 'xml',
       }).success,
     ).toBe(false);
+  });
+});
+
+describe('scan batch pipeline', () => {
+  it('emits the strict subset with a bounded index', () => {
+    const schema = scanBatchJsonSchema();
+    assertStrictSubset(schema);
+    expect(forbiddenKeys(schema)).toEqual([]);
+    const props = schema.properties as Record<string, Record<string, unknown>>;
+    const items = props.places.items as Record<string, unknown>;
+    const itemProps = items.properties as Record<string, unknown>;
+    expect(itemProps.imageIndex).toMatchObject({ type: 'integer', minimum: 0, maximum: 11 });
+  });
+
+  it('validates scan entries and rejects bad indices', () => {
+    const schema = scanPlaceSchema();
+    const valid = {
+      placeName: 'Oia',
+      city: 'Oia',
+      country: 'Greece',
+      confidence: 0.9,
+      imageIndex: 3,
+    };
+    expect(schema.safeParse(valid).success).toBe(true);
+    expect(schema.safeParse({ ...valid, imageIndex: 12 }).success).toBe(false);
+    expect(schema.safeParse({ ...valid, imageIndex: -1 }).success).toBe(false);
+    expect(schema.safeParse({ ...valid, imageIndex: 1.5 }).success).toBe(false);
+    expect(schema.safeParse({ ...valid, placeName: 'x'.repeat(101) }).success).toBe(false);
   });
 });

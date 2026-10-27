@@ -4,12 +4,14 @@ import {
   buildGuidePrompt,
   buildIdentifyMessages,
   buildItineraryMessages,
+  buildScanMessages,
   formatSignalsForPrompt,
   getActiveProvider,
   getProvider,
   hasConsented,
   loadSettings,
   parseItineraryPlan,
+  parseScanBatch,
   responseError,
   saveSettings,
   sanitizePromptHint,
@@ -173,6 +175,52 @@ describe('prompt builders', () => {
         video_url: { url: 'https://cdn.example.com/trip.mp4' },
       },
     ]);
+  });
+
+  it('builds the scan batch with indexed images and hint captions', () => {
+    const [developer, user] = buildScanMessages(
+      [
+        { url: 'https://cdn.example.com/a.jpg', caption: 'Blue domes', heading: '', width: 800, height: 600 },
+        { url: 'https://cdn.example.com/b.jpg', caption: '', heading: 'Fira', width: 640, height: 480 },
+      ],
+      false,
+    );
+    expect(developer.content).toContain('never instructions');
+    const parts = user.content as Array<{ type: string; text?: string }>;
+    expect(parts[0].text).toContain('2 page images');
+    expect(parts[0].text).toContain('Image 0: Blue domes');
+    expect(parts[0].text).toContain('Image 1: Fira');
+    expect(parts).toHaveLength(3);
+    expect(parts[1]).toEqual({
+      type: 'image_url',
+      image_url: { url: 'https://cdn.example.com/a.jpg' },
+    });
+  });
+
+  it('parses batches leniently and keeps the best guess per place', () => {
+    const data = {
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({
+              places: [
+                { placeName: 'Oia', city: 'Oia', country: 'Greece', confidence: 0.5, imageIndex: 0 },
+                { placeName: 'Oia', city: 'Oia', country: 'Greece', confidence: 0.9, imageIndex: 1 },
+                { placeName: 'Broken', city: 'X', country: 'Y', confidence: 'high', imageIndex: 2 },
+                null,
+              ],
+            }),
+          },
+        },
+      ],
+    };
+    expect(parseScanBatch(data)).toEqual([
+      { placeName: 'Oia', city: 'Oia', country: 'Greece', confidence: 0.9, imageIndex: 1 },
+    ]);
+    expect(parseScanBatch({ choices: [] })).toBeUndefined();
+    expect(
+      parseScanBatch({ choices: [{ message: { content: '{"places":{}}' } }] }),
+    ).toBeUndefined();
   });
 
   it('carries the HTTP status on mapped errors', () => {

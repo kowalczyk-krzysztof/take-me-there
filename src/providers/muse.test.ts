@@ -500,3 +500,49 @@ describe('muse planItinerary', () => {
     expect(JSON.stringify(body)).toContain('Narrate this itinerary day by day.');
   });
 });
+
+describe('muse scanPlaces', () => {
+  const VALID_BATCH = {
+    places: [
+      { placeName: 'Oia', city: 'Oia', country: 'Greece', confidence: 0.9, imageIndex: 0 },
+      { placeName: 'Fira', city: 'Fira', country: 'Greece', confidence: 0.8, imageIndex: 1 },
+    ],
+  };
+
+  const scanInput = () => ({
+    images: [
+      { url: 'https://cdn.example.com/a.jpg', caption: 'Blue domes', heading: '', width: 800, height: 600 },
+      { url: 'https://cdn.example.com/b.jpg', caption: '', heading: 'Fira', width: 640, height: 480 },
+    ],
+    signal: new AbortController().signal,
+  });
+
+  it('batches harvested images in one structured call', async () => {
+    await consented();
+    fetchMock.mockResolvedValue(chatResponse(VALID_BATCH));
+    const result = await provider.scanPlaces('LLM_key', scanInput());
+    expect(result.places).toHaveLength(2);
+    expect(result.usage).toEqual({ inputTokens: 100, outputTokens: 50, searchCount: 0, flatFeesUsd: 0 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const body = requestBody();
+    expect(body.response_format.type).toBe('json_schema');
+    expect(body.response_format.json_schema.schema.properties.places.type).toBe('array');
+    const parts = body.messages[1].content as Array<{ type: string }>;
+    expect(parts.map((part) => part.type)).toEqual(['text', 'image_url', 'image_url']);
+  });
+
+  it('retries once on malformed batches and rejects empty harvests', async () => {
+    await consented();
+    fetchMock
+      .mockResolvedValueOnce(rawChatResponse('not json'))
+      .mockResolvedValueOnce(chatResponse(VALID_BATCH));
+    const result = await provider.scanPlaces('LLM_key', scanInput());
+    expect(result.places).toHaveLength(2);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    fetchMock.mockReset();
+    await expect(
+      provider.scanPlaces('LLM_key', { images: [], signal: new AbortController().signal }),
+    ).rejects.toMatchObject({ code: 'invalid_response' });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});

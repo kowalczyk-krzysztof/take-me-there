@@ -3,18 +3,25 @@
 // Responses API with a chat-completions fallback behind the transport flag.
 import { EventSourceParserStream, type EventSourceMessage } from 'eventsource-parser/stream';
 import { MUSE_SPARK_RATES, type ModelRates } from '../pricing';
-import { itineraryJsonSchema, placeJsonSchema, type PlaceResult } from '../types';
+import {
+  itineraryJsonSchema,
+  placeJsonSchema,
+  scanBatchJsonSchema,
+  type PlaceResult,
+} from '../types';
 import {
   ProviderError,
   SSE_MAX_BUFFER,
   assertConsent,
   buildGuidePrompt,
   buildItineraryMessages,
+  buildScanMessages,
   decodeStream,
   emptyUsage,
   fetchChatCompletion,
   invalidResponse,
   parseItineraryPlan,
+  parseScanBatch,
   postChatStream,
   readChatUsage,
   requireKey,
@@ -35,6 +42,8 @@ import {
   type ItineraryResult,
   type Provider,
   type ProviderCapabilities,
+  type ScanInput,
+  type ScanResult,
   type Usage,
 } from './index';
 
@@ -275,6 +284,38 @@ export class MuseProvider implements Provider {
       const plan = parseItineraryPlan(data, stopNames);
       if (plan) {
         return { plan, usage: { ...usage } };
+      }
+    }
+    throw invalidResponse(usage, 'model output failed validation');
+  }
+
+  async scanPlaces(key: string, input: ScanInput): Promise<ScanResult> {
+    requireKey(key);
+    await assertConsent();
+    const usage = emptyUsage();
+    if (input.images.length === 0) {
+      throw invalidResponse(usage, 'no images to scan');
+    }
+    for (const strictReminder of [false, true]) {
+      const data = await fetchChatCompletion(
+        `${API_BASE}/chat/completions`,
+        key,
+        {
+          model: MODEL,
+          reasoning_effort: 'low',
+          max_completion_tokens: ITINERARY_MAX_TOKENS,
+          messages: buildScanMessages(input.images, strictReminder),
+          response_format: {
+            type: 'json_schema',
+            json_schema: { name: 'scan_batch', strict: true, schema: scanBatchJsonSchema() },
+          },
+        },
+        input.signal,
+        usage,
+      );
+      const places = parseScanBatch(data);
+      if (places) {
+        return { places, usage: { ...usage } };
       }
     }
     throw invalidResponse(usage, 'model output failed validation');

@@ -2,10 +2,18 @@
 // analysis with streamed guides, disagree flows, and the cost footer.
 import './components/booking_grid';
 import './components/key_setup';
+import './components/scan_list';
 import './components/source_chips';
 import './components/trip_board';
 import './components/trip_card';
 import type { BookingGridElement } from './components/booking_grid';
+import type {
+  ScanGuideDetail,
+  ScanItemView,
+  ScanListElement,
+  ScanPinDetail,
+  ScanPinSelectedDetail,
+} from './components/scan_list';
 import type {
   ConsentDecisionDetail,
   KeySaveRequestDetail,
@@ -38,6 +46,8 @@ import {
   type ItineraryPlan,
   type PageSignals,
   type PlaceResult,
+  type ScannedImage,
+  type ScannedPlace,
   type TripRequest,
 } from './types';
 import {
@@ -183,7 +193,10 @@ const EMPTY_SIGNALS: PageSignals = {
   jsonLd: [],
 };
 
-type PendingRun = { kind: 'request'; request: TripRequest } | { kind: 'itinerary' };
+type PendingRun =
+  | { kind: 'request'; request: TripRequest }
+  | { kind: 'scan-guide'; request: TripRequest; index: number }
+  | { kind: 'itinerary' };
 
 let initialized = false;
 let pageTitle: HTMLElement;
@@ -203,6 +216,9 @@ let linksNoteSummary: HTMLElement;
 let linksNoteBody: HTMLElement;
 let costLine: HTMLElement;
 let tripCard: TripCardElement;
+let scanList: ScanListElement;
+let scanPlaces: ScannedPlace[] = [];
+let scanThumbs: Array<string | null> = [];
 let keySetup: KeySetupElement;
 let bookingGrid: BookingGridElement;
 let sourceChips: SourceChipsElement;
@@ -421,6 +437,18 @@ const settleSkeleton = async (): Promise<void> => {
     }
     skeletonShownAt = 0;
   }
+};
+
+// Scan chrome renders immediately (no trip-card delay): the collecting
+// record already proved the harvest is underway.
+const showScanSkeleton = (): void => {
+  cancelSkeleton();
+  clearContentSlots();
+  currentView = 'scan';
+  swapResultSlot(() => {
+    resultSlot.replaceChildren(scanList);
+    scanList.setLoading();
+  });
 };
 
 const showIdle = (): void => {
@@ -1098,6 +1126,234 @@ const runVideoAnalysis = async (
   });
 };
 
+// ---- Page scan (D2) ----
+
+const scanPlaceResult = (place: ScannedPlace): PlaceResult => ({
+  identified: true,
+  placeName: place.placeName,
+  city: place.city,
+  country: place.country,
+  confidence: place.confidence,
+  oneLiner: '',
+});
+
+// Pair a scan guess with its harvest thumbnail. An out-of-range index or a
+// non-previewable URL yields the placeholder, never a wrong image.
+const pairScanThumb = (place: ScannedPlace, images: ScannedImage[]): string | null => {
+  const index = place.imageIndex;
+  if (!Number.isInteger(index) || index < 0 || index >= images.length) {
+    return null;
+  }
+  const url = images[index]?.url ?? '';
+  return url && isAllowedPreviewUrl(url) ? url : null;
+};
+
+const scanItemViews = async (places: ScannedPlace[], thumbs: Array<string | null>): Promise<ScanItemView[]> => {
+  const views: ScanItemView[] = [];
+  for (const [index, place] of places.entries()) {
+    views.push({
+      placeName: place.placeName,
+      country: place.country,
+      title: buildDestination(place.placeName, place.city, place.country),
+      image: thumbs[index] ?? null,
+      pinned: await isPlacePinned(scanPlaceResult(place)),
+    });
+  }
+  return views;
+};
+
+const runScan = async (
+  request: TripRequest,
+  provider: Provider,
+  settings: ExtensionSettings,
+  key: string,
+  origin: 'gesture' | 'panel',
+): Promise<void> => {
+  const images = request.scanImages ?? [];
+  const privacy: PrivacyMode = settings.imageOnly ? 'image-only' : 'image';
+  if (images.length === 0) {
+    analysisInFlight = false;
+    renderErrorCard('scanEmptyTitle', 'scanEmptyBody', false, false);
+    announceAlert('scanEmptyBody');
+    updatePrivacy('idle');
+    return;
+  }
+  showScanSkeleton();
+  announceStatus('statusAnalyzing');
+  const controller = new AbortController();
+  activeController = controller;
+  let result;
+  try {
+    result = await provider.scanPlaces(key, { images, signal: controller.signal });
+  } catch (err) {
+    if (activeController === controller) {
+      activeController = null;
+    }
+    if (err instanceof ProviderError && err.code === 'aborted') {
+      return;
+    }
+    recordPartialUsage(err, provider);
+    showProviderError(err, request, privacy);
+    analysisInFlight = false;
+    return;
+  }
+  if (activeController === controller) {
+    activeController = null;
+  }
+  runUsage = addUsage(runUsage, result.usage);
+  await wipeStoredRequest(request.requestId);
+  if (result.places.length === 0) {
+    await priceAndRecord(provider);
+    updatePrivacy(privacy);
+    analysisInFlight = false;
+    renderErrorCard('scanNoneTitle', 'scanNoneBody', false, false);
+    announceAlert('scanNoneBody');
+    return;
+  }
+  scanPlaces = result.places;
+  scanThumbs = result.places.map((place) => pairScanThumb(place, images));
+  const views = await scanItemViews(scanPlaces, scanThumbs);
+  currentView = 'scan';
+  swapResultSlot(() => {
+    resultSlot.replaceChildren(scanList);
+    scanList.setResults(views);
+  });
+  await priceAndRecord(provider);
+  updatePrivacy(privacy);
+  announceStatus('scanFound', String(scanPlaces.length));
+  if (origin === 'panel') {
+    scanList.focusHeading();
+  }
+  analysisInFlight = false;
+};
+
+const runScanGuide = async (
+  request: TripRequest,
+  index: number,
+  origin: 'gesture' | 'panel',
+): Promise<void> => {
+  const place = scanPlaces[index];
+  if (!place) {
+    return;
+  }
+  abortActive();
+  clearStaleTimer();
+  analysisInFlight = true;
+  beginRun(`${request.requestId}-guide-${index}`);
+  activeRequest = request;
+  lastRun = { kind: 'scan-guide', request, index };
+  pendingRun = null;
+  const result = scanPlaceResult(place);
+  const thumb = scanThumbs[index] ?? null;
+  updatePreview(thumb);
+  clearCost();
+  const { provider, settings } = await getActiveProvider();
+  activeProvider = provider;
+  runSettings = settings;
+  const keyStatus = await loadKey(provider.id);
+  if (keyStatus.state !== 'ok') {
+    analysisInFlight = false;
+    pendingRun = { kind: 'scan-guide', request, index };
+    showOnboarding(keyStatus.orphaned);
+    announceStatus('statusKeyNeeded');
+    return;
+  }
+  if (!(await hasConsented())) {
+    analysisInFlight = false;
+    pendingRun = { kind: 'scan-guide', request, index };
+    showConsent(false);
+    announceStatus('statusConsentNeeded');
+    return;
+  }
+  const privacy: PrivacyMode = settings.imageOnly ? 'image-only' : 'image';
+  currentCacheKey = await hashCacheKey(
+    thumb ?? `scan:${result.placeName},${result.country}`,
+    request.pageUrl ?? '',
+  );
+  const cached = await getCacheEntry(currentCacheKey);
+  if (cached) {
+    analysisInFlight = false;
+    activeController = null;
+    await renderCached(cached, origin);
+    return;
+  }
+  // The scan already identified the place: stream the guide for the known
+  // destination with no second identify pass.
+  const destination = buildDestination(result.placeName, result.city, result.country);
+  currentDestination = destination;
+  currentSources = [];
+  currentPlace = result;
+  await setCacheEntry(currentCacheKey, {
+    place: result,
+    guide: '',
+    sources: [],
+    usage: { ...runUsage },
+    searchedWeb: false,
+  });
+  await renderResultHeader(result, true);
+  const controller = new AbortController();
+  activeController = controller;
+  await streamGuideRun({
+    provider,
+    key: keyStatus.key,
+    destination,
+    signal: controller.signal,
+    cacheKey: currentCacheKey,
+    privacy,
+    origin,
+  });
+  if (activeController === controller) {
+    activeController = null;
+  }
+};
+
+const scanPinFor = (index: number): Omit<BoardPin, 'addedAt'> | null => {
+  const place = scanPlaces[index];
+  if (!place) {
+    return null;
+  }
+  const thumb = scanThumbs[index] ?? null;
+  return {
+    place: scanPlaceResult(place),
+    sourceHost: sourceHostFor(activeRequest),
+    ...(thumb ? { imageUrl: thumb } : {}),
+  };
+};
+
+const refreshScanPins = async (): Promise<void> => {
+  if (currentView !== 'scan') {
+    return;
+  }
+  scanList.setResults(await scanItemViews(scanPlaces, scanThumbs));
+};
+
+const onScanGuide = async (detail: ScanGuideDetail): Promise<void> => {
+  const request = activeRequest;
+  if (!request) {
+    return;
+  }
+  await runScanGuide(request, detail.index, 'panel');
+};
+
+const onScanPin = async (detail: ScanPinDetail): Promise<void> => {
+  const pin = scanPinFor(detail.index);
+  if (!pin) {
+    return;
+  }
+  await attemptPin(pin);
+  await refreshScanPins();
+};
+
+const onScanPinSelected = async (detail: ScanPinSelectedDetail): Promise<void> => {
+  for (const index of detail.indices) {
+    const pin = scanPinFor(index);
+    if (pin) {
+      await attemptPin(pin);
+    }
+  }
+  await refreshScanPins();
+};
+
 const runAnalysis = async (request: TripRequest, origin: 'gesture' | 'panel'): Promise<void> => {
   abortActive();
   clearStaleTimer();
@@ -1129,6 +1385,10 @@ const runAnalysis = async (request: TripRequest, origin: 'gesture' | 'panel'): P
   }
   if (request.mediaType === 'video') {
     await runVideoAnalysis(request, provider, settings, keyStatus.key, origin, superseded);
+    return;
+  }
+  if (request.scanImages !== undefined) {
+    await runScan(request, provider, settings, keyStatus.key, origin);
     return;
   }
   if (request.dataPending || !request.srcUrl) {
@@ -1179,7 +1439,11 @@ const handle = async (value: unknown): Promise<void> => {
   updatePreview(request.srcUrl || null);
   if (request.status === 'collecting') {
     announceStatus('statusAnalyzing');
-    showSkeleton(request.requestId);
+    if (request.scanImages !== undefined) {
+      showScanSkeleton();
+    } else {
+      showSkeleton(request.requestId);
+    }
     clearStaleTimer();
     const id = request.requestId;
     staleTimer = setTimeout(() => {
@@ -1279,6 +1543,8 @@ const retry = async (): Promise<void> => {
   clearContentSlots();
   if (target.kind === 'itinerary') {
     await planTrip();
+  } else if (target.kind === 'scan-guide') {
+    await runScanGuide(target.request, target.index, 'panel');
   } else {
     await runAnalysis(target.request, 'panel');
   }
@@ -1559,6 +1825,8 @@ const resumePending = async (): Promise<void> => {
   }
   if (pending.kind === 'itinerary') {
     await planTrip();
+  } else if (pending.kind === 'scan-guide') {
+    await runScanGuide(pending.request, pending.index, 'panel');
   } else {
     await runAnalysis(pending.request, 'panel');
   }
@@ -1683,6 +1951,7 @@ export const initPanel = (): void => {
   linksNoteBody.textContent = msg('privacyLinksBody');
 
   tripCard = document.createElement('trip-card') as TripCardElement;
+  scanList = document.createElement('scan-list') as ScanListElement;
   keySetup = document.createElement('key-setup') as KeySetupElement;
   bookingGrid = document.createElement('booking-grid') as BookingGridElement;
   sourceChips = document.createElement('source-chips') as SourceChipsElement;
@@ -1700,6 +1969,15 @@ export const initPanel = (): void => {
   });
   tripCard.addEventListener('trip-pin', () => {
     void onPinToggle();
+  });
+  scanList.addEventListener('scan-guide', (event) => {
+    void onScanGuide((event as CustomEvent<ScanGuideDetail>).detail);
+  });
+  scanList.addEventListener('scan-pin', (event) => {
+    void onScanPin((event as CustomEvent<ScanPinDetail>).detail);
+  });
+  scanList.addEventListener('scan-pin-selected', (event) => {
+    void onScanPinSelected((event as CustomEvent<ScanPinSelectedDetail>).detail);
   });
   tripBoard.addEventListener('trip-remove-pin', (event) => {
     void onRemovePin((event as CustomEvent<TripRemovePinDetail>).detail);
