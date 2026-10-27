@@ -1,0 +1,28 @@
+{
+  "name": "plan-a-trip-there",
+  "version": "1.0.0",
+  "description": "Right-click any image to identify the place with Muse AI and plan a trip from the side panel.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "rspack build --config rspack.config.mjs --mode development --watch",
+    "build": "rspack build --config rspack.config.mjs --mode production",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "zip": "npm run build && node scripts/verify-bundle.mjs && cd dist && zip -qr ../plan-a-trip-there.zip ."
+  },
+  "dependencies": {
+    "eventsource-parser": "4.1.3",
+    "idb-keyval": "6.3.0",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@rspack/cli": "2.2.9",
+    "@rspack/core": "2.2.9",
+    "chrome-types": "0.1.460",
+    "happy-dom": "21.0.4",
+    "typescript": "7.0.2",
+    "vitest": "5.0.5"
+  }
+}

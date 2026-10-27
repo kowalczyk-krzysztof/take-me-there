@@ -1,0 +1,26 @@
+{
+  "appName": {
+    "message": "Plan a trip there",
+    "description": "Extension name."
+  },
+  "appDesc": {
+    "message": "Right-click any image to identify the place with Muse AI and plan a trip from the side panel.",
+    "description": "Extension description."
+  },
+  "menuTitle": {
+    "message": "Plan a trip there",
+    "description": "Image context menu item."
+  },
+  "panelIdle": {
+    "message": "Right-click an image on any page, then choose Plan a trip there.",
+    "description": "Side panel idle hint (scaffold)."
+  },
+  "panelCollecting": {
+    "message": "Collecting page context...",
+    "description": "Status while the worker scrapes page signals (scaffold)."
+  },
+  "panelReady": {
+    "message": "Page context ready. Full place analysis arrives in the next step.",
+    "description": "Status once signals are collected (scaffold)."
+  }
+}
