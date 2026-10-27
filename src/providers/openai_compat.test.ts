@@ -274,3 +274,59 @@ describe('compat scanPlaces', () => {
     expect((body.response_format as Record<string, string>).type).toBe('json_object');
   });
 });
+
+describe('compat duelPlaces', () => {
+  const VALID_DUEL = {
+    criteria: [{ criterion: 'Cost', a: 'Pricey sunsets.', b: 'Cheaper stays.' }],
+    verdict: 'Pick Oia for views; pick Fira for budget.',
+  };
+
+  const duelInput = () => ({
+    a: { name: 'Oia', country: 'Greece' },
+    b: { name: 'Fira', country: 'Greece' },
+    signal: new AbortController().signal,
+  });
+
+  it('duels over structured chat with no citations', async () => {
+    await setConsented();
+    fetchMock.mockResolvedValue(chatResponse(VALID_DUEL));
+    const provider = new OpenAiCompatProvider(config({ structuredOutput: 'json_schema' }));
+    const result = await provider.duelPlaces('sk_key', duelInput());
+    expect(result.criteria).toHaveLength(1);
+    expect(result.sources).toEqual([]);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://llm.example.com/v1/chat/completions');
+    const body = JSON.parse(init.body as string) as {
+      response_format: { type: string; json_schema: { name: string } };
+    };
+    expect(body.response_format.type).toBe('json_schema');
+    expect(body.response_format.json_schema.name).toBe('duel');
+  });
+});
+
+describe('compat findAlternates', () => {
+  const VALID_ALTERNATES = {
+    alternatives: [
+      { placeName: 'Fira', country: 'Greece', why: 'Same caldera, lower prices.', bestMonth: 'May' },
+    ],
+  };
+
+  const alternatesInput = () => ({
+    placeName: 'Oia',
+    city: 'Oia',
+    country: 'Greece',
+    intent: 'quieter' as const,
+    signal: new AbortController().signal,
+  });
+
+  it('finds alternates over chat and reports usage', async () => {
+    await setConsented();
+    fetchMock.mockResolvedValue(chatResponse(VALID_ALTERNATES));
+    const provider = new OpenAiCompatProvider(config());
+    const result = await provider.findAlternates('sk_key', alternatesInput());
+    expect(result.alternatives).toHaveLength(1);
+    expect(result.usage).toEqual({ inputTokens: 40, outputTokens: 20, searchCount: 0, flatFeesUsd: 0 });
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(init.body as string).toContain('smaller crowds');
+  });
+});

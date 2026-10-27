@@ -546,3 +546,156 @@ describe('muse scanPlaces', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
+
+describe('muse duelPlaces', () => {
+  const VALID_DUEL = {
+    criteria: [{ criterion: 'Cost', a: 'Pricey sunsets.', b: 'Cheaper stays.' }],
+    verdict: 'Pick Oia for views; pick Fira for budget.',
+  };
+
+  const duelInput = () => ({
+    a: { name: 'Oia', country: 'Greece' },
+    b: { name: 'Fira', country: 'Greece' },
+    signal: new AbortController().signal,
+  });
+
+  const groundedResponse = (json: unknown) =>
+    new Response(
+      JSON.stringify({
+        output: [
+          { type: 'web_search_call' },
+          {
+            type: 'message',
+            content: [
+              {
+                type: 'output_text',
+                text: JSON.stringify(json),
+                annotations: [
+                  { type: 'url_citation', url: 'https://example.com/cost', title: 'Costs' },
+                ],
+              },
+            ],
+          },
+        ],
+        usage: { input_tokens: 200, output_tokens: 80 },
+      }),
+      { status: 200 },
+    );
+
+  it('duels through one grounded structured call', async () => {
+    await consented();
+    fetchMock.mockResolvedValue(groundedResponse(VALID_DUEL));
+    const result = await provider.duelPlaces('LLM_key', duelInput());
+    expect(result.criteria).toHaveLength(1);
+    expect(result.verdict).toContain('Pick Oia');
+    expect(result.sources).toEqual([{ title: 'Costs', url: 'https://example.com/cost' }]);
+    expect(result.usage).toEqual({ inputTokens: 200, outputTokens: 80, searchCount: 1, flatFeesUsd: 0 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const url = fetchMock.mock.calls[0][0] as string;
+    expect(url).toContain('/responses');
+    const body = requestBody();
+    expect(body.tools).toEqual([{ type: 'web_search', search_context_size: 'low' }]);
+    expect(body.text.format.type).toBe('json_schema');
+    expect(body.text.format.name).toBe('duel');
+    expect(body.stream).toBe(false);
+    const prompt = body.input[0].content[0].text as string;
+    expect(prompt).toContain('Oia, Greece (side A)');
+    expect(prompt).toContain('Fira, Greece (side B)');
+  });
+
+  it('falls back to structured chat when grounding is rejected', async () => {
+    await consented();
+    fetchMock
+      .mockResolvedValueOnce(new Response('unsupported', { status: 400 }))
+      .mockResolvedValueOnce(chatResponse(VALID_DUEL));
+    const result = await provider.duelPlaces('LLM_key', duelInput());
+    expect(result.criteria).toHaveLength(1);
+    expect(result.sources).toEqual([]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const chatBody = requestBody(1);
+    expect(chatBody.response_format.type).toBe('json_schema');
+    expect(chatBody.response_format.json_schema.strict).toBe(true);
+  });
+
+  it('falls back when grounded output is unparseable, then gives up honestly', async () => {
+    await consented();
+    fetchMock
+      .mockResolvedValueOnce(groundedResponse('not json'))
+      .mockResolvedValueOnce(chatResponse(VALID_DUEL));
+    const result = await provider.duelPlaces('LLM_key', duelInput());
+    expect(result.verdict).toContain('Pick Oia');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    fetchMock.mockReset();
+    fetchMock
+      .mockResolvedValueOnce(groundedResponse('not json'))
+      .mockResolvedValueOnce(rawChatResponse('not json either'))
+      .mockResolvedValueOnce(rawChatResponse('still not json'));
+    await expect(provider.duelPlaces('LLM_key', duelInput())).rejects.toMatchObject({
+      code: 'invalid_response',
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('propagates network failures without a fallback call', async () => {
+    await consented();
+    fetchMock.mockRejectedValueOnce(new TypeError('offline'));
+    await expect(provider.duelPlaces('LLM_key', duelInput())).rejects.toMatchObject({
+      code: 'network',
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('muse findAlternates', () => {
+  const VALID_ALTERNATES = {
+    alternatives: [
+      { placeName: 'Fira', country: 'Greece', why: 'Same caldera, lower prices.', bestMonth: 'May' },
+      { placeName: 'Naxos', country: 'Greece', why: 'Quiet beaches.', bestMonth: 'June' },
+    ],
+  };
+
+  const alternatesInput = () => ({
+    placeName: 'Oia',
+    city: 'Oia',
+    country: 'Greece',
+    intent: 'cheaper' as const,
+    signal: new AbortController().signal,
+  });
+
+  const groundedResponse = (json: unknown) =>
+    new Response(
+      JSON.stringify({
+        output: [
+          {
+            type: 'message',
+            content: [{ type: 'output_text', text: JSON.stringify(json), annotations: [] }],
+          },
+        ],
+        usage: { input_tokens: 150, output_tokens: 60 },
+      }),
+      { status: 200 },
+    );
+
+  it('finds grounded alternates for the intent', async () => {
+    await consented();
+    fetchMock.mockResolvedValue(groundedResponse(VALID_ALTERNATES));
+    const result = await provider.findAlternates('LLM_key', alternatesInput());
+    expect(result.alternatives).toHaveLength(2);
+    expect(result.alternatives[0]?.bestMonth).toBe('May');
+    const body = requestBody();
+    expect(body.text.format.name).toBe('alternates');
+    const prompt = body.input[0].content[0].text as string;
+    expect(prompt).toContain('Oia, Greece');
+    expect(prompt).toContain('cost noticeably less');
+  });
+
+  it('falls back to structured chat when grounding is rejected', async () => {
+    await consented();
+    fetchMock
+      .mockResolvedValueOnce(new Response('unsupported', { status: 404 }))
+      .mockResolvedValueOnce(chatResponse(VALID_ALTERNATES));
+    const result = await provider.findAlternates('LLM_key', alternatesInput());
+    expect(result.alternatives).toHaveLength(2);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});

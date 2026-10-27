@@ -3,16 +3,26 @@
 // configured mode (json_schema when the endpoint supports it, otherwise
 // json_object with client-side validation doing the real work).
 import type { ModelRates } from '../pricing';
-import { itineraryJsonSchema, scanBatchJsonSchema } from '../types';
+import {
+  alternatesJsonSchema,
+  duelJsonSchema,
+  itineraryJsonSchema,
+  scanBatchJsonSchema,
+} from '../types';
 import {
   ProviderError,
   assertConsent,
+  buildAlternatesMessages,
+  buildDuelMessages,
   buildGuidePrompt,
   buildItineraryMessages,
   buildScanMessages,
   emptyUsage,
+  extractChatJson,
   fetchChatCompletion,
   invalidResponse,
+  parseAlternatesContent,
+  parseDuelContent,
   parseItineraryPlan,
   parseScanBatch,
   postChatStream,
@@ -20,7 +30,11 @@ import {
   responseError,
   runIdentify,
   toNetworkError,
+  type AlternatesInput,
+  type AlternatesResult,
   type ChatMessage,
+  type DuelInput,
+  type DuelResult,
   type GuideEvent,
   type GuideInput,
   type IdentifyInput,
@@ -33,6 +47,7 @@ import {
   type ProviderCapabilities,
   type ScanInput,
   type ScanResult,
+  type Usage,
 } from './index';
 
 const IDENTIFY_MAX_TOKENS = 2048;
@@ -176,6 +191,79 @@ export class OpenAiCompatProvider implements Provider {
       }
     }
     throw invalidResponse(usage, 'model output failed validation');
+  }
+
+  // Structured chat only: generic endpoints vary too much to assume a
+  // grounded Responses shape, so duels and alternates run ungrounded here
+  // with client-side validation doing the real work.
+  private async chatStructured<T>(
+    key: string,
+    signal: AbortSignal,
+    usage: Usage,
+    name: string,
+    schema: Record<string, unknown>,
+    messages: (strictReminder: boolean) => ChatMessage[],
+    parse: (json: unknown) => T | undefined,
+  ): Promise<T> {
+    const base = this.baseURL();
+    for (const strictReminder of [false, true]) {
+      const data = await fetchChatCompletion(
+        `${base}/chat/completions`,
+        key,
+        {
+          model: this.config.model,
+          max_completion_tokens: IDENTIFY_MAX_TOKENS,
+          messages: messages(strictReminder),
+          response_format:
+            this.config.structuredOutput === 'json_schema'
+              ? {
+                  type: 'json_schema',
+                  json_schema: { name, schema },
+                }
+              : { type: 'json_object' },
+        },
+        signal,
+        usage,
+      );
+      const value = parse(extractChatJson(data));
+      if (value) {
+        return value;
+      }
+    }
+    throw invalidResponse(usage, 'model output failed validation');
+  }
+
+  async duelPlaces(key: string, input: DuelInput): Promise<DuelResult> {
+    requireKey(key);
+    await assertConsent();
+    const usage = emptyUsage();
+    const verdict = await this.chatStructured(
+      key,
+      input.signal,
+      usage,
+      'duel',
+      duelJsonSchema(),
+      (strictReminder) => buildDuelMessages(input.a, input.b, strictReminder),
+      parseDuelContent,
+    );
+    return { ...verdict, sources: [], usage: { ...usage } };
+  }
+
+  async findAlternates(key: string, input: AlternatesInput): Promise<AlternatesResult> {
+    requireKey(key);
+    await assertConsent();
+    const usage = emptyUsage();
+    const alternatives = await this.chatStructured(
+      key,
+      input.signal,
+      usage,
+      'alternates',
+      alternatesJsonSchema(),
+      (strictReminder) =>
+        buildAlternatesMessages(input.placeName, input.country, input.intent, strictReminder),
+      parseAlternatesContent,
+    );
+    return { alternatives, sources: [], usage: { ...usage } };
   }
 
   async *streamGuide(key: string, input: GuideInput): AsyncGenerator<GuideEvent, void, void> {

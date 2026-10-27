@@ -117,6 +117,21 @@ const sseResponse = (chunks: string[]) => {
   });
 };
 
+const groundedResponse = (json: unknown, annotations: unknown[] = []) =>
+  new Response(
+    JSON.stringify({
+      output: [
+        { type: 'web_search_call' },
+        {
+          type: 'message',
+          content: [{ type: 'output_text', text: JSON.stringify(json), annotations }],
+        },
+      ],
+      usage: { input_tokens: 200, output_tokens: 80 },
+    }),
+    { status: 200 },
+  );
+
 const GUIDE_SSE = [
   'event: response.web_search_call.searching\n',
   'data: {}\n',
@@ -831,6 +846,222 @@ describe('sidepanel', () => {
       const list = document.querySelector('scan-list');
       expect(list?.shadowRoot?.querySelectorAll('.scan-card')).toHaveLength(1);
     });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('duels the result against a pinned place', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    const { pinPlace } = await import('./board_store');
+    await pinPlace({
+      place: { ...VALID_PLACE, placeName: 'Fira', city: 'Fira', confidence: 0.8 },
+      sourceHost: 'example.com',
+    });
+    fetchMock
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
+      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]))
+      .mockResolvedValueOnce(
+        groundedResponse(
+          {
+            criteria: [{ criterion: 'Cost', a: 'Pricey sunsets.', b: 'Cheaper stays.' }],
+            verdict: 'Pick Oia for views; pick Fira for budget.',
+          },
+          [{ type: 'url_citation', url: 'https://example.com/cost', title: 'Costs' }],
+        ),
+      );
+    await mock.session.set({ tripRequest: READY() });
+    await waitFor(() => {
+      const card = document.querySelector('trip-card');
+      expect(card?.shadowRoot?.querySelector('h2')?.textContent).toBe('Oia');
+    });
+    const card = document.querySelector('trip-card') as HTMLElement;
+    await waitFor(() => {
+      expect(card.shadowRoot?.querySelectorAll('.compare-row option')).toHaveLength(1);
+    });
+    expect(card.shadowRoot?.querySelector('.compare-row option')?.textContent).toBe('Fira, Greece');
+    (card.shadowRoot?.querySelector('.compare-go') as HTMLButtonElement).click();
+    await waitFor(() => {
+      const table = document.querySelector('compare-table');
+      expect(table?.shadowRoot?.querySelectorAll('tbody tr')).toHaveLength(2);
+    });
+    expect(document.querySelector('#status-region')?.textContent).toBe('duelReady');
+    expect(document.querySelector('#privacy-line')?.textContent).toBe('privacyNames');
+    const table = document.querySelector('compare-table');
+    expect(table?.shadowRoot?.querySelector('caption')?.textContent).toBe('duelCaption');
+    expect(table?.shadowRoot?.querySelector('table')?.getAttribute('aria-busy')).toBe('false');
+    const chips = document.querySelector('source-chips');
+    expect(chips?.shadowRoot?.querySelectorAll('a.chip')).toHaveLength(1);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    const duelUrl = fetchMock.mock.calls[2][0] as string;
+    expect(duelUrl).toContain('/responses');
+  });
+
+  it('falls back to chat when duel grounding is rejected', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    const { pinPlace } = await import('./board_store');
+    await pinPlace({
+      place: { ...VALID_PLACE, placeName: 'Fira', city: 'Fira', confidence: 0.8 },
+      sourceHost: 'example.com',
+    });
+    fetchMock
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
+      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]))
+      .mockResolvedValueOnce(new Response('unsupported', { status: 400 }))
+      .mockResolvedValueOnce(
+        chatResponse({
+          criteria: [{ criterion: 'Cost', a: 'Pricey.', b: 'Cheap.' }],
+          verdict: 'Pick Oia for views.',
+        }),
+      );
+    await mock.session.set({ tripRequest: READY() });
+    await waitFor(() => {
+      const card = document.querySelector('trip-card');
+      expect(card?.shadowRoot?.querySelector('.compare-go')).not.toBeNull();
+    });
+    const card = document.querySelector('trip-card') as HTMLElement;
+    (card.shadowRoot?.querySelector('.compare-go') as HTMLButtonElement).click();
+    await waitFor(() => {
+      const table = document.querySelector('compare-table');
+      expect(table?.shadowRoot?.querySelectorAll('tbody tr')).toHaveLength(2);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(document.querySelector('#sources-slot')?.hasAttribute('hidden')).toBe(true);
+  });
+
+  it('retries a failed duel inline without losing the result', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    const { pinPlace } = await import('./board_store');
+    await pinPlace({
+      place: { ...VALID_PLACE, placeName: 'Fira', city: 'Fira', confidence: 0.8 },
+      sourceHost: 'example.com',
+    });
+    fetchMock
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
+      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]))
+      .mockResolvedValueOnce(new Response('unsupported', { status: 400 }))
+      .mockResolvedValueOnce(new Response('boom', { status: 500 }))
+      .mockResolvedValueOnce(new Response('unsupported', { status: 400 }))
+      .mockResolvedValueOnce(
+        chatResponse({
+          criteria: [{ criterion: 'Cost', a: 'Pricey.', b: 'Cheap.' }],
+          verdict: 'Pick Oia for views.',
+        }),
+      );
+    await mock.session.set({ tripRequest: READY() });
+    await waitFor(() => {
+      const card = document.querySelector('trip-card');
+      expect(card?.shadowRoot?.querySelector('.compare-go')).not.toBeNull();
+    });
+    const card = document.querySelector('trip-card') as HTMLElement;
+    (card.shadowRoot?.querySelector('.compare-go') as HTMLButtonElement).click();
+    await waitFor(() => {
+      const table = document.querySelector('compare-table');
+      expect(table?.shadowRoot?.querySelector('.duel-error p')?.textContent).toBe('duelError');
+    });
+    expect(card.shadowRoot?.querySelector('h2')?.textContent).toBe('Oia');
+    const table = document.querySelector('compare-table') as HTMLElement;
+    (table.shadowRoot?.querySelector('.duel-error button') as HTMLButtonElement).click();
+    await waitFor(() => {
+      const retried = document.querySelector('compare-table');
+      expect(retried?.shadowRoot?.querySelectorAll('tbody tr')).toHaveLength(2);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(6);
+  });
+
+  it('finds alternates and re-plans the trip instead', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    fetchMock
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
+      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]))
+      .mockResolvedValueOnce(
+        groundedResponse({
+          alternatives: [
+            { placeName: 'Fira', country: 'Greece', why: 'Same caldera, lower prices.', bestMonth: 'May' },
+            { placeName: 'Naxos', country: 'Greece', why: 'Quiet beaches.', bestMonth: 'June' },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
+    await mock.session.set({ tripRequest: READY() });
+    await waitFor(() => {
+      const card = document.querySelector('trip-card');
+      expect(card?.shadowRoot?.querySelector('h2')?.textContent).toBe('Oia');
+    });
+    const card = document.querySelector('trip-card') as HTMLElement;
+    const chips = card.shadowRoot?.querySelectorAll('.chips-row .chip');
+    expect(chips).toHaveLength(3);
+    (chips?.[0] as HTMLButtonElement).click();
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('alternatesReady');
+    });
+    const fresh = document.querySelector('trip-card') as HTMLElement;
+    expect(fresh.shadowRoot?.querySelectorAll('.alternate-card')).toHaveLength(2);
+    (fresh.shadowRoot?.querySelector('.alternate-card button') as HTMLButtonElement).click();
+    await waitFor(() => {
+      const grid = document.querySelector('booking-grid');
+      const tiles = grid?.shadowRoot?.querySelectorAll('a.tile');
+      expect(tiles?.length).toBeGreaterThan(0);
+      expect((tiles?.[0] as HTMLAnchorElement).href).toContain('Fira');
+    });
+    expect(document.querySelector('#guide-content')?.textContent).toBe('Hello world');
+    expect(document.querySelector('#privacy-line')?.textContent).toBe('privacyNames');
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
+  it('recovers from alternates failure with chips intact', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    fetchMock
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
+      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]))
+      .mockResolvedValueOnce(new Response('unsupported', { status: 400 }))
+      .mockResolvedValueOnce(new Response('boom', { status: 500 }));
+    await mock.session.set({ tripRequest: READY() });
+    await waitFor(() => {
+      const card = document.querySelector('trip-card');
+      expect(card?.shadowRoot?.querySelector('h2')?.textContent).toBe('Oia');
+    });
+    const card = document.querySelector('trip-card') as HTMLElement;
+    (card.shadowRoot?.querySelector('.chips-row .chip') as HTMLButtonElement).click();
+    await waitFor(() => {
+      expect(document.querySelector('#alert-region')?.textContent).toBe('alternatesFail');
+    });
+    const fresh = document.querySelector('trip-card') as HTMLElement;
+    expect(fresh.shadowRoot?.querySelector('h2')?.textContent).toBe('Oia');
+    expect(fresh.shadowRoot?.querySelectorAll('.chips-row .chip')).toHaveLength(3);
+    expect(fresh.shadowRoot?.querySelector('.chip[aria-disabled]')).toBeNull();
+    expect(fresh.shadowRoot?.querySelector('.alternates-skeletons')).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
+  it('excludes the current place from duel targets and handles stale picks', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    const { pinPlace, removePin } = await import('./board_store');
+    await pinPlace({ place: VALID_PLACE, sourceHost: 'example.com' });
+    await pinPlace({
+      place: { ...VALID_PLACE, placeName: 'Fira', city: 'Fira', confidence: 0.8 },
+      sourceHost: 'example.com',
+    });
+    fetchMock
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
+      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
+    await mock.session.set({ tripRequest: READY() });
+    await waitFor(() => {
+      const card = document.querySelector('trip-card');
+      expect(card?.shadowRoot?.querySelectorAll('.compare-row option')).toHaveLength(1);
+    });
+    const card = document.querySelector('trip-card') as HTMLElement;
+    expect(card.shadowRoot?.querySelector('.compare-row option')?.textContent).toBe('Fira, Greece');
+    await removePin('Fira', 'Greece');
+    (card.shadowRoot?.querySelector('.compare-go') as HTMLButtonElement).click();
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('compareStale');
+    });
+    expect(document.querySelector('compare-table')).toBeNull();
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 

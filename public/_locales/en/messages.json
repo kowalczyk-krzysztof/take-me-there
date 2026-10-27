@@ -627,6 +627,107 @@
       "count": { "content": "$1", "example": "3" }
     }
   },
+  "duelCaption": {
+    "message": "Comparing $1 and $2",
+    "description": "Duel table caption.",
+    "placeholders": {
+      "a": { "content": "$1", "example": "Oia, Greece" },
+      "b": { "content": "$2", "example": "Fira, Greece" }
+    }
+  },
+  "duelVerdict": {
+    "message": "Verdict",
+    "description": "Duel verdict row header."
+  },
+  "duelError": {
+    "message": "Could not compare $1 and $2.",
+    "description": "Duel inline error.",
+    "placeholders": {
+      "a": { "content": "$1", "example": "Oia, Greece" },
+      "b": { "content": "$2", "example": "Fira, Greece" }
+    }
+  },
+  "duelRetry": {
+    "message": "Retry comparison",
+    "description": "Duel inline retry button."
+  },
+  "duelStatus": {
+    "message": "Comparing $1 and $2...",
+    "description": "Duel start announcement.",
+    "placeholders": {
+      "a": { "content": "$1", "example": "Oia" },
+      "b": { "content": "$2", "example": "Fira" }
+    }
+  },
+  "duelReady": {
+    "message": "Comparison ready",
+    "description": "Duel completion announcement."
+  },
+  "compareLabel": {
+    "message": "Compare with",
+    "description": "Duel picker label."
+  },
+  "compareGo": {
+    "message": "Compare",
+    "description": "Duel picker Go button."
+  },
+  "compareStale": {
+    "message": "That place is no longer on the board.",
+    "description": "Announcement when a duel target vanished."
+  },
+  "alternatesCheaper": {
+    "message": "Cheaper alternatives",
+    "description": "Cheaper intent chip."
+  },
+  "alternatesQuieter": {
+    "message": "Quieter alternatives",
+    "description": "Quieter intent chip."
+  },
+  "alternatesSimilar": {
+    "message": "Similar-vibe alternatives",
+    "description": "Similar-vibe intent chip."
+  },
+  "alternatesFindingCheaper": {
+    "message": "Finding cheaper alternatives...",
+    "description": "Cheaper search announcement."
+  },
+  "alternatesFindingQuieter": {
+    "message": "Finding quieter alternatives...",
+    "description": "Quieter search announcement."
+  },
+  "alternatesFindingSimilar": {
+    "message": "Finding similar-vibe alternatives...",
+    "description": "Similar-vibe search announcement."
+  },
+  "alternatesReady": {
+    "message": "$1 alternatives ready",
+    "description": "Alternates arrival announcement.",
+    "placeholders": {
+      "count": { "content": "$1", "example": "3" }
+    }
+  },
+  "alternatesFail": {
+    "message": "Could not load alternatives.",
+    "description": "Alternates failure announcement."
+  },
+  "alternatesBestMonth": {
+    "message": "Best month: $1",
+    "description": "Alternate card best month.",
+    "placeholders": {
+      "month": { "content": "$1", "example": "May" }
+    }
+  },
+  "alternatesInstead": {
+    "message": "Plan trip to $1 instead",
+    "description": "Alternate card re-plan action.",
+    "placeholders": {
+      "place": { "content": "$1", "example": "Fira, Greece" }
+    }
+  },
+  "privacyNames": {
+    "message": "Sent to Meta's Muse API with your key: place names only.",
+    "description": "Privacy footer for duels and alternates."
+  },
   "boardNoticePinFail": {
     "message": "Couldn't pin $1 - storage is unavailable.",
     "description": "Visible pin-failure notice.",

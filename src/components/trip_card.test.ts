@@ -77,6 +77,84 @@ describe('trip-card', () => {
     expect(root.querySelector('.oneliner')).toBeNull();
   });
 
+  it('renders intent chips that emit one-shot alternates events', () => {
+    const { el, root } = mount();
+    el.setCard({ view: 'result', place: PLACE, lowConfidence: false, pinned: false });
+    const chips = root.querySelectorAll('.chips-row .chip');
+    expect(chips).toHaveLength(3);
+    expect(chips[0]?.textContent).toBe('alternatesCheaper');
+    expect(chips[0]?.hasAttribute('aria-pressed')).toBe(false);
+    const seen: unknown[] = [];
+    el.addEventListener('trip-alternates', (event) => seen.push((event as CustomEvent).detail));
+    (chips[1] as HTMLButtonElement).click();
+    expect(seen).toEqual([{ intent: 'quieter' }]);
+  });
+
+  it('marks the pressed chip aria-disabled with skeleton cards while loading', () => {
+    const { el, root } = mount();
+    el.setCard({
+      view: 'result',
+      place: PLACE,
+      lowConfidence: false,
+      pinned: false,
+      alternates: { state: 'loading', intent: 'cheaper' },
+    });
+    const chips = root.querySelectorAll('.chips-row .chip');
+    expect(chips[0]?.getAttribute('aria-disabled')).toBe('true');
+    expect(chips[1]?.hasAttribute('aria-disabled')).toBe(false);
+    const seen: unknown[] = [];
+    el.addEventListener('trip-alternates', (event) => seen.push((event as CustomEvent).detail));
+    (chips[0] as HTMLButtonElement).click();
+    expect(seen).toEqual([]);
+    const skeletons = root.querySelector('.alternates-skeletons');
+    expect(skeletons?.getAttribute('aria-hidden')).toBe('true');
+    expect(skeletons?.querySelectorAll('.skeleton-block')).toHaveLength(3);
+    expect(root.querySelector('.alternates')?.getAttribute('aria-busy')).toBe('true');
+  });
+
+  it('renders alternate cards with instead actions', () => {
+    const { el, root } = mount();
+    el.setCard({
+      view: 'result',
+      place: PLACE,
+      lowConfidence: false,
+      pinned: false,
+      alternates: {
+        state: 'ready',
+        intent: 'cheaper',
+        cards: [{ name: 'Fira, Greece', why: 'Same caldera, lower prices.', bestMonth: 'May' }],
+      },
+    });
+    expect(root.querySelector('.alternates-skeletons')).toBeNull();
+    expect(root.querySelector('.alternate-name')?.textContent).toBe('Fira, Greece');
+    expect(root.querySelector('.alternate-why')?.textContent).toBe('Same caldera, lower prices.');
+    expect(root.querySelector('.alternate-month')?.textContent).toBe('alternatesBestMonth');
+    const seen: unknown[] = [];
+    el.addEventListener('trip-plan-instead', (event) => seen.push((event as CustomEvent).detail));
+    (root.querySelector('.alternate-card button') as HTMLButtonElement).click();
+    expect(seen).toEqual([{ index: 0 }]);
+  });
+
+  it('renders the compare picker only with options', () => {
+    const { el, root } = mount();
+    el.setCard({ view: 'result', place: PLACE, lowConfidence: false, pinned: false });
+    expect(root.querySelector('.compare-row')).toBeNull();
+    el.setCard({
+      view: 'result',
+      place: PLACE,
+      lowConfidence: false,
+      pinned: false,
+      compareOptions: [{ value: 'Fira|||Greece', label: 'Fira, Greece' }],
+    });
+    const row = root.querySelector('.compare-row');
+    expect(row?.querySelector('label')?.textContent).toContain('compareLabel');
+    expect(row?.querySelector('.compare-go')?.textContent).toBe('compareGo');
+    const seen: unknown[] = [];
+    el.addEventListener('trip-compare', (event) => seen.push((event as CustomEvent).detail));
+    (row?.querySelector('.compare-go') as HTMLButtonElement).click();
+    expect(seen).toEqual([{ value: 'Fira|||Greece' }]);
+  });
+
   it('renders no-place cards with escapes', () => {
     const { el, root } = mount();
     let looks = 0;

@@ -4,6 +4,8 @@
 import { EventSourceParserStream, type EventSourceMessage } from 'eventsource-parser/stream';
 import { MUSE_SPARK_RATES, type ModelRates } from '../pricing';
 import {
+  alternatesJsonSchema,
+  duelJsonSchema,
   itineraryJsonSchema,
   placeJsonSchema,
   scanBatchJsonSchema,
@@ -13,13 +15,21 @@ import {
   ProviderError,
   SSE_MAX_BUFFER,
   assertConsent,
+  buildAlternatesMessages,
+  buildAlternatesPrompt,
+  buildDuelMessages,
+  buildDuelPrompt,
   buildGuidePrompt,
   buildItineraryMessages,
   buildScanMessages,
   decodeStream,
   emptyUsage,
+  extractChatJson,
+  extractResponsesStructured,
   fetchChatCompletion,
   invalidResponse,
+  parseAlternatesContent,
+  parseDuelContent,
   parseItineraryPlan,
   parseScanBatch,
   postChatStream,
@@ -31,7 +41,11 @@ import {
   toNetworkError,
   toStreamError,
   tryParsePlace,
+  type AlternatesInput,
+  type AlternatesResult,
   type ChatMessage,
+  type DuelInput,
+  type DuelResult,
   type GuideEvent,
   type GuideInput,
   type GuideSource,
@@ -317,6 +331,166 @@ export class MuseProvider implements Provider {
       if (places) {
         return { places, usage: { ...usage } };
       }
+    }
+    throw invalidResponse(usage, 'model output failed validation');
+  }
+
+  // One web-grounded structured call: the Responses shape carries the schema
+  // plus search citations. Null (transport rejection or unparseable output)
+  // falls through to the proven structured chat path; aborts and network
+  // failures propagate so a cancelled or offline run never double-calls.
+  private async groundedStructured<T>(
+    key: string,
+    signal: AbortSignal,
+    usage: Usage,
+    name: string,
+    schema: Record<string, unknown>,
+    prompt: string,
+    parse: (json: unknown) => T | undefined,
+  ): Promise<{ value: T; sources: GuideSource[] } | null> {
+    let res: Response;
+    try {
+      res = await fetch(`${API_BASE}/responses`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+        body: JSON.stringify({
+          model: MODEL,
+          input: [
+            {
+              type: 'message',
+              role: 'user',
+              content: [{ type: 'input_text', text: prompt }],
+            },
+          ],
+          tools: [{ type: 'web_search', search_context_size: 'low' }],
+          text: {
+            format: { type: 'json_schema', name, strict: true, schema },
+          },
+          max_output_tokens: ITINERARY_MAX_TOKENS,
+          stream: false,
+        }),
+        signal,
+      });
+    } catch (err) {
+      throw toNetworkError(err, signal);
+    }
+    if (!res.ok) {
+      return null;
+    }
+    let data: unknown;
+    try {
+      data = (await res.json()) as unknown;
+    } catch {
+      return null;
+    }
+    const extracted = extractResponsesStructured(data);
+    if (!extracted) {
+      return null;
+    }
+    usage.inputTokens += extracted.inputTokens;
+    usage.outputTokens += extracted.outputTokens;
+    usage.searchCount += extracted.searchCount;
+    const value = parse(extracted.json);
+    return value ? { value, sources: extracted.sources } : null;
+  }
+
+  private async chatStructured<T>(
+    key: string,
+    signal: AbortSignal,
+    usage: Usage,
+    name: string,
+    schema: Record<string, unknown>,
+    messages: (strictReminder: boolean) => ChatMessage[],
+    parse: (json: unknown) => T | undefined,
+  ): Promise<{ value: T; sources: GuideSource[] } | null> {
+    for (const strictReminder of [false, true]) {
+      const data = await fetchChatCompletion(
+        `${API_BASE}/chat/completions`,
+        key,
+        {
+          model: MODEL,
+          reasoning_effort: 'low',
+          max_completion_tokens: ITINERARY_MAX_TOKENS,
+          messages: messages(strictReminder),
+          response_format: {
+            type: 'json_schema',
+            json_schema: { name, strict: true, schema },
+          },
+        },
+        signal,
+        usage,
+      );
+      const value = parse(extractChatJson(data));
+      if (value) {
+        return { value, sources: [] };
+      }
+    }
+    return null;
+  }
+
+  async duelPlaces(key: string, input: DuelInput): Promise<DuelResult> {
+    requireKey(key);
+    await assertConsent();
+    const usage = emptyUsage();
+    const schema = duelJsonSchema();
+    const prompt = buildDuelPrompt(input.a, input.b);
+    const grounded = await this.groundedStructured(
+      key,
+      input.signal,
+      usage,
+      'duel',
+      schema,
+      prompt,
+      parseDuelContent,
+    );
+    if (grounded) {
+      return { ...grounded.value, sources: grounded.sources, usage: { ...usage } };
+    }
+    const chat = await this.chatStructured(
+      key,
+      input.signal,
+      usage,
+      'duel',
+      schema,
+      (strictReminder) => buildDuelMessages(input.a, input.b, strictReminder),
+      parseDuelContent,
+    );
+    if (chat) {
+      return { ...chat.value, sources: chat.sources, usage: { ...usage } };
+    }
+    throw invalidResponse(usage, 'model output failed validation');
+  }
+
+  async findAlternates(key: string, input: AlternatesInput): Promise<AlternatesResult> {
+    requireKey(key);
+    await assertConsent();
+    const usage = emptyUsage();
+    const schema = alternatesJsonSchema();
+    const prompt = buildAlternatesPrompt(input.placeName, input.country, input.intent);
+    const grounded = await this.groundedStructured(
+      key,
+      input.signal,
+      usage,
+      'alternates',
+      schema,
+      prompt,
+      parseAlternatesContent,
+    );
+    if (grounded) {
+      return { alternatives: grounded.value, sources: grounded.sources, usage: { ...usage } };
+    }
+    const chat = await this.chatStructured(
+      key,
+      input.signal,
+      usage,
+      'alternates',
+      schema,
+      (strictReminder) =>
+        buildAlternatesMessages(input.placeName, input.country, input.intent, strictReminder),
+      parseAlternatesContent,
+    );
+    if (chat) {
+      return { alternatives: chat.value, sources: chat.sources, usage: { ...usage } };
     }
     throw invalidResponse(usage, 'model output failed validation');
   }

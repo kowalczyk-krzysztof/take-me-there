@@ -1,12 +1,14 @@
 // Panel state machine: handoff intake, key and consent gates, cached or live
 // analysis with streamed guides, disagree flows, and the cost footer.
 import './components/booking_grid';
+import './components/compare_table';
 import './components/key_setup';
 import './components/scan_list';
 import './components/source_chips';
 import './components/trip_board';
 import './components/trip_card';
 import type { BookingGridElement } from './components/booking_grid';
+import type { CompareTableElement } from './components/compare_table';
 import type {
   ScanGuideDetail,
   ScanItemView,
@@ -14,6 +16,13 @@ import type {
   ScanPinDetail,
   ScanPinSelectedDetail,
 } from './components/scan_list';
+import type {
+  AlternatesView,
+  CompareOptionView,
+  TripAlternatesDetail,
+  TripCompareDetail,
+  TripPlanInsteadDetail,
+} from './components/trip_card';
 import type {
   ConsentDecisionDetail,
   KeySaveRequestDetail,
@@ -45,6 +54,7 @@ import {
   TRIP_REQUEST_SCHEMA,
   type ItineraryPlan,
   type PageSignals,
+  type PlaceAlternate,
   type PlaceResult,
   type ScannedImage,
   type ScannedPlace,
@@ -67,6 +77,8 @@ import {
   saveSettings,
   setConsented,
   sanitizePromptHint,
+  type AlternateIntent,
+  type DuelSide,
   type ExtensionSettings,
   type GuideSource,
   type Provider,
@@ -219,6 +231,15 @@ let tripCard: TripCardElement;
 let scanList: ScanListElement;
 let scanPlaces: ScannedPlace[] = [];
 let scanThumbs: Array<string | null> = [];
+let duelTable: CompareTableElement;
+let currentCompareOptions: BoardPin[] = [];
+let currentAlternates: { intent: AlternateIntent; alternatives: PlaceAlternate[] } | null = null;
+let alternatesLoading: AlternateIntent | null = null;
+let lastDuel: { a: DuelSide; b: DuelSide; aTitle: string; bTitle: string } | null = null;
+let duelRunId = 0;
+let alternatesRunId = 0;
+let duelController: AbortController | null = null;
+let alternatesController: AbortController | null = null;
 let keySetup: KeySetupElement;
 let bookingGrid: BookingGridElement;
 let sourceChips: SourceChipsElement;
@@ -344,6 +365,9 @@ const clearContentSlots = (): void => {
   if (sourceChips.isConnected) {
     sourceChips.remove();
   }
+  if (duelTable.isConnected) {
+    duelTable.remove();
+  }
 };
 
 const showLinks = (destination: string): void => {
@@ -367,7 +391,8 @@ type PrivacyMode =
   | 'idle'
   | 'video-frame'
   | 'video-url'
-  | 'board';
+  | 'board'
+  | 'names';
 
 const updatePrivacy = (mode: PrivacyMode): void => {
   const keys: Record<PrivacyMode, string> = {
@@ -378,6 +403,7 @@ const updatePrivacy = (mode: PrivacyMode): void => {
     'video-frame': 'privacyVideoFrame',
     'video-url': 'privacyVideoUrl',
     board: 'privacyBoard',
+    names: 'privacyNames',
   };
   privacyLine.textContent = msg(keys[mode]);
 };
@@ -567,6 +593,17 @@ const abortActive = (): void => {
     activeController.abort();
     activeController = null;
   }
+  if (duelController) {
+    duelController.abort();
+    duelController = null;
+  }
+  if (alternatesController) {
+    alternatesController.abort();
+    alternatesController = null;
+  }
+  // Ready alternate cards survive (their indices stay valid); only the
+  // in-flight marker resets, and the loser of a run race bows out by id.
+  alternatesLoading = null;
 };
 
 const beginRun = (runId: string): void => {
@@ -656,15 +693,11 @@ const renderResultHeader = async (place: PlaceResult, announce: boolean): Promis
   await settleSkeleton();
   cancelSkeleton();
   currentView = 'result';
-  const pinned = await isPlacePinned(place);
+  currentAlternates = null;
+  const props = await resultCardProps(place);
   swapResultSlot(() => {
     resultSlot.replaceChildren(tripCard);
-    tripCard.setCard({
-      view: 'result',
-      place,
-      lowConfidence: place.confidence < 0.6,
-      pinned,
-    });
+    tripCard.setCard(props);
   });
   showLinks(currentDestination);
   setPreviewIdentified(place.placeName);
@@ -677,6 +710,7 @@ const renderNoPlace = async (request: TripRequest, origin: 'gesture' | 'panel'):
   await settleSkeleton();
   cancelSkeleton();
   currentView = 'no-place';
+  currentAlternates = null;
   const signals = request.signals ?? EMPTY_SIGNALS;
   swapResultSlot(() => {
     resultSlot.replaceChildren(tripCard);
@@ -702,6 +736,7 @@ const renderErrorCard = (
 ): void => {
   cancelSkeleton();
   currentView = 'error';
+  currentAlternates = null;
   swapResultSlot(() => {
     resultSlot.replaceChildren(tripCard);
     tripCard.setCard({
@@ -1012,15 +1047,11 @@ const renderCached = async (entry: CacheEntry, origin: 'gesture' | 'panel'): Pro
     entry.place.country,
   );
   currentView = 'result';
-  const pinned = await isPlacePinned(entry.place);
+  currentAlternates = null;
+  const props = await resultCardProps(entry.place);
   swapResultSlot(() => {
     resultSlot.replaceChildren(tripCard);
-    tripCard.setCard({
-      view: 'result',
-      place: entry.place,
-      lowConfidence: entry.place.confidence < 0.6,
-      pinned,
-    });
+    tripCard.setCard(props);
   });
   showLinks(currentDestination);
   const renderer = createGuideRenderer(guideContent, msg('truncatedNotice'));
@@ -1550,6 +1581,320 @@ const retry = async (): Promise<void> => {
   }
 };
 
+// ---- Destination duel (D3) + alternates (D4) ----
+
+const FINDING_KEYS: Record<AlternateIntent, string> = {
+  cheaper: 'alternatesFindingCheaper',
+  quieter: 'alternatesFindingQuieter',
+  similar: 'alternatesFindingSimilar',
+};
+
+const alternatesView = (): AlternatesView => {
+  if (alternatesLoading) {
+    return { state: 'loading', intent: alternatesLoading };
+  }
+  if (currentAlternates) {
+    return {
+      state: 'ready',
+      intent: currentAlternates.intent,
+      cards: currentAlternates.alternatives.map((alt) => ({
+        name: buildDestination(alt.placeName, '', alt.country),
+        why: alt.why,
+        bestMonth: alt.bestMonth,
+      })),
+    };
+  }
+  return { state: 'idle' };
+};
+
+// Duel targets: every pin except the current result. Options are indexed
+// (never name-keyed) so hostile pin text cannot collide or forge a target.
+const compareOptionViews = async (place: PlaceResult): Promise<CompareOptionView[]> => {
+  try {
+    const pins = await listPins();
+    const current = await dedupeKeyFor(place.placeName, place.country);
+    currentCompareOptions = [];
+    for (const pin of pins) {
+      if ((await dedupeKeyFor(pin.place.placeName, pin.place.country)) === current) {
+        continue;
+      }
+      currentCompareOptions.push(pin);
+    }
+  } catch {
+    // Fail closed: an unreadable board hides the picker.
+    currentCompareOptions = [];
+  }
+  return currentCompareOptions.map((pin, index) => ({
+    value: String(index),
+    label: pinDisplayName(pin),
+  }));
+};
+
+const resultCardProps = async (
+  place: PlaceResult,
+): Promise<{
+  view: 'result';
+  place: PlaceResult;
+  lowConfidence: boolean;
+  pinned: boolean;
+  compareOptions: CompareOptionView[];
+  alternates: AlternatesView;
+}> => ({
+  view: 'result',
+  place,
+  lowConfidence: place.confidence < 0.6,
+  pinned: await isPlacePinned(place),
+  compareOptions: await compareOptionViews(place),
+  alternates: alternatesView(),
+});
+
+const refreshResultCard = async (): Promise<void> => {
+  if (currentView !== 'result' || !currentPlace) {
+    return;
+  }
+  tripCard.setCard(await resultCardProps(currentPlace));
+};
+
+const runDuel = async (
+  a: DuelSide,
+  b: DuelSide,
+  aTitle: string,
+  bTitle: string,
+): Promise<void> => {
+  duelController?.abort();
+  const controller = new AbortController();
+  duelController = controller;
+  duelRunId += 1;
+  const mine = duelRunId;
+  lastDuel = { a, b, aTitle, bTitle };
+  const { provider, settings } = await getActiveProvider();
+  activeProvider = provider;
+  runSettings = settings;
+  const keyStatus = await loadKey(provider.id);
+  if (keyStatus.state !== 'ok') {
+    announceStatus('statusKeyNeeded');
+    return;
+  }
+  if (!(await hasConsented())) {
+    announceStatus('statusConsentNeeded');
+    return;
+  }
+  if (!duelTable.isConnected) {
+    guideSlot.append(duelTable);
+  }
+  guideSlot.hidden = false;
+  duelTable.setLoading(aTitle, bTitle);
+  announceStatus('duelStatus', [a.name, b.name]);
+  let result;
+  try {
+    result = await provider.duelPlaces(keyStatus.key, { a, b, signal: controller.signal });
+  } catch (err) {
+    if (duelController === controller) {
+      duelController = null;
+    }
+    if (err instanceof ProviderError && err.code === 'aborted') {
+      return;
+    }
+    if (mine !== duelRunId) {
+      return;
+    }
+    recordPartialUsage(err, provider);
+    updatePrivacy('names');
+    duelTable.setError();
+    if (err instanceof ProviderError && err.code === 'no_key') {
+      announceAlert('statusKeyNeeded');
+    } else if (err instanceof ProviderError && err.code === 'consent_required') {
+      announceAlert('statusConsentNeeded');
+    } else {
+      announceAlert('duelError', [aTitle, bTitle]);
+    }
+    return;
+  }
+  if (duelController === controller) {
+    duelController = null;
+  }
+  if (mine !== duelRunId) {
+    return;
+  }
+  runUsage = addUsage(runUsage, result.usage);
+  currentSources = [...result.sources];
+  showSources(result.sources);
+  duelTable.setResults(aTitle, bTitle, result.criteria, result.verdict);
+  await priceAndRecord(provider);
+  updatePrivacy('names');
+  announceStatus('duelReady');
+};
+
+const onCompare = async (detail: TripCompareDetail): Promise<void> => {
+  const snapshot = currentCompareOptions[Number(detail.value)];
+  const current = currentPlace;
+  // The picker snapshot re-verifies against the live board: a pin removed
+  // since render (another tab, a race) misses and goes stale, never duels
+  // the wrong target through a shifted index.
+  let pin: BoardPin | undefined;
+  if (snapshot) {
+    try {
+      const wanted = await dedupeKeyFor(snapshot.place.placeName, snapshot.place.country);
+      const pins = await listPins();
+      for (const candidate of pins) {
+        if ((await dedupeKeyFor(candidate.place.placeName, candidate.place.country)) === wanted) {
+          pin = candidate;
+          break;
+        }
+      }
+    } catch {
+      pin = undefined;
+    }
+  }
+  if (!current?.identified || !pin) {
+    await refreshResultCard();
+    announceStatus('compareStale');
+    return;
+  }
+  await runDuel(
+    { name: current.placeName, country: current.country },
+    { name: pin.place.placeName, country: pin.place.country },
+    buildDestination(current.placeName, current.city, current.country),
+    pinDisplayName(pin),
+  );
+};
+
+const onDuelRetry = async (): Promise<void> => {
+  if (lastDuel) {
+    await runDuel(lastDuel.a, lastDuel.b, lastDuel.aTitle, lastDuel.bTitle);
+  }
+};
+
+const runAlternates = async (intent: AlternateIntent): Promise<void> => {
+  const place = currentPlace;
+  if (!place?.identified || currentView !== 'result') {
+    return;
+  }
+  alternatesController?.abort();
+  const controller = new AbortController();
+  alternatesController = controller;
+  alternatesRunId += 1;
+  const mine = alternatesRunId;
+  alternatesLoading = intent;
+  currentAlternates = null;
+  await refreshResultCard();
+  announceStatus(FINDING_KEYS[intent]);
+  const { provider, settings } = await getActiveProvider();
+  activeProvider = provider;
+  runSettings = settings;
+  const keyStatus = await loadKey(provider.id);
+  if (keyStatus.state !== 'ok') {
+    if (mine !== alternatesRunId) {
+      return;
+    }
+    alternatesLoading = null;
+    await refreshResultCard();
+    announceStatus('statusKeyNeeded');
+    return;
+  }
+  if (!(await hasConsented())) {
+    if (mine !== alternatesRunId) {
+      return;
+    }
+    alternatesLoading = null;
+    await refreshResultCard();
+    announceStatus('statusConsentNeeded');
+    return;
+  }
+  let result;
+  try {
+    result = await provider.findAlternates(keyStatus.key, {
+      placeName: place.placeName,
+      city: place.city,
+      country: place.country,
+      intent,
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (alternatesController === controller) {
+      alternatesController = null;
+    }
+    if (err instanceof ProviderError && err.code === 'aborted') {
+      return;
+    }
+    if (mine !== alternatesRunId) {
+      return;
+    }
+    alternatesLoading = null;
+    await refreshResultCard();
+    recordPartialUsage(err, provider);
+    updatePrivacy('names');
+    announceAlert('alternatesFail');
+    return;
+  }
+  if (alternatesController === controller) {
+    alternatesController = null;
+  }
+  if (mine !== alternatesRunId) {
+    return;
+  }
+  runUsage = addUsage(runUsage, result.usage);
+  currentAlternates = { intent, alternatives: result.alternatives };
+  alternatesLoading = null;
+  await refreshResultCard();
+  currentSources = [...result.sources];
+  showSources(result.sources);
+  await priceAndRecord(provider);
+  updatePrivacy('names');
+  announceStatus('alternatesReady', String(result.alternatives.length));
+};
+
+const onAlternates = async (detail: TripAlternatesDetail): Promise<void> => {
+  await runAlternates(detail.intent);
+};
+
+const onPlanInstead = async (detail: TripPlanInsteadDetail): Promise<void> => {
+  const target = currentAlternates?.alternatives[detail.index];
+  if (!target || currentView !== 'result') {
+    return;
+  }
+  // Model-produced destinations re-enter through the section-9 rule.
+  const destination = sanitizePromptHint(buildDestination(target.placeName, '', target.country));
+  if (!destination) {
+    return;
+  }
+  const { provider, settings } = await getActiveProvider();
+  activeProvider = provider;
+  runSettings = settings;
+  const keyStatus = await loadKey(provider.id);
+  if (keyStatus.state !== 'ok') {
+    announceStatus('statusKeyNeeded');
+    return;
+  }
+  if (!(await hasConsented())) {
+    announceStatus('statusConsentNeeded');
+    return;
+  }
+  abortActive();
+  clearStaleTimer();
+  analysisInFlight = true;
+  currentDestination = destination;
+  currentSources = [];
+  showSources([]);
+  guideContent.replaceChildren();
+  showLinks(destination);
+  announceStatus('statusAnalyzing');
+  const controller = new AbortController();
+  activeController = controller;
+  await streamGuideRun({
+    provider,
+    key: keyStatus.key,
+    destination,
+    signal: controller.signal,
+    cacheKey: null,
+    privacy: 'names',
+    origin: 'panel',
+  });
+  if (activeController === controller) {
+    activeController = null;
+  }
+};
+
 // ---- Trip Board (D1) ----
 
 const pinDisplayName = (pin: BoardPin): string =>
@@ -1573,15 +1918,9 @@ const renderBoard = async (): Promise<BoardPin[]> => {
 };
 
 const syncPinButton = async (): Promise<void> => {
-  if (currentView !== 'result' || !currentPlace) {
-    return;
-  }
-  tripCard.setCard({
-    view: 'result',
-    place: currentPlace,
-    lowConfidence: currentPlace.confidence < 0.6,
-    pinned: await isPlacePinned(currentPlace),
-  });
+  // Pin state and duel targets refresh together: every board write lands
+  // here, so the compare picker never goes stale behind the card.
+  await refreshResultCard();
 };
 
 const sourceHostFor = (request: TripRequest | null): string => {
@@ -1952,6 +2291,7 @@ export const initPanel = (): void => {
 
   tripCard = document.createElement('trip-card') as TripCardElement;
   scanList = document.createElement('scan-list') as ScanListElement;
+  duelTable = document.createElement('compare-table') as CompareTableElement;
   keySetup = document.createElement('key-setup') as KeySetupElement;
   bookingGrid = document.createElement('booking-grid') as BookingGridElement;
   sourceChips = document.createElement('source-chips') as SourceChipsElement;
@@ -1969,6 +2309,18 @@ export const initPanel = (): void => {
   });
   tripCard.addEventListener('trip-pin', () => {
     void onPinToggle();
+  });
+  tripCard.addEventListener('trip-compare', (event) => {
+    void onCompare((event as CustomEvent<TripCompareDetail>).detail);
+  });
+  tripCard.addEventListener('trip-alternates', (event) => {
+    void onAlternates((event as CustomEvent<TripAlternatesDetail>).detail);
+  });
+  tripCard.addEventListener('trip-plan-instead', (event) => {
+    void onPlanInstead((event as CustomEvent<TripPlanInsteadDetail>).detail);
+  });
+  duelTable.addEventListener('duel-retry', () => {
+    void onDuelRetry();
   });
   scanList.addEventListener('scan-guide', (event) => {
     void onScanGuide((event as CustomEvent<ScanGuideDetail>).detail);

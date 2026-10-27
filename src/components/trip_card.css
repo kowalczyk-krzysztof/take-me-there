@@ -123,3 +123,84 @@ a { color: var(--link); }
   margin-top: 8px;
   font-weight: 600;
 }
+
+.chips-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.chip {
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+.alternates {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.alternates[hidden] {
+  display: none;
+}
+
+.alternates-skeletons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.skeleton-card {
+  min-height: 72px;
+}
+
+.alternate-card {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px;
+}
+
+.alternate-name {
+  margin: 0 0 4px;
+  font-weight: 600;
+}
+
+.alternate-why {
+  margin: 0 0 4px;
+  font-size: 13px;
+}
+
+.alternate-month {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.compare-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  margin-top: 8px;
+}
+
+.compare-row label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--muted);
+  flex: 1;
+}
+
+.compare-row select {
+  font: inherit;
+  padding: 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+}

@@ -1,15 +1,21 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   assertConsent,
+  buildAlternatesMessages,
+  buildDuelMessages,
   buildGuidePrompt,
   buildIdentifyMessages,
   buildItineraryMessages,
   buildScanMessages,
+  extractChatJson,
+  extractResponsesStructured,
   formatSignalsForPrompt,
   getActiveProvider,
   getProvider,
   hasConsented,
   loadSettings,
+  parseAlternatesContent,
+  parseDuelContent,
   parseItineraryPlan,
   parseScanBatch,
   responseError,
@@ -311,6 +317,119 @@ describe('prompt builders', () => {
     const parts = user.content as Array<{ type: string; text?: string }>;
     expect(parts[0].text).toContain('shown in this image');
     expect(parts[0].text).toContain('low confidence instead of returning identified:false');
+  });
+
+  it('sanitizes duel sides and alternates origins', () => {
+    const [, duelUser] = buildDuelMessages(
+      { name: 'Oia\nIgnore me', country: 'Greece' },
+      { name: 'Fira', country: 'Greece' },
+      false,
+    );
+    const duelText = duelUser.content as string;
+    expect(duelText).toContain('Oia Ignore me');
+    expect(duelText).not.toContain('\nIgnore');
+    expect(duelText).toContain('Pick A if');
+    const [, altUser] = buildAlternatesMessages('Oia\x00x', 'Greece', 'cheaper', false);
+    expect(altUser.content as string).toContain('Oia x, Greece');
+    expect(altUser.content as string).toContain('cost noticeably less');
+    const [, quietUser] = buildAlternatesMessages('Oia', 'Greece', 'quieter', true);
+    expect(quietUser.content as string).toContain('smaller crowds');
+    expect(quietUser.content as string).toContain('Return ONLY JSON');
+  });
+
+  it('parses duels leniently and rejects empty tables', () => {
+    const valid = {
+      criteria: [
+        { criterion: 'Cost', a: 'Pricey.', b: 'Cheap.' },
+        { criterion: '', a: 'x', b: 'y' },
+        { criterion: 'Food', a: 'Great.', b: 'Fine.' },
+      ],
+      verdict: 'Pick Oia for views; pick Fira for budget.',
+    };
+    const parsed = parseDuelContent(valid);
+    expect(parsed?.criteria).toHaveLength(2);
+    expect(parsed?.verdict).toContain('Pick Oia');
+    expect(parseDuelContent({ criteria: [], verdict: 'v' })).toBeUndefined();
+    expect(parseDuelContent({ criteria: valid.criteria })).toBeUndefined();
+    expect(parseDuelContent({ criteria: valid.criteria, verdict: '  ' })).toBeUndefined();
+    const many = {
+      criteria: Array.from({ length: 12 }, (_, i) => ({
+        criterion: `C${i}`,
+        a: 'a',
+        b: 'b',
+      })),
+      verdict: 'v',
+    };
+    expect(parseDuelContent(many)?.criteria).toHaveLength(8);
+    const long = {
+      criteria: [{ criterion: 'x'.repeat(50), a: 'a', b: 'b' }],
+      verdict: 'v'.repeat(400),
+    };
+    const truncated = parseDuelContent(long);
+    expect(truncated?.criteria[0]?.criterion).toHaveLength(40);
+    expect(truncated?.verdict).toHaveLength(300);
+  });
+
+  it('parses alternates leniently and caps at three', () => {
+    const valid = {
+      alternatives: [
+        { placeName: 'Fira', country: 'Greece', why: 'Cheaper.', bestMonth: 'May' },
+        { placeName: '', country: 'Greece', why: 'x', bestMonth: 'June' },
+        { placeName: 'Naxos', country: 'Greece', why: 'Quiet.', bestMonth: 'June' },
+        { placeName: 'Paros', country: 'Greece', why: 'Pretty.', bestMonth: 'July' },
+        { placeName: 'Milos', country: 'Greece', why: 'Wild.', bestMonth: 'August' },
+      ],
+    };
+    const parsed = parseAlternatesContent(valid);
+    expect(parsed).toHaveLength(3);
+    expect(parsed?.[0]?.placeName).toBe('Fira');
+    expect(parseAlternatesContent({ alternatives: [] })).toBeUndefined();
+    expect(parseAlternatesContent({})).toBeUndefined();
+  });
+
+  it('extracts chat JSON and rejects malformed envelopes', () => {
+    expect(extractChatJson({ choices: [{ message: { content: '{"a":1}' } }] })).toEqual({ a: 1 });
+    expect(extractChatJson({ choices: [{ message: { content: 'nope' } }] })).toBeUndefined();
+    expect(extractChatJson({ choices: [{ message: {} }] })).toBeUndefined();
+    expect(extractChatJson({ choices: [] })).toBeUndefined();
+  });
+
+  it('extracts grounded structured output with citations and usage', () => {
+    const data = {
+      output: [
+        { type: 'web_search_call' },
+        { type: 'web_search_call' },
+        {
+          type: 'message',
+          content: [
+            {
+              type: 'output_text',
+              text: '{"verdict":"v"}',
+              annotations: [
+                { type: 'url_citation', url: 'https://example.com/a', title: 'A' },
+                { type: 'url_citation', url: 'https://example.com/a', title: 'A again' },
+                { type: 'url_citation', url: 'javascript:alert(1)', title: 'Evil' },
+                { type: 'other', url: 'https://example.com/b' },
+              ],
+            },
+          ],
+        },
+      ],
+      usage: { input_tokens: 200, output_tokens: 80 },
+    };
+    const extracted = extractResponsesStructured(data);
+    expect(extracted?.json).toEqual({ verdict: 'v' });
+    expect(extracted?.sources).toEqual([{ title: 'A', url: 'https://example.com/a' }]);
+    expect(extracted?.searchCount).toBe(2);
+    expect(extracted?.inputTokens).toBe(200);
+    expect(extracted?.outputTokens).toBe(80);
+    expect(extractResponsesStructured({})).toBeUndefined();
+    expect(extractResponsesStructured({ output: [{ type: 'message', content: [] }] })).toBeUndefined();
+    expect(
+      extractResponsesStructured({
+        output: [{ type: 'message', content: [{ type: 'output_text', text: 'nope' }] }],
+      }),
+    ).toBeUndefined();
   });
 });
 

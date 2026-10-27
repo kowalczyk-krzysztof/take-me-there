@@ -10,10 +10,47 @@ export interface ItineraryStopView {
   links: Array<{ id: string; href: string }>;
 }
 
+export interface CompareOptionView {
+  value: string;
+  label: string;
+}
+
+export type AlternateIntentView = 'cheaper' | 'quieter' | 'similar';
+
+export interface AlternateCardView {
+  name: string;
+  why: string;
+  bestMonth: string;
+}
+
+export type AlternatesView =
+  | { state: 'idle' }
+  | { state: 'loading'; intent: AlternateIntentView }
+  | { state: 'ready'; intent: AlternateIntentView; cards: AlternateCardView[] };
+
+export interface TripCompareDetail {
+  value: string;
+}
+
+export interface TripAlternatesDetail {
+  intent: AlternateIntentView;
+}
+
+export interface TripPlanInsteadDetail {
+  index: number;
+}
+
 export type CardState =
   | { view: 'idle'; hint: string; shortcut: string }
   | { view: 'loading' }
-  | { view: 'result'; place: PlaceResult; lowConfidence: boolean; pinned: boolean }
+  | {
+    view: 'result';
+    place: PlaceResult;
+    lowConfidence: boolean;
+    pinned: boolean;
+    compareOptions?: CompareOptionView[];
+    alternates?: AlternatesView;
+  }
   | { view: 'no-place'; showLookAgain: boolean; fallback: { label: string; href: string } | null }
   | {
     view: 'error';
@@ -68,7 +105,13 @@ export class TripCardElement extends HTMLElement {
         this.renderLoading();
         break;
       case 'result':
-        this.renderResult(state.place, state.lowConfidence, state.pinned);
+        this.renderResult(
+          state.place,
+          state.lowConfidence,
+          state.pinned,
+          state.compareOptions ?? [],
+          state.alternates ?? { state: 'idle' },
+        );
         break;
       case 'no-place':
         this.renderNoPlace(state.showLookAgain, state.fallback);
@@ -120,7 +163,13 @@ export class TripCardElement extends HTMLElement {
     }
   }
 
-  private renderResult(place: PlaceResult, lowConfidence: boolean, pinned: boolean): void {
+  private renderResult(
+    place: PlaceResult,
+    lowConfidence: boolean,
+    pinned: boolean,
+    compareOptions: CompareOptionView[],
+    alternates: AlternatesView,
+  ): void {
     const heading = document.createElement('h2');
     heading.tabIndex = -1;
     heading.textContent = place.placeName;
@@ -151,6 +200,11 @@ export class TripCardElement extends HTMLElement {
     pin.textContent = msg('pinButton', place.placeName);
     pin.addEventListener('click', () => this.emit('trip-pin'));
     this.root.append(pin);
+    this.root.append(this.renderChips(alternates));
+    this.root.append(this.renderAlternates(alternates));
+    if (compareOptions.length > 0) {
+      this.root.append(this.renderCompare(compareOptions));
+    }
     const details = document.createElement('details');
     const summary = document.createElement('summary');
     summary.textContent = msg('notThisPlace');
@@ -163,6 +217,102 @@ export class TripCardElement extends HTMLElement {
     buttons.append(reanalyze);
     details.append(summary, buttons);
     this.root.append(details);
+  }
+
+  private renderChips(alternates: AlternatesView): HTMLElement {
+    const row = document.createElement('div');
+    row.className = 'chips-row';
+    const intents: Array<{ intent: AlternateIntentView; key: string }> = [
+      { intent: 'cheaper', key: 'alternatesCheaper' },
+      { intent: 'quieter', key: 'alternatesQuieter' },
+      { intent: 'similar', key: 'alternatesSimilar' },
+    ];
+    for (const { intent, key } of intents) {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'chip';
+      chip.dataset.intent = intent;
+      chip.textContent = msg(key);
+      if (alternates.state === 'loading' && alternates.intent === intent) {
+        chip.setAttribute('aria-disabled', 'true');
+      }
+      chip.addEventListener('click', () => {
+        if (chip.getAttribute('aria-disabled') === 'true') {
+          return;
+        }
+        this.emitDetail('trip-alternates', { intent } satisfies TripAlternatesDetail);
+      });
+      row.append(chip);
+    }
+    return row;
+  }
+
+  private renderAlternates(alternates: AlternatesView): HTMLElement {
+    const section = document.createElement('div');
+    section.className = 'alternates';
+    if (alternates.state === 'idle') {
+      section.hidden = true;
+      return section;
+    }
+    section.setAttribute('aria-busy', String(alternates.state === 'loading'));
+    if (alternates.state === 'loading') {
+      const skeletons = document.createElement('div');
+      skeletons.className = 'alternates-skeletons';
+      skeletons.setAttribute('aria-hidden', 'true');
+      for (let i = 0; i < 3; i++) {
+        const block = document.createElement('div');
+        block.className = 'skeleton-block skeleton-card';
+        skeletons.append(block);
+      }
+      section.append(skeletons);
+      return section;
+    }
+    for (const [index, card] of alternates.cards.entries()) {
+      const article = document.createElement('div');
+      article.className = 'alternate-card';
+      const name = document.createElement('p');
+      name.className = 'alternate-name';
+      name.textContent = card.name;
+      const why = document.createElement('p');
+      why.className = 'alternate-why';
+      why.textContent = card.why;
+      const month = document.createElement('p');
+      month.className = 'alternate-month';
+      month.textContent = msg('alternatesBestMonth', card.bestMonth);
+      const instead = document.createElement('button');
+      instead.type = 'button';
+      instead.textContent = msg('alternatesInstead', card.name);
+      instead.addEventListener('click', () => {
+        this.emitDetail('trip-plan-instead', { index } satisfies TripPlanInsteadDetail);
+      });
+      article.append(name, why, month, instead);
+      section.append(article);
+    }
+    return section;
+  }
+
+  private renderCompare(options: CompareOptionView[]): HTMLElement {
+    const row = document.createElement('div');
+    row.className = 'compare-row';
+    const label = document.createElement('label');
+    label.textContent = msg('compareLabel');
+    const select = document.createElement('select');
+    for (const option of options) {
+      const item = document.createElement('option');
+      item.value = option.value;
+      item.textContent = option.label;
+      select.append(item);
+    }
+    label.append(select);
+    const go = document.createElement('button');
+    go.type = 'button';
+    go.className = 'compare-go';
+    go.textContent = msg('compareGo');
+    go.addEventListener('click', () => {
+      this.emitDetail('trip-compare', { value: select.value } satisfies TripCompareDetail);
+    });
+    row.append(label, go);
+    return row;
   }
 
   private renderItinerary(
@@ -314,6 +464,10 @@ export class TripCardElement extends HTMLElement {
 
   private emit(name: string): void {
     this.dispatchEvent(new CustomEvent(name, { bubbles: true, composed: true }));
+  }
+
+  private emitDetail(name: string, detail: unknown): void {
+    this.dispatchEvent(new CustomEvent(name, { detail, bubbles: true, composed: true }));
   }
 }
 
