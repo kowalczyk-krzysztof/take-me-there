@@ -18,8 +18,8 @@ export default defineConfig((_env, argv) => {
     entry: {
       'service-worker': './src/service-worker.ts',
       sidepanel: './src/sidepanel.ts',
-      options: './src/options.ts',
-      onboarding: './src/onboarding.ts',
+      options: './src/options.tsx',
+      onboarding: './src/onboarding.tsx',
     },
     output: {
       path: path.join(root, 'dist'),

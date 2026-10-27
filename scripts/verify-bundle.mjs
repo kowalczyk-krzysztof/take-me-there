@@ -4,6 +4,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { transform as parseCss } from 'lightningcss';
 
 const dist = path.join(path.dirname(path.dirname(fileURLToPath(import.meta.url))), 'dist');
 const files = readdirSync(dist).filter((f) => f.endsWith('.js'));
@@ -31,6 +32,14 @@ const panelCss = readFileSync(path.join(dist, 'sidepanel.css'), 'utf8');
 for (const marker of ['skeleton-shimmer', '--focus-color', 'scroll-padding-top', 'grid-template-columns']) {
   if (!panelCss.includes(marker)) {
     console.error(`verify: sidepanel.css lacks expected marker: ${marker}`);
+    failed = true;
+  }
+}
+for (const file of readdirSync(dist).filter((f) => f.endsWith('.css'))) {
+  try {
+    parseCss({ filename: file, code: readFileSync(path.join(dist, file)), minify: false });
+  } catch (err) {
+    console.error(`verify: ${file} does not parse: ${String(err).split('\n')[0]}`);
     failed = true;
   }
 }

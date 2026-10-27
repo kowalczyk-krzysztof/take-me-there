@@ -15,8 +15,10 @@
 }.root input[aria-invalid="true"] {
   border-color: #b00020;
   border-width: 2px;
-}.root @media (prefers-color-scheme: dark) {
-  input[aria-invalid="true"] { border-color: #ff8a80; }
+}
+@media (prefers-color-scheme: dark) {
+  .root input[aria-invalid="true"] { border-color: #ff8a80; }
+}
 .root .hint {
   margin: 0;
   font-size: 13px;
@@ -25,8 +27,10 @@
   margin: 0;
   font-size: 13px;
   color: #b00020;
-}.root @media (prefers-color-scheme: dark) {
-  .error { color: #ff8a80; }
+}
+@media (prefers-color-scheme: dark) {
+  .root .error { color: #ff8a80; }
+}
 .root .checkbox-row {
   display: flex;
   gap: 8px;
