@@ -36,6 +36,7 @@ import {
   responseError,
   runIdentify,
   sanitizePromptHint,
+  testModelsEndpoint,
   toNetworkError,
   toStreamError,
   tryParsePlace,
@@ -81,18 +82,7 @@ export class MuseProvider implements Provider {
   }
 
   async testKey(key: string): Promise<void> {
-    requireKey(key);
-    let res: Response;
-    try {
-      res = await fetch(`${API_BASE}/models`, {
-        headers: { Authorization: `Bearer ${key}` },
-      });
-    } catch (err) {
-      throw toNetworkError(err);
-    }
-    if (!res.ok) {
-      throw responseError(res);
-    }
+    await testModelsEndpoint(API_BASE, key);
   }
 
   identifyPlace(key: string, input: IdentifyInput): Promise<IdentifyResult> {

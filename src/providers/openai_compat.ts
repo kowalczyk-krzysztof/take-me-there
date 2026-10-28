@@ -23,9 +23,8 @@ import {
   parseScanBatch,
   postChatStream,
   requireKey,
-  responseError,
   runIdentify,
-  toNetworkError,
+  testModelsEndpoint,
   type AlternatesInput,
   type AlternatesResult,
   type ChatMessage,
@@ -83,21 +82,7 @@ export class OpenAiCompatProvider implements Provider {
   }
 
   async testKey(key: string): Promise<void> {
-    requireKey(key);
-
-    const base = this.baseURL();
-
-    let res: Response;
-    try {
-      res = await fetch(`${base}/models`, {
-        headers: { Authorization: `Bearer ${key}` },
-      });
-    } catch (err) {
-      throw toNetworkError(err);
-    }
-    if (!res.ok) {
-      throw responseError(res);
-    }
+    await testModelsEndpoint(this.baseURL(), key);
   }
 
   identifyPlace(key: string, input: IdentifyInput): Promise<IdentifyResult> {

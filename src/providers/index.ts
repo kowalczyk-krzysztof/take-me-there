@@ -106,6 +106,21 @@ export const toNetworkError = (err: unknown, signal?: AbortSignal): ProviderErro
   return new ProviderError('network', 'network request failed', true);
 };
 
+export const testModelsEndpoint = async (base: string, key: string): Promise<void> => {
+  requireKey(key);
+  let res: Response;
+  try {
+    res = await fetch(`${base}/models`, {
+      headers: { Authorization: `Bearer ${key}` },
+    });
+  } catch (err) {
+    throw toNetworkError(err);
+  }
+  if (!res.ok) {
+    throw responseError(res);
+  }
+};
+
 export const toStreamError = (err: unknown, signal: AbortSignal): ProviderError => {
   if (signal.aborted || (err as { name?: string })?.name === 'AbortError') {
     return new ProviderError('aborted', 'request aborted', false);
