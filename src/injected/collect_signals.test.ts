@@ -134,8 +134,7 @@ describe('collectSignals', () => {
 
   it('survives malformed percent-escapes in paths', () => {
     setPageUrl('https://example.com/travel/100%-guide');
-    document.body.innerHTML =
-      '<img src="https://cdn.example.com/100%-oia.jpg" alt="Oia">';
+    document.body.innerHTML = '<img src="https://cdn.example.com/100%-oia.jpg" alt="Oia">';
     const out = collectSignals('https://cdn.example.com/100%-oia.jpg');
     expect(out.imgFound).toBe(true);
     expect(out.urlSlug).toContain('100% guide');

@@ -918,6 +918,40 @@ describe('sidepanel', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it('drops numerically older handoffs even when they sort later as strings', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
+    await mock.session.set({ tripRequest: READY({ requestId: '10-1' }) });
+    await waitForHeading('Oia');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await mock.session.set({ tripRequest: READY({ requestId: '9-1' }) });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('tombstones accepted handoffs so reopens never replay them', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
+    await mock.session.set({ tripRequest: READY({ requestId: '200-2' }) });
+    await waitForHeading('Oia');
+    const stored = await mock.session.get('tripRequest');
+    expect(stored.tripRequest).toEqual({ requestId: '200-2', status: 'ready' });
+  });
+
+  it('drops expired handoffs and wipes them', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    await mock.session.set({
+      tripRequest: READY({ requestId: '200-2', at: Date.now() - 11 * 60 * 1000 }),
+    });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(fetchMock).not.toHaveBeenCalled();
+    const stored = await mock.session.get('tripRequest');
+    expect(stored.tripRequest).toEqual({ requestId: '200-2', status: 'ready' });
+  });
+
   it('identifies image-only when the scrape failed and signals are omitted', async () => {
     const mock = await setup();
     await plantKeyAndConsent();

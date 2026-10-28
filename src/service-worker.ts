@@ -93,6 +93,7 @@ const handleImageClick = async (
       pageUrl,
       tabId,
       windowId,
+      at: Date.now(),
     },
   });
   const signals = await scrapeWithTimeout(tabId, frameId, srcUrl);
@@ -104,6 +105,7 @@ const handleImageClick = async (
     pageUrl,
     tabId,
     windowId,
+    at: Date.now(),
     ...(signals ? { signals } : {}),
   });
 };
@@ -128,6 +130,7 @@ const handleVideoClick = async (
       pageUrl,
       tabId,
       windowId,
+      at: Date.now(),
       mediaType: 'video',
     },
   });
@@ -148,6 +151,7 @@ const handleVideoClick = async (
     pageUrl,
     tabId,
     windowId,
+    at: Date.now(),
     ...(signals ? { signals } : {}),
     mediaType: 'video',
     frame,
@@ -172,6 +176,7 @@ const handleScanClick = async (
       pageUrl,
       tabId,
       windowId,
+      at: Date.now(),
       scanImages: [],
     },
   });
@@ -184,6 +189,7 @@ const handleScanClick = async (
     pageUrl,
     tabId,
     windowId,
+    at: Date.now(),
     scanImages,
   });
 };
@@ -269,6 +275,7 @@ interface TerminalRecord {
   pageUrl: string | null;
   tabId: number;
   windowId: number;
+  at: number;
   signals?: Record<string, unknown>;
   mediaType?: 'video';
   frame?: { dataUrl: string; time: number };

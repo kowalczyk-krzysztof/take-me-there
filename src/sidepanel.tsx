@@ -37,6 +37,7 @@ import { estimateCostUsd, formatUsd, recordMonthSpend } from './pricing';
 import { createGuideRenderer, findGuideStart } from './render_markdown';
 import {
   TRIP_REQUEST_SCHEMA,
+  compareRequestIds,
   type ItineraryPlan,
   type PageSignals,
   type PlaceAlternate,
@@ -288,6 +289,7 @@ const guideContentEl = (): HTMLElement | null => document.getElementById('guide-
 
 let highestRequestId = '';
 let highestStatusRank = -1;
+const HANDOFF_TTL_MS = 10 * 60 * 1000;
 let panelWindowPromise: Promise<number | undefined> | null = null;
 
 // The handoff key is extension-global, so every open panel sees every
@@ -1128,7 +1130,6 @@ const runIdentify = async (args: IdentifyArgs): Promise<RunOutcome> => {
   }
   runUsage = addUsage(runUsage, identify.usage);
   currentPlace = identify.place;
-  await wipeStoredRequest(request.requestId);
   await setCacheEntry(currentCacheKey, {
     place: identify.place,
     guide: '',
@@ -1443,7 +1444,6 @@ const runScan = async (
     activeController = null;
   }
   runUsage = addUsage(runUsage, result.usage);
-  await wipeStoredRequest(request.requestId);
   if (result.places.length === 0) {
     await priceAndRecord(provider);
     updatePrivacy(privacy);
@@ -1664,15 +1664,23 @@ const handle = async (value: unknown): Promise<void> => {
   ) {
     return;
   }
-  const rank = request.status === 'ready' ? 1 : 0;
-  if (request.requestId < highestRequestId) {
+  if (request.at !== undefined && Date.now() - request.at > HANDOFF_TTL_MS) {
+    await wipeStoredRequest(request.requestId);
     return;
   }
-  if (request.requestId === highestRequestId && rank <= highestStatusRank) {
+  const rank = request.status === 'ready' ? 1 : 0;
+  const order = compareRequestIds(request.requestId, highestRequestId);
+  if (order < 0) {
+    return;
+  }
+  if (order === 0 && rank <= highestStatusRank) {
     return;
   }
   highestRequestId = request.requestId;
   highestStatusRank = rank;
+  // Consume-on-read: tombstone the record the moment it is accepted so a
+  // panel reopen can never replay (and rebill) a finished run.
+  await wipeStoredRequest(request.requestId);
   updatePreview(request.srcUrl || null);
   if (request.status === 'collecting') {
     announceStatus('statusAnalyzing');

@@ -6,6 +6,7 @@ import {
   TRIP_REQUEST_SCHEMA,
   alternatesJsonSchema,
   alternatesSchema,
+  compareRequestIds,
   duelJsonSchema,
   duelSchema,
   itineraryJsonSchema,
@@ -294,5 +295,24 @@ describe('alternates pipeline', () => {
         alternatives: [{ ...valid.alternatives[0], bestMonth: 'x'.repeat(21) }],
       }).success
     ).toBe(false);
+  });
+});
+
+describe('compareRequestIds', () => {
+  it('orders timestamps numerically instead of lexicographically', () => {
+    expect(compareRequestIds('9-1', '10-1')).toBeLessThan(0);
+    expect(compareRequestIds('10-1', '9-1')).toBeGreaterThan(0);
+  });
+
+  it('breaks timestamp ties on the counter', () => {
+    expect(compareRequestIds('10-2', '10-10')).toBeLessThan(0);
+    expect(compareRequestIds('10-10', '10-2')).toBeGreaterThan(0);
+    expect(compareRequestIds('10-2', '10-2')).toBe(0);
+  });
+
+  it('sorts malformed ids below well-formed ones', () => {
+    expect(compareRequestIds('10-1', '')).toBeGreaterThan(0);
+    expect(compareRequestIds('', '10-1')).toBeLessThan(0);
+    expect(compareRequestIds('b', 'a')).toBeGreaterThan(0);
   });
 });
