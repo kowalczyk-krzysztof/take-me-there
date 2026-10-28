@@ -1027,8 +1027,8 @@
     }
   },
   "mainTab": {
-    "message": "Main",
-    "description": "Main panel tab label."
+    "message": "Explore",
+    "description": "Explore panel tab label."
   },
   "tabsLabel": {
     "message": "Main, trip board, and settings",

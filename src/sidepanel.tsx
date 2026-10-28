@@ -189,7 +189,6 @@ interface KeyFormState {
 
 interface PanelState {
   tab: 'main' | 'board' | 'settings';
-  unlocked: boolean;
   keySaved: boolean;
   replacing: boolean;
   showOrphaned: boolean;
@@ -224,7 +223,6 @@ const blankResultSlot = (): ResultSlotState => ({
 
 const store = createStore<PanelState>({
   tab: 'main',
-  unlocked: false,
   keySaved: false,
   replacing: false,
   showOrphaned: false,
@@ -263,12 +261,8 @@ const TAB_IDS: Record<PanelTab, string> = {
   settings: 'tab-settings',
 };
 
-const selectTab = (tab: PanelTab, force = false): void => {
+const selectTab = (tab: PanelTab): void => {
   const state = store.get();
-
-  if (tab === 'main' && !state.unlocked && !force) {
-    return;
-  }
 
   if (tab === state.tab) {
     return;
@@ -284,11 +278,7 @@ const selectTab = (tab: PanelTab, force = false): void => {
   }
 };
 
-const enabledTabs = (): PanelTab[] => {
-  const tabs: PanelTab[] = ['main', 'board', 'settings'];
-
-  return store.get().unlocked ? tabs : tabs.filter((tab) => tab !== 'main');
-};
+const enabledTabs = (): PanelTab[] => ['main', 'board', 'settings'];
 
 let lockEpoch = 0;
 
@@ -305,7 +295,6 @@ const refreshLock = async (): Promise<void> => {
     }
 
     store.set({
-      unlocked: keyStatus.state === 'ok',
       keySaved: keyStatus.state === 'ok',
       customHost: customHostOf(settings),
     });
@@ -664,7 +653,7 @@ const showConsent = (focusGate: boolean): void => {
   cancelSkeleton();
   currentView = 'consent';
   clearContentSlots();
-  selectTab('main', true);
+  selectTab('main');
   swapResultSlot(() => {
     store.set({ result: { ...blankResultSlot(), consent: true } });
   });
@@ -1509,7 +1498,7 @@ const runGuidePlan = async (): Promise<void> => {
 
     if (guided?.guide) {
       guidePlanning = false;
-      selectTab('main', true);
+      selectTab('main');
       await renderSplitHit(run, place, guided, 'panel', 'guide');
 
       if (!ownsUi(run)) {
@@ -1532,7 +1521,7 @@ const runGuidePlan = async (): Promise<void> => {
     return;
   }
 
-  selectTab('main', true);
+  selectTab('main');
   showSources([]);
   announceStatus('statusPlanningTrip');
   const privacy = run.request ? privacyForRequest(run.request, settings, provider) : 'image';
@@ -2134,7 +2123,7 @@ const runAnalysis = async (request: TripRequest, origin: 'gesture' | 'panel'): P
     },
     { inheritFrom: pickInherit(request.requestId, provider, key), abortSiblings }
   );
-  selectTab('main', true);
+  selectTab('main');
   if (request.mediaType === 'video') {
     await runVideoAnalysis(run, origin, superseded);
     return;
@@ -3180,7 +3169,7 @@ const planTrip = async (): Promise<void> => {
     store.set({ boardItems: boardItemViews(pins), boardCanPlan: false });
     return;
   }
-  selectTab('main', true);
+  selectTab('main');
   clearContentSlots();
   announceStatus('statusPlanning', String(pins.length));
   showSkeleton(itinId);
@@ -3300,8 +3289,8 @@ const onKeySave = async (key: string): Promise<void> => {
     return;
   }
   setKeyForm({ pending: false, error: null, resetKey: store.get().keyForm.resetKey + 1 });
-  store.set({ keySaved: true, replacing: false, unlocked: true, showOrphaned: false });
-  selectTab('main', true);
+  store.set({ keySaved: true, replacing: false, showOrphaned: false });
+  selectTab('main');
   announceStatus('statusKeySaved');
   if (!(await hasConsented())) {
     showConsent(true);
@@ -3314,7 +3303,6 @@ const showKeyCleared = (): void => {
   store.set({
     keySaved: false,
     replacing: false,
-    unlocked: false,
     showOrphaned: false,
   });
   setKeyForm({ pending: false, error: null, resetKey: store.get().keyForm.resetKey + 1 });
@@ -3524,7 +3512,6 @@ const SidepanelApp = () => {
           role="tab"
           aria-selected={selected('main')}
           aria-controls="main-panel"
-          aria-disabled={!state.unlocked || undefined}
           tabIndex={selected('main') ? 0 : -1}
           onClick={() => selectTab('main')}
         >
@@ -3781,11 +3768,7 @@ export const initPanel = (): void => {
   showIdle();
   void loadShortcutLine();
   void renderBoard();
-  void refreshLock().then(() => {
-    if (!store.get().unlocked) {
-      selectTab('settings');
-    }
-  });
+  void refreshLock();
   chrome.storage.local.onChanged.addListener(onLockAreaChanged);
   chrome.storage.session.onChanged.addListener(onLockAreaChanged);
 
