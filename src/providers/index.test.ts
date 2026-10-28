@@ -36,6 +36,7 @@ import {
   type ExtensionSettings,
 } from './index';
 import { installChromeMock, uninstallChromeMock } from '../test/chrome_mock';
+import { routeStorageCommands } from '../test/helpers';
 import type { PageSignals } from '../types';
 
 const validSignals = (): PageSignals => {
@@ -68,7 +69,7 @@ const DEFAULTS: ExtensionSettings = {
 };
 
 beforeEach(() => {
-  installChromeMock();
+  routeStorageCommands(installChromeMock());
 });
 
 afterEach(() => {

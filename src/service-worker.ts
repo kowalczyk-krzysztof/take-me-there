@@ -1,9 +1,10 @@
 import { captureVideoFrame, type CaptureVideoFrameResult } from './injected/capture_video_frame';
-import { runUpdateMigrations } from './migrations';
 import { collectPageImages } from './injected/collect_page_images';
 import { collectSignals } from './injected/collect_signals';
 import type { ScannedImage } from './types';
 import { msg } from './utils/i18n';
+import { STORAGE_MESSAGE_SCOPE } from './storage_commands';
+import { enqueueLocalCommand, handleStorageMessage } from './storage_service';
 
 const MENU_ID = 'plan-trip';
 
@@ -37,8 +38,24 @@ chrome.runtime.onInstalled.addListener((details) => {
       .create({ url: chrome.runtime.getURL('onboarding.html') })
       .catch(() => undefined);
   } else if (details.reason === 'update') {
-    void runUpdateMigrations().catch(() => undefined);
+    void enqueueLocalCommand({ kind: 'migrate.run' }).catch(() => undefined);
   }
+});
+
+// Single-writer storage commands from extension pages. The scope filter runs
+// synchronously so foreign messages fall through to other listeners.
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (
+    !message ||
+    typeof message !== 'object' ||
+    (message as { scope?: unknown }).scope !== STORAGE_MESSAGE_SCOPE
+  ) {
+    return false;
+  }
+
+  void handleStorageMessage(message, sender).then(sendResponse);
+
+  return true;
 });
 
 // Registered at the top level so a cold-start click still wakes the worker.

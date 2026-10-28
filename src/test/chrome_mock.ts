@@ -39,8 +39,11 @@ export type MockGlobalChangeListener = (
   areaName: string
 ) => void;
 
+export type StorageFault = (op: 'get' | 'set' | 'remove' | 'clear', keys: string[]) => void;
+
 export class MockStorageArea {
   readonly data = new Map<string, unknown>();
+  fault: StorageFault = () => undefined;
   private listeners = new Set<MockChangeListener>();
   readonly onChanged = {
     addListener: (fn: MockChangeListener): void => {
@@ -59,8 +62,12 @@ export class MockStorageArea {
 
   async get(keys?: string | string[] | null): Promise<Record<string, unknown>> {
     if (keys === null || keys === undefined) {
+      this.fault('get', []);
+
       return structuredClone(Object.fromEntries(this.data));
     }
+
+    this.fault('get', Array.isArray(keys) ? keys : [keys]);
 
     const out: Record<string, unknown> = {};
 
@@ -74,6 +81,8 @@ export class MockStorageArea {
   }
 
   async set(items: Record<string, unknown>): Promise<void> {
+    this.fault('set', Object.keys(items));
+
     const changes: Record<string, MockStorageChange> = {};
 
     for (const [key, value] of Object.entries(items)) {
@@ -87,6 +96,8 @@ export class MockStorageArea {
   }
 
   async remove(keys: string | string[]): Promise<void> {
+    this.fault('remove', Array.isArray(keys) ? keys : [keys]);
+
     const changes: Record<string, MockStorageChange> = {};
 
     for (const key of Array.isArray(keys) ? keys : [keys]) {
@@ -99,6 +110,7 @@ export class MockStorageArea {
   }
 
   async clear(): Promise<void> {
+    this.fault('clear', []);
     this.data.clear();
     this.dispatch({});
   }
@@ -145,11 +157,20 @@ export interface WorkerFakes {
   scriptingImpl: (call: ScriptingCall) => Promise<Array<{ result: unknown }>>;
 }
 
+export type RuntimeMessageHandler = (message: unknown) => Promise<unknown> | unknown;
+
+export interface RuntimeFakes {
+  sent: Array<unknown>;
+  listeners: Array<RuntimeMessageHandler>;
+  impl: RuntimeMessageHandler;
+}
+
 export interface ChromeMock {
   session: MockStorageArea;
   local: MockStorageArea;
   panelWindow: { id: number };
   worker: WorkerFakes;
+  runtime: RuntimeFakes;
 }
 
 export const installChromeMock = (): ChromeMock => {
@@ -158,6 +179,14 @@ export const installChromeMock = (): ChromeMock => {
   const local = new MockStorageArea('local');
 
   const panelWindow = { id: 1 };
+
+  const runtime: RuntimeFakes = {
+    sent: [],
+    listeners: [],
+    impl: () => {
+      throw new Error('sendMessage not routed');
+    },
+  };
 
   const worker: WorkerFakes = {
     installed: [],
@@ -204,6 +233,16 @@ export const installChromeMock = (): ChromeMock => {
       onInstalled: {
         addListener: (fn: (details: { reason: string }) => void): void => {
           worker.installed.push(fn);
+        },
+      },
+      sendMessage: (message: unknown): Promise<unknown> => {
+        runtime.sent.push(message);
+
+        return Promise.resolve().then(() => runtime.impl(message));
+      },
+      onMessage: {
+        addListener: (fn: RuntimeMessageHandler): void => {
+          runtime.listeners.push(fn);
         },
       },
     },
@@ -254,7 +293,7 @@ export const installChromeMock = (): ChromeMock => {
     },
   };
 
-  return { session, local, panelWindow, worker };
+  return { session, local, panelWindow, worker, runtime };
 };
 
 export const uninstallChromeMock = (): void => {

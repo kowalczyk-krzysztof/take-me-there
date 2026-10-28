@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { vi } from 'vitest';
 import { installChromeMock, uninstallChromeMock, type ChromeMock } from './chrome_mock';
+import { handleStorageMessage } from '../storage_service';
 
 export const waitFor = async (fn: () => unknown, timeoutMs = 5000): Promise<void> => {
   const start = Date.now();
@@ -41,6 +42,7 @@ export const setupPage = async (
   vi.resetModules();
 
   const mock = installChromeMock();
+  routeStorageCommands(mock);
 
   if (beforeImport) {
     await beforeImport(mock);
@@ -51,6 +53,13 @@ export const setupPage = async (
   await runEntry();
 
   return mock;
+};
+
+// Routes page storage writes to the real worker service: every store test
+// below exercises the same validated, serialized path production uses.
+export const routeStorageCommands = (mock: ChromeMock): void => {
+  mock.runtime.impl = (message: unknown) =>
+    handleStorageMessage(message, { id: 'test', url: 'chrome-extension://test/sidepanel.html' });
 };
 
 export const teardownPage = (): void => {

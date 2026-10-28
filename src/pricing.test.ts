@@ -9,11 +9,13 @@ import {
   resetMonthSpend,
 } from './pricing';
 import { installChromeMock, uninstallChromeMock, type ChromeMock } from './test/chrome_mock';
+import { routeStorageCommands } from './test/helpers';
 
 let mock: ChromeMock;
 
 beforeEach(() => {
   mock = installChromeMock();
+  routeStorageCommands(mock);
 });
 
 afterEach(() => {

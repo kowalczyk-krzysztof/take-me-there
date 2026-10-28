@@ -2,7 +2,7 @@
 // usage; this module prices it. Providers without a rate table (custom
 // endpoints) yield null, and the UI shows token counts instead of dollars.
 import type { Usage } from './providers/index';
-import { createMutex } from './utils/mutex';
+import { sendCommand } from './storage_client';
 
 export interface ModelRates {
   inputUsdPerMTok: number;
@@ -54,8 +54,6 @@ interface SpendRecord {
   months: Record<string, number>;
 }
 
-const spendMutex = createMutex();
-
 // idempotent: wraps a legacy flat month map in the versioned record.
 // Versioned, absent, and unreadable records are left untouched.
 export const migrateSpend = async (): Promise<void> => {
@@ -95,7 +93,8 @@ export const monthKey = (date: Date = new Date()): string =>
 // Strict read: storage failures throw so writers abort instead of
 // persisting totals rebuilt from an empty read. Absent totals read as
 // empty; legacy flat maps migrate in memory and persist on next write.
-const readTotals = async (): Promise<Record<string, number>> => {
+// Exported for the worker storage service, the only writer.
+export const readTotals = async (): Promise<Record<string, number>> => {
   const stored = (await chrome.storage.local.get(COST_TOTALS_KEY)) as {
     costTotals?: unknown;
   };
@@ -134,7 +133,7 @@ const readTotals = async (): Promise<Record<string, number>> => {
   return months;
 };
 
-const writeTotals = async (totals: Record<string, number>): Promise<void> => {
+export const writeTotals = async (totals: Record<string, number>): Promise<void> => {
   const keys = Object.keys(totals).sort().reverse();
 
   for (const old of keys.slice(MAX_MONTHS_KEPT)) {
@@ -148,18 +147,7 @@ const writeTotals = async (totals: Record<string, number>): Promise<void> => {
 export const recordMonthSpend = async (
   amountUsd: number,
   date: Date = new Date()
-): Promise<number> =>
-  spendMutex(async () => {
-    const totals = await readTotals();
-
-    const key = monthKey(date);
-
-    const next = (typeof totals[key] === 'number' ? totals[key] : 0) + amountUsd;
-    totals[key] = next;
-    await writeTotals(totals);
-
-    return next;
-  });
+): Promise<number> => sendCommand<number>({ kind: 'spend.record', amountUsd, at: date.getTime() });
 
 export const readMonthSpend = async (date: Date = new Date()): Promise<number> => {
   const totals = await readTotals();
@@ -170,9 +158,4 @@ export const readMonthSpend = async (date: Date = new Date()): Promise<number> =
 };
 
 export const resetMonthSpend = async (date: Date = new Date()): Promise<void> =>
-  spendMutex(async () => {
-    const totals = await readTotals();
-
-    delete totals[monthKey(date)];
-    await writeTotals(totals);
-  });
+  sendCommand<void>({ kind: 'spend.reset', at: date.getTime() });

@@ -3,6 +3,7 @@
 // chrome.storage only as {iv, ciphertext}. Session-only mode keeps the
 // ciphertext in storage.session (memory-only, wiped on exit) instead.
 import { createStore, get, set } from 'idb-keyval';
+import { sendCommand, sendCommandResult } from './storage_client';
 
 const WRAPPING_KEY_ID = 'wrapping-key-v1';
 
@@ -18,7 +19,7 @@ export interface KeyRecord {
 
 export type KeyStatus = { state: 'ok'; key: string } | { state: 'missing'; orphaned: boolean };
 
-const storageKey = (providerId: string): string => `apiKey:${providerId}`;
+export const vaultStorageKey = (providerId: string): string => `apiKey:${providerId}`;
 
 export const isVaultKey = (key: string): boolean => key.startsWith('apiKey:');
 
@@ -61,15 +62,7 @@ const getOrCreateWrappingKey = async (): Promise<CryptoKey> => {
   return created;
 };
 
-export const saveKey = async (
-  providerId: string,
-  key: string,
-  sessionOnly: boolean
-): Promise<void> => {
-  if (!key) {
-    throw new Error('cannot save an empty key');
-  }
-
+export const encryptKeyRecord = async (key: string): Promise<KeyRecord> => {
   const wrap = await getOrCreateWrappingKey();
 
   const iv = crypto.getRandomValues(new Uint8Array(12));
@@ -80,25 +73,27 @@ export const saveKey = async (
     new TextEncoder().encode(key)
   );
 
-  const record: KeyRecord = {
+  return {
     v: VAULT_VERSION,
     iv: toBase64(iv),
     ciphertext: toBase64(new Uint8Array(encrypted)),
   };
+};
 
-  const name = storageKey(providerId);
-
-  if (sessionOnly) {
-    await chrome.storage.session.set({ [name]: record });
-    await chrome.storage.local.remove(name);
-  } else {
-    await chrome.storage.local.set({ [name]: record });
-    await chrome.storage.session.remove(name);
+export const saveKey = async (
+  providerId: string,
+  key: string,
+  sessionOnly: boolean
+): Promise<void> => {
+  if (!key) {
+    throw new Error('cannot save an empty key');
   }
+
+  await sendCommand<void>({ kind: 'key.save', providerId, key, sessionOnly });
 };
 
 export const loadKey = async (providerId: string): Promise<KeyStatus> => {
-  const name = storageKey(providerId);
+  const name = vaultStorageKey(providerId);
 
   const fromSession = (await chrome.storage.session.get(name)) as Record<
     string,
@@ -140,7 +135,31 @@ export const loadKey = async (providerId: string): Promise<KeyStatus> => {
 };
 
 export const clearKey = async (providerId: string): Promise<void> => {
-  const name = storageKey(providerId);
-  await chrome.storage.session.remove(name);
-  await chrome.storage.local.remove(name);
+  await sendCommand<void>({ kind: 'key.clear', providerId });
+};
+
+export const clearAllKeys = async (): Promise<string[]> =>
+  sendCommand<string[]>({ kind: 'key.clearAll' });
+
+export interface KeyModeResult {
+  sessionOnly: boolean;
+  error?: string;
+}
+
+// The single key-mode operation for all key forms. Returns the verified
+// actual mode: session-only is reported only when storage satisfies it.
+// Transport failures throw; the caller keeps its last verified state.
+export const setKeyMode = async (
+  providerId: string,
+  sessionOnly: boolean
+): Promise<KeyModeResult> => {
+  const result = await sendCommandResult({ kind: 'key.setMode', providerId, sessionOnly });
+
+  if (result.ok) {
+    return { sessionOnly: (result.value as { sessionOnly: boolean }).sessionOnly };
+  }
+
+  const actual = (result.value as { sessionOnly?: unknown } | undefined)?.sessionOnly;
+
+  return { sessionOnly: actual === true, error: result.error };
 };

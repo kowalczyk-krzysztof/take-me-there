@@ -1,0 +1,142 @@
+// Command protocol for the worker-owned storage service. Pages send intents;
+// the worker validates, serializes, and executes them against chrome.storage
+// as the single writer. Schemas bound shape and size; semantic checks
+// (non-empty, finite) live with the handlers so error text stays stable.
+import * as z from 'zod/mini';
+import { PLACE_SCHEMA } from './types';
+
+export const STORAGE_MESSAGE_SCOPE = 'take-me-there/storage-v1';
+
+const pinSchema = z.strictObject({
+  place: PLACE_SCHEMA,
+  sourceHost: z.string().check(z.maxLength(256)),
+  thumbnail: z.optional(z.string().check(z.maxLength(100000))),
+  imageUrl: z.optional(z.string().check(z.maxLength(8000))),
+  addedAt: z.optional(z.number()),
+});
+
+const placeRefSchema = z.strictObject({
+  placeName: z.string().check(z.maxLength(100)),
+  country: z.string().check(z.maxLength(100)),
+});
+
+const spendRecordSchema = z.strictObject({
+  amountUsd: z.number(),
+  at: z.number(),
+});
+
+const spendResetSchema = z.strictObject({
+  at: z.number(),
+});
+
+const cacheEntrySchema = z.strictObject({
+  place: PLACE_SCHEMA,
+  guide: z.string().check(z.maxLength(300000)),
+  sources: z
+    .array(
+      z.strictObject({
+        title: z.string().check(z.maxLength(300)),
+        url: z.string().check(z.maxLength(4000)),
+      })
+    )
+    .check(z.maxLength(64)),
+  usage: z.strictObject({
+    inputTokens: z.number(),
+    outputTokens: z.number(),
+    searchCount: z.number(),
+    flatFeesUsd: z.number(),
+    cachedInputTokens: z.optional(z.number()),
+  }),
+  searchedWeb: z.boolean(),
+});
+
+const cacheKeySchema = z.strictObject({
+  hash: z.string().check(z.maxLength(128)),
+});
+
+const cacheSetSchema = z.strictObject({
+  hash: z.string().check(z.maxLength(128)),
+  entry: cacheEntrySchema,
+});
+
+const settingsSchema = z.strictObject({
+  activeProviderId: z.string().check(z.maxLength(64)),
+  openaiCompat: z.strictObject({
+    baseURL: z.string().check(z.maxLength(2000)),
+    model: z.string().check(z.maxLength(200)),
+    structuredOutput: z.enum(['json_object', 'json_schema']),
+    inputRatePerM: z.optional(z.number()),
+    outputRatePerM: z.optional(z.number()),
+  }),
+  imageOnly: z.boolean(),
+  sessionOnly: z.boolean(),
+  skipWebSearch: z.boolean(),
+});
+
+const providerSchema = z.strictObject({
+  providerId: z.string().check(z.maxLength(64)),
+});
+
+const keySaveSchema = z.strictObject({
+  providerId: z.string().check(z.maxLength(64)),
+  key: z.string().check(z.maxLength(4000)),
+  sessionOnly: z.boolean(),
+});
+
+const keyModeSchema = z.strictObject({
+  providerId: z.string().check(z.maxLength(64)),
+  sessionOnly: z.boolean(),
+});
+
+const emptySchema = z.strictObject({});
+
+export type StorageCommand =
+  | { kind: 'board.add'; pin: z.infer<typeof pinSchema> }
+  | { kind: 'board.remove'; placeName: string; country: string }
+  | { kind: 'board.clear' }
+  | { kind: 'spend.record'; amountUsd: number; at: number }
+  | { kind: 'spend.reset'; at: number }
+  | { kind: 'cache.get'; hash: string }
+  | { kind: 'cache.set'; hash: string; entry: z.infer<typeof cacheEntrySchema> }
+  | { kind: 'settings.save'; settings: z.infer<typeof settingsSchema> }
+  | { kind: 'key.save'; providerId: string; key: string; sessionOnly: boolean }
+  | { kind: 'key.clear'; providerId: string }
+  | { kind: 'key.clearAll' }
+  | { kind: 'key.setMode'; providerId: string; sessionOnly: boolean }
+  | { kind: 'migrate.run' };
+
+export type CommandKind = StorageCommand['kind'];
+
+export interface StorageMessage {
+  scope: string;
+  command: StorageCommand;
+}
+
+export type CommandResult =
+  { ok: true; value: unknown } | { ok: false; error: string; value?: unknown };
+
+interface PayloadSchema {
+  safeParse(payload: unknown): { success: boolean; data?: unknown };
+}
+
+export const COMMAND_SCHEMAS: Record<CommandKind, PayloadSchema> = {
+  'board.add': z.strictObject({ pin: pinSchema }),
+  'board.remove': placeRefSchema,
+  'board.clear': emptySchema,
+  'spend.record': spendRecordSchema,
+  'spend.reset': spendResetSchema,
+  'cache.get': cacheKeySchema,
+  'cache.set': cacheSetSchema,
+  'settings.save': z.strictObject({ settings: settingsSchema }),
+  'key.save': keySaveSchema,
+  'key.clear': providerSchema,
+  'key.clearAll': emptySchema,
+  'key.setMode': keyModeSchema,
+  'migrate.run': emptySchema,
+};
+
+export const commandPayload = (command: StorageCommand): unknown => {
+  const { kind: _kind, ...payload } = command;
+
+  return payload;
+};

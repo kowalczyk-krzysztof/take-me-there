@@ -8,6 +8,7 @@ import {
 } from './result_cache';
 import { isLoopbackHttp } from './sidepanel';
 import { installChromeMock, uninstallChromeMock } from './test/chrome_mock';
+import { routeStorageCommands } from './test/helpers';
 
 describe('isLoopbackHttp', () => {
   it('matches http loopback hosts only', () => {
@@ -22,7 +23,7 @@ describe('isLoopbackHttp', () => {
 });
 
 beforeEach(() => {
-  installChromeMock();
+  routeStorageCommands(installChromeMock());
 });
 
 afterEach(() => {
@@ -101,6 +102,7 @@ describe('persistent result cache', () => {
 
   it('stores versioned envelopes in local storage', async () => {
     const mock = installChromeMock();
+    routeStorageCommands(mock);
     await setCacheEntry('hash0', entry('Place0'));
     const stored = mock.local.data.get('cache:hash0') as { v: number; entry: CacheEntry };
     expect(stored.v).toBe(1);
@@ -110,6 +112,7 @@ describe('persistent result cache', () => {
 
   it('accepts legacy bare entries but rejects unknown versions', async () => {
     const mock = installChromeMock();
+    routeStorageCommands(mock);
     await mock.local.set({ 'cache:bare': entry('Bare') });
     await mock.local.set({ 'cache:future': { v: 99, entry: entry('Future') } });
     expect((await getCacheEntry('bare'))?.place.placeName).toBe('Bare');
@@ -117,7 +120,9 @@ describe('persistent result cache', () => {
   });
 
   it('treats corrupt entries as misses', async () => {
-    const { local } = installChromeMock();
+    const mock = installChromeMock();
+    routeStorageCommands(mock);
+    const { local } = mock;
     await local.set({ 'cache:bad': { nope: true } });
     expect(await getCacheEntry('bad')).toBeUndefined();
   });

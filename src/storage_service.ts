@@ -1,0 +1,449 @@
+// Worker-owned single writer for shared extension state. Pages send storage
+// commands; this module validates the sender and payload, executes commands
+// strictly one at a time, and answers with a serializable result. A failed
+// command resolves its caller with an error and never breaks the queue.
+// Page-local mutexes cannot coordinate two windows; this queue can.
+import {
+  BOARD_CAP,
+  BOARD_STORAGE_KEY,
+  dedupeKeyFor,
+  readBoard,
+  stripUrlEphemera,
+  writeBoard,
+  type BoardPin,
+  type PinOutcome,
+} from './board_store';
+import { encryptKeyRecord, isVaultKey, vaultStorageKey } from './key_vault';
+import { monthKey, readTotals, writeTotals } from './pricing';
+import {
+  CACHE_ENTRY_VERSION,
+  CACHE_INDEX_KEY,
+  CACHE_SLOTS,
+  cacheKeyFor,
+  readCacheIndex,
+  unwrapEntry,
+  type CacheEntry,
+} from './result_cache';
+import { loadSettings, writeSettingsRecord } from './settings_store';
+import { runUpdateMigrations } from './migrations';
+import {
+  COMMAND_SCHEMAS,
+  STORAGE_MESSAGE_SCOPE,
+  commandPayload,
+  type CommandResult,
+  type StorageCommand,
+  type StorageMessage,
+} from './storage_commands';
+
+const invalid = (error: string): CommandResult => ({ ok: false, error });
+
+export const isExtensionPageSender = (sender: chrome.runtime.MessageSender): boolean => {
+  if (sender.id !== undefined && sender.id !== chrome.runtime.id) {
+    return false;
+  }
+
+  const url = sender.url ?? '';
+
+  return url.startsWith(chrome.runtime.getURL(''));
+};
+
+const boardAdd = async (
+  pin: Omit<BoardPin, 'addedAt'> & { addedAt?: number }
+): Promise<PinOutcome> => {
+  const { pins, writable } = await readBoard();
+
+  if (!writable) {
+    throw new Error('unwritable board record');
+  }
+
+  const key = await dedupeKeyFor(pin.place.placeName, pin.place.country);
+
+  const keys = await Promise.all(
+    pins.map((entry) => dedupeKeyFor(entry.place.placeName, entry.place.country))
+  );
+
+  if (keys.includes(key)) {
+    return { status: 'duplicate', pins };
+  }
+
+  const entry: BoardPin = {
+    ...pin,
+    ...(pin.imageUrl ? { imageUrl: stripUrlEphemera(pin.imageUrl) } : {}),
+    addedAt: pin.addedAt ?? Date.now(),
+  };
+
+  const next = [...pins, entry].sort((a, b) => a.addedAt - b.addedAt);
+
+  let evicted: BoardPin | null = null;
+
+  if (next.length > BOARD_CAP) {
+    evicted = next.shift() ?? null;
+  }
+
+  await writeBoard(next);
+
+  return { status: 'pinned', pins: next, evicted };
+};
+
+const boardRemove = async (placeName: string, country: string): Promise<BoardPin[]> => {
+  const { pins, writable } = await readBoard();
+
+  if (!writable) {
+    throw new Error('unwritable board record');
+  }
+
+  const key = await dedupeKeyFor(placeName, country);
+
+  const keys = await Promise.all(
+    pins.map((entry) => dedupeKeyFor(entry.place.placeName, entry.place.country))
+  );
+
+  const next = pins.filter((_, index) => keys[index] !== key);
+
+  if (next.length !== pins.length) {
+    await writeBoard(next);
+  }
+
+  return next;
+};
+
+const spendRecord = async (amountUsd: number, at: number): Promise<number> => {
+  if (!Number.isFinite(amountUsd)) {
+    throw new Error('invalid spend amount');
+  }
+
+  if (!Number.isFinite(at)) {
+    throw new Error('invalid spend timestamp');
+  }
+
+  const totals = await readTotals();
+
+  const key = monthKey(new Date(at));
+
+  const next = (typeof totals[key] === 'number' ? totals[key] : 0) + amountUsd;
+  totals[key] = next;
+  await writeTotals(totals);
+
+  return next;
+};
+
+const spendReset = async (at: number): Promise<void> => {
+  if (!Number.isFinite(at)) {
+    throw new Error('invalid spend timestamp');
+  }
+
+  const totals = await readTotals();
+
+  delete totals[monthKey(new Date(at))];
+  await writeTotals(totals);
+};
+
+const cacheGet = async (hash: string): Promise<CacheEntry | undefined> => {
+  const name = cacheKeyFor(hash);
+
+  const stored = (await chrome.storage.local.get(name)) as Record<string, unknown>;
+
+  const entry = unwrapEntry(stored[name]);
+
+  if (!entry) {
+    return undefined;
+  }
+
+  const index = (await readCacheIndex()).filter((key) => key !== hash);
+  index.unshift(hash);
+
+  await chrome.storage.local.set({ [CACHE_INDEX_KEY]: index.slice(0, CACHE_SLOTS) });
+
+  return entry;
+};
+
+const cacheSet = async (hash: string, entry: CacheEntry): Promise<void> => {
+  await chrome.storage.local.set({
+    [cacheKeyFor(hash)]: { v: CACHE_ENTRY_VERSION, entry },
+  });
+
+  const index = (await readCacheIndex()).filter((key) => key !== hash);
+
+  index.unshift(hash);
+
+  const evicted = index.slice(CACHE_SLOTS);
+
+  await chrome.storage.local.set({ [CACHE_INDEX_KEY]: index.slice(0, CACHE_SLOTS) });
+
+  for (const key of evicted) {
+    await chrome.storage.local.remove(cacheKeyFor(key));
+  }
+};
+
+const vaultNames = async (): Promise<string[]> => {
+  const session = (await chrome.storage.session.get()) as Record<string, unknown>;
+
+  const local = (await chrome.storage.local.get()) as Record<string, unknown>;
+
+  const names = new Set<string>();
+
+  for (const name of [...Object.keys(session), ...Object.keys(local)]) {
+    if (isVaultKey(name)) {
+      names.add(name);
+    }
+  }
+
+  return [...names];
+};
+
+const clearAllKeys = async (): Promise<string[]> => {
+  const names = await vaultNames();
+
+  await chrome.storage.session.remove(names);
+  await chrome.storage.local.remove(names);
+
+  return names.map((name) => name.slice('apiKey:'.length));
+};
+
+interface KeyPlacement {
+  sessionHas: boolean;
+  localHas: boolean;
+}
+
+const readPlacement = async (name: string): Promise<KeyPlacement> => {
+  const fromSession = (await chrome.storage.session.get(name)) as Record<string, unknown>;
+
+  const fromLocal = (await chrome.storage.local.get(name)) as Record<string, unknown>;
+
+  return { sessionHas: fromSession[name] !== undefined, localHas: fromLocal[name] !== undefined };
+};
+
+const placementSatisfies = (
+  placement: KeyPlacement,
+  hasRecord: boolean,
+  sessionOnly: boolean
+): boolean => {
+  if (!hasRecord) {
+    return true;
+  }
+
+  return sessionOnly
+    ? placement.sessionHas && !placement.localHas
+    : placement.localHas && !placement.sessionHas;
+};
+
+// Central key-mode change: move the ciphertext, verify the placement,
+// persist the settings flag, and report session-only only when the freshly
+// read storage satisfies it. Any failure reconciles the actual state and
+// reports it alongside the error; ciphertext is never deleted to satisfy
+// a move (copy, verify, then remove the old side).
+const setKeyMode = async (providerId: string, sessionOnly: boolean): Promise<CommandResult> => {
+  if (!providerId) {
+    return invalid('unknown provider');
+  }
+
+  const name = vaultStorageKey(providerId);
+
+  try {
+    const fromSession = (await chrome.storage.session.get(name)) as Record<string, unknown>;
+
+    const fromLocal = (await chrome.storage.local.get(name)) as Record<string, unknown>;
+
+    const record = fromSession[name] ?? fromLocal[name];
+
+    if (record !== undefined) {
+      const target = sessionOnly ? chrome.storage.session : chrome.storage.local;
+
+      const other = sessionOnly ? chrome.storage.local : chrome.storage.session;
+
+      await target.set({ [name]: record });
+
+      const placed = (await target.get(name)) as Record<string, unknown>;
+
+      if (placed[name] === undefined) {
+        throw new Error('key move failed verification');
+      }
+
+      await other.remove(name);
+
+      const cleared = (await other.get(name)) as Record<string, unknown>;
+
+      if (cleared[name] !== undefined) {
+        throw new Error('key move failed verification');
+      }
+    }
+
+    const current = await loadSettings();
+
+    await writeSettingsRecord({ ...current, sessionOnly });
+
+    const verified = await loadSettings();
+
+    if (verified.sessionOnly !== sessionOnly) {
+      throw new Error('settings write failed verification');
+    }
+
+    const placement = await readPlacement(name);
+
+    const hasRecord = placement.sessionHas || placement.localHas;
+
+    if (!placementSatisfies(placement, hasRecord, sessionOnly)) {
+      throw new Error('key move failed verification');
+    }
+
+    return { ok: true, value: { sessionOnly } };
+  } catch (err) {
+    let actual = false;
+
+    try {
+      const placement = await readPlacement(name);
+
+      const hasRecord = placement.sessionHas || placement.localHas;
+
+      const settings = await loadSettings();
+
+      actual = settings.sessionOnly === true && placementSatisfies(placement, hasRecord, true);
+    } catch {
+      actual = false;
+    }
+
+    const message = err instanceof Error ? err.message : 'key mode change failed';
+
+    return { ok: false, error: message, value: { sessionOnly: actual } };
+  }
+};
+
+const execute = async (command: StorageCommand): Promise<CommandResult> => {
+  switch (command.kind) {
+    case 'board.add':
+      return { ok: true, value: await boardAdd(command.pin) };
+
+    case 'board.remove':
+      return { ok: true, value: await boardRemove(command.placeName, command.country) };
+
+    case 'board.clear':
+      await chrome.storage.local.remove(BOARD_STORAGE_KEY);
+
+      return { ok: true, value: undefined };
+
+    case 'spend.record':
+      return { ok: true, value: await spendRecord(command.amountUsd, command.at) };
+
+    case 'spend.reset':
+      await spendReset(command.at);
+
+      return { ok: true, value: undefined };
+
+    case 'cache.get':
+      return { ok: true, value: (await cacheGet(command.hash)) ?? undefined };
+
+    case 'cache.set':
+      await cacheSet(command.hash, command.entry);
+
+      return { ok: true, value: undefined };
+
+    case 'settings.save':
+      await writeSettingsRecord(command.settings);
+
+      return { ok: true, value: undefined };
+
+    case 'key.save': {
+      if (!command.providerId) {
+        return invalid('unknown provider');
+      }
+
+      if (!command.key) {
+        return invalid('cannot save an empty key');
+      }
+
+      const record = await encryptKeyRecord(command.key);
+
+      const name = vaultStorageKey(command.providerId);
+
+      if (command.sessionOnly) {
+        await chrome.storage.session.set({ [name]: record });
+        await chrome.storage.local.remove(name);
+      } else {
+        await chrome.storage.local.set({ [name]: record });
+        await chrome.storage.session.remove(name);
+      }
+
+      return { ok: true, value: undefined };
+    }
+
+    case 'key.clear': {
+      if (!command.providerId) {
+        return invalid('unknown provider');
+      }
+
+      const name = vaultStorageKey(command.providerId);
+      await chrome.storage.session.remove(name);
+      await chrome.storage.local.remove(name);
+
+      return { ok: true, value: undefined };
+    }
+
+    case 'key.clearAll':
+      return { ok: true, value: await clearAllKeys() };
+
+    case 'key.setMode':
+      return setKeyMode(command.providerId, command.sessionOnly);
+
+    case 'migrate.run':
+      return { ok: true, value: await runUpdateMigrations() };
+
+    default:
+      return invalid('unknown command');
+  }
+};
+
+let queueTail: Promise<void> = Promise.resolve();
+
+const enqueue = (command: StorageCommand): Promise<CommandResult> =>
+  new Promise<CommandResult>((resolve) => {
+    queueTail = queueTail.then(async () => {
+      try {
+        resolve(await execute(command));
+      } catch (err) {
+        resolve(invalid(err instanceof Error ? err.message : 'command failed'));
+      }
+    });
+  });
+
+// In-worker execution for writer code already running in the worker (the
+// update migration): same validation-free fast path through the queue so a
+// page command can never interleave mid-migration.
+export const enqueueLocalCommand = (command: StorageCommand): Promise<CommandResult> =>
+  enqueue(command);
+
+// Message entry for the worker listener and tests. Returns undefined for
+// messages outside this protocol so other listeners can claim them.
+export const handleStorageMessage = async (
+  message: unknown,
+  sender: chrome.runtime.MessageSender
+): Promise<CommandResult | undefined> => {
+  if (!message || typeof message !== 'object') {
+    return undefined;
+  }
+
+  const envelope = message as Partial<StorageMessage>;
+
+  if (envelope.scope !== STORAGE_MESSAGE_SCOPE || !envelope.command) {
+    return undefined;
+  }
+
+  if (!isExtensionPageSender(sender)) {
+    return invalid('rejected sender');
+  }
+
+  const command = envelope.command as Partial<StorageCommand>;
+
+  const schema = command.kind !== undefined ? COMMAND_SCHEMAS[command.kind] : undefined;
+
+  if (!schema) {
+    return invalid('unknown command');
+  }
+
+  const parsed = schema.safeParse(commandPayload(envelope.command));
+
+  if (!parsed.success) {
+    return invalid('invalid payload');
+  }
+
+  return enqueue({ ...envelope.command, ...(parsed.data as object) } as StorageCommand);
+};
