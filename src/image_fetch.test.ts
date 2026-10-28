@@ -35,14 +35,14 @@ describe('fetchImageBytes', () => {
     vi.stubGlobal('fetch', fetchMock);
     const bytes = await fetchImageBytes(
       'https://cdn.example.com/oia.jpg',
-      new AbortController().signal,
+      new AbortController().signal
     );
     expect(bytes).toEqual(new Uint8Array([1, 2, 3]));
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(init.credentials).toBe('omit');
     fetchMock.mockResolvedValueOnce(new Response('nope', { status: 404 }));
     await expect(
-      fetchImageBytes('https://cdn.example.com/missing.jpg', new AbortController().signal),
+      fetchImageBytes('https://cdn.example.com/missing.jpg', new AbortController().signal)
     ).rejects.toThrow('status 404');
   });
 
@@ -50,7 +50,7 @@ describe('fetchImageBytes', () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(new Uint8Array(FETCH_MAX_BYTES + 1)));
     vi.stubGlobal('fetch', fetchMock);
     await expect(
-      fetchImageBytes('https://cdn.example.com/huge.jpg', new AbortController().signal),
+      fetchImageBytes('https://cdn.example.com/huge.jpg', new AbortController().signal)
     ).rejects.toThrow('size cap');
   });
 });
@@ -65,13 +65,13 @@ describe('downscaleToJpegDataUrl', () => {
         width: 1600,
         height: 800,
         close: vi.fn(),
-      }),
+      })
     );
     vi.stubGlobal(
       'OffscreenCanvas',
       vi.fn().mockImplementation(function (this: unknown, width: number, height: number) {
         return { width, height, getContext: () => ({ drawImage }), convertToBlob };
-      }),
+      })
     );
     const url = await downscaleToJpegDataUrl(new Uint8Array([1, 2, 3]));
     expect(url.startsWith('data:image/jpeg;base64,')).toBe(true);
@@ -87,13 +87,13 @@ describe('downscaleToJpegDataUrl', () => {
         width: 400,
         height: 300,
         close: vi.fn(),
-      }),
+      })
     );
     vi.stubGlobal(
       'OffscreenCanvas',
       vi.fn().mockImplementation(function (this: unknown) {
         return { getContext: () => ({ drawImage }), convertToBlob: async () => new Blob(['x']) };
-      }),
+      })
     );
     await downscaleToJpegDataUrl(new Uint8Array([1]));
     expect(drawImage).toHaveBeenCalledWith(expect.anything(), 0, 0, 400, 300);

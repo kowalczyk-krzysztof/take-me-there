@@ -95,7 +95,7 @@ export const TRIP_REQUEST_SCHEMA = z.strictObject({
     z.strictObject({
       dataUrl: z.string(),
       time: z.number(),
-    }),
+    })
   ),
   frameError: z.optional(FRAME_FAILURE_SCHEMA),
   scanImages: z.optional(z.array(SCANNED_IMAGE_SCHEMA)),
@@ -137,13 +137,13 @@ export const itinerarySchema = (stopNames: string[]) => {
         dayTitle: z.string().check(z.maxLength(80)),
         stopNames: z.array(z.enum(names)),
         summary: z.string().check(z.maxLength(500)),
-      }),
+      })
     ),
     nightsEach: z.array(
       z.strictObject({
         stop: z.enum(names),
         nights: z.number(),
-      }),
+      })
     ),
   });
 };
@@ -165,13 +165,13 @@ export const looseItinerarySchema = () =>
         dayTitle: z.string(),
         stopNames: z.array(z.string()),
         summary: z.string(),
-      }),
+      })
     ),
     nightsEach: z.array(
       z.strictObject({
         stop: z.string(),
         nights: z.unknown(),
-      }),
+      })
     ),
   });
 
@@ -216,7 +216,7 @@ export const duelSchema = () =>
         criterion: z.string().check(z.maxLength(40)),
         a: z.string().check(z.maxLength(140)),
         b: z.string().check(z.maxLength(140)),
-      }),
+      })
     ),
     verdict: z.string().check(z.maxLength(300)),
   });
@@ -242,7 +242,7 @@ export const alternatesSchema = () =>
         country: z.string().check(z.maxLength(100)),
         why: z.string().check(z.maxLength(140)),
         bestMonth: z.string().check(z.maxLength(20)),
-      }),
+      })
     ),
   });
 
@@ -254,7 +254,7 @@ export const alternatesJsonSchema = (): Record<string, unknown> => {
 
 export const scanBatchJsonSchema = (): Record<string, unknown> => {
   const emitted = z.toJSONSchema(
-    z.strictObject({ places: z.array(scanPlaceSchema()) }),
+    z.strictObject({ places: z.array(scanPlaceSchema()) })
   ) as unknown as Record<string, unknown>;
   const { $schema: _dropped, ...schema } = emitted;
   return schema;

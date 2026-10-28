@@ -65,10 +65,10 @@ beforeEach(() => {
           }
         });
       }
-    },
+    }
   );
   HTMLCanvasElement.prototype.getContext = vi.fn(
-    () => ({ drawImage }) as unknown as CanvasRenderingContext2D,
+    () => ({ drawImage }) as unknown as CanvasRenderingContext2D
   ) as unknown as typeof HTMLCanvasElement.prototype.getContext;
   HTMLCanvasElement.prototype.toDataURL =
     toDataURL as unknown as typeof HTMLCanvasElement.prototype.toDataURL;

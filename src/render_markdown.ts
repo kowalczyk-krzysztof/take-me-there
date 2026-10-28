@@ -34,7 +34,7 @@ export interface GuideRenderer {
 export const createGuideRenderer = (
   container: HTMLElement,
   truncatedNotice: string,
-  maxChars: number = MAX_GUIDE_CHARS,
+  maxChars: number = MAX_GUIDE_CHARS
 ): GuideRenderer => {
   let buffer = '';
   let finished = false;

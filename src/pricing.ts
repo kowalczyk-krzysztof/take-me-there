@@ -56,7 +56,7 @@ const readTotals = async (): Promise<Record<string, number>> => {
 
 export const recordMonthSpend = async (
   amountUsd: number,
-  date: Date = new Date(),
+  date: Date = new Date()
 ): Promise<number> => {
   const totals = await readTotals();
   const key = monthKey(date);

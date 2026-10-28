@@ -187,7 +187,7 @@ const onCompatSave = (): void => {
     }
     const settings = await loadSettings();
     const structuredSelect = document.getElementById(
-      'compat-structured',
+      'compat-structured'
     ) as HTMLSelectElement | null;
     await saveSettings({
       ...settings,

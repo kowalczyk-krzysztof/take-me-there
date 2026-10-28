@@ -54,7 +54,7 @@ export const buildLinks = (destination: string): BookingLink[] => {
       { id: 'booking', href: `https://www.booking.com/searchresults.html?ss=${query}` },
       { id: 'getyourguide', href: `https://www.getyourguide.com/s/?q=${query}` },
       { id: 'tripadvisor', href: `https://www.tripadvisor.com/Search?q=${query}` },
-      { id: 'expedia', href: `https://www.expedia.com/Hotel-Search?destination=${query}` },
+      { id: 'expedia', href: `https://www.expedia.com/Hotel-Search?destination=${query}` }
     );
   }
   return links;

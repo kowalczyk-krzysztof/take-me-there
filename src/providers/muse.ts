@@ -111,7 +111,7 @@ export class MuseProvider implements Provider {
   private async identifyVideo(key: string, input: IdentifyInput): Promise<IdentifyResult> {
     try {
       return await runIdentify(key, input, (messages, schema) =>
-        this.identifyRequest(messages, schema),
+        this.identifyRequest(messages, schema)
       );
     } catch (err) {
       if (err instanceof ProviderError && err.status === 400) {
@@ -190,7 +190,7 @@ export class MuseProvider implements Provider {
     key: string,
     input: IdentifyInput,
     description: string,
-    usage: Usage,
+    usage: Usage
   ): Promise<PlaceResult> {
     const hint = sanitizePromptHint(description, 2000);
     for (const strictReminder of [false, true]) {
@@ -210,7 +210,7 @@ export class MuseProvider implements Provider {
           },
           { role: 'user', content: text },
         ],
-        placeJsonSchema(),
+        placeJsonSchema()
       );
       let res: Response;
       try {
@@ -249,7 +249,7 @@ export class MuseProvider implements Provider {
   // guess-permissive prompt. There is no weak first pass to retry out of.
   private identifyRequest(
     messages: ChatMessage[],
-    schema: Record<string, unknown>,
+    schema: Record<string, unknown>
   ): IdentifyRequest {
     return {
       url: `${API_BASE}/chat/completions`,
@@ -293,7 +293,7 @@ export class MuseProvider implements Provider {
           },
         },
         input.signal,
-        usage,
+        usage
       );
       const plan = parseItineraryPlan(data, stopNames);
       if (plan) {
@@ -325,7 +325,7 @@ export class MuseProvider implements Provider {
           },
         },
         input.signal,
-        usage,
+        usage
       );
       const places = parseScanBatch(data);
       if (places) {
@@ -346,7 +346,7 @@ export class MuseProvider implements Provider {
     name: string,
     schema: Record<string, unknown>,
     prompt: string,
-    parse: (json: unknown) => T | undefined,
+    parse: (json: unknown) => T | undefined
   ): Promise<{ value: T; sources: GuideSource[] } | null> {
     let res: Response;
     try {
@@ -401,7 +401,7 @@ export class MuseProvider implements Provider {
     name: string,
     schema: Record<string, unknown>,
     messages: (strictReminder: boolean) => ChatMessage[],
-    parse: (json: unknown) => T | undefined,
+    parse: (json: unknown) => T | undefined
   ): Promise<{ value: T; sources: GuideSource[] } | null> {
     for (const strictReminder of [false, true]) {
       const data = await fetchChatCompletion(
@@ -418,7 +418,7 @@ export class MuseProvider implements Provider {
           },
         },
         signal,
-        usage,
+        usage
       );
       const value = parse(extractChatJson(data));
       if (value) {
@@ -441,7 +441,7 @@ export class MuseProvider implements Provider {
       'duel',
       schema,
       prompt,
-      parseDuelContent,
+      parseDuelContent
     );
     if (grounded) {
       return { ...grounded.value, sources: grounded.sources, usage: { ...usage } };
@@ -453,7 +453,7 @@ export class MuseProvider implements Provider {
       'duel',
       schema,
       (strictReminder) => buildDuelMessages(input.a, input.b, strictReminder),
-      parseDuelContent,
+      parseDuelContent
     );
     if (chat) {
       return { ...chat.value, sources: chat.sources, usage: { ...usage } };
@@ -474,7 +474,7 @@ export class MuseProvider implements Provider {
       'alternates',
       schema,
       prompt,
-      parseAlternatesContent,
+      parseAlternatesContent
     );
     if (grounded) {
       return { alternatives: grounded.value, sources: grounded.sources, usage: { ...usage } };
@@ -487,7 +487,7 @@ export class MuseProvider implements Provider {
       schema,
       (strictReminder) =>
         buildAlternatesMessages(input.placeName, input.country, input.intent, strictReminder),
-      parseAlternatesContent,
+      parseAlternatesContent
     );
     if (chat) {
       return { alternatives: chat.value, sources: chat.sources, usage: { ...usage } };
@@ -560,7 +560,7 @@ export class MuseProvider implements Provider {
   private async *streamGuideChat(
     key: string,
     prompt: string,
-    signal: AbortSignal,
+    signal: AbortSignal
   ): AsyncGenerator<GuideEvent, void, void> {
     yield* postChatStream(
       `${API_BASE}/chat/completions`,
@@ -572,14 +572,14 @@ export class MuseProvider implements Provider {
         stream: true,
         stream_options: { include_usage: true },
       },
-      signal,
+      signal
     );
   }
 
   private async *streamGuideResponses(
     key: string,
     prompt: string,
-    signal: AbortSignal,
+    signal: AbortSignal
   ): AsyncGenerator<GuideEvent, void, void> {
     let res: Response;
     try {
@@ -615,7 +615,7 @@ export class MuseProvider implements Provider {
     const seenUrls = new Set<string>();
     let announcedSearching = false;
     const parser = decodeStream(res.body).pipeThrough(
-      new EventSourceParserStream({ maxBufferSize: SSE_MAX_BUFFER, onError: 'terminate' }),
+      new EventSourceParserStream({ maxBufferSize: SSE_MAX_BUFFER, onError: 'terminate' })
     );
     const reader = parser.getReader();
     try {

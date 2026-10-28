@@ -31,7 +31,7 @@ import { installChromeMock, uninstallChromeMock, type ChromeMock } from './test/
 
 const SHELL = readFileSync(
   join(dirname(fileURLToPath(import.meta.url)), '../public/options.html'),
-  'utf8',
+  'utf8'
 );
 
 const mountShell = (): void => {
@@ -57,7 +57,7 @@ const waitFor = async (fn: () => void, timeoutMs = 5000): Promise<void> => {
 const fetchMock = vi.fn();
 
 const setup = async (
-  beforeImport?: (mock: ChromeMock) => void | Promise<void>,
+  beforeImport?: (mock: ChromeMock) => void | Promise<void>
 ): Promise<ChromeMock> => {
   vi.resetModules();
   const mock = installChromeMock();
@@ -121,7 +121,7 @@ describe('options', () => {
     fetchMock.mockResolvedValue(new Response('[]', { status: 200 }));
     (document.querySelector('#key-input') as HTMLInputElement).value = 'LLM_new';
     (document.querySelector('#key-host form') as HTMLFormElement).dispatchEvent(
-      new Event('submit', { bubbles: true, cancelable: true }),
+      new Event('submit', { bubbles: true, cancelable: true })
     );
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusKeySaved');
@@ -239,7 +239,7 @@ describe('options', () => {
     });
     expect(document.querySelector('#compat-fields')?.hasAttribute('hidden')).toBe(false);
     expect((document.querySelector('#compat-base-url') as HTMLInputElement).value).toBe(
-      'https://llm.example.com/v1',
+      'https://llm.example.com/v1'
     );
     const muse = document.querySelector('#provider-muse') as HTMLInputElement;
     muse.checked = true;
@@ -249,7 +249,7 @@ describe('options', () => {
     });
     expect(document.querySelector('#compat-fields')?.hasAttribute('hidden')).toBe(true);
     expect((mock.local.data.get('settings') as { activeProviderId: string }).activeProviderId).toBe(
-      'muse',
+      'muse'
     );
   });
 });

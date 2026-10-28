@@ -65,7 +65,7 @@ export const parseSamBoxes = (text: string): SamTokenBox[] => {
 export const selectSamBox = (
   boxes: SamTokenBox[],
   imageWidth: number,
-  imageHeight: number,
+  imageHeight: number
 ): SamPixelBox | null => {
   let best: SamPixelBox | null = null;
   let bestArea = 0;

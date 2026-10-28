@@ -23,8 +23,6 @@ export const ScanCard = ({ item, index, initialChecked, onGuide, onPin }: Props)
       <div className={styles['thumb-placeholder']} aria-hidden="true" />
     )}
     <label className={styles['select-row']}>
-      {/* Uncontrolled: a delegated native change listener tracks toggles,
-          so programmatic sets fire it too. */}
       <input type="checkbox" data-title={item.title} defaultChecked={initialChecked} />
       <span>{item.title}</span>
     </label>

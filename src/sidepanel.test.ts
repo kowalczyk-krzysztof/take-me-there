@@ -30,7 +30,7 @@ import { installChromeMock, uninstallChromeMock, type ChromeMock } from './test/
 
 const SHELL = readFileSync(
   join(dirname(fileURLToPath(import.meta.url)), '../public/sidepanel.html'),
-  'utf8',
+  'utf8'
 );
 
 const mountShell = (): void => {
@@ -109,7 +109,7 @@ const chatResponse = (place: unknown) =>
       choices: [{ message: { content: JSON.stringify(place) } }],
       usage: { prompt_tokens: 100, completion_tokens: 50 },
     }),
-    { status: 200 },
+    { status: 200 }
   );
 
 const sseResponse = (chunks: string[]) => {
@@ -140,7 +140,7 @@ const groundedResponse = (json: unknown, annotations: unknown[] = []) =>
       ],
       usage: { input_tokens: 200, output_tokens: 80 },
     }),
-    { status: 200 },
+    { status: 200 }
   );
 
 const GUIDE_SSE = [
@@ -295,7 +295,7 @@ describe('sidepanel', () => {
     fetchMock.mockResolvedValueOnce(new Response('[]', { status: 200 }));
     (document.querySelector('#settings-panel #key-input') as HTMLInputElement).value = 'LLM_new';
     (document.querySelector('#settings-panel form') as HTMLFormElement).dispatchEvent(
-      new Event('submit', { bubbles: true, cancelable: true }),
+      new Event('submit', { bubbles: true, cancelable: true })
     );
     await waitFor(() => {
       expect(tabMain.getAttribute('aria-selected')).toBe('true');
@@ -418,13 +418,13 @@ describe('sidepanel', () => {
       lines.push(
         'event: response.output_text.delta\n',
         `data: {"delta":${JSON.stringify(d)}}\n`,
-        '\n',
+        '\n'
       );
     }
     lines.push(
       'event: response.completed\n',
       'data: {"response":{"usage":{"input_tokens":100,"output_tokens":200}}}\n',
-      '\n',
+      '\n'
     );
     fetchMock
       .mockResolvedValueOnce(chatResponse(VALID_PLACE))
@@ -508,7 +508,7 @@ describe('sidepanel', () => {
       .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
     (document.querySelector('#key-input') as HTMLInputElement).value = 'LLM_good';
     (document.querySelector('#settings-panel form') as HTMLFormElement).dispatchEvent(
-      new Event('submit', { bubbles: true, cancelable: true }),
+      new Event('submit', { bubbles: true, cancelable: true })
     );
     await waitFor(() => {
       const card = document.querySelector('#result-slot');
@@ -561,7 +561,7 @@ describe('sidepanel', () => {
           'event: response.completed\n',
           'data: {"response":{"usage":{"input_tokens":100,"output_tokens":50}}}\n',
           '\n',
-        ]),
+        ])
       );
     await mock.session.set({ tripRequest: READY() });
     await clickPlanTrip();
@@ -664,7 +664,7 @@ describe('sidepanel', () => {
     cancel.click();
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe(
-        'statusVideoConfirmDeclined',
+        'statusVideoConfirmDeclined'
       );
     });
     expect(fetchMock).not.toHaveBeenCalled();
@@ -716,7 +716,7 @@ describe('sidepanel', () => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned');
     });
     expect(
-      (card.querySelector('.pin-button') as HTMLButtonElement).getAttribute('aria-pressed'),
+      (card.querySelector('.pin-button') as HTMLButtonElement).getAttribute('aria-pressed')
     ).toBe('true');
     const board = document.querySelector('#board-slot') as HTMLElement;
     const items = [...(board.querySelectorAll('li') ?? [])];
@@ -724,7 +724,7 @@ describe('sidepanel', () => {
     expect(items[0].querySelector('.item-name')?.textContent).toBe('Oia, Greece');
     expect(items[0].querySelector('.item-host')?.textContent).toBe('example.com');
     expect(
-      (board.querySelector('.plan-button') as HTMLButtonElement).getAttribute('aria-disabled'),
+      (board.querySelector('.plan-button') as HTMLButtonElement).getAttribute('aria-disabled')
     ).toBe('true');
     (card.querySelector('.pin-button') as HTMLButtonElement).click();
     await waitFor(() => {
@@ -737,7 +737,7 @@ describe('sidepanel', () => {
       expect(board.querySelectorAll('li')).toHaveLength(0);
     });
     expect(
-      (card.querySelector('.pin-button') as HTMLButtonElement).getAttribute('aria-pressed'),
+      (card.querySelector('.pin-button') as HTMLButtonElement).getAttribute('aria-pressed')
     ).toBe('false');
   });
 
@@ -917,7 +917,7 @@ describe('sidepanel', () => {
           { placeName: 'Oia', city: 'Oia', country: 'Greece', confidence: 0.9, imageIndex: 1 },
           { placeName: 'Fira', city: 'Fira', country: 'Greece', confidence: 0.8, imageIndex: 9 },
         ],
-      }),
+      })
     );
     await mock.session.set({
       tripRequest: READY({
@@ -949,7 +949,7 @@ describe('sidepanel', () => {
     const list = document.querySelector('#result-slot');
     const cards = list?.querySelectorAll('.scan-card');
     expect(cards?.[0]?.querySelector('img')?.getAttribute('src')).toBe(
-      'https://img.example.com/b.jpg',
+      'https://img.example.com/b.jpg'
     );
     expect(cards?.[1]?.querySelector('img')).toBeNull();
     expect(cards?.[1]?.querySelector('.thumb-placeholder')).not.toBeNull();
@@ -1000,7 +1000,7 @@ describe('sidepanel', () => {
           places: [
             { placeName: 'Oia', city: 'Oia', country: 'Greece', confidence: 0.9, imageIndex: 0 },
           ],
-        }),
+        })
       )
       .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
     await mock.session.set({
@@ -1044,7 +1044,7 @@ describe('sidepanel', () => {
           { placeName: 'Oia', city: 'Oia', country: 'Greece', confidence: 0.9, imageIndex: 0 },
           { placeName: 'Fira', city: 'Fira', country: 'Greece', confidence: 0.8, imageIndex: 1 },
         ],
-      }),
+      })
     );
     await mock.session.set({
       tripRequest: READY({
@@ -1104,7 +1104,7 @@ describe('sidepanel', () => {
         places: [
           { placeName: 'Oia', city: 'Oia', country: 'Greece', confidence: 0.9, imageIndex: 0 },
         ],
-      }),
+      })
     );
     await mock.session.set({
       tripRequest: READY({
@@ -1148,8 +1148,8 @@ describe('sidepanel', () => {
           criteria: [{ criterion: 'Cost', a: 'Pricey sunsets.', b: 'Cheaper stays.' }],
           verdict: 'Pick Oia for views; pick Fira for budget.',
         },
-        [{ type: 'url_citation', url: 'https://example.com/cost', title: 'Costs' }],
-      ),
+        [{ type: 'url_citation', url: 'https://example.com/cost', title: 'Costs' }]
+      )
     );
     await mock.session.set({ tripRequest: READY() });
     await waitFor(() => {
@@ -1193,7 +1193,7 @@ describe('sidepanel', () => {
         chatResponse({
           criteria: [{ criterion: 'Cost', a: 'Pricey.', b: 'Cheap.' }],
           verdict: 'Pick Oia for views.',
-        }),
+        })
       );
     await mock.session.set({ tripRequest: READY() });
     await waitFor(() => {
@@ -1227,7 +1227,7 @@ describe('sidepanel', () => {
         chatResponse({
           criteria: [{ criterion: 'Cost', a: 'Pricey.', b: 'Cheap.' }],
           verdict: 'Pick Oia for views.',
-        }),
+        })
       );
     await mock.session.set({ tripRequest: READY() });
     await waitFor(() => {
@@ -1266,7 +1266,7 @@ describe('sidepanel', () => {
             },
             { placeName: 'Naxos', country: 'Greece', why: 'Quiet beaches.', bestMonth: 'June' },
           ],
-        }),
+        })
       )
       .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
     await mock.session.set({ tripRequest: READY() });
@@ -1310,7 +1310,7 @@ describe('sidepanel', () => {
             bestMonth: 'May',
           },
         ],
-      }),
+      })
     );
     await mock.session.set({ tripRequest: READY() });
     await waitFor(() => {
@@ -1337,7 +1337,7 @@ describe('sidepanel', () => {
     expect(entries[0]?.querySelector('.thumb-monogram')?.textContent).toBe('F');
     const synced = document.querySelector('#result-slot') as HTMLElement;
     expect(synced.querySelector('.alternate-card .pin-button')?.getAttribute('aria-pressed')).toBe(
-      'true',
+      'true'
     );
   });
 
@@ -1403,7 +1403,7 @@ describe('sidepanel', () => {
     };
     vi.stubGlobal(
       'createImageBitmap',
-      vi.fn().mockResolvedValue({ width: 400, height: 300, close: vi.fn() }),
+      vi.fn().mockResolvedValue({ width: 400, height: 300, close: vi.fn() })
     );
     vi.stubGlobal(
       'OffscreenCanvas',
@@ -1412,7 +1412,7 @@ describe('sidepanel', () => {
           getContext: () => ({ drawImage: vi.fn() }),
           convertToBlob: async () => new Blob(['fakejpeg']),
         };
-      }),
+      })
     );
     fetchMock
       .mockResolvedValueOnce(new Response('bad image', { status: 400 }))
@@ -1495,7 +1495,7 @@ describe('sidepanel', () => {
     };
     vi.stubGlobal(
       'createImageBitmap',
-      vi.fn().mockResolvedValue({ width: 400, height: 300, close: vi.fn() }),
+      vi.fn().mockResolvedValue({ width: 400, height: 300, close: vi.fn() })
     );
     vi.stubGlobal(
       'OffscreenCanvas',
@@ -1504,7 +1504,7 @@ describe('sidepanel', () => {
           getContext: () => ({ drawImage: vi.fn() }),
           convertToBlob: async () => new Blob(['pixels']),
         };
-      }),
+      })
     );
     const GUESS = { ...VALID_PLACE, confidence: 0.2 };
     fetchMock
@@ -1527,8 +1527,8 @@ describe('sidepanel', () => {
             ],
             usage: { input_tokens: 900, output_tokens: 40 },
           }),
-          { status: 200 },
-        ),
+          { status: 200 }
+        )
       )
       .mockResolvedValueOnce(chatResponse(VALID_PLACE));
     await mock.session.set({ tripRequest: READY() });
@@ -1572,7 +1572,7 @@ describe('sidepanel', () => {
     };
     vi.stubGlobal(
       'createImageBitmap',
-      vi.fn().mockResolvedValue({ width: 400, height: 300, close: vi.fn() }),
+      vi.fn().mockResolvedValue({ width: 400, height: 300, close: vi.fn() })
     );
     vi.stubGlobal(
       'OffscreenCanvas',
@@ -1581,7 +1581,7 @@ describe('sidepanel', () => {
           getContext: () => ({ drawImage: vi.fn() }),
           convertToBlob: async () => new Blob(['pixels']),
         };
-      }),
+      })
     );
     const GUESS = { ...VALID_PLACE, confidence: 0.2 };
     const samEmpty = new Response(
@@ -1591,7 +1591,7 @@ describe('sidepanel', () => {
         ],
         usage: { input_tokens: 900, output_tokens: 5 },
       }),
-      { status: 200 },
+      { status: 200 }
     );
     fetchMock
       .mockResolvedValueOnce(chatResponse(GUESS))

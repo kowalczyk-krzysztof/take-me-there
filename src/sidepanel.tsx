@@ -100,7 +100,7 @@ export const isAllowedPreviewUrl = (srcUrl: string): boolean => {
 export const hashCacheKey = async (srcUrl: string, pageUrl: string): Promise<string> => {
   const digest = await crypto.subtle.digest(
     'SHA-256',
-    new TextEncoder().encode(`${srcUrl}|${pageUrl}`),
+    new TextEncoder().encode(`${srcUrl}|${pageUrl}`)
   );
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
 };
@@ -681,7 +681,7 @@ const wipeStoredRequest = async (requestId: string): Promise<void> => {
 
 const fallbackFor = (signals: PageSignals): { label: string; href: string } | null => {
   const best = [signals.jsonLd[0]?.name, signals.ogTitle, signals.alt, signals.docTitle].find(
-    (candidate) => candidate && candidate.trim(),
+    (candidate) => candidate && candidate.trim()
   );
   if (!best) {
     return null;
@@ -709,7 +709,7 @@ const videoUrlForRequest = (request: TripRequest, provider: Provider): string | 
 const privacyForRequest = (
   request: TripRequest,
   settings: ExtensionSettings,
-  provider: Provider,
+  provider: Provider
 ): PrivacyMode => {
   if (request.mediaType === 'video') {
     return videoUrlForRequest(request, provider) ? 'video-url' : 'video-frame';
@@ -735,7 +735,7 @@ const isPlacePinned = async (place: PlaceResult): Promise<boolean> => {
 const renderResultHeader = async (
   place: PlaceResult,
   announce: boolean,
-  foundKey = 'statusFoundWriting',
+  foundKey = 'statusFoundWriting'
 ): Promise<void> => {
   await settleSkeleton();
   cancelSkeleton();
@@ -783,7 +783,7 @@ const renderErrorCard = (
   showRetry: boolean,
   withKeySetup: boolean,
   fallback: { label: string; href: string } | null = null,
-  showFetchRetry = false,
+  showFetchRetry = false
 ): void => {
   cancelSkeleton();
   currentView = 'error';
@@ -823,7 +823,7 @@ const showProviderError = (
   err: unknown,
   request: TripRequest | null,
   privacyOverride?: PrivacyMode,
-  fetchRetryAvailable = false,
+  fetchRetryAvailable = false
 ): void => {
   const privacy = privacyOverride ?? errorPrivacy(request);
   // A 400 on the image-bearing identify means the model could not fetch
@@ -1058,7 +1058,7 @@ const runIdentify = async (args: IdentifyArgs): Promise<RunOutcome> => {
       err,
       request,
       undefined,
-      !request.mediaType && !request.scanImages && !request.frame,
+      !request.mediaType && !request.scanImages && !request.frame
     );
     analysisInFlight = false;
     return 'error';
@@ -1086,7 +1086,7 @@ const runIdentify = async (args: IdentifyArgs): Promise<RunOutcome> => {
   const destination = buildDestination(
     identify.place.placeName,
     identify.place.city,
-    identify.place.country,
+    identify.place.country
   );
   currentDestination = destination;
   currentSources = [];
@@ -1195,7 +1195,7 @@ const renderCached = async (entry: CacheEntry, origin: 'gesture' | 'panel'): Pro
   currentDestination = buildDestination(
     entry.place.placeName,
     entry.place.city,
-    entry.place.country,
+    entry.place.country
   );
   currentView = 'result';
   currentAlternates = null;
@@ -1256,7 +1256,7 @@ const runVideoAnalysis = async (
   settings: ExtensionSettings,
   key: string,
   origin: 'gesture' | 'panel',
-  superseded: boolean,
+  superseded: boolean
 ): Promise<void> => {
   const route = routeVideoRequest(request, provider);
   if (route.kind === 'error') {
@@ -1267,7 +1267,7 @@ const runVideoAnalysis = async (
       route.bodyKey,
       false,
       false,
-      fallbackFor(request.signals ?? EMPTY_SIGNALS),
+      fallbackFor(request.signals ?? EMPTY_SIGNALS)
     );
     announceAlert('alertVideoUnreadable');
     updatePrivacy('idle');
@@ -1300,7 +1300,7 @@ const runVideoAnalysis = async (
       ? 'statusCanceledNew'
       : route.kind === 'frame'
         ? 'statusAnalyzingFrame'
-        : 'statusAnalyzingVideo',
+        : 'statusAnalyzingVideo'
   );
   showSkeleton(request.requestId);
   await runIdentify({
@@ -1336,7 +1336,7 @@ const pairScanThumb = (place: ScannedPlace, images: ScannedImage[]): string | nu
 
 const scanItemViews = async (
   places: ScannedPlace[],
-  thumbs: Array<string | null>,
+  thumbs: Array<string | null>
 ): Promise<ScanItemView[]> => {
   const views: ScanItemView[] = [];
   for (const [index, place] of places.entries()) {
@@ -1356,7 +1356,7 @@ const runScan = async (
   provider: Provider,
   settings: ExtensionSettings,
   key: string,
-  origin: 'gesture' | 'panel',
+  origin: 'gesture' | 'panel'
 ): Promise<void> => {
   const images = request.scanImages ?? [];
   const privacy: PrivacyMode = settings.imageOnly ? 'image-only' : 'image';
@@ -1418,7 +1418,7 @@ const runScan = async (
 const runScanGuide = async (
   request: TripRequest,
   index: number,
-  origin: 'gesture' | 'panel',
+  origin: 'gesture' | 'panel'
 ): Promise<void> => {
   const place = scanPlaces[index];
   if (!place) {
@@ -1456,7 +1456,7 @@ const runScanGuide = async (
   const privacy: PrivacyMode = settings.imageOnly ? 'image-only' : 'image';
   currentCacheKey = await hashCacheKey(
     thumb ?? `scan:${result.placeName},${result.country}`,
-    request.pageUrl ?? '',
+    request.pageUrl ?? ''
   );
   const cached = await getCacheEntry(currentCacheKey);
   if (cached) {
@@ -1674,7 +1674,7 @@ interface SamCrop {
 const trySamCrop = async (
   request: TripRequest,
   provider: Provider,
-  key: string,
+  key: string
 ): Promise<SamCrop | null> => {
   try {
     return await samCropAttempt(request, provider, key);
@@ -1686,7 +1686,7 @@ const trySamCrop = async (
 const samCropAttempt = async (
   request: TripRequest,
   provider: Provider,
-  key: string,
+  key: string
 ): Promise<SamCrop | null> => {
   const direct =
     request.frame?.dataUrl ?? (request.srcUrl.startsWith('data:image/') ? request.srcUrl : null);
@@ -2036,7 +2036,7 @@ const compareOptionViews = async (place: PlaceResult): Promise<CompareOptionView
 };
 
 const resultCardProps = async (
-  place: PlaceResult,
+  place: PlaceResult
 ): Promise<{
   view: 'result';
   place: PlaceResult;
@@ -2155,7 +2155,7 @@ const onCompare = async (value: string): Promise<void> => {
     { name: current.placeName, country: current.country },
     { name: pin.place.placeName, country: pin.place.country },
     buildDestination(current.placeName, current.city, current.country),
-    pinDisplayName(pin),
+    pinDisplayName(pin)
   );
 };
 
@@ -2455,7 +2455,7 @@ const narrationPrompt = (pins: BoardPin[], plan: ItineraryPlan): string => {
         (day, index) =>
           `Day ${index + 1} - ${sanitizePromptHint(day.dayTitle, 80)}: ` +
           `${day.stopNames.map(displayName).join('; ')}. ` +
-          sanitizePromptHint(day.summary, 500),
+          sanitizePromptHint(day.summary, 500)
       )
       .join('\n');
   } else {

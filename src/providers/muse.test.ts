@@ -15,7 +15,7 @@ const VALID_PLACE = {
 const chatResponse = (place: unknown, usage = { prompt_tokens: 100, completion_tokens: 50 }) =>
   new Response(
     JSON.stringify({ choices: [{ message: { content: JSON.stringify(place) } }], usage }),
-    { status: 200 },
+    { status: 200 }
   );
 
 const rawChatResponse = (content: string, usage = { prompt_tokens: 100, completion_tokens: 50 }) =>
@@ -115,7 +115,7 @@ describe('muse identify', () => {
       .mockResolvedValueOnce(rawChatResponse('{"identified":'));
     const failure = await provider.identifyPlace('LLM_key', identifyInput()).then(
       () => null,
-      (err: unknown) => err as ProviderError,
+      (err: unknown) => err as ProviderError
     );
     expect(failure).toBeInstanceOf(ProviderError);
     expect(failure?.code).toBe('invalid_response');
@@ -254,7 +254,7 @@ describe('muse video identify (rung 2)', () => {
     fetchMock
       .mockResolvedValueOnce(new Response('schema x video rejected', { status: 400 }))
       .mockResolvedValueOnce(
-        rawChatResponse('The video shows the blue domes of Oia, Santorini, Greece.'),
+        rawChatResponse('The video shows the blue domes of Oia, Santorini, Greece.')
       )
       .mockResolvedValueOnce(chatResponse(VALID_PLACE));
     const result = await provider.identifyPlace('LLM_key', videoInput());
@@ -381,7 +381,7 @@ describe('muse streamGuide', () => {
       sseResponse([
         'data: {"choices":[{"delta":{"content":"Hi"}}]}\n\n',
         'data: {"choices":[{"delta":{}}],"usage":{"prompt_tokens":10,"completion_tokens":5}}\n\ndata: [DONE]\n\n',
-      ]),
+      ])
     );
     const events = await collect(provider.streamGuide('LLM_key', input({ transport: 'chat' })));
     expect(events).toEqual([
@@ -485,7 +485,7 @@ describe('muse planItinerary', () => {
   it('rejects empty pin lists without calling', async () => {
     await consented();
     await expect(
-      provider.planItinerary('LLM_key', { pins: [], signal: new AbortController().signal }),
+      provider.planItinerary('LLM_key', { pins: [], signal: new AbortController().signal })
     ).rejects.toMatchObject({ code: 'invalid_response' });
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -500,14 +500,14 @@ describe('muse planItinerary', () => {
         'event: response.completed\n',
         'data: {"response":{"usage":{"input_tokens":10,"output_tokens":5}}}\n',
         '\n',
-      ]),
+      ])
     );
     const events = await collect(
       provider.streamGuide('LLM_key', {
         destination: 'Oia, Fira',
         signal: new AbortController().signal,
         prompt: 'Narrate this itinerary day by day.',
-      }),
+      })
     );
     expect(events.some((event) => event.type === 'delta')).toBe(true);
     const body = requestBody();
@@ -572,7 +572,7 @@ describe('muse scanPlaces', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     fetchMock.mockReset();
     await expect(
-      provider.scanPlaces('LLM_key', { images: [], signal: new AbortController().signal }),
+      provider.scanPlaces('LLM_key', { images: [], signal: new AbortController().signal })
     ).rejects.toMatchObject({ code: 'invalid_response' });
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -610,7 +610,7 @@ describe('muse duelPlaces', () => {
         ],
         usage: { input_tokens: 200, output_tokens: 80 },
       }),
-      { status: 200 },
+      { status: 200 }
     );
 
   it('duels through one grounded structured call', async () => {
@@ -714,7 +714,7 @@ describe('muse findAlternates', () => {
         ],
         usage: { input_tokens: 150, output_tokens: 60 },
       }),
-      { status: 200 },
+      { status: 200 }
     );
 
   it('finds grounded alternates for the intent', async () => {
@@ -753,13 +753,13 @@ describe('muse segmentLandmark', () => {
         ],
         usage: { input_tokens: 900, output_tokens: 40 },
       }),
-      { status: 200 },
+      { status: 200 }
     );
 
   it('sends the verified sam-3.1 shape and prices the flat fee', async () => {
     await consented();
     fetchMock.mockResolvedValue(
-      segmentResponse('Found <|box;x1=1;y1=2;x2=3;y2=4;w=10;h=10|> here.'),
+      segmentResponse('Found <|box;x1=1;y1=2;x2=3;y2=4;w=10;h=10|> here.')
     );
     const result = await provider.segmentLandmark('LLM_key', {
       imageDataUrl: 'data:image/jpeg;base64,AAA',
@@ -802,7 +802,7 @@ describe('muse segmentLandmark', () => {
       provider.segmentLandmark('LLM_key', {
         imageDataUrl: 'data:image/jpeg;base64,AAA',
         signal: new AbortController().signal,
-      }),
+      })
     ).rejects.toMatchObject({ code: 'server' });
   });
 });

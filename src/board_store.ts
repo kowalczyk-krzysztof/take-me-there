@@ -25,7 +25,7 @@ export const dedupeKeyFor = async (placeName: string, country: string): Promise<
   const land = normalizePart(country);
   const digest = await crypto.subtle.digest(
     'SHA-256',
-    new TextEncoder().encode(`${name.length}:${name}|${land.length}:${land}`),
+    new TextEncoder().encode(`${name.length}:${name}|${land.length}:${land}`)
   );
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
 };
@@ -61,12 +61,12 @@ export type PinOutcome =
   | { status: 'duplicate'; pins: BoardPin[] };
 
 export const pinPlace = async (
-  pin: Omit<BoardPin, 'addedAt'> & { addedAt?: number },
+  pin: Omit<BoardPin, 'addedAt'> & { addedAt?: number }
 ): Promise<PinOutcome> => {
   const pins = await listPins();
   const key = await dedupeKeyFor(pin.place.placeName, pin.place.country);
   const keys = await Promise.all(
-    pins.map((entry) => dedupeKeyFor(entry.place.placeName, entry.place.country)),
+    pins.map((entry) => dedupeKeyFor(entry.place.placeName, entry.place.country))
   );
   if (keys.includes(key)) {
     return { status: 'duplicate', pins };
@@ -85,7 +85,7 @@ export const removePin = async (placeName: string, country: string): Promise<Boa
   const pins = await listPins();
   const key = await dedupeKeyFor(placeName, country);
   const keys = await Promise.all(
-    pins.map((entry) => dedupeKeyFor(entry.place.placeName, entry.place.country)),
+    pins.map((entry) => dedupeKeyFor(entry.place.placeName, entry.place.country))
   );
   const next = pins.filter((_, index) => keys[index] !== key);
   if (next.length !== pins.length) {
@@ -113,7 +113,7 @@ const decodeImage = (dataUrl: string): Promise<HTMLImageElement> =>
 export const makeThumbnail = async (
   dataUrl: string,
   maxSide: number = THUMB_MAX_SIDE,
-  maxBytes: number = THUMB_MAX_BYTES,
+  maxBytes: number = THUMB_MAX_BYTES
 ): Promise<string | null> => {
   if (!dataUrl.startsWith('data:image/') || dataUrl.length > THUMB_MAX_SOURCE_BYTES) {
     return null;

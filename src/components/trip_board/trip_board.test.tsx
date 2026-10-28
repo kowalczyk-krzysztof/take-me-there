@@ -37,7 +37,7 @@ const renderBoard = (
     onClearConfirm?: () => void;
     onRetryPin?: () => void;
   } = {},
-  notice: BoardNoticeView = NOTICE_OFF,
+  notice: BoardNoticeView = NOTICE_OFF
 ) =>
   renderSync(
     <TripBoard
@@ -48,7 +48,7 @@ const renderBoard = (
       onPlan={callbacks.onPlan ?? (() => {})}
       onClearConfirm={callbacks.onClearConfirm ?? (() => {})}
       onRetryPin={callbacks.onRetryPin ?? (() => {})}
-    />,
+    />
   );
 
 beforeEach(() => {
@@ -116,7 +116,7 @@ describe('trip-board', () => {
         onPlan={onPlan}
         onClearConfirm={() => {}}
         onRetryPin={() => {}}
-      />,
+      />
     );
     const enabled = root.querySelector('.plan-button') as HTMLButtonElement;
     expect(enabled.hasAttribute('aria-disabled')).toBe(false);
@@ -157,7 +157,7 @@ describe('trip-board', () => {
         onPlan={() => {}}
         onClearConfirm={() => {}}
         onRetryPin={onRetryPin}
-      />,
+      />
     );
     const notice = rendered.container.querySelector('.notice') as HTMLElement;
     expect(notice.hidden).toBe(false);
@@ -173,7 +173,7 @@ describe('trip-board', () => {
         onPlan={() => {}}
         onClearConfirm={() => {}}
         onRetryPin={onRetryPin}
-      />,
+      />
     );
     expect(notice.hidden).toBe(true);
   });
@@ -192,7 +192,7 @@ describe('trip-board', () => {
         onPlan={() => {}}
         onClearConfirm={() => {}}
         onRetryPin={() => {}}
-      />,
+      />
     );
     expect(document.activeElement?.className).toContain('disclosure');
   });

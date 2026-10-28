@@ -38,17 +38,18 @@ interface Props {
 export const KeySetup = ({ mode, pending, error, sessionOnly, resetKey, callbacks }: Props) => {
   const [revealed, setRevealed] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
+
   useLayoutEffect(() => {
     if (error !== null) {
       inputRef.current?.focus();
     }
   }, [error]);
+
   const attach = (el: HTMLDivElement | null): (() => void) | void => {
     if (!el) {
       return;
     }
-    // Native listener: React's change tracking drops programmatic checked
-    // sets, which callers use.
+
     const onChange = (event: Event): void => {
       const box = event.target;
       if (!(box instanceof HTMLInputElement) || box.id !== 'session-only') {
@@ -56,9 +57,12 @@ export const KeySetup = ({ mode, pending, error, sessionOnly, resetKey, callback
       }
       callbacks.onSessionOnlyChange(box.checked);
     };
+
     el.addEventListener('change', onChange);
+
     return () => el.removeEventListener('change', onChange);
   };
+
   return (
     <div className={styles.root} ref={attach}>
       {mode === 'consent' ? (

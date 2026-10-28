@@ -61,7 +61,7 @@ const handleImageClick = async (
   srcUrl: string,
   pageUrl: string | null,
   frameId: number,
-  tabId: number,
+  tabId: number
 ): Promise<void> => {
   requestCounter += 1;
   const requestId = `${Date.now()}-${requestCounter}`;
@@ -95,7 +95,7 @@ const handleVideoClick = async (
   srcUrl: string,
   pageUrl: string | null,
   frameId: number,
-  tabId: number,
+  tabId: number
 ): Promise<void> => {
   requestCounter += 1;
   const requestId = `${Date.now()}-${requestCounter}`;
@@ -138,7 +138,7 @@ const handleVideoClick = async (
 const handleScanClick = async (
   pageUrl: string | null,
   frameId: number,
-  tabId: number,
+  tabId: number
 ): Promise<void> => {
   requestCounter += 1;
   const requestId = `${Date.now()}-${requestCounter}`;
@@ -174,7 +174,7 @@ const harvestWithTimeout = async (tabId: number, frameId: number): Promise<Scann
         func: collectPageImages as unknown as () => void,
         args: [],
       }),
-      INJECT_TIMEOUT_MS,
+      INJECT_TIMEOUT_MS
     );
     const images = (results[0]?.result ?? []) as ScannedImage[];
     return Array.isArray(images) ? images : [];
@@ -186,7 +186,7 @@ const harvestWithTimeout = async (tabId: number, frameId: number): Promise<Scann
 const scrapeWithTimeout = async (
   tabId: number,
   frameId: number,
-  srcUrl: string,
+  srcUrl: string
 ): Promise<Record<string, unknown>> => {
   try {
     const results = await withTimeout(
@@ -198,7 +198,7 @@ const scrapeWithTimeout = async (
         func: collectSignals as unknown as () => void,
         args: [srcUrl],
       }),
-      INJECT_TIMEOUT_MS,
+      INJECT_TIMEOUT_MS
     );
     return (results[0]?.result ?? {}) as Record<string, unknown>;
   } catch {
@@ -213,7 +213,7 @@ const scrapeWithTimeout = async (
 const captureWithTimeout = async (
   tabId: number,
   frameId: number,
-  srcUrl: string,
+  srcUrl: string
 ): Promise<CaptureVideoFrameResult | null> => {
   try {
     const results = await withTimeout(
@@ -222,7 +222,7 @@ const captureWithTimeout = async (
         func: captureVideoFrame as unknown as () => void,
         args: [srcUrl],
       }),
-      INJECT_TIMEOUT_MS,
+      INJECT_TIMEOUT_MS
     );
     return (results[0]?.result ?? null) as CaptureVideoFrameResult | null;
   } catch {

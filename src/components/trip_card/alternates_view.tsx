@@ -12,6 +12,7 @@ export const AlternatesView = ({ alternates, onPinAlternate, onPlanInstead }: Pr
   if (alternates.state === 'idle') {
     return <div className={styles.alternates} hidden />;
   }
+
   if (alternates.state === 'loading') {
     return (
       <div className={styles.alternates} aria-busy="true">
@@ -23,6 +24,7 @@ export const AlternatesView = ({ alternates, onPinAlternate, onPlanInstead }: Pr
       </div>
     );
   }
+
   return (
     <div className={styles.alternates} aria-busy="false">
       {alternates.cards.map((card, index) => (

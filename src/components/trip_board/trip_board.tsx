@@ -53,18 +53,21 @@ export const TripBoard = ({
   // Focus repair: a list re-render that removes the focused control falls
   // back to the disclosure button, never to <body>.
   const repairFocus = useRef(false);
+
   const prevItems = useRef(items);
   if (prevItems.current !== items) {
     prevItems.current = items;
     repairFocus.current = !!document.activeElement?.closest('li');
     setConfirming(null);
   }
+
   useLayoutEffect(() => {
     if (repairFocus.current) {
       repairFocus.current = false;
       focusDisclosure(rootRef.current);
     }
   });
+
   return (
     <div className={styles.root} ref={rootRef}>
       <section aria-labelledby="board-heading">

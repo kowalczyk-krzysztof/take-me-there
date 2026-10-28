@@ -16,7 +16,7 @@ const noop = () => {};
 
 const renderSetup = (
   props: SetupProps = {},
-  callbacks: Partial<KeySetupCallbacks> = {},
+  callbacks: Partial<KeySetupCallbacks> = {}
 ): Rendered =>
   renderSync(
     <KeySetup
@@ -32,13 +32,13 @@ const renderSetup = (
         onConsentDecision: callbacks.onConsentDecision ?? noop,
         onDraftChange: callbacks.onDraftChange,
       }}
-    />,
+    />
   );
 
 const rerenderSetup = (
   rendered: Rendered,
   props: SetupProps = {},
-  callbacks: Partial<KeySetupCallbacks> = {},
+  callbacks: Partial<KeySetupCallbacks> = {}
 ): void => {
   rendered.rerender(
     <KeySetup
@@ -54,7 +54,7 @@ const rerenderSetup = (
         onConsentDecision: callbacks.onConsentDecision ?? noop,
         onDraftChange: callbacks.onDraftChange,
       }}
-    />,
+    />
   );
 };
 
@@ -102,7 +102,7 @@ describe('key-setup', () => {
           sessionOnly = checked;
           onSessionOnlyChange(checked);
         },
-      },
+      }
     );
     const root = rendered.container;
     (root.querySelector('#key-input') as HTMLInputElement).value = '  LLM_x  ';

@@ -106,7 +106,7 @@ export class OpenAiCompatProvider implements Provider {
 
   private identifyRequest(
     messages: ChatMessage[],
-    schema: Record<string, unknown>,
+    schema: Record<string, unknown>
   ): IdentifyRequest {
     return {
       url: `${this.baseURL()}/chat/completions`,
@@ -148,7 +148,7 @@ export class OpenAiCompatProvider implements Provider {
               : { type: 'json_object' },
         },
         input.signal,
-        usage,
+        usage
       );
       const plan = parseItineraryPlan(data, stopNames);
       if (plan) {
@@ -183,7 +183,7 @@ export class OpenAiCompatProvider implements Provider {
               : { type: 'json_object' },
         },
         input.signal,
-        usage,
+        usage
       );
       const places = parseScanBatch(data);
       if (places) {
@@ -203,7 +203,7 @@ export class OpenAiCompatProvider implements Provider {
     name: string,
     schema: Record<string, unknown>,
     messages: (strictReminder: boolean) => ChatMessage[],
-    parse: (json: unknown) => T | undefined,
+    parse: (json: unknown) => T | undefined
   ): Promise<T> {
     const base = this.baseURL();
     for (const strictReminder of [false, true]) {
@@ -223,7 +223,7 @@ export class OpenAiCompatProvider implements Provider {
               : { type: 'json_object' },
         },
         signal,
-        usage,
+        usage
       );
       const value = parse(extractChatJson(data));
       if (value) {
@@ -244,7 +244,7 @@ export class OpenAiCompatProvider implements Provider {
       'duel',
       duelJsonSchema(),
       (strictReminder) => buildDuelMessages(input.a, input.b, strictReminder),
-      parseDuelContent,
+      parseDuelContent
     );
     return { ...verdict, sources: [], usage: { ...usage } };
   }
@@ -261,7 +261,7 @@ export class OpenAiCompatProvider implements Provider {
       alternatesJsonSchema(),
       (strictReminder) =>
         buildAlternatesMessages(input.placeName, input.country, input.intent, strictReminder),
-      parseAlternatesContent,
+      parseAlternatesContent
     );
     return { alternatives, sources: [], usage: { ...usage } };
   }
@@ -272,7 +272,7 @@ export class OpenAiCompatProvider implements Provider {
     throw new ProviderError(
       'not_configured',
       'segmentation is not configured on this provider',
-      false,
+      false
     );
   }
 
@@ -291,7 +291,7 @@ export class OpenAiCompatProvider implements Provider {
         stream: true,
         stream_options: { include_usage: true },
       },
-      input.signal,
+      input.signal
     );
   }
 }

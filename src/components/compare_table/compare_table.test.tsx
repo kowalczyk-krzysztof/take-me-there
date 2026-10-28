@@ -59,7 +59,7 @@ describe('compare-table', () => {
           verdict: 'Pick Oia for views.',
         }}
         onRetry={() => {}}
-      />,
+      />
     );
     const table = rendered.container.querySelector('table');
     expect(table?.getAttribute('aria-busy')).toBe('false');
@@ -81,7 +81,7 @@ describe('compare-table', () => {
     const onRetry = vi.fn();
     const root = renderTable(
       { mode: 'error', a: 'Oia, Greece', b: 'Fira, Greece' },
-      onRetry,
+      onRetry
     ).container;
     expect(root.querySelector('table')).toBeNull();
     expect(root.querySelector('.duel-error p')?.textContent).toBe('duelError');

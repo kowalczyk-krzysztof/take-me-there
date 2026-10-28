@@ -18,7 +18,7 @@ describe('deep_links', () => {
     const links = buildLinks('A&B #1 "quoted" 100%');
     const maps = links.find((link) => link.id === 'maps');
     expect(maps?.href).toBe(
-      `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent('A&B #1 "quoted" 100%')}`,
+      `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent('A&B #1 "quoted" 100%')}`
     );
     for (const link of links) {
       expect(link.href).not.toContain('"');
@@ -53,13 +53,13 @@ describe('deep_links', () => {
 describe('mapsDirUrl', () => {
   it('routes first to last with encoded-pipe waypoints', () => {
     expect(mapsDirUrl(['Oia', 'Fira', 'Imerovigli'])).toBe(
-      'https://www.google.com/maps/dir/?api=1&origin=Oia&destination=Imerovigli&waypoints=Fira',
+      'https://www.google.com/maps/dir/?api=1&origin=Oia&destination=Imerovigli&waypoints=Fira'
     );
   });
 
   it('omits the waypoints param for direct routes and rejects single stops', () => {
     expect(mapsDirUrl(['Oia', 'Fira'])).toBe(
-      'https://www.google.com/maps/dir/?api=1&origin=Oia&destination=Fira',
+      'https://www.google.com/maps/dir/?api=1&origin=Oia&destination=Fira'
     );
     expect(mapsDirUrl(['Oia'])).toBeNull();
     expect(mapsDirUrl([])).toBeNull();

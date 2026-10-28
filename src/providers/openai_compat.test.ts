@@ -25,7 +25,7 @@ const chatResponse = (place: unknown) =>
       choices: [{ message: { content: JSON.stringify(place) } }],
       usage: { prompt_tokens: 40, completion_tokens: 20 },
     }),
-    { status: 200 },
+    { status: 200 }
   );
 
 const sseResponse = (chunks: string[]) => {
@@ -145,7 +145,7 @@ describe('openai_compat', () => {
   it('exposes user-supplied rates or nothing', () => {
     expect(new OpenAiCompatProvider(config()).getRates()).toBeUndefined();
     expect(
-      new OpenAiCompatProvider(config({ inputRatePerM: 2, outputRatePerM: 6 })).getRates(),
+      new OpenAiCompatProvider(config({ inputRatePerM: 2, outputRatePerM: 6 })).getRates()
     ).toEqual({ inputUsdPerMTok: 2, outputUsdPerMTok: 6 });
   });
 
@@ -155,14 +155,14 @@ describe('openai_compat', () => {
       sseResponse([
         'data: {"choices":[{"delta":{"content":"Day 1"}}]}\n\n',
         'data: {"choices":[{"delta":{}}],"usage":{"prompt_tokens":7,"completion_tokens":3}}\n\ndata: [DONE]\n\n',
-      ]),
+      ])
     );
     const provider = new OpenAiCompatProvider(config());
     const events = await collect(
       provider.streamGuide('sk_key', {
         destination: 'Oia, Greece',
         signal: new AbortController().signal,
-      }),
+      })
     );
     expect(events).toEqual([
       { type: 'delta', text: 'Day 1' },
@@ -180,8 +180,8 @@ describe('openai_compat', () => {
         provider.streamGuide('sk_key', {
           destination: 'X',
           signal: new AbortController().signal,
-        }),
-      ),
+        })
+      )
     ).rejects.toMatchObject({ code: 'consent_required' });
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -233,7 +233,7 @@ describe('compat planItinerary', () => {
         '\n',
         'data: [DONE]\n',
         '\n',
-      ]),
+      ])
     );
     const provider = new OpenAiCompatProvider(config());
     const events: GuideEvent[] = [];
@@ -355,7 +355,7 @@ describe('compat segmentLandmark', () => {
       provider.segmentLandmark('sk_key', {
         imageDataUrl: 'data:image/jpeg;base64,AAA',
         signal: new AbortController().signal,
-      }),
+      })
     ).rejects.toMatchObject({ code: 'not_configured' });
     expect(fetchMock).not.toHaveBeenCalled();
   });

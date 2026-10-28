@@ -52,7 +52,7 @@ const getOrCreateWrappingKey = async (): Promise<CryptoKey> => {
 export const saveKey = async (
   providerId: string,
   key: string,
-  sessionOnly: boolean,
+  sessionOnly: boolean
 ): Promise<void> => {
   if (!key) {
     throw new Error('cannot save an empty key');
@@ -62,7 +62,7 @@ export const saveKey = async (
   const encrypted = await crypto.subtle.encrypt(
     { name: 'AES-GCM', iv },
     wrap,
-    new TextEncoder().encode(key),
+    new TextEncoder().encode(key)
   );
   const record: KeyRecord = { iv: toBase64(iv), ciphertext: toBase64(new Uint8Array(encrypted)) };
   const name = storageKey(providerId);
@@ -95,7 +95,7 @@ export const loadKey = async (providerId: string): Promise<KeyStatus> => {
     const decrypted = await crypto.subtle.decrypt(
       { name: 'AES-GCM', iv: fromBase64(record.iv) },
       wrap,
-      fromBase64(record.ciphertext),
+      fromBase64(record.ciphertext)
     );
     return { state: 'ok', key: new TextDecoder().decode(decrypted) };
   } catch {

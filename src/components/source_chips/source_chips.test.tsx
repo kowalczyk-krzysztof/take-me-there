@@ -26,7 +26,7 @@ describe('source-chips', () => {
           { title: 'File', url: 'ftp://files.example.com/x' },
           { title: 'Relative', url: '/relative/path' },
         ]}
-      />,
+      />
     ).container;
     const chips = [...root.querySelectorAll('a.chip')] as HTMLAnchorElement[];
     expect(chips).toHaveLength(2);

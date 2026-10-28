@@ -30,7 +30,7 @@ afterEach(() => {
 describe('scan-list', () => {
   it('renders an aria-hidden skeleton while loading', () => {
     const root = renderSync(
-      <ScanList loading={true} items={[]} onGuide={noop} onPin={noop} onPinSelected={noop} />,
+      <ScanList loading={true} items={[]} onGuide={noop} onPin={noop} onPinSelected={noop} />
     ).container;
     expect(root.querySelector('h2')?.textContent).toBe('scanTitle');
     const grid = root.querySelector('.skeleton-grid');
@@ -41,10 +41,10 @@ describe('scan-list', () => {
 
   it('renders a no-skeleton shadow after results arrive', () => {
     const rendered = renderSync(
-      <ScanList loading={true} items={[]} onGuide={noop} onPin={noop} onPinSelected={noop} />,
+      <ScanList loading={true} items={[]} onGuide={noop} onPin={noop} onPinSelected={noop} />
     );
     rendered.rerender(
-      <ScanList loading={false} items={ITEMS} onGuide={noop} onPin={noop} onPinSelected={noop} />,
+      <ScanList loading={false} items={ITEMS} onGuide={noop} onPin={noop} onPinSelected={noop} />
     );
     const root = rendered.container;
     expect(root.querySelector('.skeleton-grid')).toBeNull();
@@ -54,7 +54,7 @@ describe('scan-list', () => {
 
   it('renders cards with group labels and three sibling controls', () => {
     const root = renderSync(
-      <ScanList loading={false} items={ITEMS} onGuide={noop} onPin={noop} onPinSelected={noop} />,
+      <ScanList loading={false} items={ITEMS} onGuide={noop} onPin={noop} onPinSelected={noop} />
     ).container;
     const cards = root.querySelectorAll('.scan-card');
     expect(cards[0]?.getAttribute('role')).toBe('group');
@@ -72,7 +72,7 @@ describe('scan-list', () => {
 
   it('renders decorative thumbnails with a placeholder fallback', () => {
     const root = renderSync(
-      <ScanList loading={false} items={ITEMS} onGuide={noop} onPin={noop} onPinSelected={noop} />,
+      <ScanList loading={false} items={ITEMS} onGuide={noop} onPin={noop} onPinSelected={noop} />
     ).container;
     const cards = root.querySelectorAll('.scan-card');
     const img = cards[0]?.querySelector('img');
@@ -93,7 +93,7 @@ describe('scan-list', () => {
         onGuide={onGuide}
         onPin={onPin}
         onPinSelected={noop}
-      />,
+      />
     ).container;
     const cards = root.querySelectorAll('.scan-card');
     (cards[1]?.querySelectorAll('button')[0] as HTMLButtonElement).click();
@@ -112,7 +112,7 @@ describe('scan-list', () => {
         onGuide={noop}
         onPin={noop}
         onPinSelected={onPinSelected}
-      />,
+      />
     );
     const root = rendered.container;
     const boxes = root.querySelectorAll('input[type="checkbox"]');
@@ -127,7 +127,7 @@ describe('scan-list', () => {
         onGuide={noop}
         onPin={noop}
         onPinSelected={onPinSelected}
-      />,
+      />
     );
     expect(i18n).toHaveBeenLastCalledWith('scanPinSelected', '2');
     (root.querySelector('.pin-selected') as HTMLButtonElement).click();
@@ -143,7 +143,7 @@ describe('scan-list', () => {
         onGuide={noop}
         onPin={noop}
         onPinSelected={onPinSelected}
-      />,
+      />
     ).container;
     (root.querySelector('.pin-selected') as HTMLButtonElement).click();
     expect(onPinSelected).not.toHaveBeenCalled();

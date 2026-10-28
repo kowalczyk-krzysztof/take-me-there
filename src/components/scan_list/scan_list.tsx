@@ -39,39 +39,52 @@ export const ScanList = ({ loading, items, onGuide, onPin, onPinSelected }: Prop
   const checkedRef = useRef<Set<string>>(new Set());
   const [epoch, setEpoch] = useState(0);
   const prevItems = useRef(items);
+
   if (prevItems.current !== items) {
     prevItems.current = items;
     checkedRef.current = new Set(
-      [...checkedRef.current].filter((name) => items.some((item) => item.title === name)),
+      [...checkedRef.current].filter((name) => items.some((item) => item.title === name))
     );
     setEpoch((current) => current + 1);
   }
+
   const boxRef = useRef<HTMLDivElement | null>(null);
+
   const attach = (el: HTMLDivElement | null): (() => void) | void => {
     boxRef.current = el;
     if (!el) {
       return;
     }
+
     const onChange = (event: Event): void => {
       const box = event.target;
+
       if (!(box instanceof HTMLInputElement) || box.type !== 'checkbox') {
         return;
       }
+
       const title = box.dataset.title ?? '';
+
       if (box.checked) {
         checkedRef.current.add(title);
       } else {
         checkedRef.current.delete(title);
       }
+
       const selected = boxRef.current?.querySelector(`.${styles['pin-selected']}`);
+
       if (selected) {
         selected.textContent = msg('scanPinSelected', String(checkedRef.current.size));
       }
     };
+
     el.addEventListener('change', onChange);
+
     return () => el.removeEventListener('change', onChange);
   };
+
   const checked = checkedRef.current;
+
   return (
     <div className={styles.root}>
       <section aria-busy={loading} aria-labelledby="scan-heading">

@@ -25,20 +25,20 @@ describe('pricing', () => {
     expect(
       estimateCostUsd(
         { inputTokens: 1_000_000, outputTokens: 1_000_000, searchCount: 0, flatFeesUsd: 0 },
-        rates,
-      ),
+        rates
+      )
     ).toBeCloseTo(5.5, 10);
     expect(
       estimateCostUsd(
         { inputTokens: 0, outputTokens: 0, searchCount: 2, flatFeesUsd: 0.0025 },
-        rates,
-      ),
+        rates
+      )
     ).toBeCloseTo(0.0075, 10);
   });
 
   it('returns null without a rate table so the UI shows tokens', () => {
     expect(
-      estimateCostUsd({ inputTokens: 10, outputTokens: 10, searchCount: 0, flatFeesUsd: 0 }),
+      estimateCostUsd({ inputTokens: 10, outputTokens: 10, searchCount: 0, flatFeesUsd: 0 })
     ).toBeNull();
   });
 

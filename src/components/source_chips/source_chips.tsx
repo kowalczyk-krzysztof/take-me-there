@@ -30,9 +30,11 @@ export const SourceChips = ({ sources }: Props) => (
   <div className={styles.root}>
     {sources.map((source, index) => {
       const href = safeHttpUrl(source.url);
+
       if (!href) {
         return null;
       }
+
       return (
         <a
           key={`${href}-${index}`}

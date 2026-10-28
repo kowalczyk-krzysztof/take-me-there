@@ -54,7 +54,7 @@ export const collectSignals = (srcUrl: string): PageSignalData => {
     imgs.find((i) =>
       (i.getAttribute('srcset') || '')
         .split(',')
-        .some((c) => abs(c.trim().split(/\s+/)[0]) === target),
+        .some((c) => abs(c.trim().split(/\s+/)[0]) === target)
     ) ||
     null;
 
@@ -98,7 +98,7 @@ export const collectSignals = (srcUrl: string): PageSignalData => {
         if (
           record.geo ||
           types.some((t) =>
-            /Place|TouristAttraction|TouristDestination|City|Landmark|LocalBusiness/i.test(t),
+            /Place|TouristAttraction|TouristDestination|City|Landmark|LocalBusiness/i.test(t)
           )
         ) {
           // Every field bounded: a page controls all of these values.
@@ -124,7 +124,7 @@ export const collectSignals = (srcUrl: string): PageSignalData => {
     clean(
       decodeURIComponent((u.split('/').pop() || '').split(/[?#]/)[0])
         .replace(/\.\w+$/, '')
-        .replace(/[-_+]+/g, ' '),
+        .replace(/[-_+]+/g, ' ')
     );
 
   const out: PageSignalData = {
@@ -143,14 +143,14 @@ export const collectSignals = (srcUrl: string): PageSignalData => {
     // full URL stays local-only.
     canonical: clean(
       (document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null)?.href?.split(
-        /[?#]/,
-      )[0],
+        /[?#]/
+      )[0]
     ),
     pageHost: location.host,
     urlSlug: clean(
       decodeURIComponent(location.pathname)
         .replace(/\.\w+$/, '')
-        .replace(/[\/_-]+/g, ' '),
+        .replace(/[\/_-]+/g, ' ')
     ),
     imgFileSlug: fileSlug(target),
     jsonLd: ld.slice(0, 5),

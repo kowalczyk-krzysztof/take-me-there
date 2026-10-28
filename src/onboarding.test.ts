@@ -30,7 +30,7 @@ import { installChromeMock, uninstallChromeMock, type ChromeMock } from './test/
 
 const SHELL = readFileSync(
   join(dirname(fileURLToPath(import.meta.url)), '../public/onboarding.html'),
-  'utf8',
+  'utf8'
 );
 
 const mountShell = (): void => {
@@ -89,7 +89,7 @@ describe('onboarding', () => {
     fetchMock.mockResolvedValue(new Response('[]', { status: 200 }));
     (document.querySelector('#key-input') as HTMLInputElement).value = 'LLM_new';
     (document.querySelector('#key-host form') as HTMLFormElement).dispatchEvent(
-      new Event('submit', { bubbles: true, cancelable: true }),
+      new Event('submit', { bubbles: true, cancelable: true })
     );
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusKeySaved');

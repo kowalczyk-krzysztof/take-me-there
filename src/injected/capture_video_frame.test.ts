@@ -60,10 +60,10 @@ beforeEach(() => {
   drawImage.mockClear();
   toDataURL.mockClear();
   toDataURL.mockImplementation(
-    (_type: string, _quality: number): string => 'data:image/jpeg,small',
+    (_type: string, _quality: number): string => 'data:image/jpeg,small'
   );
   HTMLCanvasElement.prototype.getContext = vi.fn(
-    () => ({ drawImage }) as unknown as CanvasRenderingContext2D,
+    () => ({ drawImage }) as unknown as CanvasRenderingContext2D
   ) as unknown as typeof HTMLCanvasElement.prototype.getContext;
   HTMLCanvasElement.prototype.toDataURL =
     toDataURL as unknown as typeof HTMLCanvasElement.prototype.toDataURL;

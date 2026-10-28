@@ -35,7 +35,7 @@ describe('selectSamBox', () => {
   it('scales, pads, and picks the largest box', () => {
     const boxes = parseSamBoxes(
       '<|box;x1=100;y1=50;x2=500;y2=400;w=1000;h=800|> ' +
-        '<|box;x1=0;y1=0;x2=100;y2=100;w=1000;h=800|>',
+        '<|box;x1=0;y1=0;x2=100;y2=100;w=1000;h=800|>'
     );
     const best = selectSamBox(boxes, 500, 400);
     expect(best).not.toBeNull();
@@ -49,7 +49,7 @@ describe('selectSamBox', () => {
   it('breaks area ties by confidence', () => {
     const boxes = parseSamBoxes(
       '<|box;x1=0;y1=0;x2=100;y2=100;w=200;h=200;c=0.2|> ' +
-        '<|box;x1=100;y1=100;x2=200;y2=200;w=200;h=200;c=0.9|>',
+        '<|box;x1=100;y1=100;x2=200;y2=200;w=200;h=200;c=0.9|>'
     );
     const best = selectSamBox(boxes, 200, 200);
     // Second box padded: (100-8, 100-8).
@@ -96,7 +96,7 @@ describe('cropToSamBox', () => {
           getContext: () => ({ drawImage }),
           convertToBlob: async () => new Blob(['crop']),
         };
-      }),
+      })
     );
     const bitmap = { width: 2000, height: 1000 } as ImageBitmap;
     const url = await cropToSamBox(bitmap, { x1: 100, y1: 50, x2: 1700, y2: 850 });

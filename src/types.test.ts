@@ -36,7 +36,7 @@ const assertStrictSubset = (schema: Record<string, unknown>, path = '$'): void =
   const props = schema.properties as Record<string, Record<string, unknown>>;
   const required = schema.required as string[];
   expect([...required].sort(), `${path} requires every property`).toEqual(
-    Object.keys(props).sort(),
+    Object.keys(props).sort()
   );
   for (const [name, prop] of Object.entries(props)) {
     if (prop.type === 'string' && !Array.isArray(prop.enum)) {
@@ -97,7 +97,7 @@ describe('place schema pipeline', () => {
 
   it('rejects oversized, type-confused, incomplete, and loose output', () => {
     expect(PLACE_SCHEMA.safeParse({ ...VALID_PLACE, placeName: 'x'.repeat(101) }).success).toBe(
-      false,
+      false
     );
     expect(PLACE_SCHEMA.safeParse({ ...VALID_PLACE, identified: 'yes' }).success).toBe(false);
     expect(PLACE_SCHEMA.safeParse({ ...VALID_PLACE, confidence: 'high' }).success).toBe(false);
@@ -135,7 +135,7 @@ describe('itinerary schema pipeline', () => {
       schema.safeParse({
         ...valid,
         days: [{ dayTitle: 'Day 1', stopNames: ['Paris'], summary: 'Nope.' }],
-      }).success,
+      }).success
     ).toBe(false);
   });
 
@@ -146,7 +146,7 @@ describe('itinerary schema pipeline', () => {
         stops: ['Oia'],
         days: [{ dayTitle: 'x'.repeat(81), stopNames: ['Oia'], summary: 'Ok.' }],
         nightsEach: [],
-      }).success,
+      }).success
     ).toBe(false);
     expect(() => itinerarySchema([])).toThrow();
   });
@@ -165,7 +165,7 @@ describe('handoff schemas', () => {
     expect(TRIP_REQUEST_SCHEMA.safeParse(collecting).success).toBe(true);
     expect(
       TRIP_REQUEST_SCHEMA.safeParse({ ...collecting, status: 'ready', signals: validSignals() })
-        .success,
+        .success
     ).toBe(true);
     expect(TRIP_REQUEST_SCHEMA.safeParse({ ...collecting, status: 'bogus' }).success).toBe(false);
     expect(TRIP_REQUEST_SCHEMA.safeParse({ ...collecting, signals: {} }).success).toBe(false);
@@ -174,7 +174,7 @@ describe('handoff schemas', () => {
   it('validates page signals and capabilities', () => {
     expect(PAGE_SIGNALS_SCHEMA.safeParse(validSignals()).success).toBe(true);
     expect(
-      PAGE_SIGNALS_SCHEMA.safeParse({ ...validSignals(), jsonLd: [{ bogus: true }] }).success,
+      PAGE_SIGNALS_SCHEMA.safeParse({ ...validSignals(), jsonLd: [{ bogus: true }] }).success
     ).toBe(false);
     expect(
       PROVIDER_CAPABILITIES_SCHEMA.safeParse({
@@ -182,7 +182,7 @@ describe('handoff schemas', () => {
         webGrounding: true,
         segmentation: false,
         structuredOutput: 'json_schema',
-      }).success,
+      }).success
     ).toBe(true);
     expect(
       PROVIDER_CAPABILITIES_SCHEMA.safeParse({
@@ -190,7 +190,7 @@ describe('handoff schemas', () => {
         webGrounding: true,
         segmentation: false,
         structuredOutput: 'xml',
-      }).success,
+      }).success
     ).toBe(false);
   });
 });
@@ -242,7 +242,7 @@ describe('duel pipeline', () => {
       schema.safeParse({
         ...valid,
         criteria: [{ criterion: 'x'.repeat(41), a: 'a', b: 'b' }],
-      }).success,
+      }).success
     ).toBe(false);
   });
 });
@@ -270,7 +270,7 @@ describe('alternates pipeline', () => {
     expect(
       schema.safeParse({
         alternatives: [{ ...valid.alternatives[0], bestMonth: 'x'.repeat(21) }],
-      }).success,
+      }).success
     ).toBe(false);
   });
 });

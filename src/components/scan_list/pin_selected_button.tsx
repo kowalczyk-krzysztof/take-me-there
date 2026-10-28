@@ -8,8 +8,6 @@ interface Props {
   onPinSelected: (indices: number[]) => void;
 }
 
-// Own component so the label lookup runs in tree order (after the cards),
-// matching the old render sequence.
 export const PinSelectedButton = ({ items, checked, onPinSelected }: Props) => (
   <button
     type="button"
