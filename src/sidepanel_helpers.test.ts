@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  CACHE_TTL_MS,
+  clearCacheEntries,
   getCacheEntry,
   hashGuideKey,
   hashIdentifyKey,
@@ -145,30 +147,71 @@ describe('persistent result cache', () => {
     expect((await getCacheEntry('hash10'))?.place.placeName).toBe('Place10');
   });
 
-  it('stores versioned envelopes in local storage', async () => {
+  it('stores versioned timestamped envelopes in session storage', async () => {
     const mock = installChromeMock();
     routeWorkerMessages(mock);
     await setCacheEntry('hash0', entry('Place0'));
-    const stored = mock.local.data.get('cache:hash0') as { v: number; entry: CacheEntry };
-    expect(stored.v).toBe(1);
+    const stored = mock.session.data.get('cache:hash0') as {
+      v: number;
+      createdAt: number;
+      entry: CacheEntry;
+    };
+    expect(stored.v).toBe(2);
+    expect(stored.createdAt).toEqual(expect.any(Number));
     expect(stored.entry.place.placeName).toBe('Place0');
-    expect(mock.session.data.has('cache:hash0')).toBe(false);
+    expect(mock.local.data.has('cache:hash0')).toBe(false);
   });
 
-  it('accepts legacy bare entries but rejects unknown versions', async () => {
+  it('rejects bare entries and unknown versions', async () => {
     const mock = installChromeMock();
     routeWorkerMessages(mock);
-    await mock.local.set({ 'cache:bare': entry('Bare') });
-    await mock.local.set({ 'cache:future': { v: 99, entry: entry('Future') } });
-    expect((await getCacheEntry('bare'))?.place.placeName).toBe('Bare');
+    await mock.session.set({ 'cache:bare': entry('Bare') });
+    await mock.session.set({
+      'cache:future': { v: 99, entry: entry('Future'), createdAt: Date.now() },
+    });
+    expect(await getCacheEntry('bare')).toBeUndefined();
     expect(await getCacheEntry('future')).toBeUndefined();
   });
 
   it('treats corrupt entries as misses', async () => {
     const mock = installChromeMock();
     routeWorkerMessages(mock);
-    const { local } = mock;
-    await local.set({ 'cache:bad': { nope: true } });
+    const { session } = mock;
+    await session.set({ 'cache:bad': { nope: true } });
     expect(await getCacheEntry('bad')).toBeUndefined();
+  });
+
+  it('expires entries after seven days and deletes them', async () => {
+    const mock = installChromeMock();
+    routeWorkerMessages(mock);
+    await mock.session.set({
+      'cache:old': { v: 2, entry: entry('Old'), createdAt: Date.now() - CACHE_TTL_MS - 1000 },
+      cacheKeys: ['old'],
+    });
+    expect(await getCacheEntry('old')).toBeUndefined();
+    expect(mock.session.data.has('cache:old')).toBe(false);
+  });
+
+  it('loses the cache with the browser session', async () => {
+    const mock = installChromeMock();
+    routeWorkerMessages(mock);
+    await setCacheEntry('hash0', entry('Place0'));
+    expect((await getCacheEntry('hash0'))?.place.placeName).toBe('Place0');
+    await mock.session.clear();
+    expect(await getCacheEntry('hash0')).toBeUndefined();
+  });
+
+  it('clears indexed and orphaned entries and reports the count', async () => {
+    const mock = installChromeMock();
+    routeWorkerMessages(mock);
+    await setCacheEntry('hash0', entry('Place0'));
+    await mock.session.set({
+      'cache:orphan': { v: 2, entry: entry('Orphan'), createdAt: Date.now() },
+    });
+    await mock.session.set({ unrelated: 'keep-me' });
+    expect(await clearCacheEntries()).toBe(2);
+    expect(await getCacheEntry('hash0')).toBeUndefined();
+    expect(mock.session.data.get('unrelated')).toBe('keep-me');
+    expect([...mock.session.data.keys()].filter((key) => key.startsWith('cache:'))).toEqual([]);
   });
 });

@@ -17,15 +17,29 @@ const validEntry = () => ({
   searchedWeb: false,
 });
 
+const wrapped = (entry: unknown, createdAt: unknown = Date.now()) => ({
+  v: CACHE_ENTRY_VERSION,
+  entry,
+  createdAt,
+});
+
 describe('cache entry validation', () => {
-  it('accepts versioned and bare entries', () => {
-    expect(unwrapEntry({ v: CACHE_ENTRY_VERSION, entry: validEntry() })?.guide).toBe('# Oia');
-    expect(unwrapEntry(validEntry())?.place.placeName).toBe('Oia');
+  it('accepts versioned records with timestamps', () => {
+    expect(unwrapEntry(wrapped(validEntry()))?.guide).toBe('# Oia');
+  });
+
+  it('rejects bare entries, bad versions, and missing timestamps', () => {
+    expect(unwrapEntry(validEntry())).toBeUndefined();
+    expect(unwrapEntry({ v: 999, entry: validEntry(), createdAt: Date.now() })).toBeUndefined();
+    expect(unwrapEntry({ v: CACHE_ENTRY_VERSION, entry: validEntry() })).toBeUndefined();
+    expect(unwrapEntry(wrapped(validEntry(), 'yesterday'))).toBeUndefined();
+    expect(unwrapEntry(null)).toBeUndefined();
+    expect(unwrapEntry({ v: CACHE_ENTRY_VERSION })).toBeUndefined();
   });
 
   it('rejects oversized guides, excess citations, and schema violations', () => {
     const big = { ...validEntry(), guide: 'x'.repeat(GUIDE_MAX_TEXT_CHARS + 1) };
-    expect(unwrapEntry({ v: CACHE_ENTRY_VERSION, entry: big })).toBeUndefined();
+    expect(unwrapEntry(wrapped(big))).toBeUndefined();
 
     const many = {
       ...validEntry(),
@@ -34,15 +48,11 @@ describe('cache entry validation', () => {
         url: `https://example.com/${index}`,
       })),
     };
-    expect(unwrapEntry({ v: CACHE_ENTRY_VERSION, entry: many })).toBeUndefined();
+    expect(unwrapEntry(wrapped(many))).toBeUndefined();
 
     const { oneLiner: _dropped, ...shortPlace } = validEntry().place;
     void _dropped;
     const badPlace = { ...validEntry(), place: shortPlace };
-    expect(unwrapEntry({ v: CACHE_ENTRY_VERSION, entry: badPlace })).toBeUndefined();
-
-    expect(unwrapEntry({ v: 999, entry: validEntry() })).toBeUndefined();
-    expect(unwrapEntry(null)).toBeUndefined();
-    expect(unwrapEntry({ v: CACHE_ENTRY_VERSION })).toBeUndefined();
+    expect(unwrapEntry(wrapped(badPlace))).toBeUndefined();
   });
 });

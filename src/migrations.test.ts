@@ -94,4 +94,59 @@ describe('runUpdateMigrations', () => {
       warn.mockRestore();
     }
   });
+
+  it('purges legacy local cache records and preserves everything else', async () => {
+    await mock.local.set({
+      settings: LEGACY_SETTINGS,
+      tripBoard: [LEGACY_PIN],
+      costTotals: { '2026-03': 1.5 },
+      'vault:muse': { iv: 'x', ciphertext: 'y' },
+      cacheKeys: ['a', 'b'],
+      'cache:a': { v: 1, entry: { guide: 'stale' } },
+      'cache:b': { v: 1, entry: { guide: 'stale' } },
+    });
+
+    const results = await runUpdateMigrations();
+
+    expect(results.find((result) => result.name === 'cache')).toEqual({ name: 'cache', ok: true });
+    expect(mock.local.data.has('cache:a')).toBe(false);
+    expect(mock.local.data.has('cache:b')).toBe(false);
+    expect(mock.local.data.has('cacheKeys')).toBe(false);
+    expect(mock.local.data.get('settings')).toEqual({ v: 1, settings: LEGACY_SETTINGS });
+    expect(mock.local.data.get('tripBoard')).toEqual({ v: 1, pins: [LEGACY_PIN] });
+    expect(mock.local.data.get('costTotals')).toEqual({ v: 1, months: { '2026-03': 1.5 } });
+    expect(mock.local.data.get('vault:muse')).toEqual({ iv: 'x', ciphertext: 'y' });
+  });
+
+  it('reports a failed cache purge and retries it next run', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    try {
+      await mock.local.set({ 'cache:a': { v: 1, entry: { guide: 'stale' } }, cacheKeys: ['a'] });
+      mock.local.fault = (op) => {
+        if (op === 'remove') {
+          throw new Error('quota');
+        }
+      };
+
+      const failed = await runUpdateMigrations();
+      expect(failed.find((result) => result.name === 'cache')).toMatchObject({
+        name: 'cache',
+        ok: false,
+      });
+      expect(mock.local.data.has('cache:a')).toBe(true);
+
+      mock.local.fault = () => undefined;
+
+      const retried = await runUpdateMigrations();
+      expect(retried.find((result) => result.name === 'cache')).toEqual({
+        name: 'cache',
+        ok: true,
+      });
+      expect(mock.local.data.has('cache:a')).toBe(false);
+    } finally {
+      warn.mockRestore();
+      mock.local.fault = () => undefined;
+    }
+  });
 });

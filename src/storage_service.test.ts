@@ -34,7 +34,7 @@ import * as idbKeyval from 'idb-keyval';
 import { listPins, pinPlace } from './board_store';
 import { clearAllKeys, loadKey, saveKey, setKeyMode } from './key_vault';
 import { readMonthSpend, recordMonthSpend, resetMonthSpend } from './pricing';
-import { getCacheEntry, setCacheEntry, type CacheEntry } from './result_cache';
+import { clearCacheEntries, getCacheEntry, setCacheEntry, type CacheEntry } from './result_cache';
 import { loadSettings } from './settings_store';
 import { enqueueLocalCommand, handleStorageMessage } from './storage_service';
 import { STORAGE_MESSAGE_SCOPE } from './storage_commands';
@@ -347,17 +347,79 @@ describe('storage service cache commands', () => {
     await setCacheEntry('big', { ...entry('Oia'), guide: 'x'.repeat(300000) });
 
     expect(await getCacheEntry('big')).toBeUndefined();
-    expect(mock.local.data.has('cache:big')).toBe(false);
+    expect(mock.session.data.has('cache:big')).toBe(false);
   });
 
   it('rejects corrupt stored records without replacing them', async () => {
     const corrupt = {
-      v: 1,
+      v: 2,
+      createdAt: Date.now(),
       entry: { ...entry('Oia'), guide: 42 },
     };
-    await mock.local.set({ 'cache:bad': corrupt });
+    await mock.session.set({ 'cache:bad': corrupt });
 
     expect(await getCacheEntry('bad')).toBeUndefined();
-    expect(mock.local.data.get('cache:bad')).toEqual(corrupt);
+    expect(mock.session.data.get('cache:bad')).toEqual(corrupt);
+  });
+
+  it('evicts least-recently-used entries past the byte cap', async () => {
+    for (let n = 0; n < 10; n += 1) {
+      await setCacheEntry(`max${n}`, { ...entry(`Place${n}`), guide: 'g'.repeat(262144) });
+    }
+
+    expect(await getCacheEntry('max0')).toBeUndefined();
+    expect(await getCacheEntry('max1')).toBeUndefined();
+    expect((await getCacheEntry('max9'))?.place.placeName).toBe('Place9');
+  });
+
+  it('sweeps expired and orphaned records on write', async () => {
+    await mock.session.set({
+      'cache:old': {
+        v: 2,
+        createdAt: Date.now() - 8 * 24 * 60 * 60 * 1000,
+        entry: entry('Old'),
+      },
+      'cache:orphan': { v: 2, createdAt: Date.now(), entry: entry('Orphan') },
+      cacheKeys: ['old'],
+    });
+
+    await setCacheEntry('fresh', entry('Fresh'));
+
+    expect(mock.session.data.has('cache:old')).toBe(false);
+    expect(mock.session.data.has('cache:orphan')).toBe(false);
+    expect((await getCacheEntry('fresh'))?.place.placeName).toBe('Fresh');
+  });
+
+  it('tolerates storage faults without breaking callers', async () => {
+    mock.session.fault = (op) => {
+      if (op === 'get' || op === 'set') {
+        throw new Error('unavailable');
+      }
+    };
+
+    try {
+      expect(await getCacheEntry('hash0')).toBeUndefined();
+      await expect(setCacheEntry('hash0', entry('Oia'))).resolves.toBeUndefined();
+    } finally {
+      mock.session.fault = () => undefined;
+    }
+  });
+
+  it('reports failed clears instead of claiming success', async () => {
+    await setCacheEntry('hash0', entry('Oia'));
+
+    mock.session.fault = (op) => {
+      if (op === 'remove') {
+        throw new Error('unavailable');
+      }
+    };
+
+    try {
+      await expect(clearCacheEntries()).rejects.toThrow();
+    } finally {
+      mock.session.fault = () => undefined;
+    }
+
+    expect((await getCacheEntry('hash0'))?.place.placeName).toBe('Oia');
   });
 });

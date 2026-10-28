@@ -750,7 +750,7 @@ describe('sidepanel', () => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusGuideReady');
     });
 
-    const cached = [...mock.local.data.entries()]
+    const cached = [...mock.session.data.entries()]
       .filter(([key]) => key.startsWith('cache:'))
       .map(([, value]) => (value as { entry: { guide: string } }).entry);
     expect(cached).toHaveLength(2);
@@ -937,7 +937,7 @@ describe('sidepanel', () => {
     expect(document.querySelector('#cost-line')?.textContent).toBe('costIncomplete($0.000)');
 
     // The partial text stays on screen only: the cache keeps no guide.
-    const cached = [...mock.local.data.entries()].filter(([key]) => key.startsWith('cache:'));
+    const cached = [...mock.session.data.entries()].filter(([key]) => key.startsWith('cache:'));
     expect(cached).toHaveLength(1);
     expect((cached[0][1] as { entry: { guide: string } }).entry.guide).toBe('');
   });

@@ -1,11 +1,13 @@
 import { migrateBoard } from './board_store';
 import { migrateSpend } from './pricing';
+import { migrateCache } from './result_cache';
 import { migrateSettings } from './settings_store';
 
 const MIGRATIONS: Array<{ name: string; run: () => Promise<void> }> = [
   { name: 'settings', run: migrateSettings },
   { name: 'board', run: migrateBoard },
   { name: 'spend', run: migrateSpend },
+  { name: 'cache', run: migrateCache },
 ];
 
 export interface MigrationStepResult {

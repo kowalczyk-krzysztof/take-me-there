@@ -17,6 +17,11 @@ import { reconcileTempGrants } from './grants';
 // persists, so a suspension mid-sweep simply retries next startup.
 void reconcileTempGrants();
 
+// Startup migrations: every step is idempotent, so rerunning is cheap and
+// a previously failed step (like the legacy cache purge) retries until
+// it reports success. Queued first, so no cache use precedes the purge.
+void enqueueLocalCommand({ kind: 'migrate.run' }).catch(() => undefined);
+
 const MENU_ID = 'plan-trip';
 
 const SCAN_MENU_ID = 'scan-page';

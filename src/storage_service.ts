@@ -18,11 +18,14 @@ import { monthKey, readTotals, writeTotals } from './pricing';
 import {
   CACHE_ENTRY_VERSION,
   CACHE_INDEX_KEY,
+  CACHE_MAX_BYTES,
   CACHE_SLOTS,
+  CACHE_TTL_MS,
   cacheKeyFor,
   readCacheIndex,
-  unwrapEntry,
+  unwrapRecord,
   type CacheEntry,
+  type CacheRecord,
 } from './result_cache';
 import { loadSettings, writeSettingsRecord } from './settings_store';
 import { runUpdateMigrations } from './migrations';
@@ -37,6 +40,14 @@ import {
 } from './storage_commands';
 
 const invalid = (error: string): CommandResult => ({ ok: false, error });
+
+// The bundled Chrome types omit the documented get(null) whole-area
+// form; the cast recovers it.
+const getAllSession = async (): Promise<Record<string, unknown>> =>
+  (await chrome.storage.session.get(null as unknown as string)) as unknown as Record<
+    string,
+    unknown
+  >;
 
 const boardAdd = async (
   pin: Omit<BoardPin, 'addedAt'> & { addedAt?: number }
@@ -129,41 +140,97 @@ const spendReset = async (at: number): Promise<void> => {
   await writeTotals(totals);
 };
 
+const cacheExpired = (record: CacheRecord): boolean => Date.now() - record.createdAt > CACHE_TTL_MS;
+
 const cacheGet = async (hash: string): Promise<CacheEntry | undefined> => {
   const name = cacheKeyFor(hash);
 
-  const stored = (await chrome.storage.local.get(name)) as Record<string, unknown>;
+  const stored = (await chrome.storage.session.get(name)) as Record<string, unknown>;
 
-  const entry = unwrapEntry(stored[name]);
+  const record = unwrapRecord(stored[name]);
 
-  if (!entry) {
+  if (!record) {
+    return undefined;
+  }
+
+  if (cacheExpired(record)) {
+    await chrome.storage.session.remove(name);
+
     return undefined;
   }
 
   const index = (await readCacheIndex()).filter((key) => key !== hash);
   index.unshift(hash);
 
-  await chrome.storage.local.set({ [CACHE_INDEX_KEY]: index.slice(0, CACHE_SLOTS) });
+  await chrome.storage.session.set({ [CACHE_INDEX_KEY]: index.slice(0, CACHE_SLOTS) });
 
-  return entry;
+  return record.entry;
 };
 
 const cacheSet = async (hash: string, entry: CacheEntry): Promise<void> => {
-  await chrome.storage.local.set({
-    [cacheKeyFor(hash)]: { v: CACHE_ENTRY_VERSION, entry },
+  await chrome.storage.session.set({
+    [cacheKeyFor(hash)]: { v: CACHE_ENTRY_VERSION, entry, createdAt: Date.now() },
   });
 
-  const index = (await readCacheIndex()).filter((key) => key !== hash);
+  await enforceCachePolicy(hash);
+};
 
-  index.unshift(hash);
+// Age/count/byte enforcement after every write: expired and orphaned
+// records go, the index keeps the survivors in LRU order, and count and
+// byte caps trim from the least-recently-used tail.
+const enforceCachePolicy = async (fresh: string): Promise<void> => {
+  const stored = await getAllSession();
 
-  const evicted = index.slice(CACHE_SLOTS);
+  const index = (await readCacheIndex()).filter((key) => key !== fresh);
+  index.unshift(fresh);
 
-  await chrome.storage.local.set({ [CACHE_INDEX_KEY]: index.slice(0, CACHE_SLOTS) });
+  const survivors: string[] = [];
 
-  for (const key of evicted) {
-    await chrome.storage.local.remove(cacheKeyFor(key));
+  let bytes = 0;
+
+  for (const key of index) {
+    const name = cacheKeyFor(key);
+
+    const record = unwrapRecord(stored[name]);
+
+    if (!record || cacheExpired(record)) {
+      if (name in stored) {
+        await chrome.storage.session.remove(name);
+      }
+
+      continue;
+    }
+
+    bytes += JSON.stringify(stored[name])?.length ?? 0;
+
+    if (survivors.length >= CACHE_SLOTS || bytes > CACHE_MAX_BYTES) {
+      await chrome.storage.session.remove(name);
+
+      continue;
+    }
+
+    survivors.push(key);
   }
+
+  const known = new Set(survivors.map((key) => cacheKeyFor(key)));
+
+  for (const name of Object.keys(stored)) {
+    if (name.startsWith('cache:') && !known.has(name)) {
+      await chrome.storage.session.remove(name);
+    }
+  }
+
+  await chrome.storage.session.set({ [CACHE_INDEX_KEY]: survivors });
+};
+
+const cacheClear = async (): Promise<number> => {
+  const stored = await getAllSession();
+
+  const names = Object.keys(stored).filter((key) => key.startsWith('cache:'));
+
+  await chrome.storage.session.remove([...names, CACHE_INDEX_KEY]);
+
+  return names.length;
 };
 
 const vaultNames = async (): Promise<string[]> => {
@@ -327,6 +394,9 @@ const execute = async (command: StorageCommand): Promise<CommandResult> => {
       await cacheSet(command.hash, command.entry);
 
       return { ok: true, value: undefined };
+
+    case 'cache.clear':
+      return { ok: true, value: await cacheClear() };
 
     case 'settings.save':
       await writeSettingsRecord(command.settings);

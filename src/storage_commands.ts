@@ -90,6 +90,7 @@ export type StorageCommand =
   | { kind: 'spend.reset'; at: number }
   | { kind: 'cache.get'; hash: string }
   | { kind: 'cache.set'; hash: string; entry: z.infer<typeof cacheEntrySchema> }
+  | { kind: 'cache.clear' }
   | { kind: 'settings.save'; settings: z.infer<typeof settingsSchema> }
   | { kind: 'key.save'; providerId: string; key: string; sessionOnly: boolean }
   | { kind: 'key.clear'; providerId: string }
@@ -119,6 +120,7 @@ export const COMMAND_SCHEMAS: Record<CommandKind, PayloadSchema> = {
   'spend.reset': spendResetSchema,
   'cache.get': cacheKeySchema,
   'cache.set': cacheSetSchema,
+  'cache.clear': emptySchema,
   'settings.save': z.strictObject({ settings: settingsSchema }),
   'key.save': keySaveSchema,
   'key.clear': providerSchema,
