@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { chatResponse, groundedResponse, sseResponse } from '../test/helpers';
 import { ProviderError, setConsented, type GuideEvent, type IdentifyInput } from './index';
 import { MuseProvider } from './muse';
 import { installChromeMock, uninstallChromeMock, type ChromeMock } from '../test/chrome_mock';
@@ -12,32 +13,10 @@ const VALID_PLACE = {
   oneLiner: 'Blue domes over the caldera.',
 };
 
-const chatResponse = (place: unknown, usage = { prompt_tokens: 100, completion_tokens: 50 }) =>
-  new Response(
-    JSON.stringify({ choices: [{ message: { content: JSON.stringify(place) } }], usage }),
-    { status: 200 }
-  );
-
 const rawChatResponse = (content: string, usage = { prompt_tokens: 100, completion_tokens: 50 }) =>
   new Response(JSON.stringify({ choices: [{ message: { content } }], usage }), {
     status: 200,
   });
-
-const sseResponse = (chunks: string[]) => {
-  const encoder = new TextEncoder();
-  const stream = new ReadableStream<Uint8Array>({
-    start(controller) {
-      for (const chunk of chunks) {
-        controller.enqueue(encoder.encode(chunk));
-      }
-      controller.close();
-    },
-  });
-  return new Response(stream, {
-    status: 200,
-    headers: { 'Content-Type': 'text/event-stream' },
-  });
-};
 
 const identifyInput = (overrides: Partial<IdentifyInput> = {}): IdentifyInput => ({
   imageUrl: 'https://cdn.example.com/oia.jpg',
@@ -590,32 +569,14 @@ describe('muse duelPlaces', () => {
     signal: new AbortController().signal,
   });
 
-  const groundedResponse = (json: unknown) =>
-    new Response(
-      JSON.stringify({
-        output: [
-          { type: 'web_search_call' },
-          {
-            type: 'message',
-            content: [
-              {
-                type: 'output_text',
-                text: JSON.stringify(json),
-                annotations: [
-                  { type: 'url_citation', url: 'https://example.com/cost', title: 'Costs' },
-                ],
-              },
-            ],
-          },
-        ],
-        usage: { input_tokens: 200, output_tokens: 80 },
-      }),
-      { status: 200 }
-    );
+  const duelResponse = (json: unknown) =>
+    groundedResponse(json, [
+      { type: 'url_citation', url: 'https://example.com/cost', title: 'Costs' },
+    ]);
 
   it('duels through one grounded structured call', async () => {
     await consented();
-    fetchMock.mockResolvedValue(groundedResponse(VALID_DUEL));
+    fetchMock.mockResolvedValue(duelResponse(VALID_DUEL));
     const result = await provider.duelPlaces('LLM_key', duelInput());
     expect(result.criteria).toHaveLength(1);
     expect(result.verdict).toContain('Pick Oia');
@@ -639,7 +600,7 @@ describe('muse duelPlaces', () => {
     expect(prompt).toContain('Fira, Greece (side B)');
   });
 
-  it('falls back to structured chat when grounding is rejected', async () => {
+  it('falls back to structured chat when duel grounding is rejected', async () => {
     await consented();
     fetchMock
       .mockResolvedValueOnce(new Response('unsupported', { status: 400 }))
@@ -703,20 +664,6 @@ describe('muse findAlternates', () => {
     signal: new AbortController().signal,
   });
 
-  const groundedResponse = (json: unknown) =>
-    new Response(
-      JSON.stringify({
-        output: [
-          {
-            type: 'message',
-            content: [{ type: 'output_text', text: JSON.stringify(json), annotations: [] }],
-          },
-        ],
-        usage: { input_tokens: 150, output_tokens: 60 },
-      }),
-      { status: 200 }
-    );
-
   it('finds grounded alternates for the intent', async () => {
     await consented();
     fetchMock.mockResolvedValue(groundedResponse(VALID_ALTERNATES));
@@ -730,7 +677,7 @@ describe('muse findAlternates', () => {
     expect(prompt).toContain('cost noticeably less');
   });
 
-  it('falls back to structured chat when grounding is rejected', async () => {
+  it('falls back to structured chat when alternates grounding is rejected', async () => {
     await consented();
     fetchMock
       .mockResolvedValueOnce(new Response('unsupported', { status: 404 }))

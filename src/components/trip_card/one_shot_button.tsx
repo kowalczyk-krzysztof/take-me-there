@@ -19,7 +19,6 @@ export const OneShotButton = ({ label, loadingLabel, onFire }: Props) => {
       className={styles.primary}
       aria-disabled={fired || undefined}
       onClick={() => {
-
         if (firedRef.current) {
           return;
         }

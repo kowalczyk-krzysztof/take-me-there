@@ -1,6 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('idb-keyval', () => {
@@ -25,50 +22,17 @@ vi.mock('idb-keyval', () => {
   };
 });
 
-import { installChromeMock, uninstallChromeMock, type ChromeMock } from './test/chrome_mock';
+import type { ChromeMock } from './test/chrome_mock';
+import { readShell, setupPage, teardownPage, waitFor } from './test/helpers';
 
-const SHELL = readFileSync(
-  join(dirname(fileURLToPath(import.meta.url)), '../public/onboarding.html'),
-  'utf8'
-);
-
-const mountShell = (): void => {
-  const body = SHELL.split(/<body[^>]*>/)[1]?.split('</body>')[0] ?? '';
-  document.body.innerHTML = body;
-};
-
-const waitFor = async (fn: () => void, timeoutMs = 5000): Promise<void> => {
-  const start = Date.now();
-  for (;;) {
-    try {
-      fn();
-      return;
-    } catch (err) {
-      if (Date.now() - start > timeoutMs) {
-        throw err;
-      }
-      await new Promise((resolve) => setTimeout(resolve, 25));
-    }
-  }
-};
+const SHELL = readShell('onboarding');
 
 const fetchMock = vi.fn();
 
-const setup = async (): Promise<ChromeMock> => {
-  vi.resetModules();
-  const mock = installChromeMock();
-  mountShell();
-  fetchMock.mockReset();
-  vi.stubGlobal('fetch', fetchMock);
-  await import('./onboarding');
-  return mock;
-};
+const setup = async (): Promise<ChromeMock> =>
+  setupPage(SHELL, fetchMock, () => import('./onboarding'));
 
-afterEach(() => {
-  document.body.innerHTML = '';
-  uninstallChromeMock();
-  vi.unstubAllGlobals();
-});
+afterEach(teardownPage);
 
 describe('onboarding', () => {
   it('renders copy, shortcut fallback, and the key form', async () => {

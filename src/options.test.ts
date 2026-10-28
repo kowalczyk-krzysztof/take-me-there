@@ -1,6 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('idb-keyval', () => {
@@ -26,55 +23,18 @@ vi.mock('idb-keyval', () => {
 });
 
 import { monthKey } from './pricing';
-import { installChromeMock, uninstallChromeMock, type ChromeMock } from './test/chrome_mock';
+import type { ChromeMock } from './test/chrome_mock';
+import { readShell, setupPage, teardownPage, waitFor } from './test/helpers';
 
-const SHELL = readFileSync(
-  join(dirname(fileURLToPath(import.meta.url)), '../public/options.html'),
-  'utf8'
-);
-
-const mountShell = (): void => {
-  const body = SHELL.split(/<body[^>]*>/)[1]?.split('</body>')[0] ?? '';
-  document.body.innerHTML = body;
-};
-
-const waitFor = async (fn: () => void, timeoutMs = 5000): Promise<void> => {
-  const start = Date.now();
-  for (;;) {
-    try {
-      fn();
-      return;
-    } catch (err) {
-      if (Date.now() - start > timeoutMs) {
-        throw err;
-      }
-      await new Promise((resolve) => setTimeout(resolve, 25));
-    }
-  }
-};
+const SHELL = readShell('options');
 
 const fetchMock = vi.fn();
 
 const setup = async (
   beforeImport?: (mock: ChromeMock) => void | Promise<void>
-): Promise<ChromeMock> => {
-  vi.resetModules();
-  const mock = installChromeMock();
-  if (beforeImport) {
-    await beforeImport(mock);
-  }
-  mountShell();
-  fetchMock.mockReset();
-  vi.stubGlobal('fetch', fetchMock);
-  await import('./options');
-  return mock;
-};
+): Promise<ChromeMock> => setupPage(SHELL, fetchMock, () => import('./options'), beforeImport);
 
-afterEach(() => {
-  document.body.innerHTML = '';
-  uninstallChromeMock();
-  vi.unstubAllGlobals();
-});
+afterEach(teardownPage);
 
 describe('options', () => {
   it('renders sections and the live cost total', async () => {

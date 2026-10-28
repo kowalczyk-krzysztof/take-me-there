@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { chatResponse as sharedChatResponse, sseResponse } from '../test/helpers';
 import { setConsented, type GuideEvent, type OpenAiCompatSettings } from './index';
 import { OpenAiCompatProvider } from './openai_compat';
 import { installChromeMock, uninstallChromeMock, type ChromeMock } from '../test/chrome_mock';
@@ -20,29 +21,7 @@ const config = (overrides: Partial<OpenAiCompatSettings> = {}): OpenAiCompatSett
 });
 
 const chatResponse = (place: unknown) =>
-  new Response(
-    JSON.stringify({
-      choices: [{ message: { content: JSON.stringify(place) } }],
-      usage: { prompt_tokens: 40, completion_tokens: 20 },
-    }),
-    { status: 200 }
-  );
-
-const sseResponse = (chunks: string[]) => {
-  const encoder = new TextEncoder();
-  const stream = new ReadableStream<Uint8Array>({
-    start(controller) {
-      for (const chunk of chunks) {
-        controller.enqueue(encoder.encode(chunk));
-      }
-      controller.close();
-    },
-  });
-  return new Response(stream, {
-    status: 200,
-    headers: { 'Content-Type': 'text/event-stream' },
-  });
-};
+  sharedChatResponse(place, { prompt_tokens: 40, completion_tokens: 20 });
 
 let mock: ChromeMock;
 const fetchMock = vi.fn();
