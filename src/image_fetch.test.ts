@@ -31,7 +31,11 @@ describe('encodeBase64', () => {
 
 describe('fetchImageBytes', () => {
   it('fetches with credentials omitted and rejects failures', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response(new Uint8Array([1, 2, 3])));
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(new Uint8Array([1, 2, 3]), { headers: { 'content-type': 'image/jpeg' } })
+      );
     vi.stubGlobal('fetch', fetchMock);
     const bytes = await fetchImageBytes(
       'https://cdn.example.com/oia.jpg',
@@ -47,11 +51,39 @@ describe('fetchImageBytes', () => {
   });
 
   it('caps fetched bytes', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response(new Uint8Array(FETCH_MAX_BYTES + 1)));
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(new Uint8Array(FETCH_MAX_BYTES + 1), {
+        headers: { 'content-type': 'image/jpeg' },
+      })
+    );
     vi.stubGlobal('fetch', fetchMock);
     await expect(
       fetchImageBytes('https://cdn.example.com/huge.jpg', new AbortController().signal)
     ).rejects.toThrow('size cap');
+  });
+
+  it('refuses non-http URLs without fetching', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    for (const url of [
+      'file:///etc/passwd',
+      'chrome://extensions',
+      'data:image/jpeg;base64,AAAA',
+      'blob:https://example.com/uuid',
+    ]) {
+      await expect(fetchImageBytes(url, new AbortController().signal)).rejects.toThrow('non-http');
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('refuses non-image content without decoding', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response('<html>', { headers: { 'content-type': 'text/html' } }));
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(
+      fetchImageBytes('https://example.com/page', new AbortController().signal)
+    ).rejects.toThrow('non-image');
   });
 });
 

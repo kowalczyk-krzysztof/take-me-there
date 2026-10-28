@@ -1390,7 +1390,9 @@ describe('sidepanel', () => {
     fetchMock
       .mockResolvedValueOnce(new Response('bad image', { status: 400 }))
       .mockResolvedValueOnce(new Response('boom', { status: 500 }))
-      .mockResolvedValueOnce(new Response(new Uint8Array([1, 2, 3])))
+      .mockResolvedValueOnce(
+        new Response(new Uint8Array([1, 2, 3]), { headers: { 'content-type': 'image/jpeg' } })
+      )
       .mockResolvedValueOnce(chatResponse(VALID_PLACE))
       .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
     await mock.session.set({ tripRequest: READY() });
@@ -1421,6 +1423,79 @@ describe('sidepanel', () => {
     };
     const imagePart = retryBody.messages[1].content.find((part) => part.type === 'image_url');
     expect(imagePart?.image_url?.url.startsWith('data:image/jpeg;base64,')).toBe(true);
+  });
+
+  it('removes the origin grant when the byte fetch fails', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    const permsRequest = vi.fn().mockResolvedValue(true);
+    const permsRemove = vi.fn().mockResolvedValue(undefined);
+    (chrome as unknown as { permissions: unknown }).permissions = {
+      request: permsRequest,
+      remove: permsRemove,
+    };
+    fetchMock
+      .mockResolvedValueOnce(new Response('bad image', { status: 400 }))
+      .mockResolvedValueOnce(new Response('boom', { status: 500 }))
+      .mockRejectedValueOnce(new Error('network down'));
+    await mock.session.set({ tripRequest: READY() });
+    await waitFor(() => {
+      const card = document.querySelector('#result-slot');
+      expect(card?.querySelectorAll('button')).toHaveLength(2);
+    });
+    const card = document.querySelector('#result-slot') as HTMLElement;
+    (card.querySelectorAll('button')?.[1] as HTMLButtonElement).click();
+    await waitFor(() => {
+      expect(document.querySelector('#alert-region')?.textContent).toBe('fetchFailed');
+    });
+    expect(permsRemove).toHaveBeenCalledWith({ origins: ['https://cdn.example.com/*'] });
+  });
+
+  it('fetches loopback http images without an origin grant', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    const permsRequest = vi.fn().mockResolvedValue(true);
+    const permsRemove = vi.fn().mockResolvedValue(undefined);
+    (chrome as unknown as { permissions: unknown }).permissions = {
+      request: permsRequest,
+      remove: permsRemove,
+    };
+    vi.stubGlobal(
+      'createImageBitmap',
+      vi.fn().mockResolvedValue({ width: 400, height: 300, close: vi.fn() })
+    );
+    vi.stubGlobal(
+      'OffscreenCanvas',
+      vi.fn().mockImplementation(function (this: unknown) {
+        return {
+          getContext: () => ({ drawImage: vi.fn() }),
+          convertToBlob: async () => new Blob(['fakejpeg']),
+        };
+      })
+    );
+    fetchMock
+      .mockResolvedValueOnce(new Response('bad image', { status: 400 }))
+      .mockResolvedValueOnce(new Response('boom', { status: 500 }))
+      .mockResolvedValueOnce(
+        new Response(new Uint8Array([1, 2, 3]), { headers: { 'content-type': 'image/jpeg' } })
+      )
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE));
+    await mock.session.set({
+      tripRequest: READY({ srcUrl: 'http://localhost:8000/oia.jpg' }),
+    });
+    await waitFor(() => {
+      const card = document.querySelector('#result-slot');
+      expect(card?.querySelectorAll('button')).toHaveLength(2);
+    });
+    const card = document.querySelector('#result-slot') as HTMLElement;
+    expect(card.querySelectorAll('button')?.[1]?.textContent).toBe('fetchRetryButton');
+    (card.querySelectorAll('button')?.[1] as HTMLButtonElement).click();
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot')?.querySelector('h2')?.textContent).toBe('Oia');
+    });
+    expect(permsRequest).not.toHaveBeenCalled();
+    expect(permsRemove).not.toHaveBeenCalled();
+    expect(fetchMock.mock.calls[2][0]).toBe('http://localhost:8000/oia.jpg');
   });
 
   it('announces denial and hides the fetch button on non-400 errors', async () => {
@@ -1483,7 +1558,9 @@ describe('sidepanel', () => {
     const GUESS = { ...VALID_PLACE, confidence: 0.2 };
     fetchMock
       .mockResolvedValueOnce(chatResponse(GUESS))
-      .mockResolvedValueOnce(new Response(new Uint8Array([1, 2, 3])))
+      .mockResolvedValueOnce(
+        new Response(new Uint8Array([1, 2, 3]), { headers: { 'content-type': 'image/jpeg' } })
+      )
       .mockResolvedValueOnce(
         new Response(
           JSON.stringify({
@@ -1566,11 +1643,15 @@ describe('sidepanel', () => {
     );
     fetchMock
       .mockResolvedValueOnce(chatResponse(GUESS))
-      .mockResolvedValueOnce(new Response(new Uint8Array([1, 2, 3])))
+      .mockResolvedValueOnce(
+        new Response(new Uint8Array([1, 2, 3]), { headers: { 'content-type': 'image/jpeg' } })
+      )
       .mockResolvedValueOnce(new Response('boom', { status: 500 }))
       .mockResolvedValueOnce(chatResponse(VALID_PLACE))
       .mockResolvedValueOnce(chatResponse(GUESS))
-      .mockResolvedValueOnce(new Response(new Uint8Array([1, 2, 3])))
+      .mockResolvedValueOnce(
+        new Response(new Uint8Array([1, 2, 3]), { headers: { 'content-type': 'image/jpeg' } })
+      )
       .mockResolvedValueOnce(samEmpty)
       .mockResolvedValueOnce(chatResponse(VALID_PLACE));
     const imageOf = (callIndex: number): string | undefined => {

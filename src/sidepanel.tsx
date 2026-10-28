@@ -628,6 +628,52 @@ const announceGate = (reason: 'key' | 'consent'): void => {
   announceStatus(reason === 'key' ? 'statusKeyNeeded' : 'statusConsentNeeded');
 };
 
+export const isLoopbackHttp = (srcUrl: string): boolean => {
+  try {
+    const parsed = new URL(srcUrl);
+    return (
+      parsed.protocol === 'http:' &&
+      (parsed.hostname === 'localhost' ||
+        parsed.hostname === '127.0.0.1' ||
+        parsed.hostname === '[::1]')
+    );
+  } catch {
+    return false;
+  }
+};
+
+// One origin grant with guaranteed cleanup. Loopback http skips the
+// grant entirely: optional_host_permissions only covers https, so the
+// request could never be authorized and the fetch goes direct instead.
+const withOriginGrant = async <T,>(
+  origin: string,
+  loopback: boolean,
+  task: () => Promise<T>
+): Promise<{ granted: boolean; result?: T }> => {
+  if (!loopback) {
+    let granted = false;
+    try {
+      granted = await chrome.permissions.request({ origins: [`${origin}/*`] });
+    } catch {
+      granted = false;
+    }
+    if (!granted) {
+      return { granted: false };
+    }
+  }
+  try {
+    return { granted: true, result: await task() };
+  } finally {
+    if (!loopback) {
+      try {
+        await chrome.permissions.remove({ origins: [`${origin}/*`] });
+      } catch {
+        // The grant is already gone; nothing to clean up.
+      }
+    }
+  }
+};
+
 const abortActive = (): void => {
   if (activeController) {
     activeController.abort();
@@ -837,7 +883,7 @@ const showProviderError = (
     !request.mediaType &&
     !request.scanImages &&
     !request.dataPending &&
-    request.srcUrl.startsWith('https://');
+    (request.srcUrl.startsWith('https://') || isLoopbackHttp(request.srcUrl));
   if (!(err instanceof ProviderError)) {
     renderErrorCard('errorServerTitle', 'errorServerBody', true, false);
     announceAlert('alertServer');
@@ -1672,7 +1718,12 @@ const samCropAttempt = async (
     request.frame?.dataUrl ?? (request.srcUrl.startsWith('data:image/') ? request.srcUrl : null);
   let inputBytes = direct ? dataUrlToBytes(direct) : null;
   if (!inputBytes) {
-    if (request.mediaType || request.scanImages || !request.srcUrl.startsWith('https://')) {
+    const loopback = isLoopbackHttp(request.srcUrl);
+    if (
+      request.mediaType ||
+      request.scanImages ||
+      (!request.srcUrl.startsWith('https://') && !loopback)
+    ) {
       return null;
     }
     let origin: string;
@@ -1681,26 +1732,18 @@ const samCropAttempt = async (
     } catch {
       return null;
     }
-    let granted = false;
+    let outcome: { granted: boolean; result?: Uint8Array };
     try {
-      granted = await chrome.permissions.request({ origins: [`${origin}/*`] });
-    } catch {
-      granted = false;
-    }
-    if (!granted) {
-      return null;
-    }
-    try {
-      inputBytes = await fetchImageBytes(request.srcUrl, new AbortController().signal);
+      outcome = await withOriginGrant(origin, loopback, async () =>
+        fetchImageBytes(request.srcUrl, new AbortController().signal)
+      );
     } catch {
       return null;
-    } finally {
-      try {
-        await chrome.permissions.remove({ origins: [`${origin}/*`] });
-      } catch {
-        // The grant is already gone; nothing to clean up.
-      }
     }
+    if (!outcome.granted || !outcome.result) {
+      return null;
+    }
+    inputBytes = outcome.result;
   }
   if (!inputBytes) {
     return null;
@@ -1883,12 +1926,13 @@ const fetchRetry = async (): Promise<void> => {
         ? activeRequest
         : null;
   const srcUrl = target?.srcUrl ?? '';
+  const loopback = isLoopbackHttp(srcUrl);
   if (
     !target ||
     target.mediaType ||
     target.scanImages ||
     target.dataPending ||
-    !srcUrl.startsWith('https://')
+    (!srcUrl.startsWith('https://') && !loopback)
   ) {
     return;
   }
@@ -1899,42 +1943,26 @@ const fetchRetry = async (): Promise<void> => {
     return;
   }
   // Gesture rule: the permission prompt is the first await in this handler.
-  let granted = false;
-  try {
-    granted = await chrome.permissions.request({ origins: [`${origin}/*`] });
-  } catch {
-    granted = false;
-  }
-  if (!granted) {
-    announceAlert('fetchDenied');
-    return;
-  }
-  try {
+  const outcome = await withOriginGrant(origin, loopback, async () => {
     abortActive();
     clearStaleTimer();
     announceStatus('statusAnalyzing');
     const controller = new AbortController();
     activeController = controller;
-    let dataUrl: string;
     try {
       const bytes = await fetchImageBytes(srcUrl, controller.signal);
-      dataUrl = await downscaleToJpegDataUrl(bytes);
+      const dataUrl = await downscaleToJpegDataUrl(bytes);
+      if (!controller.signal.aborted) {
+        await runAnalysis({ ...target, srcUrl: dataUrl, dataPending: false }, 'panel');
+      }
     } catch {
       if (!controller.signal.aborted) {
         announceAlert('fetchFailed');
       }
-      return;
     }
-    if (controller.signal.aborted) {
-      return;
-    }
-    await runAnalysis({ ...target, srcUrl: dataUrl, dataPending: false }, 'panel');
-  } finally {
-    try {
-      await chrome.permissions.remove({ origins: [`${origin}/*`] });
-    } catch {
-      // The grant is already gone; nothing to clean up.
-    }
+  });
+  if (!outcome.granted) {
+    announceAlert('fetchDenied');
   }
 };
 
