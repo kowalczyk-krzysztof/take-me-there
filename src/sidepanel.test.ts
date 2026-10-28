@@ -427,6 +427,50 @@ describe('sidepanel', () => {
     expect(document.querySelector('#result-slot .plan-trip-button')).not.toBeNull();
   });
 
+  it('renders a long multi-chunk guide in full', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    const deltas = [
+      'I will research Oia for you. ',
+      '## Oia, Greece\n\n',
+      'First paragraph of the guide. ',
+      'Second sentence here. ',
+      '- bullet one\n',
+      '- bullet two\n',
+      '### Getting there\n\n',
+      'Final paragraph at the very end MARKER-XYZ.',
+    ];
+    const lines: string[] = [];
+    for (const d of deltas) {
+      lines.push(
+        'event: response.output_text.delta\n',
+        `data: {"delta":${JSON.stringify(d)}}\n`,
+        '\n',
+      );
+    }
+    lines.push(
+      'event: response.completed\n',
+      'data: {"response":{"usage":{"input_tokens":100,"output_tokens":200}}}\n',
+      '\n',
+    );
+    fetchMock
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
+      .mockResolvedValueOnce(sseResponse(lines));
+    await mock.session.set({ tripRequest: READY() });
+    await waitFor(() => {
+      const card = document.querySelector('#result-slot');
+      expect(card?.querySelector('h2')?.textContent).toBe('Oia');
+    });
+    await clickPlanTrip();
+    await waitFor(() => {
+      expect(document.querySelector('#guide-content')?.textContent).toContain('MARKER-XYZ');
+    });
+    const text = document.querySelector('#guide-content')?.textContent ?? '';
+    expect(text).toContain('First paragraph');
+    expect(text).toContain('bullet two');
+    expect(text).not.toContain('research Oia');
+  });
+
   it('retries a failed guide without re-running identify', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
