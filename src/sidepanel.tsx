@@ -311,6 +311,9 @@ let currentRunId: string | null = null;
 let runUsage: Usage = emptyUsage();
 let recordedUsd = 0;
 let activeRequest: TripRequest | null = null;
+
+const isStaleRequest = (request: TripRequest): boolean =>
+  activeRequest?.requestId !== request.requestId;
 let runSettings: ExtensionSettings | null = null;
 let pendingRun: PendingRun | null = null;
 let lastRun: PendingRun | null = null;
@@ -1115,6 +1118,9 @@ const runIdentify = async (args: IdentifyArgs): Promise<RunOutcome> => {
     });
   } catch (err) {
     finishController();
+    if (isStaleRequest(request)) {
+      return 'aborted';
+    }
     if (err instanceof ProviderError && err.code === 'aborted') {
       return 'aborted';
     }
@@ -1127,6 +1133,10 @@ const runIdentify = async (args: IdentifyArgs): Promise<RunOutcome> => {
     );
     analysisInFlight = false;
     return 'error';
+  }
+  if (isStaleRequest(request)) {
+    finishController();
+    return 'aborted';
   }
   runUsage = addUsage(runUsage, identify.usage);
   currentPlace = identify.place;
@@ -1329,11 +1339,17 @@ const runVideoAnalysis = async (
     return;
   }
   if (!(await hasVideoConsented())) {
+    if (isStaleRequest(request)) {
+      return;
+    }
     analysisInFlight = false;
     pendingRun = { kind: 'request', request };
     updatePreview(request.frame?.dataUrl ?? null, request.frame ? 'frame' : 'image');
     showVideoConfirm(route.kind === 'rung2', origin === 'panel');
     announceStatus('statusVideoConfirmNeeded');
+    return;
+  }
+  if (isStaleRequest(request)) {
     return;
   }
   if (route.kind === 'frame' && request.frame) {
@@ -1342,6 +1358,9 @@ const runVideoAnalysis = async (
   } else {
     updatePreview(null);
     currentCacheKey = await hashCacheKey(request.srcUrl, request.pageUrl ?? '');
+  }
+  if (isStaleRequest(request)) {
+    return;
   }
   const cached = await getCacheEntry(currentCacheKey);
   if (cached) {
@@ -1432,6 +1451,9 @@ const runScan = async (
     if (activeController === controller) {
       activeController = null;
     }
+    if (isStaleRequest(request)) {
+      return;
+    }
     if (err instanceof ProviderError && err.code === 'aborted') {
       return;
     }
@@ -1442,6 +1464,9 @@ const runScan = async (
   }
   if (activeController === controller) {
     activeController = null;
+  }
+  if (isStaleRequest(request)) {
+    return;
   }
   runUsage = addUsage(runUsage, result.usage);
   if (result.places.length === 0) {
@@ -1494,12 +1519,18 @@ const runScanGuide = async (
     announceGate(gate.reason);
     return;
   }
+  if (isStaleRequest(request)) {
+    return;
+  }
   const { provider, settings, key } = gate;
   const privacy: PrivacyMode = settings.imageOnly ? 'image-only' : 'image';
   currentCacheKey = await hashCacheKey(
     thumb ?? `scan:${result.placeName},${result.country}`,
     request.pageUrl ?? ''
   );
+  if (isStaleRequest(request)) {
+    return;
+  }
   const cached = await getCacheEntry(currentCacheKey);
   if (cached) {
     analysisInFlight = false;
@@ -1605,6 +1636,9 @@ const runAnalysis = async (request: TripRequest, origin: 'gesture' | 'panel'): P
   updatePreview(request.srcUrl || null);
   clearCost();
   const gate = await gateRun({ kind: 'request', request });
+  if (isStaleRequest(request)) {
+    return;
+  }
   if (!gate.ready) {
     analysisInFlight = false;
     announceGate(gate.reason);
@@ -1628,6 +1662,9 @@ const runAnalysis = async (request: TripRequest, origin: 'gesture' | 'panel'): P
     return;
   }
   currentCacheKey = await hashCacheKey(request.srcUrl, request.pageUrl ?? '');
+  if (isStaleRequest(request)) {
+    return;
+  }
   const cached = await getCacheEntry(currentCacheKey);
   if (cached) {
     analysisInFlight = false;

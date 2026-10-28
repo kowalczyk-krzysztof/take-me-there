@@ -62,6 +62,15 @@ const VALID_PLACE = {
   oneLiner: 'Blue domes over the caldera.',
 };
 
+const PLACE_B = {
+  identified: true,
+  placeName: 'Fira',
+  city: 'Fira',
+  country: 'Greece',
+  confidence: 0.9,
+  oneLiner: 'White lanes above the caldera.',
+};
+
 const SIGNALS = {
   imgFound: true,
   alt: 'Blue domes',
@@ -938,6 +947,33 @@ describe('sidepanel', () => {
     await waitForHeading('Oia');
     const stored = await mock.session.get('tripRequest');
     expect(stored.tripRequest).toEqual({ requestId: '200-2', status: 'ready' });
+  });
+
+  it('drops a superseded identify that resolves after the next run wins', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    let resolveFirst: (value: Response) => void = () => {};
+    const gate = new Promise<Response>((resolve) => {
+      resolveFirst = resolve;
+    });
+    fetchMock.mockImplementationOnce(() => gate);
+    fetchMock.mockResolvedValueOnce(chatResponse(PLACE_B));
+    await mock.session.set({ tripRequest: READY({ requestId: '300-1' }) });
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+    await mock.session.set({
+      tripRequest: READY({
+        requestId: '300-2',
+        srcUrl: 'https://cdn.example.com/fira.jpg',
+      }),
+    });
+    await waitForHeading('Fira');
+    resolveFirst(chatResponse(VALID_PLACE));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(document.querySelector('#result-slot')?.textContent).toContain('Fira');
+    expect(document.querySelector('#result-slot')?.textContent).not.toContain('Oia');
   });
 
   it('drops expired handoffs and wipes them', async () => {
