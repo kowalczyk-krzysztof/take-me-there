@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { act } from 'react';
 import { KeySetup, type KeySetupCallbacks } from './key_setup';
 import { installChromeMock, uninstallChromeMock } from '../../test/chrome_mock';
 import { renderSync, type Rendered } from '../../test/render_sync';
@@ -87,7 +88,9 @@ describe('key-setup', () => {
     const onError = vi.fn();
     const root = renderSetup({}, { onSave, onError }).container;
     const form = root.querySelector('form') as HTMLFormElement;
-    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    act(() => {
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    });
     expect(onSave).not.toHaveBeenCalled();
     expect(onError).toHaveBeenCalledWith('keyErrorEmpty');
   });
@@ -110,10 +113,14 @@ describe('key-setup', () => {
     (root.querySelector('#key-input') as HTMLInputElement).value = '  LLM_x  ';
     const box = root.querySelector('#session-only') as HTMLInputElement;
     box.checked = true;
-    box.dispatchEvent(new Event('change', { bubbles: true }));
+    act(() => {
+      box.dispatchEvent(new Event('change', { bubbles: true }));
+    });
     expect(sessionOnly).toBe(true);
     const form = root.querySelector('form') as HTMLFormElement;
-    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    act(() => {
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    });
     expect(onSave).toHaveBeenCalledWith('LLM_x');
   });
 
@@ -144,7 +151,9 @@ describe('key-setup', () => {
     expect(show.textContent).toBe('showKeyButton');
     expect(show.hasAttribute('aria-pressed')).toBe(false);
     expect(show.getAttribute('aria-controls')).toBe('key-input');
-    show.click();
+    act(() => {
+      show.click();
+    });
     expect(input.type).toBe('text');
     expect(show.hasAttribute('aria-pressed')).toBe(false);
     expect(show.textContent).toBe('hideKeyButton');
@@ -157,7 +166,9 @@ describe('key-setup', () => {
     const box = root.querySelector('#session-only') as HTMLInputElement;
     expect(box.checked).toBe(true);
     box.checked = false;
-    box.dispatchEvent(new Event('change', { bubbles: true }));
+    act(() => {
+      box.dispatchEvent(new Event('change', { bubbles: true }));
+    });
     expect(onSessionOnlyChange).toHaveBeenCalledWith(false);
   });
 
@@ -168,20 +179,28 @@ describe('key-setup', () => {
     expect(root.querySelector('.consent-body')?.textContent).toBe('consentBody');
     const buttons = [...root.querySelectorAll('.button-row button')];
     expect(buttons.map((button) => button.textContent)).toEqual(['agreeButton', 'declineButton']);
-    (buttons[0] as HTMLButtonElement).click();
+    act(() => {
+      (buttons[0] as HTMLButtonElement).click();
+    });
     expect(onConsentDecision).toHaveBeenCalledWith(true);
-    (buttons[1] as HTMLButtonElement).click();
+    act(() => {
+      (buttons[1] as HTMLButtonElement).click();
+    });
     expect(onConsentDecision).toHaveBeenCalledWith(false);
   });
 
   it('names the custom host instead of the Muse dashboard', () => {
     const root = renderSetup({ customHost: 'my-server.example' }).container;
     expect(root.querySelector('#key-hint')?.textContent).toBe('keyHintCustom');
-    expect(root.querySelector('.notice')?.textContent).toBe('securityNoticeCustom');
+    expect(root.querySelector('.notice')?.textContent).toBe(
+      'securityNoticeCustom(my-server.example)'
+    );
     expect(root.querySelector('.hygiene')?.textContent).toBe('keyHygieneCustom');
     expect(root.querySelector('.dashboard')).toBeNull();
     const consent = renderSetup({ mode: 'consent', customHost: 'my-server.example' }).container;
-    expect(consent.querySelector('.consent-body')?.textContent).toBe('consentBodyCustom');
+    expect(consent.querySelector('.consent-body')?.textContent).toBe(
+      'consentBodyCustom(my-server.example)'
+    );
   });
 
   it('renders a focusable consent heading', () => {

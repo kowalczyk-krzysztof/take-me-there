@@ -29,7 +29,9 @@ describe('compare-table', () => {
     const root = renderTable({ mode: 'loading', a: 'Oia, Greece', b: 'Fira, Greece' }).container;
     const table = root.querySelector('table');
     expect(table?.getAttribute('aria-busy')).toBe('true');
-    expect(table?.querySelector('caption')?.textContent).toBe('duelCaption');
+    expect(table?.querySelector('caption')?.textContent).toBe(
+      'duelCaption(Oia, Greece | Fira, Greece)'
+    );
     const cols = table?.querySelectorAll('thead th');
     expect(cols).toHaveLength(3);
     expect(cols?.[0]?.textContent).toBe('');
@@ -100,7 +102,9 @@ describe('compare-table', () => {
       onRetry
     ).container;
     expect(root.querySelector('table')).toBeNull();
-    expect(root.querySelector('.duel-error p')?.textContent).toBe('duelError');
+    expect(root.querySelector('.duel-error p')?.textContent).toBe(
+      'duelError(Oia, Greece | Fira, Greece)'
+    );
     expect(root.querySelector('.duel-error button')?.textContent).toBe('duelRetry');
     (root.querySelector('.duel-error button') as HTMLButtonElement).click();
     expect(onRetry).toHaveBeenCalledTimes(1);

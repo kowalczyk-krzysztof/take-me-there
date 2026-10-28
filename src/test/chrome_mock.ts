@@ -1,6 +1,29 @@
 // Hand-rolled chrome mock for unit tests: Map-backed storage areas with
-// onChanged dispatch, an echoing i18n, and minimal runtime stubs. No mocking
-// library.
+// onChanged dispatch, a catalog-checked i18n, and minimal runtime stubs. No
+// mocking library.
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const catalog = JSON.parse(
+  readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '../../public/_locales/en/messages.json'),
+    'utf8'
+  )
+) as Record<string, { message: string }>;
+
+export const catalogKeys = (): Set<string> => new Set(Object.keys(catalog));
+
+// Identity-preserving but strict: known keys echo so behavior tests pin the
+// message identity (stable across copy edits), substitutions stay visible so
+// wrong amounts/counts fail, and unknown keys surface as '' like Chrome.
+const getMessage = (key: string, subs?: string | string[]): string => {
+  if (!Object.hasOwn(catalog, key)) {
+    return '';
+  }
+  const list = subs === undefined ? [] : Array.isArray(subs) ? subs : [subs];
+  return list.length === 0 ? key : `${key}(${list.join(' | ')})`;
+};
 export interface MockStorageChange {
   oldValue?: unknown;
   newValue?: unknown;
@@ -122,7 +145,7 @@ export const installChromeMock = (): ChromeMock => {
       },
     },
     i18n: {
-      getMessage: (key: string): string => key,
+      getMessage,
       getUILanguage: (): string => 'en-US',
     },
     commands: { getAll: async (): Promise<Array<{ name?: string }>> => [] },

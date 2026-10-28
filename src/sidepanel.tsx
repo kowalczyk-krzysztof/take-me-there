@@ -449,20 +449,21 @@ const privacyDestination = (): string => {
   return "Meta's Muse API";
 };
 
+const PRIVACY_KEYS: Record<PrivacyMode, string> = {
+  image: 'privacyImage',
+  'image-only': 'privacyImageOnly',
+  'image-pixels': 'privacyImagePixels',
+  scan: 'privacyScan',
+  cache: 'privacyCache',
+  idle: 'privacyIdle',
+  'video-frame': 'privacyVideoFrame',
+  'video-url': 'privacyVideoUrl',
+  board: 'privacyBoard',
+  names: 'privacyNames',
+};
+
 const updatePrivacy = (mode: PrivacyMode): void => {
-  const keys: Record<PrivacyMode, string> = {
-    image: 'privacyImage',
-    'image-only': 'privacyImageOnly',
-    'image-pixels': 'privacyImagePixels',
-    scan: 'privacyScan',
-    cache: 'privacyCache',
-    idle: 'privacyIdle',
-    'video-frame': 'privacyVideoFrame',
-    'video-url': 'privacyVideoUrl',
-    board: 'privacyBoard',
-    names: 'privacyNames',
-  };
-  store.set({ privacy: msg(keys[mode], privacyDestination()) });
+  store.set({ privacy: msg(PRIVACY_KEYS[mode], privacyDestination()) });
 };
 
 const clearCost = (): void => {
@@ -883,6 +884,20 @@ const errorPrivacy = (request: TripRequest | null): PrivacyMode => {
   return 'image';
 };
 
+const ERROR_CARD_KEYS: Record<string, [string, string, string]> = {
+  rate_limited: ['errorRateTitle', 'errorRateBody', 'alertRateLimited'],
+  server: ['errorServerTitle', 'errorServerBody', 'alertServer'],
+  network: ['errorNetworkTitle', 'errorNetworkBody', 'alertNetwork'],
+  invalid_response: ['errorInvalidTitle', 'errorInvalidBody', 'alertInvalidResponse'],
+  stream_error: ['errorStreamTitle', 'errorStreamBody', 'alertStreamError'],
+};
+
+const ERROR_CARD_FALLBACK: [string, string, string] = [
+  'errorServerTitle',
+  'errorServerBody',
+  'alertServer',
+];
+
 const showProviderError = (
   err: unknown,
   request: TripRequest | null,
@@ -936,18 +951,7 @@ const showProviderError = (
     updatePrivacy(privacy);
     return;
   }
-  const titles: Record<string, [string, string, string]> = {
-    rate_limited: ['errorRateTitle', 'errorRateBody', 'alertRateLimited'],
-    server: ['errorServerTitle', 'errorServerBody', 'alertServer'],
-    network: ['errorNetworkTitle', 'errorNetworkBody', 'alertNetwork'],
-    invalid_response: ['errorInvalidTitle', 'errorInvalidBody', 'alertInvalidResponse'],
-    stream_error: ['errorStreamTitle', 'errorStreamBody', 'alertStreamError'],
-  };
-  const [titleKey, bodyKey, alertKey] = titles[err.code] ?? [
-    'errorServerTitle',
-    'errorServerBody',
-    'alertServer',
-  ];
+  const [titleKey, bodyKey, alertKey] = ERROR_CARD_KEYS[err.code] ?? ERROR_CARD_FALLBACK;
   renderErrorCard(titleKey, bodyKey, true, false, null, fetchRetry);
   announceAlert(alertKey);
   updatePrivacy(privacy);

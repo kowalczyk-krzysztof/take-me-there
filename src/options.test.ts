@@ -141,7 +141,9 @@ describe('options', () => {
     (document.querySelector('#compat-input-rate') as HTMLInputElement).value = '1.5';
     (document.querySelector('#compat-save') as HTMLButtonElement).click();
     await waitFor(() => {
-      expect(document.querySelector('#compat-error')?.textContent).toBe('compatHostWarning');
+      expect(document.querySelector('#compat-error')?.textContent).toBe(
+        'compatHostWarning(llm.example.com)'
+      );
     });
     expect(document.querySelector('#compat-save')?.textContent).toBe('compatSaveAnyway');
     expect(permsRequest).not.toHaveBeenCalled();
@@ -200,7 +202,7 @@ describe('options', () => {
     (document.querySelector('#compat-input-rate') as HTMLInputElement).value = '';
     save.click();
     await waitFor(() => {
-      expect(error()).toBe('compatHostWarning');
+      expect(error()).toBe('compatHostWarning(localhost:11434)');
     });
     save.click();
     await waitFor(() => {

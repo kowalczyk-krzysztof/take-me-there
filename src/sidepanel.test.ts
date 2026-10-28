@@ -187,7 +187,7 @@ describe('sidepanel', () => {
     expect(tabMain.getAttribute('aria-selected')).toBe('true');
     (document.querySelector('#result-slot .pin-button') as HTMLButtonElement).click();
     await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned');
+      expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned(Oia | 1)');
     });
     expect(i18n).toHaveBeenCalledWith('boardTitle', '1');
   });
@@ -346,8 +346,10 @@ describe('sidepanel', () => {
     expect(grid?.querySelectorAll('a.tile')).toHaveLength(4);
     const chips = document.querySelector('#sources-slot');
     expect(chips?.querySelectorAll('a.chip')).toHaveLength(1);
-    expect(document.querySelector('#cost-line')?.textContent).toBe('costLine');
-    expect(document.querySelector('#status-region')?.textContent).toBe('statusGuideReadySources');
+    expect(document.querySelector('#cost-line')?.textContent).toBe('costLine($0.004 | $0.004)');
+    expect(document.querySelector('#status-region')?.textContent).toBe(
+      'statusGuideReadySources(1)'
+    );
     const guide = document.querySelector('#guide-content') as HTMLElement;
     expect(guide.getAttribute('lang')).toBe('en-US');
     expect(guide.getAttribute('dir')).toBe('ltr');
@@ -376,7 +378,7 @@ describe('sidepanel', () => {
     await mock.session.set({ tripRequest: READY() });
     await waitForHeading('Oia');
     await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe('statusFoundPlan');
+      expect(document.querySelector('#status-region')?.textContent).toBe('statusFoundPlan(Oia)');
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(document.querySelector('#guide-slot')?.hasAttribute('hidden')).toBe(true);
@@ -384,7 +386,7 @@ describe('sidepanel', () => {
     expect(document.querySelector('#links-slot a.tile')).not.toBeNull();
     const button = document.querySelector('#result-slot .plan-trip-button') as HTMLButtonElement;
     expect(button.textContent).toBe('planTripButton');
-    expect(document.querySelector('#cost-line')?.textContent).toBe('costLine');
+    expect(document.querySelector('#cost-line')?.textContent).toBe('costLine($0.000 | $0.000)');
   });
 
   it('shows the plan button for cached results without a guide', async () => {
@@ -395,7 +397,7 @@ describe('sidepanel', () => {
     await waitForHeading('Oia');
     await mock.session.set({ tripRequest: READY({ requestId: '200-2' }) });
     await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe('statusCacheHit');
+      expect(document.querySelector('#status-region')?.textContent).toBe('statusCacheHit(Oia)');
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(document.querySelector('#guide-slot')?.hasAttribute('hidden')).toBe(true);
@@ -487,7 +489,7 @@ describe('sidepanel', () => {
       expect(document.querySelector('#cost-line')?.textContent).toBe('costLineCache');
     });
     expect(document.querySelector('#guide-content')?.textContent).toContain('Cached guide text.');
-    expect(document.querySelector('#status-region')?.textContent).toBe('statusCacheHit');
+    expect(document.querySelector('#status-region')?.textContent).toBe('statusCacheHit(Oia)');
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -696,7 +698,9 @@ describe('sidepanel', () => {
       messages: Array<{ content: Array<{ image_url?: { url: string } }> }>;
     };
     expect(body.messages[1].content[1].image_url?.url).toBe('data:image/jpeg,frame');
-    expect(document.querySelector('#privacy-line')?.textContent).toBe('privacyVideoFrame');
+    expect(document.querySelector('#privacy-line')?.textContent).toBe(
+      "privacyVideoFrame(Meta's Muse API)"
+    );
   });
 
   it('keeps the video confirm for re-click when the flag write fails', async () => {
@@ -789,7 +793,9 @@ describe('sidepanel', () => {
       messages: Array<{ content: Array<{ type: string }> }>;
     };
     expect(body.messages[1].content[1].type).toBe('video_url');
-    expect(document.querySelector('#privacy-line')?.textContent).toBe('privacyVideoUrl');
+    expect(document.querySelector('#privacy-line')?.textContent).toBe(
+      "privacyVideoUrl(Meta's Muse API)"
+    );
   });
 
   it('pins results to the board with announcements', async () => {
@@ -805,7 +811,7 @@ describe('sidepanel', () => {
     expect(pin.getAttribute('aria-pressed')).toBe('false');
     pin.click();
     await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned');
+      expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned(Oia | 1)');
     });
     expect(
       (card.querySelector('.pin-button') as HTMLButtonElement).getAttribute('aria-pressed')
@@ -820,7 +826,7 @@ describe('sidepanel', () => {
     ).toBe('true');
     (card.querySelector('.pin-button') as HTMLButtonElement).click();
     await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe('statusPinDuplicate');
+      expect(document.querySelector('#status-region')?.textContent).toBe('statusPinDuplicate(Oia)');
     });
     expect(board.querySelectorAll('li')).toHaveLength(1);
     const remove = items[0].querySelector('button') as HTMLButtonElement;
@@ -865,7 +871,7 @@ describe('sidepanel', () => {
     const card = document.querySelector('#result-slot') as HTMLElement;
     (card.querySelector('.pin-button') as HTMLButtonElement).click();
     await waitFor(() => {
-      expect(document.querySelector('#alert-region')?.textContent).toBe('alertPinFail');
+      expect(document.querySelector('#alert-region')?.textContent).toBe('alertPinFail(Oia)');
     });
     const board = document.querySelector('#board-slot') as HTMLElement;
     expect(board.querySelector('.notice')?.textContent).toContain('boardNoticePinFail');
@@ -873,7 +879,7 @@ describe('sidepanel', () => {
     selectBoardTab();
     (board.querySelector('.notice button') as HTMLButtonElement).click();
     await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned');
+      expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned(Oia | 1)');
     });
     const { listPins } = await import('./board_store');
     const pins = await listPins();
@@ -892,12 +898,12 @@ describe('sidepanel', () => {
     const card = document.querySelector('#result-slot') as HTMLElement;
     (card.querySelector('.pin-button') as HTMLButtonElement).click();
     await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned');
+      expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned(Oia | 1)');
     });
     const board = document.querySelector('#board-slot') as HTMLElement;
     selectBoardTab();
     (board.querySelector('.clear-button') as HTMLButtonElement).click();
-    expect(board.querySelector('.confirm-heading')?.textContent).toBe('boardClearTitle');
+    expect(board.querySelector('.confirm-heading')?.textContent).toBe('boardClearTitle(1)');
     const [, cancel] = [
       ...(board.querySelectorAll('.confirm-actions button') ?? []),
     ] as HTMLButtonElement[];
@@ -943,7 +949,7 @@ describe('sidepanel', () => {
     const card = document.querySelector('#result-slot') as HTMLElement;
     (card.querySelector('.pin-button') as HTMLButtonElement).click();
     await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned');
+      expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned(Oia | 1)');
     });
     await mock.session.set({
       tripRequest: READY({
@@ -969,14 +975,16 @@ describe('sidepanel', () => {
     });
     expect(document.querySelector('#tab-main')?.getAttribute('aria-selected')).toBe('true');
     expect(document.querySelector('#board-panel')?.hasAttribute('hidden')).toBe(true);
-    expect(card.querySelector('h2')?.textContent).toBe('itineraryTitle');
+    expect(card.querySelector('h2')?.textContent).toBe('itineraryTitle(2)');
     expect(card.querySelectorAll('.stop-list li')).toHaveLength(2);
     const maps = card.querySelector('.maps-link') as HTMLAnchorElement;
     expect(maps.href).toContain('maps/dir');
     expect(maps.href).toContain('origin=');
     expect(document.querySelector('#guide-content')?.textContent).toContain('Hello world');
-    expect(document.querySelector('#privacy-line')?.textContent).toBe('privacyBoard');
-    expect(document.querySelector('#cost-line')?.textContent).toBe('costLine');
+    expect(document.querySelector('#privacy-line')?.textContent).toBe(
+      "privacyBoard(Meta's Muse API)"
+    );
+    expect(document.querySelector('#cost-line')?.textContent).toBe('costLine($0.004 | $0.004)');
     expect((document.activeElement as HTMLElement)?.tagName).toBe('H2');
     const [, , structure] = fetchMock.mock.calls.map((call) => {
       const init = call[1] as RequestInit;
@@ -1048,7 +1056,7 @@ describe('sidepanel', () => {
       const list = document.querySelector('#result-slot');
       expect(list?.querySelectorAll('.scan-card')).toHaveLength(2);
     });
-    expect(document.querySelector('#status-region')?.textContent).toBe('scanFound');
+    expect(document.querySelector('#status-region')?.textContent).toBe('scanFound(2)');
     const list = document.querySelector('#result-slot');
     const cards = list?.querySelectorAll('.scan-card');
     expect(cards?.[0]?.querySelector('img')?.getAttribute('src')).toBe(
@@ -1057,7 +1065,9 @@ describe('sidepanel', () => {
     expect(cards?.[1]?.querySelector('img')).toBeNull();
     expect(cards?.[1]?.querySelector('.thumb-placeholder')).not.toBeNull();
     expect(cards?.[0]?.querySelector('.pin-button')?.getAttribute('aria-pressed')).toBe('false');
-    expect(document.querySelector('#privacy-line')?.textContent).toBe('privacyScan');
+    expect(document.querySelector('#privacy-line')?.textContent).toBe(
+      "privacyScan(Meta's Muse API)"
+    );
   });
 
   it('ignores handoff records stamped for another window', async () => {
@@ -1362,9 +1372,13 @@ describe('sidepanel', () => {
       expect(table?.querySelectorAll('tbody tr')).toHaveLength(2);
     });
     expect(document.querySelector('#status-region')?.textContent).toBe('duelReady');
-    expect(document.querySelector('#privacy-line')?.textContent).toBe('privacyNames');
+    expect(document.querySelector('#privacy-line')?.textContent).toBe(
+      "privacyNames(Meta's Muse API)"
+    );
     const table = document.querySelector('#duel-slot');
-    expect(table?.querySelector('caption')?.textContent).toBe('duelCaption');
+    expect(table?.querySelector('caption')?.textContent).toBe(
+      'duelCaption(Oia, Greece | Fira, Greece)'
+    );
     expect(table?.querySelector('table')?.getAttribute('aria-busy')).toBe('false');
     const chips = document.querySelector('#sources-slot');
     expect(chips?.querySelectorAll('a.chip')).toHaveLength(1);
@@ -1484,7 +1498,9 @@ describe('sidepanel', () => {
     (card.querySelector('.compare-go') as HTMLButtonElement).click();
     await waitFor(() => {
       const table = document.querySelector('#duel-slot');
-      expect(table?.querySelector('.duel-error p')?.textContent).toBe('duelError');
+      expect(table?.querySelector('.duel-error p')?.textContent).toBe(
+        'duelError(Oia, Greece | Fira, Greece)'
+      );
     });
     expect(card.querySelector('h2')?.textContent).toBe('Oia');
     const table = document.querySelector('#duel-slot') as HTMLElement;
@@ -1522,7 +1538,7 @@ describe('sidepanel', () => {
     expect(chips).toHaveLength(3);
     (chips?.[0] as HTMLButtonElement).click();
     await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe('alternatesReady');
+      expect(document.querySelector('#status-region')?.textContent).toBe('alternatesReady(2)');
     });
     const fresh = document.querySelector('#result-slot') as HTMLElement;
     expect(fresh.querySelectorAll('.alternate-card')).toHaveLength(2);
@@ -1536,7 +1552,9 @@ describe('sidepanel', () => {
       expect((tiles?.[0] as HTMLAnchorElement).href).toContain('Fira');
     });
     expect(document.querySelector('#guide-content')?.textContent).toBe('Hello world');
-    expect(document.querySelector('#privacy-line')?.textContent).toBe('privacyNames');
+    expect(document.querySelector('#privacy-line')?.textContent).toBe(
+      "privacyNames(Meta's Muse API)"
+    );
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
@@ -1560,7 +1578,7 @@ describe('sidepanel', () => {
     const card = document.querySelector('#result-slot') as HTMLElement;
     (card.querySelector('.chips-row .chip') as HTMLButtonElement).click();
     await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe('alternatesReady');
+      expect(document.querySelector('#status-region')?.textContent).toBe('alternatesReady(1)');
     });
     const fresh = document.querySelector('#result-slot') as HTMLElement;
     const pin = fresh.querySelector('.alternate-card .pin-button') as HTMLButtonElement;
@@ -1568,7 +1586,7 @@ describe('sidepanel', () => {
     expect(fresh.querySelector('.alternate-card .thumb-monogram')?.textContent).toBe('F');
     pin.click();
     await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned');
+      expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned(Fira | 1)');
     });
     const board = document.querySelector('#board-slot') as HTMLElement;
     const entries = board.querySelectorAll('li');
@@ -1672,7 +1690,9 @@ describe('sidepanel', () => {
       const retried = document.querySelector('#result-slot');
       expect(retried?.querySelector('h2')?.textContent).toBe('Oia');
     });
-    expect(document.querySelector('#privacy-line')?.textContent).toBe('privacyImagePixels');
+    expect(document.querySelector('#privacy-line')?.textContent).toBe(
+      "privacyImagePixels(Meta's Muse API)"
+    );
     await clickPlanTrip();
     await waitFor(() => {
       expect(document.querySelector('#guide-content')?.textContent).toContain('Hello world');
@@ -1870,7 +1890,7 @@ describe('sidepanel', () => {
     expect(imagePart?.image_url?.url.startsWith('data:image/jpeg;base64,')).toBe(true);
     const preview = document.querySelector('#preview-frame img') as HTMLImageElement;
     expect(preview.src.startsWith('data:image/jpeg;base64,')).toBe(true);
-    expect(preview.alt).toBe('previewAltIdentified');
+    expect(preview.alt).toBe('previewAltIdentified(Oia)');
     expect(document.querySelector('.preview-caption')?.textContent).toBe('samZoomCaption');
   });
 

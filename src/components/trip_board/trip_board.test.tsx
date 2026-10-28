@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { act } from 'react';
 import {
   TripBoard,
   type BoardItemView,
@@ -66,7 +67,7 @@ describe('trip-board', () => {
     const root = renderBoard(ITEMS, true, { onRemovePin }).container;
     const toggle = root.querySelector('.disclosure') as HTMLButtonElement;
     expect(toggle.getAttribute('aria-expanded')).toBe('true');
-    expect(toggle.textContent).toBe('boardTitle');
+    expect(toggle.textContent).toBe('boardTitle(2)');
     const list = root.querySelector('ul');
     expect(list?.getAttribute('aria-labelledby')).toBe('board-heading');
     const entries = [...root.querySelectorAll('li')];
@@ -80,12 +81,16 @@ describe('trip-board', () => {
     const mono = entries[1].querySelector('.thumb-monogram');
     expect(mono?.textContent).toBe('F');
     expect(mono?.getAttribute('aria-hidden')).toBe('true');
-    (entries[0].querySelector('button') as HTMLButtonElement).click();
+    act(() => {
+      (entries[0].querySelector('button') as HTMLButtonElement).click();
+    });
     expect(onRemovePin).toHaveBeenCalledWith({
       placeName: 'Oia',
       country: 'Greece',
     } satisfies TripRemovePinDetail);
-    toggle.click();
+    act(() => {
+      toggle.click();
+    });
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
     expect(root.querySelector('.board-body')?.hasAttribute('hidden')).toBe(true);
   });
@@ -104,7 +109,9 @@ describe('trip-board', () => {
     const plan = root.querySelector('.plan-button') as HTMLButtonElement;
     expect(plan.getAttribute('aria-disabled')).toBe('true');
     expect(root.querySelector('.plan-note')?.textContent).toBe('boardPlanNote');
-    plan.click();
+    act(() => {
+      plan.click();
+    });
     expect(onPlan).not.toHaveBeenCalled();
     rendered.rerender(
       <TripBoard
@@ -120,26 +127,36 @@ describe('trip-board', () => {
     const enabled = root.querySelector('.plan-button') as HTMLButtonElement;
     expect(enabled.hasAttribute('aria-disabled')).toBe(false);
     expect(root.querySelector('.plan-note')).toBeNull();
-    enabled.click();
+    act(() => {
+      enabled.click();
+    });
     expect(onPlan).toHaveBeenCalledTimes(1);
   });
 
   it('confirms clearing inline with focus on the heading', () => {
     const onClearConfirm = vi.fn();
     const root = renderBoard(ITEMS, true, { onClearConfirm }).container;
-    (root.querySelector('.clear-button') as HTMLButtonElement).click();
+    act(() => {
+      (root.querySelector('.clear-button') as HTMLButtonElement).click();
+    });
     const heading = root.querySelector('.confirm-heading') as HTMLHeadingElement;
-    expect(heading.textContent).toBe('boardClearTitle');
+    expect(heading.textContent).toBe('boardClearTitle(2)');
     expect(document.activeElement).toBe(heading);
     const [confirm, cancel] = [
       ...root.querySelectorAll('.confirm-actions button'),
     ] as HTMLButtonElement[];
-    cancel.click();
+    act(() => {
+      cancel.click();
+    });
     expect(onClearConfirm).not.toHaveBeenCalled();
     expect(root.querySelector('ul')).not.toBeNull();
     expect(document.activeElement?.className).toContain('clear-button');
-    (root.querySelector('.clear-button') as HTMLButtonElement).click();
-    (root.querySelectorAll('.confirm-actions button')[0] as HTMLButtonElement).click();
+    act(() => {
+      (root.querySelector('.clear-button') as HTMLButtonElement).click();
+    });
+    act(() => {
+      (root.querySelectorAll('.confirm-actions button')[0] as HTMLButtonElement).click();
+    });
     expect(confirm).not.toBeNull();
     expect(onClearConfirm).toHaveBeenCalledTimes(1);
   });
@@ -162,7 +179,9 @@ describe('trip-board', () => {
     expect(notice.hidden).toBe(false);
     expect(notice.textContent).toContain('boardNoticePinFail');
     expect(notice.querySelector('button')?.textContent).toBe('boardRetryNoThumb');
-    (notice.querySelector('button') as HTMLButtonElement).click();
+    act(() => {
+      (notice.querySelector('button') as HTMLButtonElement).click();
+    });
     expect(onRetryPin).toHaveBeenCalledTimes(1);
     rendered.rerender(
       <TripBoard
