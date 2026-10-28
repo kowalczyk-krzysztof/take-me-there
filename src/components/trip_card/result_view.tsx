@@ -53,19 +53,30 @@ export const ResultView = ({
         {msg('pinButton', place.placeName)}
       </button>
       {planState === 'ready' ? null : (
-        <button
-          type="button"
-          className={styles['plan-trip-button']}
-          aria-disabled={planState === 'planning' || undefined}
-          onClick={() => {
-            if (planState === 'planning') {
-              return;
-            }
-            callbacks.onPlanTrip();
-          }}
-        >
-          {msg(planState === 'planning' ? 'planningButton' : 'planTripButton')}
-        </button>
+        <>
+          <button
+            type="button"
+            className={styles['plan-trip-button']}
+            aria-disabled={planState === 'planning' || undefined}
+            onClick={() => {
+              if (planState === 'planning') {
+                return;
+              }
+              callbacks.onPlanTrip();
+            }}
+          >
+            {msg(
+              planState === 'planning'
+                ? 'planningButton'
+                : planState === 'interrupted'
+                  ? 'startAgainButton'
+                  : 'planTripButton'
+            )}
+          </button>
+          {planState === 'interrupted' ? (
+            <p className={styles['start-again-hint']}>{msg('startAgainHint')}</p>
+          ) : null}
+        </>
       )}
       <ChipsRow alternates={alternates} onAlternates={callbacks.onAlternates} />
       <AlternatesList

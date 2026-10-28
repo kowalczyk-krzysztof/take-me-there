@@ -105,6 +105,11 @@
 .root .plan-trip-button:hover {
   background: var(--link-hover);
 }
+.root .start-again-hint {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
 .root .pin-button[aria-pressed='true'] {
   border-color: var(--link);
   color: var(--link);

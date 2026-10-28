@@ -33,7 +33,7 @@ import { buildDestination, buildLinks, mapsDirUrl } from './deep_links';
 import { downscaleToJpegDataUrl, fetchImageBytes } from './image_fetch';
 import { clearAllKeys, clearKey, isVaultKey, loadKey, saveKey, setKeyMode } from './key_vault';
 import { cropToSamBox, dataUrlToBytes, parseSamBoxes, selectSamBox, type SamPixelBox } from './sam';
-import { estimateCachedSavingUsd, estimateCostUsd, formatUsd } from './pricing';
+import { estimateCachedSavingUsd, estimateCostUsd, formatUsd, readMonthSpend } from './pricing';
 import { createGuideRenderer, findGuideStart } from './render_markdown';
 import {
   GUIDE_MAX_TEXT_CHARS,
@@ -74,6 +74,7 @@ import {
   type ExtensionSettings,
   type GuideSource,
   type Provider,
+  type Usage,
 } from './providers/index';
 import {
   getCacheEntry,
@@ -531,11 +532,18 @@ const priceAndRecord = async (run: RunContext, stage: string): Promise<void> => 
 
   if (usd === null) {
     if (ownsUi(run)) {
+      let monthTotal = 0;
+
+      try {
+        monthTotal = await readMonthSpend();
+      } catch {
+        // The total is stale; the incomplete flag still renders.
+      }
+
       store.set({
-        cost: msg('costLineTokens', [
-          String(run.usage.inputTokens),
-          String(run.usage.outputTokens),
-        ]),
+        cost: run.costComplete
+          ? msg('costLineTokens', [String(run.usage.inputTokens), String(run.usage.outputTokens)])
+          : msg('costIncomplete', [formatUsd(monthTotal)]),
       });
     }
 
@@ -551,6 +559,12 @@ const priceAndRecord = async (run: RunContext, stage: string): Promise<void> => 
   }
 
   if (!ownsUi(run)) {
+    return;
+  }
+
+  if (!run.costComplete) {
+    store.set({ cost: msg('costIncomplete', [formatUsd(monthTotal)]) });
+
     return;
   }
 
@@ -1094,11 +1108,40 @@ const showProviderError = (
   updatePrivacy(privacy);
 };
 
+// Failures before any billable work (auth, missing key, consent, setup,
+// caller aborts) carry no usage honestly: the run figure stays exact.
+// Any other failure without usage means billed tokens went unreported,
+// so the run stops claiming a complete cost.
+const PRE_BILLING_CODES = new Set(['auth', 'no_key', 'consent_required', 'not_configured']);
+
+// An all-zero usage report means the failure carried no billing signal:
+// absorbing it would let the run claim a complete cost it cannot prove.
+const usageIsEmpty = (usage: Usage): boolean =>
+  usage.inputTokens <= 0 &&
+  usage.outputTokens <= 0 &&
+  (usage.cachedInputTokens ?? 0) <= 0 &&
+  usage.searchCount <= 0 &&
+  usage.flatFeesUsd <= 0;
+
 const recordPartialUsage = (run: RunContext, stage: string, err: unknown): void => {
-  if (err instanceof ProviderError && err.usage) {
+  if (err instanceof ProviderError && err.usage && !usageIsEmpty(err.usage)) {
     absorbRunUsage(run, err.usage);
     void priceAndRecord(run, stage);
+
+    return;
   }
+
+  if (err instanceof ProviderError && err.code === 'aborted') {
+    void priceAndRecord(run, stage);
+
+    return;
+  }
+
+  if (!(err instanceof ProviderError) || !PRE_BILLING_CODES.has(err.code)) {
+    run.costComplete = false;
+  }
+
+  void priceAndRecord(run, stage);
 };
 
 interface GuideArgs {
@@ -1474,7 +1517,7 @@ const runGuidePlan = async (): Promise<void> => {
     currentPlanState = 'ready';
     await refreshResultCard();
   } else if (outcome === 'partial') {
-    currentPlanState = 'idle';
+    currentPlanState = 'interrupted';
     await refreshResultCard();
   } else if (outcome === 'error') {
     currentPlanState = 'idle';
@@ -1879,8 +1922,9 @@ const runScanGuide = async (
     return;
   }
 
-  currentPlanState = outcome === 'result' ? 'ready' : 'idle';
-  if (outcome === 'result') {
+  currentPlanState =
+    outcome === 'result' ? 'ready' : outcome === 'partial' ? 'interrupted' : 'idle';
+  if (outcome === 'result' || outcome === 'partial') {
     await refreshResultCard();
   }
 };
@@ -2749,8 +2793,9 @@ const onPlanInstead = async (index: number): Promise<void> => {
     return;
   }
 
-  currentPlanState = outcome === 'result' ? 'ready' : 'idle';
-  if (outcome === 'result') {
+  currentPlanState =
+    outcome === 'result' ? 'ready' : outcome === 'partial' ? 'interrupted' : 'idle';
+  if (outcome === 'result' || outcome === 'partial') {
     await refreshResultCard();
   }
 };

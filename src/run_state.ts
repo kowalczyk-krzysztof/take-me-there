@@ -37,6 +37,7 @@ export interface RunContext {
   usage: Usage;
   recordedUsd: number;
   settledStages: Set<string>;
+  costComplete: boolean;
   cancelled: boolean;
 }
 
@@ -117,6 +118,7 @@ export const createRun = (init: RunInit): RunContext => {
     usage: emptyUsage(),
     recordedUsd: 0,
     settledStages: new Set(),
+    costComplete: true,
     cancelled: false,
   };
 };
@@ -163,6 +165,7 @@ export const startRun = (init: RunInit, options: StartRunOptions = {}): RunConte
   if (options.inheritFrom) {
     run.usage = { ...options.inheritFrom.usage };
     run.recordedUsd = options.inheritFrom.recordedUsd;
+    run.costComplete = options.inheritFrom.costComplete;
   }
 
   active = run;

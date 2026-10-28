@@ -827,9 +827,52 @@ describe('sidepanel', () => {
     expect(document.querySelector('#guide-content')?.textContent).toContain('Hello');
     expect(document.querySelector('#result-slot')?.querySelector('h2')?.textContent).toBe('Oia');
     expect(document.querySelector('#result-slot .plan-trip-button')?.textContent).toBe(
-      'planTripButton'
+      'startAgainButton'
+    );
+    expect(document.querySelector('#result-slot .start-again-hint')?.textContent).toBe(
+      'startAgainHint'
     );
     expect(document.querySelector('#alert-region')?.textContent).toBe('guideInterrupted');
+    // The failed stream reported no usage, so the run cannot claim a cost.
+    expect(document.querySelector('#cost-line')?.textContent).toBe('costIncomplete($0.000)');
+
+    // The partial text stays on screen only: the cache keeps no guide.
+    const cached = [...mock.local.data.entries()].filter(([key]) => key.startsWith('cache:'));
+    expect(cached).toHaveLength(1);
+    expect((cached[0][1] as { entry: { guide: string } }).entry.guide).toBe('');
+  });
+
+  it('starts interrupted guides again with a new request', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    fetchMock
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
+      .mockResolvedValueOnce(
+        sseResponse([
+          'event: response.output_text.delta\n',
+          'data: {"delta":"## Oia\\nHello"}\n',
+          '\n',
+          'data: this unnamed block kills the stream\n',
+          '\n',
+        ])
+      )
+      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
+    await mock.session.set({ [SLOT]: READY() });
+    await clickPlanTrip();
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot .plan-trip-button')?.textContent).toBe(
+        'startAgainButton'
+      );
+    });
+    (document.querySelector('#result-slot .plan-trip-button') as HTMLButtonElement).click();
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe(
+        'statusGuideReadySources(1)'
+      );
+    });
+    expect(document.querySelector('#guide-content')?.textContent).toContain('Hello world');
+    expect(document.querySelector('#result-slot .plan-trip-button')).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it('holds back guide preamble and renders from the heading', async () => {

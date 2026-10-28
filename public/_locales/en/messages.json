@@ -462,6 +462,13 @@
     "message": "from cache - no API cost",
     "description": "Cache-hit cost line."
   },
+  "costIncomplete": {
+    "message": "Cost incomplete · this month ≈ $1",
+    "description": "Cost line when a run's billed usage is unavailable.",
+    "placeholders": {
+      "month": { "content": "$1", "example": "$1.23" }
+    }
+  },
   "privacyImage": {
     "message": "Sent to $1 with your key: this image's address, nearby page text, and the page address",
     "description": "Privacy footer for image analyses.",
@@ -618,6 +625,14 @@
   "planningButton": {
     "message": "Planning trip…",
     "description": "Result card button label while the guide loads."
+  },
+  "startAgainButton": {
+    "message": "Start again",
+    "description": "Result card button that re-runs an interrupted guide."
+  },
+  "startAgainHint": {
+    "message": "Starting again makes a new request.",
+    "description": "Honest cost note under the start-again button."
   },
   "boardPlanNote": {
     "message": "Pin at least 2 places to plan a trip.",

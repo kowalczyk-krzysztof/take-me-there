@@ -49,7 +49,7 @@ export interface TripPlanInsteadDetail {
   index: number;
 }
 
-export type PlanState = 'idle' | 'planning' | 'ready';
+export type PlanState = 'idle' | 'planning' | 'ready' | 'interrupted';
 
 export interface TripCardCallbacks {
   onPin: () => void;

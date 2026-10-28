@@ -431,6 +431,30 @@ describe('trip-card', () => {
     expect(root.querySelector('.plan-trip-button')).toBeNull();
   });
 
+  it('offers start-again with honest copy after an interruption', () => {
+    const onPlanTrip = vi.fn();
+
+    const root = renderCard(
+      {
+        view: 'result',
+        place: PLACE,
+        lowConfidence: false,
+        pinned: false,
+        planState: 'interrupted',
+      },
+      { onPlanTrip }
+    ).container;
+
+    const button = root.querySelector('.plan-trip-button') as HTMLButtonElement;
+    expect(button.textContent).toBe('startAgainButton');
+    expect(button.hasAttribute('aria-disabled')).toBe(false);
+    expect(root.querySelector('.start-again-hint')?.textContent).toBe('startAgainHint');
+    act(() => {
+      button.click();
+    });
+    expect(onPlanTrip).toHaveBeenCalledTimes(1);
+  });
+
   it('renders the pin toggle with pressed state and event', () => {
     const onPin = vi.fn();
 
