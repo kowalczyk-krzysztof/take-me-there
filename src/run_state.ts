@@ -34,6 +34,7 @@ export interface RunContext {
   place: PlaceResult | null;
   destination: string;
   cacheKey: string;
+  guideKey: string;
   usage: Usage;
   recordedUsd: number;
   settledStages: Set<string>;
@@ -115,6 +116,7 @@ export const createRun = (init: RunInit): RunContext => {
     place: init.place ?? null,
     destination: init.destination ?? '',
     cacheKey: init.cacheKey ?? '',
+    guideKey: '',
     usage: emptyUsage(),
     recordedUsd: 0,
     settledStages: new Set(),

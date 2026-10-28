@@ -84,8 +84,10 @@ import {
 } from './providers/index';
 import {
   getCacheEntry,
-  hashCacheKey,
+  hashGuideKey,
+  hashIdentifyKey,
   isAllowedPreviewUrl,
+  normalizeEndpoint,
   setCacheEntry,
   type CacheEntry,
 } from './result_cache';
@@ -1266,8 +1268,8 @@ const runGuide = async (args: GuideArgs): Promise<RunOutcome> => {
   renderer.finish();
   guideSource = finalText;
   store.set({ guideBusy: false, searching: false, resultBusy: false });
-  if (run.cacheKey && run.place) {
-    await setCacheEntry(run.cacheKey, {
+  if (run.guideKey && run.place) {
+    await setCacheEntry(run.guideKey, {
       place: run.place,
       guide: guideSource,
       sources: [...sources],
@@ -1394,6 +1396,34 @@ const runIdentify = async (args: IdentifyArgs): Promise<RunOutcome> => {
     identify.place.city,
     identify.place.country
   );
+  run.guideKey = await guideKeyFor(
+    run.cacheKey,
+    run.destination,
+    run.settings.skipWebSearch !== true
+  );
+
+  const guided = await getCacheEntry(run.guideKey);
+
+  if (!ownsUi(run)) {
+    await priceAndRecord(run, 'identify');
+
+    return 'aborted';
+  }
+
+  if (guided?.guide) {
+    await renderSplitHit(run, identify.place, guided, origin, 'identify');
+
+    if (!ownsUi(run)) {
+      await priceAndRecord(run, 'identify');
+
+      return 'aborted';
+    }
+
+    updatePrivacy(privacy);
+    store.set({ resultBusy: false });
+
+    return 'result';
+  }
   currentPlanState = 'idle';
   commitDisplayed(run, 'result');
   await renderResultHeader(run, identify.place, true, 'statusFoundPlan');
@@ -1458,6 +1488,37 @@ const runGuidePlan = async (): Promise<void> => {
     { inheritFrom: pickInherit(requestId, provider, key), abortSiblings }
   );
   lastRun = { kind: 'guide' };
+  // A completed guide may already exist (finished in another tab, or kept
+  // while the header errored): reuse it instead of streaming again.
+  run.guideKey = run.cacheKey
+    ? await guideKeyFor(run.cacheKey, destination, settings.skipWebSearch !== true)
+    : '';
+
+  if (!ownsUi(run)) {
+    guidePlanning = false;
+    return;
+  }
+
+  if (run.guideKey) {
+    const guided = await getCacheEntry(run.guideKey);
+
+    if (!ownsUi(run)) {
+      guidePlanning = false;
+      return;
+    }
+
+    if (guided?.guide) {
+      guidePlanning = false;
+      selectTab('main', true);
+      await renderSplitHit(run, place, guided, 'panel', 'guide');
+
+      if (!ownsUi(run)) {
+        await priceAndRecord(run, 'guide');
+      }
+
+      return;
+    }
+  }
   currentPlanState = 'planning';
   if (currentView !== 'result') {
     commitDisplayed(run, 'result');
@@ -1494,6 +1555,99 @@ const runGuidePlan = async (): Promise<void> => {
     await refreshResultCard();
   } else if (outcome === 'error') {
     currentPlanState = 'idle';
+  }
+};
+
+const identifyKeyFor = async (run: RunContext, mediaSeed: string): Promise<string> =>
+  hashIdentifyKey({
+    mediaSeed,
+    pageUrl: run.request?.pageUrl ?? '',
+    providerId: run.provider.id,
+    endpoint: normalizeEndpoint(run.provider.id, run.settings.openaiCompat.baseURL),
+    model: run.provider.modelName,
+    imageOnly: run.settings.imageOnly,
+  });
+
+const guideKeyFor = async (
+  identifyKey: string,
+  destination: string,
+  grounded: boolean
+): Promise<string> => hashGuideKey(identifyKey, destination, chrome.i18n.getUILanguage(), grounded);
+
+// Split cache read: the identify entry carries the place, the guide entry
+// (keyed off the identify hash plus destination, language, and grounding)
+// carries a completed guide. Either may hit independently.
+const readSplitCache = async (run: RunContext): Promise<CacheEntry | undefined> => {
+  const placeEntry = await getCacheEntry(run.cacheKey);
+
+  if (!placeEntry || !placeEntry.place.identified) {
+    return placeEntry;
+  }
+
+  run.guideKey = await guideKeyFor(
+    run.cacheKey,
+    buildDestination(placeEntry.place.placeName, placeEntry.place.city, placeEntry.place.country),
+    run.settings.skipWebSearch !== true
+  );
+
+  const guided = await getCacheEntry(run.guideKey);
+
+  return {
+    ...placeEntry,
+    guide: guided?.guide ?? '',
+    sources: guided?.sources ?? [],
+    searchedWeb: guided?.searchedWeb ?? false,
+  };
+};
+
+const paintCachedGuide = (guide: string, sources: GuideSource[]): void => {
+  const content = guideContentEl();
+  if (content && guide) {
+    const renderer = createGuideRenderer(content, msg('truncatedNotice'));
+    renderer.push(guide);
+    renderer.finish();
+    store.set({ guideVisible: true });
+  } else {
+    store.set({ guideVisible: false });
+  }
+  if (sources.length > 0) {
+    showSources(sources);
+  } else {
+    store.set({ sources: [] });
+  }
+};
+
+// A completed guide reused without a new request: full result paint plus
+// an honest cost re-render, since the run may have paid for fresh work.
+const renderSplitHit = async (
+  run: RunContext,
+  place: PlaceResult,
+  guided: CacheEntry,
+  origin: 'gesture' | 'panel',
+  stage: string
+): Promise<void> => {
+  currentPlanState = 'ready';
+  commitDisplayed(run, 'result');
+  await renderResultHeader(run, place, false);
+
+  if (!ownsUi(run)) {
+    return;
+  }
+
+  paintCachedGuide(guided.guide, guided.sources);
+  await priceAndRecord(run, stage);
+
+  if (!ownsUi(run)) {
+    return;
+  }
+
+  if (guided.sources.length > 0) {
+    announceStatus('statusGuideReadySources', String(guided.sources.length));
+  } else {
+    announceStatus('statusGuideReady');
+  }
+  if (origin === 'panel') {
+    focusResultHeading();
   }
 };
 
@@ -1545,20 +1699,7 @@ const renderCached = async (
     store.set({ result: { ...blankResultSlot(), card: props } });
   });
   showLinks(currentDestination);
-  const content = guideContentEl();
-  if (content && entry.guide) {
-    const renderer = createGuideRenderer(content, msg('truncatedNotice'));
-    renderer.push(entry.guide);
-    renderer.finish();
-    store.set({ guideVisible: true });
-  } else {
-    store.set({ guideVisible: false });
-  }
-  if (entry.sources.length > 0) {
-    showSources(entry.sources);
-  } else {
-    store.set({ sources: [] });
-  }
+  paintCachedGuide(entry.guide, entry.sources);
   setPreviewIdentified(entry.place.placeName);
   store.set({ cost: msg('costLineCache') });
   updatePrivacy('cache');
@@ -1631,28 +1772,19 @@ const runVideoAnalysis = async (
     return;
   }
 
-  const keyScope = {
-    pageUrl: request.pageUrl ?? '',
-    providerId: run.provider.id,
-    model: run.provider.modelName,
-    imageOnly: run.settings.imageOnly,
-  };
   if (route.kind === 'frame' && request.frame) {
     updatePreview(request.frame.dataUrl, 'frame');
-    run.cacheKey = await hashCacheKey({
-      ...keyScope,
-      seed: frameCacheSeed(request.frame.time, request.srcUrl),
-    });
+    run.cacheKey = await identifyKeyFor(run, frameCacheSeed(request.frame.time, request.srcUrl));
   } else {
     updatePreview(null);
-    run.cacheKey = await hashCacheKey({ ...keyScope, seed: request.srcUrl });
+    run.cacheKey = await identifyKeyFor(run, request.srcUrl);
   }
 
   if (!ownsUi(run)) {
     return;
   }
 
-  const cached = await getCacheEntry(run.cacheKey);
+  const cached = await readSplitCache(run);
 
   if (!ownsUi(run)) {
     return;
@@ -1844,19 +1976,13 @@ const runScanGuide = async (
     { inheritFrom: pickInherit(request.requestId, provider, key), abortSiblings }
   );
   const privacy: PrivacyMode = settings.imageOnly ? 'image-only' : 'image';
-  run.cacheKey = await hashCacheKey({
-    seed: thumb ?? `scan:${result.placeName},${result.country}`,
-    pageUrl: request.pageUrl ?? '',
-    providerId: provider.id,
-    model: provider.modelName,
-    imageOnly: settings.imageOnly,
-  });
+  run.cacheKey = await identifyKeyFor(run, thumb ?? `scan:${result.placeName},${result.country}`);
 
   if (!ownsUi(run)) {
     return;
   }
 
-  const cached = await getCacheEntry(run.cacheKey);
+  const cached = await readSplitCache(run);
 
   if (!ownsUi(run)) {
     return;
@@ -1878,6 +2004,23 @@ const runScanGuide = async (
   });
 
   if (!ownsUi(run)) {
+    return;
+  }
+
+  run.guideKey = await guideKeyFor(
+    run.cacheKey,
+    run.destination,
+    run.settings.skipWebSearch !== true
+  );
+
+  const guided = await getCacheEntry(run.guideKey);
+
+  if (!ownsUi(run)) {
+    return;
+  }
+
+  if (guided?.guide) {
+    await renderSplitHit(run, result, guided, origin, 'scan');
     return;
   }
 
@@ -2006,19 +2149,13 @@ const runAnalysis = async (request: TripRequest, origin: 'gesture' | 'panel'): P
     updatePrivacy('idle');
     return;
   }
-  run.cacheKey = await hashCacheKey({
-    seed: request.srcUrl,
-    pageUrl: request.pageUrl ?? '',
-    providerId: provider.id,
-    model: provider.modelName,
-    imageOnly: settings.imageOnly,
-  });
+  run.cacheKey = await identifyKeyFor(run, request.srcUrl);
 
   if (!ownsUi(run)) {
     return;
   }
 
-  const cached = await getCacheEntry(run.cacheKey);
+  const cached = await readSplitCache(run);
 
   if (!ownsUi(run)) {
     return;

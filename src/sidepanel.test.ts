@@ -650,6 +650,82 @@ describe('sidepanel', () => {
     expect(text).not.toContain('research Oia');
   });
 
+  it('re-guides without re-identifying after a grounding switch', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    fetchMock
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
+      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]))
+      .mockResolvedValueOnce(
+        sseResponse([
+          'data: {"choices":[{"delta":{"content":"Second guide"}}]}\n\n',
+          'data: {"choices":[{"delta":{}}],"usage":{"prompt_tokens":10,"completion_tokens":5}}\n\ndata: [DONE]\n\n',
+        ])
+      );
+    await mock.session.set({ [SLOT]: READY() });
+    await waitForHeading('Oia');
+    await clickPlanTrip();
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe(
+        'statusGuideReadySources(1)'
+      );
+    });
+
+    await mock.local.set({ settings: { v: 1, settings: { skipWebSearch: true } } });
+    await mock.session.set({ [SLOT]: READY() });
+    await waitForHeading('Oia');
+    await clickPlanTrip();
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+    });
+    await waitFor(() => {
+      expect(document.querySelector('#guide-content')?.textContent).toContain('Second guide');
+    });
+    const [identifyUrl] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const [groundedUrl] = fetchMock.mock.calls[1] as [string, RequestInit];
+    const [chatUrl, chatInit] = fetchMock.mock.calls[2] as [string, RequestInit];
+    expect(identifyUrl).toContain('/chat/completions');
+    expect(groundedUrl).toContain('/responses');
+    expect(chatUrl).toContain('/chat/completions');
+    expect(JSON.stringify(chatInit.body)).not.toContain('image_url');
+  });
+
+  it('re-identifies after an image-only switch', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    fetchMock
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
+      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]))
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
+      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
+    await mock.session.set({ [SLOT]: READY() });
+    await waitForHeading('Oia');
+    await clickPlanTrip();
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe(
+        'statusGuideReadySources(1)'
+      );
+    });
+
+    await mock.local.set({ settings: { v: 1, settings: { imageOnly: true } } });
+    await mock.session.set({ [SLOT]: READY() });
+    await waitForHeading('Oia');
+    await clickPlanTrip();
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(4);
+    });
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe(
+        'statusGuideReadySources(1)'
+      );
+    });
+    const urls = fetchMock.mock.calls.map(([url]) => url as string);
+    expect(urls[0]).toContain('/chat/completions');
+    expect(urls[1]).toContain('/responses');
+    expect(urls[2]).toContain('/chat/completions');
+    expect(urls[3]).toContain('/responses');
+  });
+
   it('caps stored guide text at 256 KiB', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
@@ -674,9 +750,11 @@ describe('sidepanel', () => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusGuideReady');
     });
 
-    const cached = [...mock.local.data.entries()].filter(([key]) => key.startsWith('cache:'));
-    expect(cached).toHaveLength(1);
-    expect((cached[0][1] as { entry: { guide: string } }).entry.guide).toHaveLength(256 * 1024);
+    const cached = [...mock.local.data.entries()]
+      .filter(([key]) => key.startsWith('cache:'))
+      .map(([, value]) => (value as { entry: { guide: string } }).entry);
+    expect(cached).toHaveLength(2);
+    expect(cached.map((entry) => entry.guide.length).sort()).toEqual([0, 256 * 1024]);
   });
 
   it('retries a failed guide without re-running identify', async () => {
@@ -705,20 +783,37 @@ describe('sidepanel', () => {
     const mock = await setup();
     await plantKeyAndConsent();
 
-    const { hashCacheKey, setCacheEntry } = await import('./result_cache');
+    const { hashGuideKey, hashIdentifyKey, normalizeEndpoint, setCacheEntry } =
+      await import('./result_cache');
+    const { buildDestination } = await import('./deep_links');
 
-    const hash = await hashCacheKey({
-      seed: 'https://cdn.example.com/oia.jpg',
+    const identify = await hashIdentifyKey({
+      mediaSeed: 'https://cdn.example.com/oia.jpg',
       pageUrl: 'https://example.com/guide',
       providerId: 'muse',
+      endpoint: normalizeEndpoint('muse', ''),
       model: 'muse-spark-1.3',
       imageOnly: false,
     });
-    await setCacheEntry(hash, {
+    const guide = await hashGuideKey(
+      identify,
+      buildDestination('Oia', 'Oia', 'Greece'),
+      chrome.i18n.getUILanguage(),
+      true
+    );
+    const emptyUsage = { inputTokens: 0, outputTokens: 0, searchCount: 0, flatFeesUsd: 0 };
+    await setCacheEntry(identify, {
+      place: VALID_PLACE,
+      guide: '',
+      sources: [],
+      usage: emptyUsage,
+      searchedWeb: false,
+    });
+    await setCacheEntry(guide, {
       place: VALID_PLACE,
       guide: 'Cached guide text.',
       sources: [],
-      usage: { inputTokens: 0, outputTokens: 0, searchCount: 0, flatFeesUsd: 0 },
+      usage: emptyUsage,
       searchedWeb: false,
     });
     await mock.session.set({ [SLOT]: READY() });

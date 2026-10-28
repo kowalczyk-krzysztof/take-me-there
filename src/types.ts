@@ -21,6 +21,10 @@ export type PlaceResult = z.infer<typeof PLACE_SCHEMA>;
 // separately; this caps memory and stored bytes.
 export const GUIDE_MAX_TEXT_CHARS = 256 * 1024;
 
+// Cache identity input: bump when identify/guide prompts change meaning
+// so stale entries from older prompts stop matching.
+export const PROMPT_VERSION = 1;
+
 // Bounded cache entry: validates stored results on read and outbound
 // writes through the storage commands. Guide text and citations match
 // the transport bounds so a conforming run can never fail validation.

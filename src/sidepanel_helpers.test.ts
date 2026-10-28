@@ -1,10 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   getCacheEntry,
-  hashCacheKey,
+  hashGuideKey,
+  hashIdentifyKey,
   isAllowedPreviewUrl,
+  normalizeEndpoint,
   setCacheEntry,
   type CacheEntry,
+  type IdentifyKeyParts,
 } from './result_cache';
 import { isLoopbackHttp } from './sidepanel';
 import { installChromeMock, uninstallChromeMock } from './test/chrome_mock';
@@ -64,30 +67,72 @@ describe('preview allowlist', () => {
 });
 
 describe('cache key hashing', () => {
-  const parts = {
-    seed: 'https://cdn.example.com/oia.jpg',
+  const parts: IdentifyKeyParts = {
+    mediaSeed: 'https://cdn.example.com/oia.jpg',
     pageUrl: 'https://example.com/g',
     providerId: 'muse',
+    endpoint: normalizeEndpoint('muse', ''),
     model: 'muse-spark-1.3',
     imageOnly: false,
   };
 
   it('hashes deterministically to 64 hex chars', async () => {
-    const first = await hashCacheKey(parts);
+    const first = await hashIdentifyKey(parts);
 
-    const second = await hashCacheKey(parts);
+    const second = await hashIdentifyKey(parts);
     expect(first).toBe(second);
     expect(first).toMatch(/^[0-9a-f]{64}$/);
-    expect(await hashCacheKey({ ...parts, seed: 'https://cdn.example.com/other.jpg' })).not.toBe(
-      first
-    );
+    expect(
+      await hashIdentifyKey({ ...parts, mediaSeed: 'https://cdn.example.com/other.jpg' })
+    ).not.toBe(first);
   });
 
-  it('scopes keys by provider, model, and image-only mode', async () => {
-    const base = await hashCacheKey(parts);
-    expect(await hashCacheKey({ ...parts, providerId: 'openai_compat' })).not.toBe(base);
-    expect(await hashCacheKey({ ...parts, model: 'other-model' })).not.toBe(base);
-    expect(await hashCacheKey({ ...parts, imageOnly: true })).not.toBe(base);
+  it('scopes keys by provider, endpoint, model, and image-only mode', async () => {
+    const base = await hashIdentifyKey(parts);
+    expect(await hashIdentifyKey({ ...parts, providerId: 'openai_compat' })).not.toBe(base);
+    expect(
+      await hashIdentifyKey({
+        ...parts,
+        providerId: 'openai_compat',
+        endpoint: normalizeEndpoint('openai_compat', 'https://llm.example.com/v1'),
+      })
+    ).not.toBe(base);
+    expect(await hashIdentifyKey({ ...parts, model: 'other-model' })).not.toBe(base);
+    expect(await hashIdentifyKey({ ...parts, imageOnly: true })).not.toBe(base);
+  });
+
+  it('normalizes equivalent custom endpoints together', () => {
+    expect(normalizeEndpoint('muse', '')).toBe('muse');
+    expect(normalizeEndpoint('openai_compat', 'https://LLM.example.com/v1/')).toBe(
+      normalizeEndpoint('openai_compat', 'https://llm.example.com/v1')
+    );
+    expect(normalizeEndpoint('openai_compat', 'https://llm.example.com/v1')).not.toBe(
+      normalizeEndpoint('openai_compat', 'https://llm.example.com/v2')
+    );
+    expect(normalizeEndpoint('openai_compat', 'not a url')).toBe('not a url');
+  });
+
+  it('keys guides off identify plus destination, language, and grounding', async () => {
+    const identify = await hashIdentifyKey(parts);
+    const base = await hashGuideKey(identify, 'Oia, Greece', 'en-US', true);
+    expect(await hashGuideKey(identify, 'Oia, Greece', 'en-US', true)).toBe(base);
+    expect(
+      await hashGuideKey(
+        await hashIdentifyKey({ ...parts, model: 'other' }),
+        'Oia, Greece',
+        'en-US',
+        true
+      )
+    ).not.toBe(base);
+    expect(await hashGuideKey(identify, 'Fira, Greece', 'en-US', true)).not.toBe(base);
+    expect(await hashGuideKey(identify, 'Oia, Greece', 'de', true)).not.toBe(base);
+    expect(await hashGuideKey(identify, 'Oia, Greece', 'en-US', false)).not.toBe(base);
+  });
+
+  it('keeps query-selected videos apart', async () => {
+    const a = await hashIdentifyKey({ ...parts, mediaSeed: 'https://example.com/video?id=A#t=1' });
+    const b = await hashIdentifyKey({ ...parts, mediaSeed: 'https://example.com/video?id=B#t=1' });
+    expect(a).not.toBe(b);
   });
 });
 

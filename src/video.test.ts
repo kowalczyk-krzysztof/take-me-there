@@ -56,7 +56,10 @@ describe('frameCacheSeed', () => {
       frameCacheSeed(12.9, 'https://cdn.example.com/a.mp4')
     );
     expect(frameCacheSeed(5, 'https://cdn.example.com/a.mp4?sig=abc#frag')).toBe(
-      'https://cdn.example.com/a.mp4#t=5'
+      'https://cdn.example.com/a.mp4?sig=abc#t=5'
+    );
+    expect(frameCacheSeed(5, 'https://cdn.example.com/a.mp4?id=A')).not.toBe(
+      frameCacheSeed(5, 'https://cdn.example.com/a.mp4?id=B')
     );
   });
 });

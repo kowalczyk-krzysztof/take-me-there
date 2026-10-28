@@ -66,12 +66,13 @@ export const isMp4RungUsable = (srcUrl: string): boolean => {
 
 // Frame cache key seed: the blob: address is unstable across loads, so the
 // key is the page plus the whole-second timestamp of the captured frame.
+// Query parameters survive: /video?id=A and /video?id=B are different
+// videos sharing a page.
 export const frameCacheSeed = (time: number, srcUrl: string): string => {
   let stripped = srcUrl;
 
   try {
     const parsed = new URL(srcUrl);
-    parsed.search = '';
     parsed.hash = '';
     stripped = parsed.toString();
   } catch {

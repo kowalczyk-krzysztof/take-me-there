@@ -1,5 +1,5 @@
 import * as z from 'zod/mini';
-import { CACHE_ENTRY_SCHEMA } from './types';
+import { CACHE_ENTRY_SCHEMA, PROMPT_VERSION } from './types';
 import { sendCommand } from './storage_client';
 
 const MAX_PREVIEW_DATA_URL = 2000000;
@@ -26,31 +26,75 @@ export const isAllowedPreviewUrl = (srcUrl: string): boolean => {
   }
 };
 
-export const CACHE_VERSION = 1;
+export const CACHE_VERSION = 2;
 
-export interface CacheKeyParts {
-  seed: string;
+export interface IdentifyKeyParts {
+  mediaSeed: string;
   pageUrl: string;
   providerId: string;
+  endpoint: string;
   model: string;
   imageOnly: boolean;
 }
 
-export const hashCacheKey = async (parts: CacheKeyParts): Promise<string> => {
-  const fields = [
+// Identify-cache identity: schema/prompt version, provider, normalized
+// endpoint, model, image-only mode, and media identity. Everything hashes;
+// raw identity fields are never stored.
+export const hashIdentifyKey = async (parts: IdentifyKeyParts): Promise<string> =>
+  hashFields([
     String(CACHE_VERSION),
+    'identify',
+    String(PROMPT_VERSION),
     parts.providerId,
+    parts.endpoint,
     parts.model,
     parts.imageOnly ? 'image-only' : 'full',
-    parts.seed,
+    parts.mediaSeed,
     parts.pageUrl,
-  ];
+  ]);
 
+// Guide-cache identity derives from the identify key plus destination,
+// effective language, and grounding mode, so a language or cheap-mode
+// switch re-guides without re-identifying.
+export const hashGuideKey = async (
+  identifyKey: string,
+  destination: string,
+  language: string,
+  grounded: boolean
+): Promise<string> =>
+  hashFields([
+    String(CACHE_VERSION),
+    'guide',
+    String(PROMPT_VERSION),
+    identifyKey,
+    destination,
+    language,
+    grounded ? 'grounded' : 'chat',
+  ]);
+
+const hashFields = async (fields: string[]): Promise<string> => {
   const encoded = fields.map((field) => `${field.length}:${field}`).join('');
 
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(encoded));
 
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+};
+
+// Endpoint normalization for cache identity: the fixed Muse host folds to
+// one value; custom endpoints normalize to origin plus path so equivalent
+// spellings share entries.
+export const normalizeEndpoint = (providerId: string, baseURL: string): string => {
+  if (providerId !== 'openai_compat') {
+    return 'muse';
+  }
+
+  try {
+    const parsed = new URL(baseURL);
+
+    return `${parsed.origin}${parsed.pathname.replace(/\/+$/, '')}`;
+  } catch {
+    return baseURL;
+  }
 };
 
 export const cacheKeyFor = (hash: string): string => `cache:${hash}`;
