@@ -15,6 +15,7 @@ export const ChipsRow = ({ alternates, onAlternates }: Props) => {
   ];
   return (
     <div className={styles['chips-row']}>
+      <span className={styles['chips-label']}>{msg('alternatesLabel')}</span>
       {intents.map(({ intent, key }) => {
         const busy = alternates.state === 'loading' && alternates.intent === intent;
         return (

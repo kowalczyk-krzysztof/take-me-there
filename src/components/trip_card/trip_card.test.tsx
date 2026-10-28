@@ -82,11 +82,11 @@ describe('trip-card', () => {
       { onReanalyze },
     );
     expect(root.querySelector('.badge')?.textContent).toBe('bestGuessBadge');
-    expect(root.querySelector('summary')?.textContent).toBe('notThisPlace');
-
-    const buttons = [...root.querySelectorAll('.disagree-buttons button')];
-    expect(buttons).toHaveLength(1);
-    (buttons[0] as HTMLButtonElement).click();
+    const disagree = root.querySelector('.disagree-row') as HTMLElement;
+    expect(disagree.querySelector('span')?.textContent).toBe('notThisPlace');
+    const button = disagree.querySelector('button') as HTMLButtonElement;
+    expect(button.textContent).toBe('reanalyzeButton');
+    button.click();
     expect(onReanalyze).toHaveBeenCalledTimes(1);
   });
 
@@ -124,6 +124,7 @@ describe('trip-card', () => {
     ).container;
     const chips = root.querySelectorAll('.chips-row .chip');
     expect(chips).toHaveLength(3);
+    expect(root.querySelector('.chips-label')?.textContent).toBe('alternatesLabel');
     expect(chips[0]?.textContent).toBe('alternatesCheaper');
     expect(chips[0]?.hasAttribute('aria-pressed')).toBe(false);
     (chips[1] as HTMLButtonElement).click();
@@ -211,14 +212,19 @@ describe('trip-card', () => {
     expect(onPinAlternate).toHaveBeenCalledWith(0);
   });
 
-  it('renders the compare picker only with options', () => {
+  it('disables the compare picker without options', () => {
     const onCompare = vi.fn();
     const rendered = renderCard(
       { view: 'result', place: PLACE, lowConfidence: false, pinned: false, planState: 'ready' },
       { onCompare },
     );
     const root = rendered.container;
-    expect(root.querySelector('.compare-row')).toBeNull();
+    const empty = root.querySelector('.compare-row') as HTMLElement;
+    expect(empty.querySelector('select')?.hasAttribute('disabled')).toBe(true);
+    expect(empty.querySelector('option')?.textContent).toBe('compareEmpty');
+    expect(empty.querySelector('.compare-go')?.hasAttribute('disabled')).toBe(true);
+    (empty.querySelector('.compare-go') as HTMLButtonElement).click();
+    expect(onCompare).not.toHaveBeenCalled();
     rerenderCard(
       rendered,
       {

@@ -102,6 +102,13 @@ main {
   color: var(--text);
 }
 
+#booking-heading,
+#guide-heading,
+#sources-heading {
+  font-size: 15px;
+  margin: 4px 0 8px;
+}
+
 #guide-content {
   display: flex;
   flex-direction: column;

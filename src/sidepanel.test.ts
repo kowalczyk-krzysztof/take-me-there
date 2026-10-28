@@ -1126,12 +1126,12 @@ describe('sidepanel', () => {
     expect(card.querySelector('.compare-row option')?.textContent).toBe('Fira, Greece');
     (card.querySelector('.compare-go') as HTMLButtonElement).click();
     await waitFor(() => {
-      const table = document.querySelector('#guide-slot');
+      const table = document.querySelector('#duel-slot');
       expect(table?.querySelectorAll('tbody tr')).toHaveLength(2);
     });
     expect(document.querySelector('#status-region')?.textContent).toBe('duelReady');
     expect(document.querySelector('#privacy-line')?.textContent).toBe('privacyNames');
-    const table = document.querySelector('#guide-slot');
+    const table = document.querySelector('#duel-slot');
     expect(table?.querySelector('caption')?.textContent).toBe('duelCaption');
     expect(table?.querySelector('table')?.getAttribute('aria-busy')).toBe('false');
     const chips = document.querySelector('#sources-slot');
@@ -1166,7 +1166,7 @@ describe('sidepanel', () => {
     const card = document.querySelector('#result-slot') as HTMLElement;
     (card.querySelector('.compare-go') as HTMLButtonElement).click();
     await waitFor(() => {
-      const table = document.querySelector('#guide-slot');
+      const table = document.querySelector('#duel-slot');
       expect(table?.querySelectorAll('tbody tr')).toHaveLength(2);
     });
     expect(fetchMock).toHaveBeenCalledTimes(3);
@@ -1200,14 +1200,14 @@ describe('sidepanel', () => {
     const card = document.querySelector('#result-slot') as HTMLElement;
     (card.querySelector('.compare-go') as HTMLButtonElement).click();
     await waitFor(() => {
-      const table = document.querySelector('#guide-slot');
+      const table = document.querySelector('#duel-slot');
       expect(table?.querySelector('.duel-error p')?.textContent).toBe('duelError');
     });
     expect(card.querySelector('h2')?.textContent).toBe('Oia');
-    const table = document.querySelector('#guide-slot') as HTMLElement;
+    const table = document.querySelector('#duel-slot') as HTMLElement;
     (table.querySelector('.duel-error button') as HTMLButtonElement).click();
     await waitFor(() => {
-      const retried = document.querySelector('#guide-slot');
+      const retried = document.querySelector('#duel-slot');
       expect(retried?.querySelectorAll('tbody tr')).toHaveLength(2);
     });
     expect(fetchMock).toHaveBeenCalledTimes(5);
@@ -1340,7 +1340,7 @@ describe('sidepanel', () => {
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('compareStale');
     });
-    expect(document.querySelector('#guide-slot table')).toBeNull();
+    expect(document.querySelector('#duel-slot table')).toBeNull();
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 

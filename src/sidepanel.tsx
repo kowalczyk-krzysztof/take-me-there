@@ -2099,7 +2099,7 @@ const runDuel = async (
     announceStatus('statusConsentNeeded');
     return;
   }
-  store.set({ guideVisible: true, duel: { mode: 'loading', a: aTitle, b: bTitle } });
+  store.set({ duel: { mode: 'loading', a: aTitle, b: bTitle } });
   announceStatus('duelStatus', [a.name, b.name]);
   let result;
   try {
@@ -2909,19 +2909,23 @@ const SidepanelApp = () => {
         ) : null}
       </div>
       <div id="links-slot" hidden={state.links === null || undefined}>
+        <h2 id="booking-heading">{msg('bookingHeading')}</h2>
         {state.links !== null ? <BookingGrid destination={state.links} /> : null}
       </div>
       <div id="guide-slot" hidden={!state.guideVisible || undefined}>
+        <h2 id="guide-heading">{msg('guideHeading')}</h2>
         <p id="search-line" hidden={!state.searching || undefined}>
           {state.searching ? msg('statusSearchingWeb') : null}
         </p>
         <div id="guide-content" aria-busy={state.guideBusy || undefined} />
+      </div>
+      <div id="duel-slot" hidden={state.duel === null || undefined}>
         {state.duel ? (
           <CompareTable table={state.duel} onRetry={() => void onDuelRetry()} />
         ) : null}
       </div>
       <div id="sources-slot" hidden={state.sources.length === 0 || undefined}>
-        <h3 id="sources-heading" className="visually-hidden">{msg('sourcesHeading')}</h3>
+        <h2 id="sources-heading">{msg('sourcesHeading')}</h2>
         <SourceChips sources={state.sources} />
       </div>
       </section>

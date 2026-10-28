@@ -33,15 +33,13 @@
   font-size: 13px;
   margin: 8px 0 0;
   min-height: 20px;
-}.root details { margin-top: 8px; }.root summary {
-  cursor: pointer;
-  color: var(--muted);
-  font-size: 13px;
-}.root .disagree-buttons {
+}.root .disagree-row {
   display: flex;
   gap: 8px;
+  align-items: center;
   margin-top: 8px;
-  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--muted);
 }.root button {
   font: inherit;
   padding: 8px 14px;
@@ -92,7 +90,11 @@
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  align-items: center;
   margin-top: 8px;
+}.root .chips-label {
+  font-size: 13px;
+  color: var(--muted);
 }.root .chip {
   border-radius: 999px;
   padding: 6px 12px;

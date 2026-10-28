@@ -58,15 +58,13 @@ export const ResultView = ({
       )}
       <ChipsRow alternates={alternates} onAlternates={callbacks.onAlternates} />
       <AlternatesList alternates={alternates} onPinAlternate={callbacks.onPinAlternate} onPlanInstead={callbacks.onPlanInstead} />
-      {compareOptions.length > 0 ? <CompareRow options={compareOptions} onCompare={callbacks.onCompare} /> : null}
-      <details>
-        <summary>{msg('notThisPlace')}</summary>
-        <div className={styles['disagree-buttons']}>
-          <button type="button" onClick={callbacks.onReanalyze}>
-            {msg('reanalyzeButton')}
-          </button>
-        </div>
-      </details>
+      <CompareRow options={compareOptions} onCompare={callbacks.onCompare} />
+      <div className={styles['disagree-row']}>
+        <span>{msg('notThisPlace')}</span>
+        <button type="button" onClick={callbacks.onReanalyze}>
+          {msg('reanalyzeButton')}
+        </button>
+      </div>
     </>
   );
 };

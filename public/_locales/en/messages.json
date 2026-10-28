@@ -211,7 +211,7 @@
     "description": "Look-again button loading state."
   },
   "reanalyzeButton": {
-    "message": "Re-analyze",
+    "message": "Analyze again",
     "description": "Wrong-place re-analysis button."
   },
   "notThisPlace": {
@@ -396,6 +396,14 @@
   "guideInterrupted": {
     "message": "Guide interrupted.",
     "description": "Notice kept with partial guide text."
+  },
+  "guideHeading": {
+    "message": "Trip guide",
+    "description": "Guide section heading."
+  },
+  "bookingHeading": {
+    "message": "Book your trip",
+    "description": "Booking links section heading."
   },
   "noPlaceTitle": {
     "message": "Couldn't spot a specific place in this photo",
@@ -682,20 +690,28 @@
     "message": "Compare",
     "description": "Duel picker Go button."
   },
+  "compareEmpty": {
+    "message": "Nothing to compare yet",
+    "description": "Disabled duel picker text when the board holds no other place."
+  },
+  "alternatesLabel": {
+    "message": "Find alternatives",
+    "description": "Label above the alternates intent chips."
+  },
   "compareStale": {
     "message": "That place is no longer on the board.",
     "description": "Announcement when a duel target vanished."
   },
   "alternatesCheaper": {
-    "message": "Cheaper alternatives",
+    "message": "Cheaper",
     "description": "Cheaper intent chip."
   },
   "alternatesQuieter": {
-    "message": "Quieter alternatives",
+    "message": "Quieter",
     "description": "Quieter intent chip."
   },
   "alternatesSimilar": {
-    "message": "Similar-vibe alternatives",
+    "message": "Similar",
     "description": "Similar-vibe intent chip."
   },
   "alternatesFindingCheaper": {
