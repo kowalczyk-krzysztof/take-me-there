@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { chatResponse, groundedResponse, sseResponse } from '../test/helpers';
 import {
+  HEADER_TIMEOUT_MS,
   ProviderError,
   STRICT_REMINDER,
   setConsented,
@@ -503,6 +504,117 @@ describe('muse streamGuide', () => {
     await expect(collect(provider.streamGuide('LLM_key', input()))).rejects.toMatchObject({
       code: 'stream_error',
     });
+  });
+
+  it('treats EOF before response.completed as an interruption', async () => {
+    await consented();
+    fetchMock.mockResolvedValue(
+      sseResponse([
+        'event: response.web_search_call.completed\n',
+        'data: {}\n',
+        '\n',
+        'event: response.output_text.delta\n',
+        'data: {"delta":"partial"}\n',
+        '\n',
+      ])
+    );
+
+    await expect(collect(provider.streamGuide('LLM_key', input()))).rejects.toMatchObject({
+      code: 'stream_error',
+      retryable: true,
+      usage: { searchCount: 1 },
+    });
+  });
+
+  it('banks terminal usage before failed and incomplete status', async () => {
+    await consented();
+    fetchMock.mockResolvedValue(
+      sseResponse([
+        'event: response.failed\n',
+        'data: {"response":{"error":{"message":"boom"},"usage":{"input_tokens":40,"output_tokens":12}}}\n',
+        '\n',
+      ])
+    );
+    await expect(collect(provider.streamGuide('LLM_key', input()))).rejects.toMatchObject({
+      code: 'server',
+      usage: { inputTokens: 40, outputTokens: 12 },
+    });
+    fetchMock.mockResolvedValue(
+      sseResponse([
+        'event: response.incomplete\n',
+        'data: {"response":{"incomplete_details":{"reason":"max_output_tokens"},"usage":{"input_tokens":50,"output_tokens":20}}}\n',
+        '\n',
+      ])
+    );
+    await expect(collect(provider.streamGuide('LLM_key', input()))).rejects.toMatchObject({
+      code: 'invalid_response',
+      usage: { inputTokens: 50, outputTokens: 20 },
+    });
+  });
+
+  it('rejects non-completed completed statuses', async () => {
+    await consented();
+    fetchMock.mockResolvedValue(
+      sseResponse([
+        'event: response.completed\n',
+        'data: {"response":{"status":"cancelled","usage":{"input_tokens":3,"output_tokens":1}}}\n',
+        '\n',
+      ])
+    );
+    await expect(collect(provider.streamGuide('LLM_key', input()))).rejects.toMatchObject({
+      code: 'invalid_response',
+      usage: { inputTokens: 3, outputTokens: 1 },
+    });
+  });
+
+  it('caps citations at 32', async () => {
+    await consented();
+
+    const chunks: string[] = [];
+    for (let i = 0; i < 40; i += 1) {
+      chunks.push(
+        'event: response.output_text.annotation.added\n' +
+          `data: {"annotation":{"type":"url_citation","url":"https://example.com/${i}","title":"T${i}"}}\n` +
+          '\n'
+      );
+    }
+    chunks.push(
+      'event: response.completed\n',
+      'data: {"response":{"status":"completed","usage":{"input_tokens":10,"output_tokens":5}}}\n',
+      '\n'
+    );
+    fetchMock.mockResolvedValue(sseResponse(chunks));
+
+    const events = await collect(provider.streamGuide('LLM_key', input()));
+    const sources = events.find((event) => event.type === 'sources');
+    expect(sources).toMatchObject({ sources: expect.any(Array) });
+    expect((sources as { sources: unknown[] }).sources).toHaveLength(32);
+  });
+
+  it('fails stalled responses headers', async () => {
+    vi.useFakeTimers();
+    try {
+      await consented();
+      fetchMock.mockImplementation(
+        (_url: string, init: { signal: AbortSignal }) =>
+          new Promise<never>((_resolve, reject) => {
+            init.signal.addEventListener('abort', () => {
+              reject(new DOMException('aborted', 'AbortError'));
+            });
+          })
+      );
+
+      const pending = collect(provider.streamGuide('LLM_key', input()));
+
+      const assertion = expect(pending).rejects.toMatchObject({
+        code: 'stream_error',
+        retryable: true,
+      });
+      await vi.advanceTimersByTimeAsync(HEADER_TIMEOUT_MS);
+      await assertion;
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('maps non-2xx responses and enforces key plus consent', async () => {

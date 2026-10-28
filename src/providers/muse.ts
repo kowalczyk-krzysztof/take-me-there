@@ -12,6 +12,7 @@ import {
   ProviderError,
   PROMPT_CACHE_KEY,
   PROMPT_CACHE_RETENTION,
+  GUIDE_MAX_CITATIONS,
   SSE_MAX_BUFFER,
   STRICT_REMINDER,
   assertConsent,
@@ -34,6 +35,7 @@ import {
   parseItineraryPlan,
   parseScanBatch,
   postChatStream,
+  postStreamHeaders,
   readStall,
   fetchTimeout,
   absorbUsage,
@@ -77,6 +79,35 @@ const IDENTIFY_MAX_TOKENS = 2048;
 const GUIDE_MAX_TOKENS = 4096;
 
 const ITINERARY_MAX_TOKENS = 4096;
+
+interface ResponsesUsagePayload {
+  input_tokens?: unknown;
+  output_tokens?: unknown;
+  input_tokens_details?: { cached_tokens?: unknown };
+}
+
+// Bank terminal tokens before handling the terminal status: failed and
+// incomplete responses bill what they consumed, and the panel settles
+// from the error's usage.
+const absorbResponsesUsage = (payload: unknown, usage: Usage): void => {
+  const nested = (payload as { response?: { usage?: ResponsesUsagePayload } })?.response?.usage;
+
+  const usagePayload = nested ?? (payload as { usage?: ResponsesUsagePayload })?.usage;
+
+  if (!usagePayload || typeof usagePayload.input_tokens !== 'number') {
+    return;
+  }
+
+  usage.inputTokens += usagePayload.input_tokens;
+  usage.outputTokens +=
+    typeof usagePayload.output_tokens === 'number' ? usagePayload.output_tokens : 0;
+
+  const cached = usagePayload.input_tokens_details?.cached_tokens;
+
+  if (typeof cached === 'number' && cached > 0) {
+    usage.cachedInputTokens = (usage.cachedInputTokens ?? 0) + cached;
+  }
+};
 
 export class MuseProvider implements Provider {
   readonly id = 'muse';
@@ -671,32 +702,26 @@ export class MuseProvider implements Provider {
     prompt: string,
     signal: AbortSignal
   ): AsyncGenerator<GuideEvent, void, void> {
-    let res: Response;
-
-    try {
-      res = await fetch(`${API_BASE}/responses`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-        body: JSON.stringify({
-          model: MODEL,
-          prompt_cache_key: PROMPT_CACHE_KEY,
-          prompt_cache_retention: PROMPT_CACHE_RETENTION,
-          input: [
-            {
-              type: 'message',
-              role: 'user',
-              content: [{ type: 'input_text', text: prompt }],
-            },
-          ],
-          tools: [{ type: 'web_search', search_context_size: 'low' }],
-          max_output_tokens: GUIDE_MAX_TOKENS,
-          stream: true,
-        }),
-        signal,
-      });
-    } catch (err) {
-      throw toNetworkError(err, signal);
-    }
+    const res = await postStreamHeaders(
+      `${API_BASE}/responses`,
+      key,
+      {
+        model: MODEL,
+        prompt_cache_key: PROMPT_CACHE_KEY,
+        prompt_cache_retention: PROMPT_CACHE_RETENTION,
+        input: [
+          {
+            type: 'message',
+            role: 'user',
+            content: [{ type: 'input_text', text: prompt }],
+          },
+        ],
+        tools: [{ type: 'web_search', search_context_size: 'low' }],
+        max_output_tokens: GUIDE_MAX_TOKENS,
+        stream: true,
+      },
+      signal
+    );
 
     if (!res.ok) {
       throw responseError(res);
@@ -713,6 +738,10 @@ export class MuseProvider implements Provider {
     const seenUrls = new Set<string>();
 
     let announcedSearching = false;
+
+    // The stream is complete only on a successful response.completed:
+    // EOF before it is an interruption, never a clean end.
+    let completed = false;
 
     const parser = decodeStream(res.body).pipeThrough(
       new EventSourceParserStream({ maxBufferSize: SSE_MAX_BUFFER, onError: 'terminate' })
@@ -785,6 +814,7 @@ export class MuseProvider implements Provider {
             annotation?.type === 'url_citation' &&
             typeof annotation.url === 'string' &&
             annotation.url &&
+            sources.length < GUIDE_MAX_CITATIONS &&
             !seenUrls.has(annotation.url)
           ) {
             seenUrls.add(annotation.url);
@@ -809,6 +839,8 @@ export class MuseProvider implements Provider {
             yield { type: 'searching' };
           }
         } else if (name === 'response.failed') {
+          absorbResponsesUsage(payload, usage);
+
           const error = (payload as { response?: { error?: { message?: unknown } } })?.response
             ?.error;
 
@@ -820,6 +852,8 @@ export class MuseProvider implements Provider {
             true
           );
         } else if (name === 'response.incomplete') {
+          absorbResponsesUsage(payload, usage);
+
           const details = (payload as { response?: { incomplete_details?: { reason?: unknown } } })
             ?.response?.incomplete_details;
 
@@ -836,52 +870,30 @@ export class MuseProvider implements Provider {
             (payload as { status?: unknown })?.status;
 
           if (terminal === 'failed') {
+            absorbResponsesUsage(payload, usage);
+
             throw new ProviderError('server', 'guide failed', true);
           }
 
-          if (terminal === 'incomplete') {
-            throw new ProviderError('invalid_response', 'guide incomplete', false);
+          if (terminal !== undefined && terminal !== 'completed') {
+            absorbResponsesUsage(payload, usage);
+
+            const reason = typeof terminal === 'string' ? terminal : 'unknown';
+
+            throw new ProviderError('invalid_response', `guide incomplete: ${reason}`, false);
           }
 
-          const tokens = (payload as { response?: { usage?: unknown }; usage?: unknown })?.response;
+          absorbResponsesUsage(payload, usage);
 
-          const usagePayload =
-            (
-              tokens as
-                | {
-                    usage?: {
-                      input_tokens?: unknown;
-                      output_tokens?: unknown;
-                      input_tokens_details?: { cached_tokens?: unknown };
-                    };
-                  }
-                | undefined
-            )?.usage ??
-            (
-              payload as {
-                usage?: {
-                  input_tokens?: unknown;
-                  output_tokens?: unknown;
-                  input_tokens_details?: { cached_tokens?: unknown };
-                };
-              }
-            )?.usage;
-
-          if (usagePayload && typeof usagePayload.input_tokens === 'number') {
-            usage.inputTokens += usagePayload.input_tokens;
-            usage.outputTokens +=
-              typeof usagePayload.output_tokens === 'number' ? usagePayload.output_tokens : 0;
-
-            const cached = usagePayload.input_tokens_details?.cached_tokens;
-
-            if (typeof cached === 'number' && cached > 0) {
-              usage.cachedInputTokens = (usage.cachedInputTokens ?? 0) + cached;
-            }
-          }
+          completed = true;
 
           break;
         }
         // Every other event is ignored by design.
+      }
+
+      if (!completed) {
+        throw new ProviderError('stream_error', 'stream ended before completion', true);
       }
     } catch (err) {
       if (err instanceof ProviderError && err.usage === undefined) {
@@ -890,6 +902,9 @@ export class MuseProvider implements Provider {
 
       throw err;
     } finally {
+      // Early exits (terminals, errors) must not leave the fetch
+      // lingering behind a locked reader.
+      await reader.cancel().catch(() => undefined);
       reader.releaseLock();
     }
 

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   CONSENT_STORAGE_KEY,
   CONSENT_VERSION,
+  HEADER_TIMEOUT_MS,
   STRICT_REMINDER,
   assertConsent,
   buildAlternatesMessages,
@@ -24,6 +25,7 @@ import {
   parseScanBatch,
   customHostOf,
   emptyUsage,
+  postChatStream,
   readChatUsage,
   fetchChatCompletion,
   readStall,
@@ -33,10 +35,11 @@ import {
   setConsented,
   testModelsEndpoint,
   tryParsePlaceJson,
+  type ChatStreamEvent,
   type ExtensionSettings,
 } from './index';
 import { installChromeMock, uninstallChromeMock } from '../test/chrome_mock';
-import { routeWorkerMessages } from '../test/helpers';
+import { routeWorkerMessages, sseResponse } from '../test/helpers';
 import type { PageSignals } from '../types';
 
 const validSignals = (): PageSignals => {
@@ -686,6 +689,140 @@ describe('transport timeouts', () => {
       cancel: vi.fn(),
     } as unknown as ReadableStreamDefaultReader<unknown>;
     await expect(readStall(reader, 1000)).resolves.toEqual({ done: true, value: undefined });
+  });
+});
+
+describe('stream terminals', () => {
+  const localFetch = vi.fn();
+
+  beforeEach(() => {
+    localFetch.mockReset();
+    vi.stubGlobal('fetch', localFetch);
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  const collect = async (
+    gen: AsyncGenerator<ChatStreamEvent, void, void>
+  ): Promise<ChatStreamEvent[]> => {
+    const out: ChatStreamEvent[] = [];
+    for await (const event of gen) {
+      out.push(event);
+    }
+
+    return out;
+  };
+
+  const stream = () => postChatStream('https://x.test/chat', 'k', {}, new AbortController().signal);
+
+  it('fails streaming headers that stall past the deadline', async () => {
+    localFetch.mockImplementation(
+      (_url: string, init: { signal: AbortSignal }) =>
+        new Promise<never>((_resolve, reject) => {
+          init.signal.addEventListener('abort', () => {
+            reject(new DOMException('aborted', 'AbortError'));
+          });
+        })
+    );
+
+    const pending = collect(stream());
+
+    const assertion = expect(pending).rejects.toMatchObject({
+      code: 'stream_error',
+      retryable: true,
+    });
+    await vi.advanceTimersByTimeAsync(HEADER_TIMEOUT_MS);
+    await assertion;
+  });
+
+  it('clears the header deadline once headers arrive', async () => {
+    localFetch.mockResolvedValue(
+      sseResponse(['data: {"choices":[{"delta":{"content":"Hi"}}]}\n\n', 'data: [DONE]\n\n'])
+    );
+
+    const events = await collect(stream());
+    expect(events).toEqual([{ type: 'delta', text: 'Hi' }]);
+
+    await vi.advanceTimersByTimeAsync(120_000);
+
+    const sent = localFetch.mock.calls[0][1].signal as AbortSignal;
+    expect(sent.aborted).toBe(false);
+  });
+
+  it('treats EOF before any terminal as an interruption', async () => {
+    localFetch.mockResolvedValue(
+      sseResponse([
+        'data: {"choices":[{"delta":{"content":"Hi"}}],"usage":{"prompt_tokens":7,"completion_tokens":3}}\n\n',
+      ])
+    );
+
+    await expect(collect(stream())).rejects.toMatchObject({
+      code: 'stream_error',
+      retryable: true,
+      usage: { inputTokens: 7, outputTokens: 3 },
+    });
+  });
+
+  it('accepts a finish_reason terminal without [DONE]', async () => {
+    localFetch.mockResolvedValue(
+      sseResponse([
+        'data: {"choices":[{"delta":{"content":"Hi"}}]}\n\n',
+        'data: {"choices":[{"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":9,"completion_tokens":5}}\n\n',
+      ])
+    );
+
+    const events = await collect(stream());
+    expect(events).toEqual([
+      { type: 'delta', text: 'Hi' },
+      {
+        type: 'usage',
+        usage: { inputTokens: 9, outputTokens: 5, searchCount: 0, flatFeesUsd: 0 },
+      },
+    ]);
+  });
+
+  it('reports content_filter as a failed terminal with its usage', async () => {
+    localFetch.mockResolvedValue(
+      sseResponse([
+        'data: {"choices":[{"delta":{"content":"Hi"}}]}\n\n',
+        'data: {"choices":[{"delta":{},"finish_reason":"content_filter"}],"usage":{"prompt_tokens":4,"completion_tokens":2}}\n\n',
+      ])
+    );
+
+    await expect(collect(stream())).rejects.toMatchObject({
+      code: 'invalid_response',
+      retryable: false,
+      usage: { inputTokens: 4, outputTokens: 2 },
+    });
+  });
+
+  it('cancels the source stream on early exits', async () => {
+    let cancelled = false;
+
+    const encoder = new TextEncoder();
+
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoder.encode('data: {"choices":[{"delta":{"content":"Hi"}}]}\n\n'));
+        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+        controller.enqueue(encoder.encode('data: {"choices":[{"delta":{"content":"late"}}]}\n\n'));
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+
+    localFetch.mockResolvedValue(
+      new Response(body, { status: 200, headers: { 'Content-Type': 'text/event-stream' } })
+    );
+
+    const events = await collect(stream());
+    expect(events).toEqual([{ type: 'delta', text: 'Hi' }]);
+    expect(cancelled).toBe(true);
   });
 });
 

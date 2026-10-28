@@ -125,11 +125,52 @@ export const FETCH_TIMEOUT_MS = 30_000;
 
 export const STREAM_STALL_MS = 30_000;
 
+export const HEADER_TIMEOUT_MS = 30_000;
+
+export const GUIDE_MAX_CITATIONS = 32;
+
 // Total-timeout for one request/response round trip. Streaming callers keep
 // the bare caller signal on the fetch and use readStall per chunk instead:
 // a total timeout would kill long guides mid-stream.
 export const fetchTimeout = (signal: AbortSignal): AbortSignal =>
   AbortSignal.any([signal, AbortSignal.timeout(FETCH_TIMEOUT_MS)]);
+
+// Streaming POST: response headers must arrive within the deadline. It
+// clears once headers land and per-read stall deadlines govern the rest,
+// so a healthy long stream can finish. A header stall is a retryable
+// stream error, never an abort.
+export const postStreamHeaders = async (
+  url: string,
+  key: string,
+  body: Record<string, unknown>,
+  signal: AbortSignal
+): Promise<Response> => {
+  const headerCtrl = new AbortController();
+
+  let headerFired = false;
+
+  const timer = setTimeout(() => {
+    headerFired = true;
+    headerCtrl.abort();
+  }, HEADER_TIMEOUT_MS);
+
+  try {
+    return await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+      body: JSON.stringify(body),
+      signal: AbortSignal.any([signal, headerCtrl.signal]),
+    });
+  } catch (err) {
+    if (headerFired && !signal.aborted) {
+      throw new ProviderError('stream_error', 'stream headers timed out', true);
+    }
+
+    throw toNetworkError(err, signal);
+  } finally {
+    clearTimeout(timer);
+  }
+};
 
 // One stream read that fails instead of hanging forever on a stalled
 // connection. Rejects with a retryable stream error and cancels the reader
@@ -1269,6 +1310,10 @@ export async function* iterateChatStream(
   // Usage blocks carry running totals, not deltas: compatible servers may
   // repeat them per chunk, so only the last one is reported, once.
   let latestUsage: Usage | null = null;
+  // A chat stream is complete only on a documented terminal: the [DONE]
+  // sentinel or a choice finish_reason. EOF before either is an
+  // interruption, never a clean end.
+  let terminal = false;
 
   try {
     for (;;) {
@@ -1295,6 +1340,7 @@ export async function* iterateChatStream(
       }
 
       if (data === '[DONE]') {
+        terminal = true;
         break;
       }
 
@@ -1306,8 +1352,13 @@ export async function* iterateChatStream(
         throw new ProviderError('stream_error', 'malformed stream payload', true);
       }
 
-      const delta = (payload as { choices?: Array<{ delta?: { content?: unknown } }> })
-        ?.choices?.[0]?.delta?.content;
+      const choice = (
+        payload as {
+          choices?: Array<{ delta?: { content?: unknown }; finish_reason?: unknown }>;
+        }
+      )?.choices?.[0];
+
+      const delta = choice?.delta?.content;
 
       if (typeof delta === 'string' && delta) {
         yield { type: 'delta', text: delta };
@@ -1318,6 +1369,22 @@ export async function* iterateChatStream(
       if (tokens) {
         latestUsage = { ...emptyUsage(), ...tokens };
       }
+
+      const finish = choice?.finish_reason;
+
+      if (typeof finish === 'string' && finish) {
+        // Usage above is already banked: a failed terminal must not lose
+        // the billed tokens it arrived with.
+        if (finish === 'content_filter') {
+          throw new ProviderError('invalid_response', 'guide stopped by content filter', false);
+        }
+
+        terminal = true;
+      }
+    }
+
+    if (!terminal) {
+      throw new ProviderError('stream_error', 'stream ended before completion', true);
     }
 
     if (latestUsage) {
@@ -1330,6 +1397,9 @@ export async function* iterateChatStream(
 
     throw err;
   } finally {
+    // Early exits ([DONE], terminals, errors) must not leave the fetch
+    // lingering behind a locked reader.
+    await reader.cancel().catch(() => undefined);
     reader.releaseLock();
   }
 }
@@ -1340,18 +1410,7 @@ export async function* postChatStream(
   body: Record<string, unknown>,
   signal: AbortSignal
 ): AsyncGenerator<ChatStreamEvent, void, void> {
-  let res: Response;
-
-  try {
-    res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-      body: JSON.stringify(body),
-      signal,
-    });
-  } catch (err) {
-    throw toNetworkError(err, signal);
-  }
+  const res = await postStreamHeaders(url, key, body, signal);
 
   if (!res.ok) {
     throw responseError(res);
