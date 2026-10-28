@@ -1054,6 +1054,7 @@ interface GuideArgs {
   origin: 'gesture' | 'panel';
   prompt?: string;
   completeKey?: string;
+  skipWebSearch?: boolean;
 }
 
 const showGuideSkeleton = (content: HTMLElement): void => {
@@ -1094,6 +1095,7 @@ const runGuide = async (args: GuideArgs): Promise<RunOutcome> => {
       signal,
       language: chrome.i18n.getUILanguage(),
       prompt: args.prompt,
+      transport: args.skipWebSearch === true ? 'chat' : undefined,
     });
     for await (const event of events) {
       if (event.type === 'delta') {
@@ -1311,6 +1313,7 @@ const runGuidePlan = async (): Promise<void> => {
       cacheKey: currentCacheKey,
       privacy,
       origin: 'panel',
+      skipWebSearch: settings.skipWebSearch,
     });
   } finally {
     guidePlanning = false;
@@ -1672,6 +1675,7 @@ const runScanGuide = async (
     cacheKey: currentCacheKey,
     privacy,
     origin,
+    skipWebSearch: settings.skipWebSearch,
   });
   if (activeController === controller) {
     activeController = null;
@@ -2246,12 +2250,17 @@ const runDuel = async (a: DuelSide, b: DuelSide, aTitle: string, bTitle: string)
     announceGate(gate.reason);
     return;
   }
-  const { provider, key } = gate;
+  const { provider, key, settings } = gate;
   store.set({ duel: { mode: 'loading', a: aTitle, b: bTitle } });
   announceStatus('duelStatus', [a.name, b.name]);
   let result;
   try {
-    result = await provider.duelPlaces(key, { a, b, signal: controller.signal });
+    result = await provider.duelPlaces(key, {
+      a,
+      b,
+      skipWebSearch: settings.skipWebSearch,
+      signal: controller.signal,
+    });
   } catch (err) {
     if (duelController === controller) {
       duelController = null;
@@ -2363,7 +2372,7 @@ const runAlternates = async (intent: AlternateIntent): Promise<void> => {
     announceGate(gate.reason);
     return;
   }
-  const { provider, key } = gate;
+  const { provider, settings, key } = gate;
   let result;
   try {
     result = await provider.findAlternates(key, {
@@ -2371,6 +2380,7 @@ const runAlternates = async (intent: AlternateIntent): Promise<void> => {
       city: place.city,
       country: place.country,
       intent,
+      skipWebSearch: settings.skipWebSearch,
       signal: controller.signal,
     });
   } catch (err) {

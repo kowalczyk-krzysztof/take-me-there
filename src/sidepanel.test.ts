@@ -399,6 +399,32 @@ describe('sidepanel', () => {
     expect(guide.getAttribute('aria-labelledby')).toBe('guide-heading');
   });
 
+  it('streams guides over plain chat in cheap mode', async () => {
+    const mock = await setup(async (seed) => {
+      await seed.local.set({ settings: { v: 1, settings: { skipWebSearch: true } } });
+    });
+    await plantKeyAndConsent();
+    fetchMock
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
+      .mockResolvedValueOnce(
+        sseResponse([
+          'data: {"choices":[{"delta":{"content":"Hello world"}}]}\n\n',
+          'data: {"choices":[{"delta":{}}],"usage":{"prompt_tokens":10,"completion_tokens":5}}\n\ndata: [DONE]\n\n',
+        ])
+      );
+    await mock.session.set({ tripRequest: READY() });
+    await waitForHeading('Oia');
+    await clickPlanTrip();
+    await waitFor(() => {
+      expect(document.querySelector('#guide-content')?.textContent).toContain('Hello world');
+    });
+
+    const guideUrl = fetchMock.mock.calls[1][0] as string;
+    expect(guideUrl).toContain('/chat/completions');
+    expect(document.querySelector('#status-region')?.textContent).toBe('statusGuideReady');
+    expect(document.querySelector('#sources-slot')?.querySelectorAll('a.chip')).toHaveLength(0);
+  });
+
   it('ships static shell titles and leaves document locale alone', async () => {
     await setup();
     expect(document.documentElement.lang).toBe('');

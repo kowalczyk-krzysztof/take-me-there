@@ -64,6 +64,7 @@ const DEFAULTS: ExtensionSettings = {
   openaiCompat: { baseURL: '', model: '', structuredOutput: 'json_object' },
   imageOnly: false,
   sessionOnly: false,
+  skipWebSearch: false,
 };
 
 beforeEach(() => {
@@ -719,6 +720,17 @@ describe('settings and registry', () => {
       activeProviderId: 'openai_compat',
       imageOnly: true,
     });
+  });
+
+  it('defaults cheap mode off for legacy records without the flag', async () => {
+    const { local } = installChromeMock();
+    await local.set({
+      settings: {
+        v: 1,
+        settings: { activeProviderId: 'muse', imageOnly: false, sessionOnly: false },
+      },
+    });
+    expect((await loadSettings()).skipWebSearch).toBe(false);
   });
 
   it('resolves providers with muse as the fallback', async () => {

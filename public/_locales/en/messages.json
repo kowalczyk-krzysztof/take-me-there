@@ -337,6 +337,10 @@
     "message": "Send the image only - no page text",
     "description": "Image-only toggle label."
   },
+  "skipSearchLabel": {
+    "message": "Skip web search - cheaper but less current",
+    "description": "Cheap-mode toggle label."
+  },
   "optionsPrivacyHeading": {
     "message": "Storage and privacy",
     "description": "Options privacy section heading."

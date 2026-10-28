@@ -84,6 +84,20 @@ describe('options', () => {
     });
   });
 
+  it('persists the cheap-mode toggle', async () => {
+    const mock = await setup();
+
+    const box = document.querySelector('#skip-search') as HTMLInputElement;
+    box.checked = true;
+    box.dispatchEvent(new Event('change', { bubbles: true }));
+    await waitFor(() => {
+      const record = mock.local.data.get('settings') as {
+        settings: { skipWebSearch: boolean };
+      };
+      expect(record.settings.skipWebSearch).toBe(true);
+    });
+  });
+
   it('saves keys through validation', async () => {
     const mock = await setup();
     fetchMock.mockResolvedValue(new Response('[]', { status: 200 }));
@@ -177,6 +191,7 @@ describe('options', () => {
         },
         imageOnly: false,
         sessionOnly: false,
+        skipWebSearch: false,
       },
     });
   });

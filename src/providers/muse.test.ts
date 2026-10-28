@@ -785,6 +785,20 @@ describe('muse duelPlaces', () => {
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+
+  it('skips the grounded attempt in cheap mode', async () => {
+    await consented();
+    fetchMock.mockResolvedValue(chatResponse(VALID_DUEL));
+
+    const result = await provider.duelPlaces('LLM_key', { ...duelInput(), skipWebSearch: true });
+    expect(result.criteria).toHaveLength(1);
+    expect(result.sources).toEqual([]);
+    expect(result.usage.searchCount).toBe(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    const url = fetchMock.mock.calls[0][0] as string;
+    expect(url).toContain('/chat/completions');
+  });
 });
 
 describe('muse findAlternates', () => {
@@ -835,6 +849,23 @@ describe('muse findAlternates', () => {
     const result = await provider.findAlternates('LLM_key', alternatesInput());
     expect(result.alternatives).toHaveLength(2);
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('skips the grounded attempt in cheap mode', async () => {
+    await consented();
+    fetchMock.mockResolvedValue(chatResponse(VALID_ALTERNATES));
+
+    const result = await provider.findAlternates('LLM_key', {
+      ...alternatesInput(),
+      skipWebSearch: true,
+    });
+    expect(result.alternatives).toHaveLength(2);
+    expect(result.sources).toEqual([]);
+    expect(result.usage.searchCount).toBe(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    const url = fetchMock.mock.calls[0][0] as string;
+    expect(url).toContain('/chat/completions');
   });
 });
 

@@ -310,6 +310,8 @@ export interface DuelInput {
   a: DuelSide;
   b: DuelSide;
   signal: AbortSignal;
+  // Cheap mode: skip the paid web-grounded attempt, run chat-only.
+  skipWebSearch?: boolean;
 }
 
 export interface DuelResult {
@@ -327,6 +329,8 @@ export interface AlternatesInput {
   country: string;
   intent: AlternateIntent;
   signal: AbortSignal;
+  // Cheap mode: skip the paid web-grounded attempt, run chat-only.
+  skipWebSearch?: boolean;
 }
 
 export interface AlternatesResult {
@@ -1395,6 +1399,7 @@ export interface ExtensionSettings {
   openaiCompat: OpenAiCompatSettings;
   imageOnly: boolean;
   sessionOnly: boolean;
+  skipWebSearch: boolean;
 }
 
 const DEFAULT_SETTINGS: ExtensionSettings = {
@@ -1402,6 +1407,7 @@ const DEFAULT_SETTINGS: ExtensionSettings = {
   openaiCompat: { baseURL: '', model: '', structuredOutput: 'json_object' },
   imageOnly: false,
   sessionOnly: false,
+  skipWebSearch: false,
 };
 
 const unwrapSettings = (raw: unknown): Partial<ExtensionSettings> => {
@@ -1454,6 +1460,7 @@ export const loadSettings = async (): Promise<ExtensionSettings> => {
       },
       imageOnly: s.imageOnly === true,
       sessionOnly: s.sessionOnly === true,
+      skipWebSearch: s.skipWebSearch === true,
     };
   } catch {
     return structuredClone(DEFAULT_SETTINGS);

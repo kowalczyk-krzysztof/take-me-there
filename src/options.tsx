@@ -35,6 +35,7 @@ interface OptionsState {
   keyReset: number;
   settings: {
     imageOnly: boolean;
+    skipWebSearch: boolean;
     providerMuse: boolean;
     compat: CompatForm;
   } | null;
@@ -294,6 +295,17 @@ const OptionsApp = () => {
             store.set({ status: msg('settingsSaveFailed') });
           }
         })();
+      } else if (box.id === 'skip-search') {
+        const checked = box.checked;
+        void (async () => {
+          try {
+            const current = await loadSettings();
+            await saveSettings({ ...current, skipWebSearch: checked });
+          } catch {
+            box.checked = !checked;
+            store.set({ status: msg('settingsSaveFailed') });
+          }
+        })();
       } else if (box.id === 'provider-muse' && box.checked) {
         void (async () => {
           try {
@@ -364,6 +376,14 @@ const OptionsApp = () => {
         <label className="checkbox-row" id="image-only-row">
           <input type="checkbox" id="image-only" defaultChecked={settings?.imageOnly ?? false} />
           <span id="image-only-label">{msg('imageOnlyLabel')}</span>
+        </label>
+        <label className="checkbox-row" id="skip-search-row">
+          <input
+            type="checkbox"
+            id="skip-search"
+            defaultChecked={settings?.skipWebSearch ?? false}
+          />
+          <span id="skip-search-label">{msg('skipSearchLabel')}</span>
         </label>
         <h2 id="provider-heading">{msg('optionsProviderHeading')}</h2>
         <div id="provider-group" role="radiogroup" aria-labelledby="provider-heading">
@@ -519,6 +539,7 @@ export const initOptions = (): void => {
       compatOpen: settings.activeProviderId === 'openai_compat',
       settings: {
         imageOnly: settings.imageOnly,
+        skipWebSearch: settings.skipWebSearch,
         providerMuse: settings.activeProviderId !== 'openai_compat',
         compat: {
           baseURL: settings.openaiCompat.baseURL,

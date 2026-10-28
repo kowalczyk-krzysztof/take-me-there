@@ -493,15 +493,17 @@ export class MuseProvider implements Provider {
 
     const prompt = buildDuelPrompt(input.a, input.b);
 
-    const grounded = await this.groundedStructured(
-      key,
-      input.signal,
-      usage,
-      'duel',
-      schema,
-      prompt,
-      parseDuelContent
-    );
+    const grounded = input.skipWebSearch
+      ? null
+      : await this.groundedStructured(
+          key,
+          input.signal,
+          usage,
+          'duel',
+          schema,
+          prompt,
+          parseDuelContent
+        );
 
     if (grounded) {
       return { ...grounded.value, sources: grounded.sources, usage: { ...usage } };
@@ -534,15 +536,17 @@ export class MuseProvider implements Provider {
 
     const prompt = buildAlternatesPrompt(input.placeName, input.country, input.intent);
 
-    const grounded = await this.groundedStructured(
-      key,
-      input.signal,
-      usage,
-      'alternates',
-      schema,
-      prompt,
-      parseAlternatesContent
-    );
+    const grounded = input.skipWebSearch
+      ? null
+      : await this.groundedStructured(
+          key,
+          input.signal,
+          usage,
+          'alternates',
+          schema,
+          prompt,
+          parseAlternatesContent
+        );
 
     if (grounded) {
       return { alternatives: grounded.value, sources: grounded.sources, usage: { ...usage } };
