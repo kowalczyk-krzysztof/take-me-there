@@ -36,6 +36,31 @@ describe('pricing', () => {
     ).toBeCloseTo(0.0075, 10);
   });
 
+  it('buckets a fixed instant in the zones local month', async () => {
+    // 2026-03-01T00:30Z is still February west of UTC: a UTC bucket would
+    // file it under March there, while the local-month rule follows the zone.
+    const instant = new Date('2026-03-01T00:30:00Z');
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const expected = new Intl.DateTimeFormat('en-CA', {
+      timeZone: zone,
+      year: 'numeric',
+      month: '2-digit',
+    }).format(instant);
+    await recordMonthSpend(0.5, instant);
+    const record = mock.local.data.get('costTotals') as { months: Record<string, number> };
+    expect(Object.keys(record.months)).toEqual([expected]);
+    expect(await readMonthSpend(instant)).toBeCloseTo(0.5, 10);
+  });
+
+  it('buckets a local wall-clock boundary in its own month', async () => {
+    // Feb 28 23:30 local is already March in UTC east of here: the bucket
+    // must follow the wall clock, not the UTC date.
+    const instant = new Date(2026, 1, 28, 23, 30);
+    await recordMonthSpend(0.5, instant);
+    const record = mock.local.data.get('costTotals') as { months: Record<string, number> };
+    expect(Object.keys(record.months)).toEqual(['2026-02']);
+  });
+
   it('returns null without a rate table so the UI shows tokens', () => {
     expect(
       estimateCostUsd({ inputTokens: 10, outputTokens: 10, searchCount: 0, flatFeesUsd: 0 })

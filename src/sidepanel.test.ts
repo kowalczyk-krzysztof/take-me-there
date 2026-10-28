@@ -124,8 +124,9 @@ const GUIDE_SSE = [
 
 const fetchMock = vi.fn();
 
-const setup = async (): Promise<ChromeMock> =>
-  setupPage(SHELL, fetchMock, () => import('./sidepanel'));
+const setup = async (
+  beforeImport?: (mock: ChromeMock) => void | Promise<void>
+): Promise<ChromeMock> => setupPage(SHELL, fetchMock, () => import('./sidepanel'), beforeImport);
 
 afterEach(teardownPage);
 
@@ -1129,6 +1130,24 @@ describe('sidepanel', () => {
     expect(fetchMock).not.toHaveBeenCalled();
     expect(document.querySelector('#result-slot')?.textContent).toContain('panelIdle');
     expect(document.querySelector('#status-region')?.textContent).toBe('');
+    // A leaked run would have fetched and cached: the follow-up uses a
+    // distinct image so only a true ignore keeps the total at one.
+    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
+    await mock.session.set({
+      tripRequest: READY({ requestId: '200-3', srcUrl: 'https://cdn.example.com/other.jpg' }),
+    });
+    await waitForHeading('Oia');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('delivers a stored record on startup without any storage event', async () => {
+    await setup(async (mock) => {
+      await plantKeyAndConsent();
+      await mock.session.set({ tripRequest: READY({ requestId: '500-1' }) });
+    });
+    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
+    await waitForHeading('Oia');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('runs handoff records stamped for its own window', async () => {
@@ -1147,7 +1166,11 @@ describe('sidepanel', () => {
     await mock.session.set({ tripRequest: READY({ requestId: '10-1' }) });
     await waitForHeading('Oia');
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    await mock.session.set({ tripRequest: READY({ requestId: '9-1' }) });
+    // A distinct image: if the stale record leaked through, it would miss
+    // the cache and fetch instead of being dropped by the order guard.
+    await mock.session.set({
+      tripRequest: READY({ requestId: '9-1', srcUrl: 'https://cdn.example.com/other.jpg' }),
+    });
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
@@ -1214,6 +1237,12 @@ describe('sidepanel', () => {
     expect(fetchMock).not.toHaveBeenCalled();
     const stored = await mock.session.get('tripRequest');
     expect(stored.tripRequest).toEqual({ requestId: '200-2', status: 'ready' });
+    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
+    await mock.session.set({
+      tripRequest: READY({ requestId: '200-3', srcUrl: 'https://cdn.example.com/other.jpg' }),
+    });
+    await waitForHeading('Oia');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('identifies image-only when the scrape failed and signals are omitted', async () => {

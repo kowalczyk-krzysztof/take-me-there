@@ -4,6 +4,7 @@ import {
   UNVERIFIED_PORTALS_ENABLED,
   buildDestination,
   buildLinks,
+  capDestination,
   mapsDirUrl,
 } from './deep_links';
 
@@ -23,6 +24,29 @@ describe('deep_links', () => {
     for (const link of links) {
       expect(link.href).not.toContain('"');
       expect(link.href).not.toContain('#1');
+    }
+  });
+
+  it('survives hostile destinations without throwing or smuggling schemes', () => {
+    const hostile = [
+      `${'x'.repeat(119)}\ud800`,
+      '\udc00lead trail\ud800',
+      'a\0b',
+      '100% %zz %2',
+      'javascript:alert(1)',
+      '<img src=x onerror=alert(1)>',
+      '\u202Ereversed',
+      'e\u0301combining',
+      'Oia\nhttps://evil.example',
+      'x'.repeat(10000),
+    ];
+    for (const destination of hostile) {
+      const capped = capDestination(destination);
+      expect(() => encodeURIComponent(capped)).not.toThrow();
+      for (const link of buildLinks(destination)) {
+        expect(() => new URL(link.href)).not.toThrow();
+        expect(link.href).not.toMatch(/^javascript:/i);
+      }
     }
   });
 

@@ -71,6 +71,21 @@ describe('collectPageImages', () => {
     });
   });
 
+  it('well-forms hostile captions and headings', () => {
+    const heading = document.createElement('h2');
+    heading.textContent = 'H\ud800ead\0ing';
+    document.body.append(heading);
+    addImg(document.body, {
+      src: 'https://cdn.example.com/santorini.jpg',
+      alt: 'A\ud800lt\udc00',
+    });
+
+    const out = collectPageImages();
+
+    expect(out).toHaveLength(1);
+    expect(() => encodeURIComponent(`${out[0].caption}${out[0].heading}`)).not.toThrow();
+  });
+
   it('filters icons, hidden, and non-web schemes', () => {
     addImg(document.body, { src: 'https://cdn.example.com/big.jpg' });
     addImg(document.body, { src: 'https://cdn.example.com/icon.png', width: 32, height: 32 });

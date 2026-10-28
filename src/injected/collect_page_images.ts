@@ -24,7 +24,7 @@ export const collectPageImages = (): HarvestedImage[] => {
   };
 
   const clean = (s: string | null | undefined): string =>
-    (s || '').replace(/\s+/g, ' ').trim().slice(0, MAX_FIELD);
+    (s || '').replace(/\s+/g, ' ').trim().slice(0, MAX_FIELD).toWellFormed();
   // Nearest preceding heading, walking up from the image (hop-capped).
   const nearestHeading = (img: HTMLImageElement): string => {
     let hops = 0;

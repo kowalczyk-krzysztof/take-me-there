@@ -36,8 +36,10 @@ export const collectSignals = (srcUrl: string): PageSignalData => {
   };
 
   const target = abs(srcUrl);
+  // toWellFormed last: slicing and page-controlled text can both leave lone
+  // surrogates that would throw in encodeURIComponent downstream.
   const clean = (s: string | null | undefined): string =>
-    (s || '').replace(/\s+/g, ' ').trim().slice(0, 300);
+    (s || '').replace(/\s+/g, ' ').trim().slice(0, 300).toWellFormed();
   const meta = (sel: string): string => clean(document.querySelector(sel)?.getAttribute('content'));
 
   // Locate the clicked img: currentSrc (srcset/picture winner) -> src attr ->
@@ -105,7 +107,7 @@ export const collectSignals = (srcUrl: string): PageSignalData => {
           // Every field bounded: a page controls all of these values.
           const country = record.address?.addressCountry;
           ld.push({
-            types: types.slice(0, 3).map((t) => t.slice(0, 50)),
+            types: types.slice(0, 3).map((t) => t.slice(0, 50).toWellFormed()),
             name: clean(record.name),
             locality: clean(record.address?.addressLocality),
             country: clean(country?.name || country),
@@ -168,7 +170,7 @@ export const collectSignals = (srcUrl: string): PageSignalData => {
   // the storage write.
   if (JSON.stringify(out).length > 4096) {
     out.jsonLd = [];
-    out.nearestParagraph = out.nearestParagraph.slice(0, 120);
+    out.nearestParagraph = out.nearestParagraph.slice(0, 120).toWellFormed();
   }
   return out;
 };

@@ -132,6 +132,16 @@ describe('collectSignals', () => {
     expect(out.imgFound).toBe(true);
   });
 
+  it('survives hostile page text without throwing', () => {
+    setPageUrl('https://example.com/%zz?a=%2&b=\ud800');
+    document.title = `T\ud800i\0tle ${'x'.repeat(5000)}`;
+    document.body.innerHTML = '<img src="https://cdn.example.com/a.jpg" alt="A\ud800lt\udc00">';
+    const out = collectSignals('https://cdn.example.com/a.jpg');
+    expect(out.imgFound).toBe(true);
+    expect(() => JSON.stringify(out)).not.toThrow();
+    expect(() => encodeURIComponent(`${out.docTitle}${out.alt}${out.urlSlug}`)).not.toThrow();
+  });
+
   it('survives malformed percent-escapes in paths', () => {
     setPageUrl('https://example.com/travel/100%-guide');
     document.body.innerHTML = '<img src="https://cdn.example.com/100%-oia.jpg" alt="Oia">';

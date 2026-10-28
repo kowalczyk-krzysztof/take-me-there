@@ -73,6 +73,25 @@ describe('render_markdown', () => {
   });
 });
 
+describe('hostile model output', () => {
+  it('renders without throwing and creates no active elements', () => {
+    const hostile = [
+      '# Title\ud800\n\nBody \udc00 text',
+      `${'**unclosed bold\n\n- item \ud800\n- '}\n`.repeat(50),
+      '<script>alert(1)</script>\n\n[click](javascript:alert(1))',
+      'x'.repeat(50000),
+      '\0\0\0',
+      '\u202Ereversed',
+    ].join('\n\n');
+    const render = createGuideRenderer(container, 'truncated');
+    expect(() => {
+      render.push(hostile);
+      render.finish();
+    }).not.toThrow();
+    expect(container.querySelector('script, a, img, iframe')).toBeNull();
+  });
+});
+
 describe('findGuideStart', () => {
   it('cuts throat-clearing before the first heading', () => {
     const glued = "I'll research Martissant to build your factual trip guide.## Martissant";
