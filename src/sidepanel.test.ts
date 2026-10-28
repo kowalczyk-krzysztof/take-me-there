@@ -387,7 +387,7 @@ describe('sidepanel', () => {
   it('serves repeat images from cache without fetching', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
-    const { hashCacheKey, setCacheEntry } = await import('./sidepanel');
+    const { hashCacheKey, setCacheEntry } = await import('./result_cache');
     const hash = await hashCacheKey('https://cdn.example.com/oia.jpg', 'https://example.com/guide');
     await setCacheEntry(hash, {
       place: VALID_PLACE,

@@ -5,7 +5,7 @@ import {
   isAllowedPreviewUrl,
   setCacheEntry,
   type CacheEntry,
-} from './sidepanel';
+} from './result_cache';
 import { installChromeMock, uninstallChromeMock } from './test/chrome_mock';
 
 beforeEach(() => {
