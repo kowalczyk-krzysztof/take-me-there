@@ -73,6 +73,7 @@ import {
 } from './result_cache';
 import { ErrorBoundary } from './components/error_boundary/error_boundary';
 import { msg } from './utils/i18n';
+import { createMutex } from './utils/mutex';
 import { truncateCodePoints } from './utils/text';
 import { createStore } from './utils/store';
 import './styles/sidepanel.css';
@@ -287,6 +288,7 @@ let activeController: AbortController | null = null;
 let analysisInFlight = false;
 let currentRunId: string | null = null;
 let runUsage: Usage = emptyUsage();
+let recordedUsd = 0;
 let activeRequest: TripRequest | null = null;
 let runSettings: ExtensionSettings | null = null;
 let pendingRun: PendingRun | null = null;
@@ -415,22 +417,30 @@ const clearCost = (): void => {
   store.set({ cost: '' });
 };
 
-const priceAndRecord = async (provider: Provider): Promise<void> => {
-  const usd = estimateCostUsd(runUsage, provider.getRates());
-  if (usd === null) {
-    store.set({
-      cost: msg('costLineTokens', [String(runUsage.inputTokens), String(runUsage.outputTokens)]),
-    });
-    return;
-  }
-  let monthTotal = usd;
-  try {
-    monthTotal = await recordMonthSpend(usd);
-  } catch {
-    // The run figure still renders; only the monthly total is stale.
-  }
-  store.set({ cost: msg('costLine', [formatUsd(usd), formatUsd(monthTotal)]) });
-};
+const priceMutex = createMutex();
+
+const priceAndRecord = async (provider: Provider): Promise<void> =>
+  priceMutex(async () => {
+    const usd = estimateCostUsd(runUsage, provider.getRates());
+    if (usd === null) {
+      store.set({
+        cost: msg('costLineTokens', [String(runUsage.inputTokens), String(runUsage.outputTokens)]),
+      });
+      return;
+    }
+    // runUsage is cumulative across stages, so only the unrecorded delta
+    // reaches the monthly total. The watermark advances after a successful
+    // write, so a failed write is retried by the next stage instead of lost.
+    const delta = Math.max(0, usd - recordedUsd);
+    let monthTotal = usd;
+    try {
+      monthTotal = await recordMonthSpend(delta);
+      recordedUsd = usd;
+    } catch {
+      // The run figure still renders; only the monthly total is stale.
+    }
+    store.set({ cost: msg('costLine', [formatUsd(usd), formatUsd(monthTotal)]) });
+  });
 
 const cancelSkeleton = (): void => {
   skeletonFor = '';
@@ -599,6 +609,7 @@ const beginRun = (runId: string): void => {
   if (currentRunId !== runId) {
     currentRunId = runId;
     runUsage = emptyUsage();
+    recordedUsd = 0;
   }
 };
 

@@ -449,6 +449,32 @@ describe('sidepanel', () => {
     expect(body.reasoning_effort).toBe('medium');
   });
 
+  it('records each stage exactly once in the monthly total', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    fetchMock
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
+      .mockResolvedValueOnce(
+        sseResponse([
+          'event: response.output_text.delta\n',
+          'data: {"delta":"## Oia\\nHello world"}\n',
+          '\n',
+          'event: response.completed\n',
+          'data: {"response":{"usage":{"input_tokens":100,"output_tokens":50}}}\n',
+          '\n',
+        ])
+      );
+    await mock.session.set({ tripRequest: READY() });
+    await clickPlanTrip();
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('statusGuideReady');
+    });
+    const { monthKey } = await import('./pricing');
+    const record = mock.local.data.get('costTotals') as { v: number; months: Record<string, number> };
+    expect(record.v).toBe(1);
+    expect(record.months[monthKey(new Date())]).toBeCloseTo(0.000675, 10);
+  });
+
   it('holds back guide preamble and renders from the heading', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
