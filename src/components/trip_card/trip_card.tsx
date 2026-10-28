@@ -98,15 +98,15 @@ interface Props {
   callbacks: TripCardCallbacks;
 }
 
-// The epoch key remounts the whole view on every new card object, so
-// per-render state (one-shot buttons, rotation) resets on every update.
 export const TripCard = ({ card, callbacks }: Props) => {
   const [epoch, setEpoch] = useState(0);
   const prevCard = useRef(card);
+
   if (prevCard.current !== card) {
     prevCard.current = card;
     setEpoch((current) => current + 1);
   }
+
   let view: ReactNode;
   switch (card.view) {
     case 'idle':

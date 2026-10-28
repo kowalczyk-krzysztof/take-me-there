@@ -8,15 +8,19 @@ const ROTATE_MS = 2500;
 
 export const LoadingView = () => {
   const [index, setIndex] = useState(0);
+
   useEffect(() => {
     if (prefersReducedMotion()) {
       return;
     }
+
     const timer = setInterval(() => {
       setIndex((current) => (current + 1) % LOADING_LINES.length);
     }, ROTATE_MS);
+
     return () => clearInterval(timer);
   }, []);
+
   return (
     <div className={styles.skeleton} aria-hidden="true">
       {['60%', '40%', '100%', '100%'].map((width, index) => (

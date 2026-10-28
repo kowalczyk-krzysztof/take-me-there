@@ -38,13 +38,16 @@ const fromBase64 = (text: string): Uint8Array<ArrayBuffer> => {
 
 const getOrCreateWrappingKey = async (): Promise<CryptoKey> => {
   const existing = (await get(WRAPPING_KEY_ID, vaultStore)) as CryptoKey | undefined;
+
   if (existing) {
     return existing;
   }
+
   const created = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, [
     'encrypt',
     'decrypt',
   ]);
+
   await set(WRAPPING_KEY_ID, created, vaultStore);
   return created;
 };
@@ -57,6 +60,7 @@ export const saveKey = async (
   if (!key) {
     throw new Error('cannot save an empty key');
   }
+
   const wrap = await getOrCreateWrappingKey();
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const encrypted = await crypto.subtle.encrypt(
@@ -64,8 +68,10 @@ export const saveKey = async (
     wrap,
     new TextEncoder().encode(key)
   );
+
   const record: KeyRecord = { iv: toBase64(iv), ciphertext: toBase64(new Uint8Array(encrypted)) };
   const name = storageKey(providerId);
+
   if (sessionOnly) {
     await chrome.storage.session.set({ [name]: record });
     await chrome.storage.local.remove(name);
@@ -81,16 +87,21 @@ export const loadKey = async (providerId: string): Promise<KeyStatus> => {
     string,
     KeyRecord | undefined
   >;
+
   const fromLocal = (await chrome.storage.local.get(name)) as Record<string, KeyRecord | undefined>;
   const record = fromSession[name] ?? fromLocal[name];
+
   if (!record || typeof record.ciphertext !== 'string' || typeof record.iv !== 'string') {
     return { state: 'missing', orphaned: false };
   }
+
   const wrap = (await get(WRAPPING_KEY_ID, vaultStore)) as CryptoKey | undefined;
+
   if (!wrap) {
     await clearKey(providerId);
     return { state: 'missing', orphaned: true };
   }
+
   try {
     const decrypted = await crypto.subtle.decrypt(
       { name: 'AES-GCM', iv: fromBase64(record.iv) },

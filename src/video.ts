@@ -26,18 +26,23 @@ export const isMp4RungUsable = (srcUrl: string): boolean => {
   if (!srcUrl || srcUrl.startsWith('blob:')) {
     return false;
   }
+
   if (srcUrl.startsWith('data:video/mp4')) {
     return srcUrl.length < MAX_DATA_VIDEO_LENGTH;
   }
+
   let parsed: URL;
+
   try {
     parsed = new URL(srcUrl);
   } catch {
     return false;
   }
+
   if (parsed.protocol !== 'https:') {
     return false;
   }
+
   const path = parsed.pathname.toLowerCase();
   return !path.endsWith('.m3u8') && !path.endsWith('.mpd');
 };

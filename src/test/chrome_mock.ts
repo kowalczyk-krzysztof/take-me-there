@@ -1,4 +1,3 @@
-// @vitest-environment happy-dom
 // Hand-rolled chrome mock for unit tests: Map-backed storage areas with
 // onChanged dispatch, an echoing i18n, and minimal runtime stubs. No mocking
 // library.

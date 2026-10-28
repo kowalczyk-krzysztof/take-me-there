@@ -1,4 +1,3 @@
-// @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CompareTable, type DuelRowView, type DuelTableState } from './compare_table';
 import { installChromeMock, uninstallChromeMock } from '../../test/chrome_mock';

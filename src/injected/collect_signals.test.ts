@@ -1,4 +1,3 @@
-// @vitest-environment happy-dom
 import { beforeEach, describe, expect, it } from 'vitest';
 import { collectSignals } from './collect_signals';
 

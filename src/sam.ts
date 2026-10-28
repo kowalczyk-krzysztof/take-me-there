@@ -33,21 +33,27 @@ const finite = (value: string): number | null => {
 export const parseSamBoxes = (text: string): SamTokenBox[] => {
   const boxes: SamTokenBox[] = [];
   BOX_TOKEN_RE.lastIndex = 0;
+
   for (;;) {
     const match = BOX_TOKEN_RE.exec(text);
     if (!match) {
       break;
     }
+
     const [, x1, y1, x2, y2, w, h, c] = match as unknown as string[];
     const coords = [x1, y1, x2, y2, w, h].map((part) => finite(part ?? ''));
+
     if (coords.some((coord) => coord === null)) {
       continue;
     }
+
     const [bx1, by1, bx2, by2, bw, bh] = coords as number[];
+
     if (bw <= 0 || bh <= 0) {
       continue;
     }
     const box: SamTokenBox = { x1: bx1, y1: by1, x2: bx2, y2: by2, w: bw, h: bh };
+
     if (c !== undefined) {
       const confidence = finite(c);
       if (confidence !== null) {
@@ -70,15 +76,19 @@ export const selectSamBox = (
   let best: SamPixelBox | null = null;
   let bestArea = 0;
   let bestConfidence = -Infinity;
+
   for (const box of boxes) {
     if (!(box.x2 > box.x1) || !(box.y2 > box.y1)) {
       continue;
     }
+
     const scaleX = imageWidth / box.w;
     const scaleY = imageHeight / box.h;
+
     if (!Number.isFinite(scaleX) || !Number.isFinite(scaleY)) {
       continue;
     }
+
     let x1 = box.x1 * scaleX;
     let y1 = box.y1 * scaleY;
     let x2 = box.x2 * scaleX;
@@ -89,14 +99,18 @@ export const selectSamBox = (
     y1 = Math.max(0, y1 - padY);
     x2 = Math.min(imageWidth, x2 + padX);
     y2 = Math.min(imageHeight, y2 + padY);
+
     if (!(x2 > x1) || !(y2 > y1)) {
       continue;
     }
+
     const area = (x2 - x1) * (y2 - y1);
+
     if (area < imageWidth * imageHeight * SAM_MIN_AREA_FRAC) {
       continue;
     }
     const confidence = box.c ?? -Infinity;
+
     if (area > bestArea || (area === bestArea && confidence > bestConfidence)) {
       best = { x1, y1, x2, y2 };
       bestArea = area;
@@ -109,11 +123,14 @@ export const selectSamBox = (
 export const dataUrlToBytes = (dataUrl: string): Uint8Array | null => {
   const marker = ';base64,';
   const at = dataUrl.indexOf(marker);
+
   if (!dataUrl.startsWith('data:image/') || at < 0) {
     return null;
   }
+
   try {
     const binary = atob(dataUrl.slice(at + marker.length));
+
     return Uint8Array.from(binary, (ch) => ch.charCodeAt(0));
   } catch {
     return null;
@@ -130,14 +147,19 @@ export const cropToSamBox = async (bitmap: ImageBitmap, box: SamPixelBox): Promi
   const dh = Math.max(1, Math.round(sh * scale));
   const canvas = new OffscreenCanvas(dw, dh);
   const ctx = canvas.getContext('2d');
+
   if (!ctx) {
     throw new Error('2d canvas context unavailable');
   }
+
   ctx.drawImage(bitmap, box.x1, box.y1, sw, sh, 0, 0, dw, dh);
+
   const jpeg = await canvas.convertToBlob({ type: 'image/jpeg', quality: FETCH_JPEG_QUALITY });
   const out = new Uint8Array(await jpeg.arrayBuffer());
+
   if (out.length === 0) {
     throw new Error('JPEG encoding returned no bytes');
   }
+
   return `data:image/jpeg;base64,${encodeBase64(out)}`;
 };

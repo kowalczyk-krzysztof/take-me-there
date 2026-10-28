@@ -61,6 +61,7 @@ const onSaveKey = (key: string): void => {
   void (async () => {
     store.set({ keyPending: true, keyError: null, status: msg('statusValidatingKey') });
     const { provider, settings } = await getActiveProvider();
+
     try {
       await provider.testKey(key);
     } catch (err) {
@@ -75,7 +76,9 @@ const onSaveKey = (key: string): void => {
       });
       return;
     }
+
     const sessionOnly = store.get().sessionOnly;
+
     try {
       await saveKey(provider.id, key, sessionOnly);
       await saveSettings({ ...settings, sessionOnly });
@@ -83,6 +86,7 @@ const onSaveKey = (key: string): void => {
       store.set({ keyPending: false, keyError: msg('keyErrorRetry') });
       return;
     }
+
     store.set({
       keyPending: false,
       keyError: null,
@@ -97,15 +101,18 @@ const onTestKey = (): void => {
     const { provider } = await getActiveProvider();
     const draft = inputValue('key-input').trim();
     let key = draft;
+
     if (!key) {
       const loaded = await loadKey(provider.id);
       key = loaded.state === 'ok' ? loaded.key : '';
     }
+
     if (!key) {
       store.set({ keyError: msg('keyErrorEmpty') });
       return;
     }
     store.set({ status: msg('statusValidatingKey') });
+
     try {
       await provider.testKey(key);
     } catch (err) {
@@ -117,6 +124,7 @@ const onTestKey = (): void => {
       });
       return;
     }
+
     store.set({ status: msg('statusKeyWorks') });
   })();
 };
@@ -124,7 +132,9 @@ const onTestKey = (): void => {
 const onClearKey = (): void => {
   void (async () => {
     const { provider } = await getActiveProvider();
+
     await clearKey(provider.id);
+
     store.set({
       keyReset: store.get().keyReset + 1,
       keyError: null,

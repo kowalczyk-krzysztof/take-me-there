@@ -1,4 +1,3 @@
-// @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ScanList, type ScanItemView } from './scan_list';
 import { installChromeMock, uninstallChromeMock } from '../../test/chrome_mock';

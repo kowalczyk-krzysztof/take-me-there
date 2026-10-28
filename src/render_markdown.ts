@@ -15,10 +15,12 @@ export const findGuideStart = (source: string): number => {
     if (/^#{1,6}\s+\S/.test(line)) {
       return offset;
     }
+
     const mid = /#{2,6}\s+\S/.exec(line);
     if (mid) {
       return offset + mid.index;
     }
+
     offset += line.length + 1;
   }
   return -1;
@@ -43,10 +45,13 @@ export const createGuideRenderer = (
   const render = (): void => {
     container.replaceChildren();
     const visible = buffer.length > maxChars ? buffer.slice(0, maxChars) : buffer;
+
     if (visible.length < buffer.length) {
       wasTruncated = true;
     }
+
     renderBlocks(container, visible);
+
     if (wasTruncated) {
       const note = document.createElement('p');
       note.className = 'guide-truncated';
@@ -98,7 +103,9 @@ const renderBlocks = (container: HTMLElement, text: string): void => {
       list = null;
       continue;
     }
+
     const heading = /^(#{1,6})\s+(.*)$/.exec(line);
+
     if (heading) {
       flushParagraph();
       list = null;
@@ -107,7 +114,9 @@ const renderBlocks = (container: HTMLElement, text: string): void => {
       container.append(el);
       continue;
     }
+
     const bullet = /^[-*+]\s+(.*)$/.exec(line);
+
     if (bullet) {
       flushParagraph();
       if (!list) {
@@ -128,6 +137,7 @@ const renderBlocks = (container: HTMLElement, text: string): void => {
 const renderInline = (parent: HTMLElement, text: string): void => {
   for (const part of text.split(/(\*\*[^*]+\*\*)/g)) {
     const bold = /^\*\*([^*]+)\*\*$/.exec(part);
+
     if (bold) {
       const strong = document.createElement('strong');
       strong.textContent = bold[1];

@@ -1,7 +1,3 @@
-// Generic OpenAI-compatible provider: any endpoint with a base URL, model,
-// and key. The extras stay flagged off; structured output follows the
-// configured mode (json_schema when the endpoint supports it, otherwise
-// json_object with client-side validation doing the real work).
 import type { ModelRates } from '../pricing';
 import {
   alternatesJsonSchema,
@@ -70,6 +66,7 @@ export class OpenAiCompatProvider implements Provider {
 
   getRates(): ModelRates | undefined {
     const { inputRatePerM, outputRatePerM } = this.config;
+
     if (typeof inputRatePerM === 'number' && typeof outputRatePerM === 'number') {
       return { inputUsdPerMTok: inputRatePerM, outputUsdPerMTok: outputRatePerM };
     }
@@ -78,6 +75,7 @@ export class OpenAiCompatProvider implements Provider {
 
   private baseURL(): string {
     const base = this.config.baseURL.replace(/\/+$/, '');
+
     if (!base || !this.config.model) {
       throw new ProviderError('not_configured', 'openai_compat provider is not configured', false);
     }
@@ -86,7 +84,9 @@ export class OpenAiCompatProvider implements Provider {
 
   async testKey(key: string): Promise<void> {
     requireKey(key);
+
     const base = this.baseURL();
+
     let res: Response;
     try {
       res = await fetch(`${base}/models`, {
@@ -125,12 +125,16 @@ export class OpenAiCompatProvider implements Provider {
   async planItinerary(key: string, input: ItineraryInput): Promise<ItineraryResult> {
     requireKey(key);
     await assertConsent();
+
     const base = this.baseURL();
     const usage = emptyUsage();
+
     if (input.pins.length === 0) {
       throw invalidResponse(usage, 'no pins to plan');
     }
+
     const stopNames = input.pins.map((pin) => pin.name);
+
     for (const strictReminder of [false, true]) {
       const data = await fetchChatCompletion(
         `${base}/chat/completions`,
@@ -150,7 +154,9 @@ export class OpenAiCompatProvider implements Provider {
         input.signal,
         usage
       );
+
       const plan = parseItineraryPlan(data, stopNames);
+
       if (plan) {
         return { plan, usage: { ...usage } };
       }
@@ -160,12 +166,16 @@ export class OpenAiCompatProvider implements Provider {
 
   async scanPlaces(key: string, input: ScanInput): Promise<ScanResult> {
     requireKey(key);
+
     await assertConsent();
+
     const base = this.baseURL();
     const usage = emptyUsage();
+
     if (input.images.length === 0) {
       throw invalidResponse(usage, 'no images to scan');
     }
+
     for (const strictReminder of [false, true]) {
       const data = await fetchChatCompletion(
         `${base}/chat/completions`,
@@ -185,7 +195,9 @@ export class OpenAiCompatProvider implements Provider {
         input.signal,
         usage
       );
+
       const places = parseScanBatch(data);
+
       if (places) {
         return { places, usage: { ...usage } };
       }
@@ -206,6 +218,7 @@ export class OpenAiCompatProvider implements Provider {
     parse: (json: unknown) => T | undefined
   ): Promise<T> {
     const base = this.baseURL();
+
     for (const strictReminder of [false, true]) {
       const data = await fetchChatCompletion(
         `${base}/chat/completions`,
@@ -225,7 +238,9 @@ export class OpenAiCompatProvider implements Provider {
         signal,
         usage
       );
+
       const value = parse(extractChatJson(data));
+
       if (value) {
         return value;
       }
@@ -235,7 +250,9 @@ export class OpenAiCompatProvider implements Provider {
 
   async duelPlaces(key: string, input: DuelInput): Promise<DuelResult> {
     requireKey(key);
+
     await assertConsent();
+
     const usage = emptyUsage();
     const verdict = await this.chatStructured(
       key,
@@ -246,12 +263,15 @@ export class OpenAiCompatProvider implements Provider {
       (strictReminder) => buildDuelMessages(input.a, input.b, strictReminder),
       parseDuelContent
     );
+
     return { ...verdict, sources: [], usage: { ...usage } };
   }
 
   async findAlternates(key: string, input: AlternatesInput): Promise<AlternatesResult> {
     requireKey(key);
+
     await assertConsent();
+
     const usage = emptyUsage();
     const alternatives = await this.chatStructured(
       key,
@@ -263,12 +283,15 @@ export class OpenAiCompatProvider implements Provider {
         buildAlternatesMessages(input.placeName, input.country, input.intent, strictReminder),
       parseAlternatesContent
     );
+
     return { alternatives, sources: [], usage: { ...usage } };
   }
 
   async segmentLandmark(key: string, _input: SegmentInput): Promise<SegmentResult> {
     requireKey(key);
+
     await assertConsent();
+
     throw new ProviderError(
       'not_configured',
       'segmentation is not configured on this provider',
@@ -278,9 +301,12 @@ export class OpenAiCompatProvider implements Provider {
 
   async *streamGuide(key: string, input: GuideInput): AsyncGenerator<GuideEvent, void, void> {
     requireKey(key);
+
     await assertConsent();
+
     const base = this.baseURL();
     const prompt = input.prompt ?? buildGuidePrompt(input.destination, input.language);
+
     yield* postChatStream(
       `${base}/chat/completions`,
       key,

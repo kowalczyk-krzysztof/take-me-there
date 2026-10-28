@@ -1,5 +1,3 @@
-// Serialized into the page: no imports, no module-scope closures, JSON-only argument and return.
-
 export type FrameFailureReason = 'no-match' | 'no-dimensions' | 'tainted' | 'drm' | 'too-large';
 
 export interface CapturedFrame {
@@ -51,17 +49,22 @@ export const captureVideoFrame = (srcUrl: string): CaptureVideoFrameResult => {
   // webcam or meeting frame the user never clicked.
   const playing = videos.filter((v) => !v.paused && !v.ended && v.readyState >= 2);
   const video = byBare ?? (playing.length === 1 ? playing[0] : null);
+
   if (!video) {
     return { ok: false, reason: 'no-match' };
   }
+
   if (video.mediaKeys != null) {
     return { ok: false, reason: 'drm' };
   }
+
   if (!(video.videoWidth > 0) || !(video.videoHeight > 0)) {
     return { ok: false, reason: 'no-dimensions' };
   }
+
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
+
   if (!ctx) {
     return { ok: false, reason: 'no-dimensions' };
   }
@@ -74,16 +77,20 @@ export const captureVideoFrame = (srcUrl: string): CaptureVideoFrameResult => {
     [960, 0.7],
     [960, 0.55],
   ];
+
   for (const [maxSide, quality] of attempts) {
     const scale = Math.min(1, maxSide / Math.max(video.videoWidth, video.videoHeight));
     canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
     canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+
     try {
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     } catch {
       return { ok: false, reason: 'no-dimensions' };
     }
+
     let dataUrl = '';
+
     try {
       dataUrl = canvas.toDataURL('image/jpeg', quality);
     } catch {
@@ -91,6 +98,7 @@ export const captureVideoFrame = (srcUrl: string): CaptureVideoFrameResult => {
       // the canvas, so the frame can never leave the page this way.
       return { ok: false, reason: 'tainted' };
     }
+
     if (dataUrl.length <= MAX_BYTES) {
       return {
         ok: true,
@@ -101,5 +109,6 @@ export const captureVideoFrame = (srcUrl: string): CaptureVideoFrameResult => {
       };
     }
   }
+
   return { ok: false, reason: 'too-large' };
 };

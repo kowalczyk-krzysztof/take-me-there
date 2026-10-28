@@ -26,6 +26,7 @@ export const ResultView = ({
   callbacks,
 }: Props) => {
   const subtitle = [place.city, place.country].filter((part) => part).join(', ');
+
   return (
     <>
       <h2 tabIndex={-1}>

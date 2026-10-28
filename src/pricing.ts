@@ -35,6 +35,7 @@ export const formatUsd = (amount: number): string => {
   if (!(amount > 0)) {
     return '$0.00';
   }
+
   return amount < 0.1 ? `$${amount.toFixed(3)}` : `$${amount.toFixed(2)}`;
 };
 
@@ -45,6 +46,7 @@ const readTotals = async (): Promise<Record<string, number>> => {
     const stored = (await chrome.storage.local.get(COST_TOTALS_KEY)) as {
       costTotals?: Record<string, number>;
     };
+
     if (stored.costTotals && typeof stored.costTotals === 'object') {
       return stored.costTotals;
     }
@@ -63,21 +65,26 @@ export const recordMonthSpend = async (
   const next = (typeof totals[key] === 'number' ? totals[key] : 0) + amountUsd;
   totals[key] = next;
   const keys = Object.keys(totals).sort().reverse();
+
   for (const old of keys.slice(MAX_MONTHS_KEPT)) {
     delete totals[old];
   }
+
   await chrome.storage.local.set({ [COST_TOTALS_KEY]: totals });
+
   return next;
 };
 
 export const readMonthSpend = async (date: Date = new Date()): Promise<number> => {
   const totals = await readTotals();
+
   const value = totals[monthKey(date)];
   return typeof value === 'number' ? value : 0;
 };
 
 export const resetMonthSpend = async (date: Date = new Date()): Promise<void> => {
   const totals = await readTotals();
+
   delete totals[monthKey(date)];
   await chrome.storage.local.set({ [COST_TOTALS_KEY]: totals });
 };

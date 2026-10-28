@@ -53,7 +53,6 @@ import {
   formatSignalsForPrompt,
   getActiveProvider,
   hasConsented,
-  loadSettings,
   saveSettings,
   setConsented,
   SETTINGS_STORAGE_KEY,
@@ -89,6 +88,7 @@ export const isAllowedPreviewUrl = (srcUrl: string): boolean => {
   if (srcUrl.startsWith('data:')) {
     return srcUrl.length <= MAX_PREVIEW_DATA_URL && srcUrl.startsWith('data:image/');
   }
+
   try {
     const parsed = new URL(srcUrl);
     return parsed.protocol === 'https:' || parsed.protocol === 'http:';
@@ -111,6 +111,7 @@ const isCacheEntry = (value: unknown): value is CacheEntry => {
   if (!value || typeof value !== 'object') {
     return false;
   }
+
   const entry = value as Partial<CacheEntry>;
   return (
     typeof entry.guide === 'string' &&
@@ -128,6 +129,7 @@ const readCacheIndex = async (): Promise<string[]> => {
     const stored = (await chrome.storage.session.get(CACHE_INDEX_KEY)) as {
       cacheKeys?: unknown;
     };
+
     return Array.isArray(stored.cacheKeys)
       ? stored.cacheKeys.filter((key): key is string => typeof key === 'string')
       : [];
@@ -140,11 +142,14 @@ export const getCacheEntry = async (hash: string): Promise<CacheEntry | undefine
   try {
     const stored = (await chrome.storage.session.get(cacheKeyFor(hash))) as Record<string, unknown>;
     const entry = stored[cacheKeyFor(hash)];
+
     if (!isCacheEntry(entry)) {
       return undefined;
     }
+
     const index = (await readCacheIndex()).filter((key) => key !== hash);
     index.unshift(hash);
+
     await chrome.storage.session.set({ [CACHE_INDEX_KEY]: index.slice(0, CACHE_SLOTS) });
     return entry;
   } catch {
@@ -155,10 +160,15 @@ export const getCacheEntry = async (hash: string): Promise<CacheEntry | undefine
 export const setCacheEntry = async (hash: string, entry: CacheEntry): Promise<void> => {
   try {
     await chrome.storage.session.set({ [cacheKeyFor(hash)]: entry });
+
     const index = (await readCacheIndex()).filter((key) => key !== hash);
+
     index.unshift(hash);
+
     const evicted = index.slice(CACHE_SLOTS);
+
     await chrome.storage.session.set({ [CACHE_INDEX_KEY]: index.slice(0, CACHE_SLOTS) });
+
     for (const key of evicted) {
       await chrome.storage.session.remove(cacheKeyFor(key));
     }
@@ -340,9 +350,11 @@ const refreshLock = async (): Promise<void> => {
   try {
     const { provider, settings } = await getActiveProvider();
     const keyStatus = await loadKey(provider.id);
+
     if (epoch !== lockEpoch) {
       return;
     }
+
     store.set({
       unlocked: keyStatus.state === 'ok',
       keySaved: keyStatus.state === 'ok',

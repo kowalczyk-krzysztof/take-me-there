@@ -1,8 +1,3 @@
-// Self-contained page scraper, serialized into the page by
-// chrome.scripting.executeScript. Hard rules: no imports, no closures over
-// module scope, JSON-only argument and return value. The bundler must not add
-// helper code around it (SWC with target es2022 emits none).
-
 export interface JsonLdPlace {
   types: string[];
   name: string;
@@ -39,6 +34,7 @@ export const collectSignals = (srcUrl: string): PageSignalData => {
       return '';
     }
   };
+
   const target = abs(srcUrl);
   const clean = (s: string | null | undefined): string =>
     (s || '').replace(/\s+/g, ' ').trim().slice(0, 300);
@@ -62,6 +58,7 @@ export const collectSignals = (srcUrl: string): PageSignalData => {
   // (hop-capped on crafted DOMs).
   const nearestPrev = (sel: string): Element | null => {
     let hops = 0;
+
     for (
       let el: Element | null = img;
       el && el !== document.documentElement;
@@ -74,11 +71,13 @@ export const collectSignals = (srcUrl: string): PageSignalData => {
         if (inner.length) return inner[inner.length - 1];
       }
     }
+
     return null;
   };
 
   // schema.org JSON-LD: Place-like nodes and anything with geo coordinates.
   const ld: JsonLdPlace[] = [];
+
   for (const s of document.querySelectorAll('script[type="application/ld+json"]')) {
     if ((s.textContent || '').length > 200000) continue; // huge/hostile JSON-LD: skip, don't parse
     try {
@@ -91,7 +90,9 @@ export const collectSignals = (srcUrl: string): PageSignalData => {
           Object.values(n).forEach(walk);
         }
       };
+
       walk(JSON.parse(s.textContent || ''));
+
       for (const n of nodes) {
         const record = n as Record<string, any>;
         const types = ([] as Array<unknown>).concat(record['@type'] || []).map(String);

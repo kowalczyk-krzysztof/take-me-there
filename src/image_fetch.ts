@@ -19,21 +19,26 @@ export const fetchImageBytes = async (url: string, signal: AbortSignal): Promise
 
 export const downscaleToJpegDataUrl = async (bytes: Uint8Array): Promise<string> => {
   const bitmap = await createImageBitmap(new Blob([bytes as BlobPart]));
+
   try {
     const scale = Math.min(1, FETCH_MAX_SIDE / Math.max(bitmap.width, bitmap.height));
     const width = Math.max(1, Math.round(bitmap.width * scale));
     const height = Math.max(1, Math.round(bitmap.height * scale));
     const canvas = new OffscreenCanvas(width, height);
     const ctx = canvas.getContext('2d');
+
     if (!ctx) {
       throw new Error('2d canvas context unavailable');
     }
+
     ctx.drawImage(bitmap, 0, 0, width, height);
     const jpeg = await canvas.convertToBlob({ type: 'image/jpeg', quality: FETCH_JPEG_QUALITY });
     const out = new Uint8Array(await jpeg.arrayBuffer());
+
     if (out.length === 0) {
       throw new Error('JPEG encoding returned no bytes');
     }
+
     return `data:image/jpeg;base64,${encodeBase64(out)}`;
   } finally {
     bitmap.close();
@@ -42,13 +47,17 @@ export const downscaleToJpegDataUrl = async (bytes: Uint8Array): Promise<string>
 
 export const encodeBase64 = (bytes: Uint8Array): string => {
   const toBase64 = (Uint8Array.prototype as unknown as { toBase64?: unknown }).toBase64;
+
   if (typeof toBase64 === 'function') {
     return (toBase64 as (this: Uint8Array) => string).call(bytes);
   }
+
   let binary = '';
   const CHUNK = 0x8000;
+
   for (let i = 0; i < bytes.length; i += CHUNK) {
     binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
   }
+
   return btoa(binary);
 };

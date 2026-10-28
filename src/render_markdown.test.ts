@@ -1,4 +1,3 @@
-// @vitest-environment happy-dom
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createGuideRenderer, findGuideStart } from './render_markdown';
 

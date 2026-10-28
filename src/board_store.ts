@@ -27,11 +27,13 @@ export const dedupeKeyFor = async (placeName: string, country: string): Promise<
     'SHA-256',
     new TextEncoder().encode(`${name.length}:${name}|${land.length}:${land}`)
   );
+
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
 };
 
 const isPin = (value: unknown): value is BoardPin => {
   const pin = value as BoardPin | null;
+
   return (
     !!pin &&
     typeof pin === 'object' &&
@@ -47,9 +49,11 @@ export const listPins = async (): Promise<BoardPin[]> => {
   try {
     const stored = (await chrome.storage.local.get(BOARD_STORAGE_KEY)) as Record<string, unknown>;
     const pins = stored[BOARD_STORAGE_KEY];
+
     if (!Array.isArray(pins)) {
       return [];
     }
+
     return pins.filter(isPin).sort((a, b) => a.addedAt - b.addedAt);
   } catch {
     return [];
@@ -68,15 +72,19 @@ export const pinPlace = async (
   const keys = await Promise.all(
     pins.map((entry) => dedupeKeyFor(entry.place.placeName, entry.place.country))
   );
+
   if (keys.includes(key)) {
     return { status: 'duplicate', pins };
   }
+
   const entry: BoardPin = { ...pin, addedAt: pin.addedAt ?? Date.now() };
   const next = [...pins, entry].sort((a, b) => a.addedAt - b.addedAt);
   let evicted: BoardPin | null = null;
+
   if (next.length > BOARD_CAP) {
     evicted = next.shift() ?? null;
   }
+
   await chrome.storage.local.set({ [BOARD_STORAGE_KEY]: next });
   return { status: 'pinned', pins: next, evicted };
 };
@@ -88,6 +96,7 @@ export const removePin = async (placeName: string, country: string): Promise<Boa
     pins.map((entry) => dedupeKeyFor(entry.place.placeName, entry.place.country))
   );
   const next = pins.filter((_, index) => keys[index] !== key);
+
   if (next.length !== pins.length) {
     await chrome.storage.local.set({ [BOARD_STORAGE_KEY]: next });
   }
@@ -118,35 +127,43 @@ export const makeThumbnail = async (
   if (!dataUrl.startsWith('data:image/') || dataUrl.length > THUMB_MAX_SOURCE_BYTES) {
     return null;
   }
+
   let img: HTMLImageElement;
   try {
     img = await decodeImage(dataUrl);
   } catch {
     return null;
   }
+
   if (!(img.naturalWidth > 0) || !(img.naturalHeight > 0)) {
     return null;
   }
+
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
+
   if (!ctx) {
     return null;
   }
   const scale = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
   canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
   canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+
   try {
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
   } catch {
     return null;
   }
+
   for (const quality of [0.85, 0.7, 0.55, 0.4]) {
     let out = '';
+
     try {
       out = canvas.toDataURL('image/jpeg', quality);
     } catch {
       return null;
     }
+
     if (out.length <= maxBytes) {
       return out;
     }

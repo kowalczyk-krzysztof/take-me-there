@@ -1,4 +1,3 @@
-// @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { SourceChips } from './source_chips';
 import type { GuideSource } from '../../providers/index';

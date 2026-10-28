@@ -1,4 +1,3 @@
-// @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TripCard, type CardState, type TripCardCallbacks } from './trip_card';
 import type { PlaceResult } from '../../types';
