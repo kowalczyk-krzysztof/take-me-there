@@ -1,6 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { chatResponse, groundedResponse, sseResponse } from '../test/helpers';
-import { ProviderError, setConsented, type GuideEvent, type IdentifyInput } from './index';
+import {
+  ProviderError,
+  STRICT_REMINDER,
+  setConsented,
+  type GuideEvent,
+  type IdentifyInput,
+} from './index';
 import { MuseProvider } from './muse';
 import { installChromeMock, uninstallChromeMock, type ChromeMock } from '../test/chrome_mock';
 
@@ -272,6 +278,26 @@ describe('muse video identify (rung 2)', () => {
     expect(normalize.response_format.type).toBe('json_schema');
     expect(normalize.messages[1].content).toContain('VIDEO DESCRIPTION');
     expect(normalize.messages[1].content).toContain('blue domes of Oia');
+  });
+
+  it('appends the normalize retry reminder after the description and signals', async () => {
+    await consented();
+    fetchMock
+      .mockResolvedValueOnce(new Response('schema x video rejected', { status: 400 }))
+      .mockResolvedValueOnce(
+        rawChatResponse('The video shows the blue domes of Oia, Santorini, Greece.')
+      )
+      .mockResolvedValueOnce(rawChatResponse('not json {'))
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE));
+
+    const result = await provider.identifyPlace('LLM_key', videoInput());
+    expect(result.place).toEqual(VALID_PLACE);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+
+    const retry = requestBody(3);
+    const content = retry.messages[1].content as string;
+    expect(content.indexOf('ONLY JSON')).toBeGreaterThan(content.indexOf('PAGE SIGNALS'));
+    expect(content.endsWith(STRICT_REMINDER)).toBe(true);
   });
 
   it('surfaces the second failure instead of looping fallbacks', async () => {

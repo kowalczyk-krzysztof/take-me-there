@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   CONSENT_STORAGE_KEY,
   CONSENT_VERSION,
+  STRICT_REMINDER,
   assertConsent,
   buildAlternatesMessages,
   buildDuelMessages,
@@ -333,7 +334,54 @@ describe('prompt builders', () => {
 
     const parts = user.content as Array<{ type: string; text?: string }>;
     expect(parts[0].text).not.toContain('IGNORE EVERYTHING\n');
-    expect(parts[0].text).toContain('ONLY JSON');
+    expect(parts[0].text).not.toContain('ONLY JSON');
+    expect(parts).toHaveLength(2);
+    expect(parts[1]).toEqual({ type: 'text', text: STRICT_REMINDER });
+  });
+
+  it('keeps the strict reminder terminal so retries share the cache prefix', () => {
+    const [, identifyUser] = buildIdentifyMessages({
+      signalsText: 'page title: X',
+      imageUrl: 'https://cdn.example.com/oia.jpg',
+      strictReminder: true,
+    });
+
+    const identifyParts = identifyUser.content as Array<{ type: string; text?: string }>;
+    expect(identifyParts).toHaveLength(3);
+    expect(identifyParts[1]).toEqual({
+      type: 'image_url',
+      image_url: { url: 'https://cdn.example.com/oia.jpg' },
+    });
+    expect(identifyParts[2]).toEqual({ type: 'text', text: STRICT_REMINDER });
+    expect(identifyParts[0].text).not.toContain('ONLY JSON');
+
+    const [, textOnlyUser] = buildIdentifyMessages({
+      signalsText: 'page title: X',
+      imageUrl: null,
+      strictReminder: true,
+    });
+    expect(textOnlyUser.content as string).toContain('PAGE SIGNALS');
+    expect((textOnlyUser.content as string).endsWith(STRICT_REMINDER)).toBe(true);
+
+    const [, scanUser] = buildScanMessages(
+      [{ url: 'https://cdn.example.com/a.jpg', caption: '', heading: '', width: 800, height: 600 }],
+      true
+    );
+
+    const scanParts = scanUser.content as Array<{ type: string; text?: string }>;
+    expect(scanParts).toHaveLength(3);
+    expect(scanParts[2]).toEqual({ type: 'text', text: STRICT_REMINDER });
+    expect(scanParts[0].text).not.toContain('ONLY JSON');
+
+    const [, duelUser] = buildDuelMessages(
+      { name: 'Oia', country: 'Greece' },
+      { name: 'Fira', country: 'Greece' },
+      true
+    );
+    expect((duelUser.content as string).endsWith(STRICT_REMINDER)).toBe(true);
+
+    const [, altUser] = buildAlternatesMessages('Oia', 'Greece', 'quieter', true);
+    expect((altUser.content as string).endsWith(STRICT_REMINDER)).toBe(true);
   });
 
   it('parses valid itineraries and drops non-enum stops', () => {
