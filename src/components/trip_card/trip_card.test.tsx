@@ -78,7 +78,13 @@ describe('trip-card', () => {
     expect(root.querySelector('.badge')).toBeNull();
     rerenderCard(
       rendered,
-      { view: 'result', place: { ...PLACE, confidence: 0.2 }, lowConfidence: true, pinned: false, planState: 'ready' },
+      {
+        view: 'result',
+        place: { ...PLACE, confidence: 0.2 },
+        lowConfidence: true,
+        pinned: false,
+        planState: 'ready',
+      },
       { onReanalyze },
     );
     expect(root.querySelector('.badge')?.textContent).toBe('bestGuessBadge');
@@ -167,7 +173,14 @@ describe('trip-card', () => {
         alternates: {
           state: 'ready',
           intent: 'cheaper',
-          cards: [{ name: 'Fira, Greece', why: 'Same caldera, lower prices.', bestMonth: 'May', pinned: false }],
+          cards: [
+            {
+              name: 'Fira, Greece',
+              why: 'Same caldera, lower prices.',
+              bestMonth: 'May',
+              pinned: false,
+            },
+          ],
         },
       },
       { onPlanInstead },
@@ -193,7 +206,12 @@ describe('trip-card', () => {
           state: 'ready',
           intent: 'cheaper',
           cards: [
-            { name: 'Fira, Greece', why: 'Same caldera, lower prices.', bestMonth: 'May', pinned: false },
+            {
+              name: 'Fira, Greece',
+              why: 'Same caldera, lower prices.',
+              bestMonth: 'May',
+              pinned: false,
+            },
             { name: 'Oia, Greece', why: 'Same island.', bestMonth: 'June', pinned: true },
           ],
         },
@@ -204,7 +222,9 @@ describe('trip-card', () => {
     expect(tiles).toHaveLength(2);
     expect(tiles[0]?.textContent).toBe('F');
     expect(tiles[0]?.getAttribute('aria-hidden')).toBe('true');
-    const pins = root.querySelectorAll('.alternate-card .pin-button') as NodeListOf<HTMLButtonElement>;
+    const pins = root.querySelectorAll(
+      '.alternate-card .pin-button',
+    ) as NodeListOf<HTMLButtonElement>;
     expect(pins).toHaveLength(2);
     expect(pins[0]?.getAttribute('aria-pressed')).toBe('false');
     expect(pins[1]?.getAttribute('aria-pressed')).toBe('true');
@@ -264,7 +284,11 @@ describe('trip-card', () => {
     expect(link.textContent).toContain('Santorini');
     expect(link.target).toBe('_blank');
 
-    rerenderCard(rendered, { view: 'no-place', showLookAgain: false, fallback: null }, { onLookAgain });
+    rerenderCard(
+      rendered,
+      { view: 'no-place', showLookAgain: false, fallback: null },
+      { onLookAgain },
+    );
     expect(root.querySelector('button')).toBeNull();
     expect(root.querySelector('.fallback')).toBeNull();
   });
@@ -302,9 +326,13 @@ describe('trip-card', () => {
   });
 
   it('renders a focusable result heading', () => {
-    const root = renderCard(
-      { view: 'result', place: PLACE, lowConfidence: false, pinned: false, planState: 'ready' },
-    ).container;
+    const root = renderCard({
+      view: 'result',
+      place: PLACE,
+      lowConfidence: false,
+      pinned: false,
+      planState: 'ready',
+    }).container;
     const heading = root.querySelector('h2') as HTMLHeadingElement;
     heading.focus();
     expect(document.activeElement?.tagName).toBe('H2');

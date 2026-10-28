@@ -29,7 +29,12 @@ for (const marker of ['plan-trip', 'application/ld+json', 'imgFound', 'videoWidt
   }
 }
 const panelCss = readFileSync(path.join(dist, 'sidepanel.css'), 'utf8');
-for (const marker of ['skeleton-shimmer', '--focus-color', 'scroll-padding-top', 'grid-template-columns']) {
+for (const marker of [
+  'skeleton-shimmer',
+  '--focus-color',
+  'scroll-padding-top',
+  'grid-template-columns',
+]) {
   if (!panelCss.includes(marker)) {
     console.error(`verify: sidepanel.css lacks expected marker: ${marker}`);
     failed = true;

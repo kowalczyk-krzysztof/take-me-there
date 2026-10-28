@@ -29,7 +29,17 @@ const addImg = (parent: HTMLElement, stubs: ImgStubs): HTMLImageElement => {
   const width = stubs.width ?? 640;
   const height = stubs.height ?? 480;
   img.getBoundingClientRect = () =>
-    ({ width, height, top: 0, left: 0, right: width, bottom: height, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect;
+    ({
+      width,
+      height,
+      top: 0,
+      left: 0,
+      right: width,
+      bottom: height,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    }) as DOMRect;
   parent.append(img);
   return img;
 };

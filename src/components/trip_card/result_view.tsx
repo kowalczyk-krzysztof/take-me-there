@@ -17,7 +17,13 @@ interface Props {
 }
 
 export const ResultView = ({
-  place, lowConfidence, pinned, planState, compareOptions, alternates, callbacks,
+  place,
+  lowConfidence,
+  pinned,
+  planState,
+  compareOptions,
+  alternates,
+  callbacks,
 }: Props) => {
   const subtitle = [place.city, place.country].filter((part) => part).join(', ');
   return (
@@ -32,7 +38,11 @@ export const ResultView = ({
         ) : null}
       </h2>
       {subtitle ? <p className={styles.subtitle}>{subtitle}</p> : null}
-      {place.oneLiner ? <p className={styles.oneliner} title={place.oneLiner}>{place.oneLiner}</p> : null}
+      {place.oneLiner ? (
+        <p className={styles.oneliner} title={place.oneLiner}>
+          {place.oneLiner}
+        </p>
+      ) : null}
       <button
         type="button"
         className={styles['pin-button']}
@@ -57,7 +67,11 @@ export const ResultView = ({
         </button>
       )}
       <ChipsRow alternates={alternates} onAlternates={callbacks.onAlternates} />
-      <AlternatesList alternates={alternates} onPinAlternate={callbacks.onPinAlternate} onPlanInstead={callbacks.onPlanInstead} />
+      <AlternatesList
+        alternates={alternates}
+        onPinAlternate={callbacks.onPinAlternate}
+        onPlanInstead={callbacks.onPlanInstead}
+      />
       <CompareRow options={compareOptions} onCompare={callbacks.onCompare} />
       <div className={styles['disagree-row']}>
         <span>{msg('notThisPlace')}</span>

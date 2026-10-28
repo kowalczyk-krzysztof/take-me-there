@@ -284,7 +284,10 @@ describe('sidepanel', () => {
       expect(document.querySelector('#key-saved-status')?.textContent).toBe('keySavedStatus');
     });
     const actions = [...document.querySelectorAll('#settings-panel .confirm-actions button')];
-    expect(actions.map((button) => button.textContent)).toEqual(['keyReplaceButton', 'clearKeyButton']);
+    expect(actions.map((button) => button.textContent)).toEqual([
+      'keyReplaceButton',
+      'clearKeyButton',
+    ]);
     (actions[0] as HTMLButtonElement).click();
     await waitFor(() => {
       expect(document.querySelector('#settings-panel #key-input')).not.toBeNull();
@@ -655,7 +658,9 @@ describe('sidepanel', () => {
     await waitFor(() => {
       expect(document.querySelectorAll('#result-slot .confirm-actions button')).toHaveLength(2);
     });
-    const cancel = [...document.querySelectorAll('#result-slot .confirm-actions button')][1] as HTMLButtonElement;
+    const cancel = [
+      ...document.querySelectorAll('#result-slot .confirm-actions button'),
+    ][1] as HTMLButtonElement;
     cancel.click();
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe(
@@ -711,9 +716,7 @@ describe('sidepanel', () => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned');
     });
     expect(
-      (card.querySelector('.pin-button') as HTMLButtonElement).getAttribute(
-        'aria-pressed',
-      ),
+      (card.querySelector('.pin-button') as HTMLButtonElement).getAttribute('aria-pressed'),
     ).toBe('true');
     const board = document.querySelector('#board-slot') as HTMLElement;
     const items = [...(board.querySelectorAll('li') ?? [])];
@@ -721,9 +724,7 @@ describe('sidepanel', () => {
     expect(items[0].querySelector('.item-name')?.textContent).toBe('Oia, Greece');
     expect(items[0].querySelector('.item-host')?.textContent).toBe('example.com');
     expect(
-      (board.querySelector('.plan-button') as HTMLButtonElement).getAttribute(
-        'aria-disabled',
-      ),
+      (board.querySelector('.plan-button') as HTMLButtonElement).getAttribute('aria-disabled'),
     ).toBe('true');
     (card.querySelector('.pin-button') as HTMLButtonElement).click();
     await waitFor(() => {
@@ -736,9 +737,7 @@ describe('sidepanel', () => {
       expect(board.querySelectorAll('li')).toHaveLength(0);
     });
     expect(
-      (card.querySelector('.pin-button') as HTMLButtonElement).getAttribute(
-        'aria-pressed',
-      ),
+      (card.querySelector('.pin-button') as HTMLButtonElement).getAttribute('aria-pressed'),
     ).toBe('false');
   });
 
@@ -792,9 +791,7 @@ describe('sidepanel', () => {
     const board = document.querySelector('#board-slot') as HTMLElement;
     selectBoardTab();
     (board.querySelector('.clear-button') as HTMLButtonElement).click();
-    expect(board.querySelector('.confirm-heading')?.textContent).toBe(
-      'boardClearTitle',
-    );
+    expect(board.querySelector('.confirm-heading')?.textContent).toBe('boardClearTitle');
     const [, cancel] = [
       ...(board.querySelectorAll('.confirm-actions button') ?? []),
     ] as HTMLButtonElement[];
@@ -927,8 +924,20 @@ describe('sidepanel', () => {
         srcUrl: '',
         signals: undefined,
         scanImages: [
-          { url: 'https://img.example.com/a.jpg', caption: '', heading: '', width: 800, height: 600 },
-          { url: 'https://img.example.com/b.jpg', caption: '', heading: '', width: 800, height: 600 },
+          {
+            url: 'https://img.example.com/a.jpg',
+            caption: '',
+            heading: '',
+            width: 800,
+            height: 600,
+          },
+          {
+            url: 'https://img.example.com/b.jpg',
+            caption: '',
+            heading: '',
+            width: 800,
+            height: 600,
+          },
         ],
       }),
     });
@@ -939,7 +948,9 @@ describe('sidepanel', () => {
     expect(document.querySelector('#status-region')?.textContent).toBe('scanFound');
     const list = document.querySelector('#result-slot');
     const cards = list?.querySelectorAll('.scan-card');
-    expect(cards?.[0]?.querySelector('img')?.getAttribute('src')).toBe('https://img.example.com/b.jpg');
+    expect(cards?.[0]?.querySelector('img')?.getAttribute('src')).toBe(
+      'https://img.example.com/b.jpg',
+    );
     expect(cards?.[1]?.querySelector('img')).toBeNull();
     expect(cards?.[1]?.querySelector('.thumb-placeholder')).not.toBeNull();
     expect(cards?.[0]?.querySelector('.pin-button')?.getAttribute('aria-pressed')).toBe('false');
@@ -963,7 +974,13 @@ describe('sidepanel', () => {
         srcUrl: '',
         signals: undefined,
         scanImages: [
-          { url: 'https://img.example.com/a.jpg', caption: '', heading: '', width: 800, height: 600 },
+          {
+            url: 'https://img.example.com/a.jpg',
+            caption: '',
+            heading: '',
+            width: 800,
+            height: 600,
+          },
         ],
       }),
     });
@@ -991,7 +1008,13 @@ describe('sidepanel', () => {
         srcUrl: '',
         signals: undefined,
         scanImages: [
-          { url: 'https://img.example.com/a.jpg', caption: '', heading: '', width: 800, height: 600 },
+          {
+            url: 'https://img.example.com/a.jpg',
+            caption: '',
+            heading: '',
+            width: 800,
+            height: 600,
+          },
         ],
       }),
     });
@@ -1028,8 +1051,20 @@ describe('sidepanel', () => {
         srcUrl: '',
         signals: undefined,
         scanImages: [
-          { url: 'https://img.example.com/a.jpg', caption: '', heading: '', width: 800, height: 600 },
-          { url: 'https://img.example.com/b.jpg', caption: '', heading: '', width: 800, height: 600 },
+          {
+            url: 'https://img.example.com/a.jpg',
+            caption: '',
+            heading: '',
+            width: 800,
+            height: 600,
+          },
+          {
+            url: 'https://img.example.com/b.jpg',
+            caption: '',
+            heading: '',
+            width: 800,
+            height: 600,
+          },
         ],
       }),
     });
@@ -1064,21 +1099,25 @@ describe('sidepanel', () => {
   it('retries a failed scan from the error card', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
-    fetchMock
-      .mockResolvedValueOnce(new Response('boom', { status: 500 }))
-      .mockResolvedValueOnce(
-        chatResponse({
-          places: [
-            { placeName: 'Oia', city: 'Oia', country: 'Greece', confidence: 0.9, imageIndex: 0 },
-          ],
-        }),
-      );
+    fetchMock.mockResolvedValueOnce(new Response('boom', { status: 500 })).mockResolvedValueOnce(
+      chatResponse({
+        places: [
+          { placeName: 'Oia', city: 'Oia', country: 'Greece', confidence: 0.9, imageIndex: 0 },
+        ],
+      }),
+    );
     await mock.session.set({
       tripRequest: READY({
         srcUrl: '',
         signals: undefined,
         scanImages: [
-          { url: 'https://img.example.com/a.jpg', caption: '', heading: '', width: 800, height: 600 },
+          {
+            url: 'https://img.example.com/a.jpg',
+            caption: '',
+            heading: '',
+            width: 800,
+            height: 600,
+          },
         ],
       }),
     });
@@ -1103,17 +1142,15 @@ describe('sidepanel', () => {
       place: { ...VALID_PLACE, placeName: 'Fira', city: 'Fira', confidence: 0.8 },
       sourceHost: 'example.com',
     });
-    fetchMock
-      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
-      .mockResolvedValueOnce(
-        groundedResponse(
-          {
-            criteria: [{ criterion: 'Cost', a: 'Pricey sunsets.', b: 'Cheaper stays.' }],
-            verdict: 'Pick Oia for views; pick Fira for budget.',
-          },
-          [{ type: 'url_citation', url: 'https://example.com/cost', title: 'Costs' }],
-        ),
-      );
+    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE)).mockResolvedValueOnce(
+      groundedResponse(
+        {
+          criteria: [{ criterion: 'Cost', a: 'Pricey sunsets.', b: 'Cheaper stays.' }],
+          verdict: 'Pick Oia for views; pick Fira for budget.',
+        },
+        [{ type: 'url_citation', url: 'https://example.com/cost', title: 'Costs' }],
+      ),
+    );
     await mock.session.set({ tripRequest: READY() });
     await waitFor(() => {
       const card = document.querySelector('#result-slot');
@@ -1221,7 +1258,12 @@ describe('sidepanel', () => {
       .mockResolvedValueOnce(
         groundedResponse({
           alternatives: [
-            { placeName: 'Fira', country: 'Greece', why: 'Same caldera, lower prices.', bestMonth: 'May' },
+            {
+              placeName: 'Fira',
+              country: 'Greece',
+              why: 'Same caldera, lower prices.',
+              bestMonth: 'May',
+            },
             { placeName: 'Naxos', country: 'Greece', why: 'Quiet beaches.', bestMonth: 'June' },
           ],
         }),
@@ -1241,7 +1283,9 @@ describe('sidepanel', () => {
     });
     const fresh = document.querySelector('#result-slot') as HTMLElement;
     expect(fresh.querySelectorAll('.alternate-card')).toHaveLength(2);
-    (fresh.querySelector('.alternate-actions button:not(.pin-button)') as HTMLButtonElement).click();
+    (
+      fresh.querySelector('.alternate-actions button:not(.pin-button)') as HTMLButtonElement
+    ).click();
     await waitFor(() => {
       const grid = document.querySelector('#links-slot');
       const tiles = grid?.querySelectorAll('a.tile');
@@ -1256,15 +1300,18 @@ describe('sidepanel', () => {
   it('pins alternates to the board with a monogram tile', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
-    fetchMock
-      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
-      .mockResolvedValueOnce(
-        groundedResponse({
-          alternatives: [
-            { placeName: 'Fira', country: 'Greece', why: 'Same caldera, lower prices.', bestMonth: 'May' },
-          ],
-        }),
-      );
+    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE)).mockResolvedValueOnce(
+      groundedResponse({
+        alternatives: [
+          {
+            placeName: 'Fira',
+            country: 'Greece',
+            why: 'Same caldera, lower prices.',
+            bestMonth: 'May',
+          },
+        ],
+      }),
+    );
     await mock.session.set({ tripRequest: READY() });
     await waitFor(() => {
       const card = document.querySelector('#result-slot');
@@ -1289,7 +1336,9 @@ describe('sidepanel', () => {
     expect(entries[0]?.querySelector('.item-name')?.textContent).toContain('Fira');
     expect(entries[0]?.querySelector('.thumb-monogram')?.textContent).toBe('F');
     const synced = document.querySelector('#result-slot') as HTMLElement;
-    expect(synced.querySelector('.alternate-card .pin-button')?.getAttribute('aria-pressed')).toBe('true');
+    expect(synced.querySelector('.alternate-card .pin-button')?.getAttribute('aria-pressed')).toBe(
+      'true',
+    );
   });
 
   it('recovers from alternates failure with chips intact', async () => {
@@ -1326,8 +1375,7 @@ describe('sidepanel', () => {
       place: { ...VALID_PLACE, placeName: 'Fira', city: 'Fira', confidence: 0.8 },
       sourceHost: 'example.com',
     });
-    fetchMock
-      .mockResolvedValueOnce(chatResponse(VALID_PLACE));
+    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
     await mock.session.set({ tripRequest: READY() });
     await waitFor(() => {
       const card = document.querySelector('#result-slot');
@@ -1353,7 +1401,10 @@ describe('sidepanel', () => {
       request: permsRequest,
       remove: permsRemove,
     };
-    vi.stubGlobal('createImageBitmap', vi.fn().mockResolvedValue({ width: 400, height: 300, close: vi.fn() }));
+    vi.stubGlobal(
+      'createImageBitmap',
+      vi.fn().mockResolvedValue({ width: 400, height: 300, close: vi.fn() }),
+    );
     vi.stubGlobal(
       'OffscreenCanvas',
       vi.fn().mockImplementation(function (this: unknown) {
@@ -1442,7 +1493,10 @@ describe('sidepanel', () => {
       request: permsRequest,
       remove: permsRemove,
     };
-    vi.stubGlobal('createImageBitmap', vi.fn().mockResolvedValue({ width: 400, height: 300, close: vi.fn() }));
+    vi.stubGlobal(
+      'createImageBitmap',
+      vi.fn().mockResolvedValue({ width: 400, height: 300, close: vi.fn() }),
+    );
     vi.stubGlobal(
       'OffscreenCanvas',
       vi.fn().mockImplementation(function (this: unknown) {
@@ -1516,7 +1570,10 @@ describe('sidepanel', () => {
       request: permsRequest,
       remove: vi.fn().mockResolvedValue(undefined),
     };
-    vi.stubGlobal('createImageBitmap', vi.fn().mockResolvedValue({ width: 400, height: 300, close: vi.fn() }));
+    vi.stubGlobal(
+      'createImageBitmap',
+      vi.fn().mockResolvedValue({ width: 400, height: 300, close: vi.fn() }),
+    );
     vi.stubGlobal(
       'OffscreenCanvas',
       vi.fn().mockImplementation(function (this: unknown) {
@@ -1529,7 +1586,9 @@ describe('sidepanel', () => {
     const GUESS = { ...VALID_PLACE, confidence: 0.2 };
     const samEmpty = new Response(
       JSON.stringify({
-        output: [{ type: 'message', content: [{ type: 'output_text', text: '', annotations: [] }] }],
+        output: [
+          { type: 'message', content: [{ type: 'output_text', text: '', annotations: [] }] },
+        ],
         usage: { input_tokens: 900, output_tokens: 5 },
       }),
       { status: 200 },

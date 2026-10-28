@@ -1,11 +1,6 @@
 // Serialized into the page: no imports, no module-scope closures, JSON-only argument and return.
 
-export type FrameFailureReason =
-  | 'no-match'
-  | 'no-dimensions'
-  | 'tainted'
-  | 'drm'
-  | 'too-large';
+export type FrameFailureReason = 'no-match' | 'no-dimensions' | 'tainted' | 'drm' | 'too-large';
 
 export interface CapturedFrame {
   ok: true;
@@ -41,8 +36,7 @@ export const captureVideoFrame = (srcUrl: string): CaptureVideoFrameResult => {
   const target = abs(srcUrl);
   const bare = strip(srcUrl);
   const videos = [...document.querySelectorAll('video')].slice(0, 500);
-  const byExact =
-    videos.find((v) => abs(v.currentSrc) === target || abs(v.src) === target) ?? null;
+  const byExact = videos.find((v) => abs(v.currentSrc) === target || abs(v.src) === target) ?? null;
   const byBare =
     byExact ??
     videos.find((v) => {

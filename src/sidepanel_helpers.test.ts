@@ -56,9 +56,9 @@ describe('cache key hashing', () => {
     const second = await hashCacheKey('https://cdn.example.com/oia.jpg', 'https://example.com/g');
     expect(first).toBe(second);
     expect(first).toMatch(/^[0-9a-f]{64}$/);
-    expect(await hashCacheKey('https://cdn.example.com/other.jpg', 'https://example.com/g')).not.toBe(
-      first,
-    );
+    expect(
+      await hashCacheKey('https://cdn.example.com/other.jpg', 'https://example.com/g'),
+    ).not.toBe(first);
   });
 });
 

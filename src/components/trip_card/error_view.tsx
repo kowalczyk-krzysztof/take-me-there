@@ -13,7 +13,12 @@ interface Props {
 }
 
 export const ErrorView = ({
-  title, body, showRetry, fallback, showFetchRetry, callbacks,
+  title,
+  body,
+  showRetry,
+  fallback,
+  showFetchRetry,
+  callbacks,
 }: Props) => (
   <>
     <h2 tabIndex={-1}>{title}</h2>

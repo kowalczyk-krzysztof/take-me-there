@@ -101,9 +101,7 @@ export class OpenAiCompatProvider implements Provider {
   }
 
   identifyPlace(key: string, input: IdentifyInput): Promise<IdentifyResult> {
-    return runIdentify(key, input, (messages, schema) =>
-      this.identifyRequest(messages, schema),
-    );
+    return runIdentify(key, input, (messages, schema) => this.identifyRequest(messages, schema));
   }
 
   private identifyRequest(

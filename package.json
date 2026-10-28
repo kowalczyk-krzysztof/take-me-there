@@ -4,13 +4,18 @@
   "description": "Right-click any image to identify the place with Muse AI and plan a trip from the side panel.",
   "private": true,
   "type": "module",
-  "sideEffects": ["*.css", "./src/components/**/*.tsx"],
+  "sideEffects": [
+    "*.css",
+    "./src/components/**/*.tsx"
+  ],
   "scripts": {
     "dev": "rspack build --config rspack.config.mjs --mode development --watch",
     "build": "rspack build --config rspack.config.mjs --mode production",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "zip": "npm run build && node scripts/verify-bundle.mjs && cd dist && zip -qr ../take-me-there.zip ."
   },
   "dependencies": {
@@ -27,6 +32,7 @@
     "@types/react-dom": "19.3.0",
     "chrome-types": "0.1.460",
     "happy-dom": "21.0.4",
+    "prettier": "3.9.10",
     "typescript": "7.0.2",
     "vitest": "5.0.5"
   }

@@ -1,12 +1,29 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { TripBoard, type BoardItemView, type BoardNoticeView, type TripRemovePinDetail } from './trip_board';
+import {
+  TripBoard,
+  type BoardItemView,
+  type BoardNoticeView,
+  type TripRemovePinDetail,
+} from './trip_board';
 import { installChromeMock, uninstallChromeMock } from '../../test/chrome_mock';
 import { renderSync } from '../../test/render_sync';
 
 const ITEMS: BoardItemView[] = [
-  { placeName: 'Oia', country: 'Greece', title: 'Oia, Greece', host: 'example.com', image: 'data:image/jpeg,aaa' },
-  { placeName: 'Fira', country: 'Greece', title: 'Fira, Greece', host: 'blog.example', image: null },
+  {
+    placeName: 'Oia',
+    country: 'Greece',
+    title: 'Oia, Greece',
+    host: 'example.com',
+    image: 'data:image/jpeg,aaa',
+  },
+  {
+    placeName: 'Fira',
+    country: 'Greece',
+    title: 'Fira, Greece',
+    host: 'blog.example',
+    image: null,
+  },
 ];
 
 const NOTICE_OFF: BoardNoticeView = { text: null, retry: false };
@@ -115,7 +132,9 @@ describe('trip-board', () => {
     const heading = root.querySelector('.confirm-heading') as HTMLHeadingElement;
     expect(heading.textContent).toBe('boardClearTitle');
     expect(document.activeElement).toBe(heading);
-    const [confirm, cancel] = [...root.querySelectorAll('.confirm-actions button')] as HTMLButtonElement[];
+    const [confirm, cancel] = [
+      ...root.querySelectorAll('.confirm-actions button'),
+    ] as HTMLButtonElement[];
     cancel.click();
     expect(onClearConfirm).not.toHaveBeenCalled();
     expect(root.querySelector('ul')).not.toBeNull();

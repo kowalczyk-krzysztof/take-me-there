@@ -257,7 +257,13 @@ describe('compat scanPlaces', () => {
 
   const scanInput = () => ({
     images: [
-      { url: 'https://cdn.example.com/a.jpg', caption: 'Blue domes', heading: '', width: 800, height: 600 },
+      {
+        url: 'https://cdn.example.com/a.jpg',
+        caption: 'Blue domes',
+        heading: '',
+        width: 800,
+        height: 600,
+      },
     ],
     signal: new AbortController().signal,
   });
@@ -307,7 +313,12 @@ describe('compat duelPlaces', () => {
 describe('compat findAlternates', () => {
   const VALID_ALTERNATES = {
     alternatives: [
-      { placeName: 'Fira', country: 'Greece', why: 'Same caldera, lower prices.', bestMonth: 'May' },
+      {
+        placeName: 'Fira',
+        country: 'Greece',
+        why: 'Same caldera, lower prices.',
+        bestMonth: 'May',
+      },
     ],
   };
 
@@ -325,7 +336,12 @@ describe('compat findAlternates', () => {
     const provider = new OpenAiCompatProvider(config());
     const result = await provider.findAlternates('sk_key', alternatesInput());
     expect(result.alternatives).toHaveLength(1);
-    expect(result.usage).toEqual({ inputTokens: 40, outputTokens: 20, searchCount: 0, flatFeesUsd: 0 });
+    expect(result.usage).toEqual({
+      inputTokens: 40,
+      outputTokens: 20,
+      searchCount: 0,
+      flatFeesUsd: 0,
+    });
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(init.body as string).toContain('smaller crowds');
   });

@@ -3,7 +3,11 @@ html {
 }
 
 body {
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    sans-serif;
   font-size: 14px;
   line-height: 1.5;
   color: var(--text);
@@ -23,7 +27,7 @@ main {
   gap: 4px;
 }
 
-#tab-bar [role="tab"] {
+#tab-bar [role='tab'] {
   font: inherit;
   flex: 1;
   padding: 8px;
@@ -34,13 +38,13 @@ main {
   cursor: pointer;
 }
 
-#tab-bar [role="tab"][aria-selected="true"] {
+#tab-bar [role='tab'][aria-selected='true'] {
   color: var(--text);
   border-bottom-color: var(--link);
   font-weight: 600;
 }
 
-#tab-bar [role="tab"][aria-disabled="true"] {
+#tab-bar [role='tab'][aria-disabled='true'] {
   opacity: 0.45;
   cursor: not-allowed;
 }

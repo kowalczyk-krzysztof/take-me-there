@@ -163,10 +163,7 @@ describe('key-setup', () => {
     expect(root.querySelector('h2')?.textContent).toBe('consentTitle');
     expect(root.querySelector('.consent-body')?.textContent).toBe('consentBody');
     const buttons = [...root.querySelectorAll('.button-row button')];
-    expect(buttons.map((button) => button.textContent)).toEqual([
-      'agreeButton',
-      'declineButton',
-    ]);
+    expect(buttons.map((button) => button.textContent)).toEqual(['agreeButton', 'declineButton']);
     (buttons[0] as HTMLButtonElement).click();
     expect(onConsentDecision).toHaveBeenCalledWith(true);
     (buttons[1] as HTMLButtonElement).click();
@@ -179,5 +176,4 @@ describe('key-setup', () => {
     heading.focus();
     expect(document.activeElement?.tagName).toBe('H2');
   });
-
 });

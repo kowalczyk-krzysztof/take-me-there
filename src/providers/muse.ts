@@ -121,21 +121,14 @@ export class MuseProvider implements Provider {
     }
   }
 
-  private async identifyVideoTwoStep(
-    key: string,
-    input: IdentifyInput,
-  ): Promise<IdentifyResult> {
+  private async identifyVideoTwoStep(key: string, input: IdentifyInput): Promise<IdentifyResult> {
     const usage = emptyUsage();
     const description = await this.describeVideo(key, input, usage);
     const place = await this.normalizeDescription(key, input, description, usage);
     return { place, usage: { ...usage }, textFallback: true };
   }
 
-  private async describeVideo(
-    key: string,
-    input: IdentifyInput,
-    usage: Usage,
-  ): Promise<string> {
+  private async describeVideo(key: string, input: IdentifyInput, usage: Usage): Promise<string> {
     const messages: ChatMessage[] = [
       {
         role: 'developer',
@@ -185,8 +178,8 @@ export class MuseProvider implements Provider {
       usage.inputTokens += tokens.inputTokens;
       usage.outputTokens += tokens.outputTokens;
     }
-    const content = (data as { choices?: Array<{ message?: { content?: unknown } }> })
-      ?.choices?.[0]?.message?.content;
+    const content = (data as { choices?: Array<{ message?: { content?: unknown } }> })?.choices?.[0]
+      ?.message?.content;
     if (typeof content !== 'string' || !content.trim()) {
       throw invalidResponse(usage, 'video description is empty');
     }
@@ -292,7 +285,11 @@ export class MuseProvider implements Provider {
           messages: buildItineraryMessages(input.pins, strictReminder),
           response_format: {
             type: 'json_schema',
-            json_schema: { name: 'itinerary', strict: true, schema: itineraryJsonSchema(stopNames) },
+            json_schema: {
+              name: 'itinerary',
+              strict: true,
+              schema: itineraryJsonSchema(stopNames),
+            },
           },
         },
         input.signal,
@@ -664,8 +661,9 @@ export class MuseProvider implements Provider {
             yield { type: 'delta', text: delta };
           }
         } else if (name === 'response.output_text.annotation.added') {
-          const annotation = (payload as { annotation?: { type?: unknown; url?: unknown; title?: unknown } })
-            ?.annotation;
+          const annotation = (
+            payload as { annotation?: { type?: unknown; url?: unknown; title?: unknown } }
+          )?.annotation;
           if (
             annotation?.type === 'url_citation' &&
             typeof annotation.url === 'string' &&
@@ -693,8 +691,7 @@ export class MuseProvider implements Provider {
             yield { type: 'searching' };
           }
         } else if (name === 'response.completed') {
-          const tokens = (payload as { response?: { usage?: unknown }; usage?: unknown })
-            ?.response;
+          const tokens = (payload as { response?: { usage?: unknown }; usage?: unknown })?.response;
           const usagePayload =
             (tokens as { usage?: { input_tokens?: unknown; output_tokens?: unknown } } | undefined)
               ?.usage ??

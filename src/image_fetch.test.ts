@@ -47,9 +47,7 @@ describe('fetchImageBytes', () => {
   });
 
   it('caps fetched bytes', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue(new Response(new Uint8Array(FETCH_MAX_BYTES + 1)));
+    const fetchMock = vi.fn().mockResolvedValue(new Response(new Uint8Array(FETCH_MAX_BYTES + 1)));
     vi.stubGlobal('fetch', fetchMock);
     await expect(
       fetchImageBytes('https://cdn.example.com/huge.jpg', new AbortController().signal),
@@ -61,11 +59,14 @@ describe('downscaleToJpegDataUrl', () => {
   it('downscales the long side and encodes bounded JPEG', async () => {
     const drawImage = vi.fn();
     const convertToBlob = vi.fn().mockResolvedValue(new Blob(['fakejpeg']));
-    vi.stubGlobal('createImageBitmap', vi.fn().mockResolvedValue({
-      width: 1600,
-      height: 800,
-      close: vi.fn(),
-    }));
+    vi.stubGlobal(
+      'createImageBitmap',
+      vi.fn().mockResolvedValue({
+        width: 1600,
+        height: 800,
+        close: vi.fn(),
+      }),
+    );
     vi.stubGlobal(
       'OffscreenCanvas',
       vi.fn().mockImplementation(function (this: unknown, width: number, height: number) {
@@ -80,11 +81,14 @@ describe('downscaleToJpegDataUrl', () => {
 
   it('keeps small images at native size', async () => {
     const drawImage = vi.fn();
-    vi.stubGlobal('createImageBitmap', vi.fn().mockResolvedValue({
-      width: 400,
-      height: 300,
-      close: vi.fn(),
-    }));
+    vi.stubGlobal(
+      'createImageBitmap',
+      vi.fn().mockResolvedValue({
+        width: 400,
+        height: 300,
+        close: vi.fn(),
+      }),
+    );
     vi.stubGlobal(
       'OffscreenCanvas',
       vi.fn().mockImplementation(function (this: unknown) {

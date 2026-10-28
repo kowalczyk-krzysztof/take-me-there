@@ -75,7 +75,7 @@ const icon = (size) => {
     chunk('IDAT', deflateSync(raw)),
     chunk('IEND', Buffer.alloc(0)),
   ]);
-}
+};
 
 for (const size of [16, 48, 128]) {
   writeFileSync(path.join(outDir, `${size}.png`), icon(size));

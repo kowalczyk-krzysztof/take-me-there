@@ -20,7 +20,9 @@ export const CompareRow = ({ options, onCompare }: Props) => {
             <option value="">{msg('compareEmpty')}</option>
           ) : (
             options.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
             ))
           )}
         </select>

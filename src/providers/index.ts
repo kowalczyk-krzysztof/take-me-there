@@ -83,7 +83,12 @@ export const requireKey = (key: string): void => {
 // messages generic. The panel maps codes to localized cards.
 export const responseError = (res: Response): ProviderError => {
   if (res.status === 401 || res.status === 403) {
-    return new ProviderError('auth', `request rejected with status ${res.status}`, false, res.status);
+    return new ProviderError(
+      'auth',
+      `request rejected with status ${res.status}`,
+      false,
+      res.status,
+    );
   }
   if (res.status === 429) {
     return new ProviderError('rate_limited', 'rate limited', true, res.status);
@@ -757,10 +762,8 @@ const MAX_ITINERARY_DAYS = 31;
 // fallback): shape-parse leniently, then drop any stop outside the pinned
 // enum, truncate every string, and clamp night counts. Returns undefined
 // when nothing usable survives.
-export const parseItineraryPlan = (
-  data: unknown,
-  stopNames: string[],
-): ItineraryPlan | undefined => parseItineraryContent(extractChatJson(data), stopNames);
+export const parseItineraryPlan = (data: unknown, stopNames: string[]): ItineraryPlan | undefined =>
+  parseItineraryContent(extractChatJson(data), stopNames);
 
 export const parseItineraryContent = (
   json: unknown,
@@ -994,9 +997,7 @@ export const fetchChatCompletion = async (
   return data;
 };
 
-export type ChatStreamEvent =
-  | { type: 'delta'; text: string }
-  | { type: 'usage'; usage: Usage };
+export type ChatStreamEvent = { type: 'delta'; text: string } | { type: 'usage'; usage: Usage };
 
 // Cap for one buffered SSE event. Overflow errors the stream unrecoverably
 // by design; Retry builds a fresh fetch plus pipeline.
@@ -1006,9 +1007,7 @@ export const SSE_MAX_BUFFER = 1024 * 1024;
 // variance (TextDecoderStream.writable accepts any BufferSource); the
 // runtime pairing is the documented pipeThrough chain.
 export const decodeStream = (body: ReadableStream<Uint8Array>): ReadableStream<string> =>
-  body.pipeThrough(
-    new TextDecoderStream() as unknown as ReadableWritablePair<string, Uint8Array>,
-  );
+  body.pipeThrough(new TextDecoderStream() as unknown as ReadableWritablePair<string, Uint8Array>);
 
 export async function* iterateChatStream(
   body: ReadableStream<Uint8Array>,

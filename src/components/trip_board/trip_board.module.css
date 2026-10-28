@@ -3,10 +3,12 @@
   border-radius: 8px;
   padding: 8px 12px;
   background: var(--surface);
-}.root h2 {
+}
+.root h2 {
   margin: 0;
   font-size: 14px;
-}.root .disclosure {
+}
+.root .disclosure {
   font: inherit;
   font-weight: 600;
   padding: 4px 0;
@@ -16,45 +18,55 @@
   cursor: pointer;
   width: 100%;
   text-align: left;
-}.root .disclosure::after {
-  content: " ▾";
-}.root .disclosure[aria-expanded="false"]::after {
-  content: " ▸";
-}.root .empty {
+}
+.root .disclosure::after {
+  content: ' ▾';
+}
+.root .disclosure[aria-expanded='false']::after {
+  content: ' ▸';
+}
+.root .empty {
   color: var(--muted);
   font-size: 13px;
   margin: 8px 0;
-}.root ul {
+}
+.root ul {
   list-style: none;
   margin: 8px 0;
   padding: 0;
   display: flex;
   flex-direction: column;
   gap: 8px;
-}.root li {
+}
+.root li {
   display: flex;
   gap: 8px;
   align-items: center;
   border-top: 1px solid var(--border);
   padding-top: 8px;
-}.root li img {
+}
+.root li img {
   width: 48px;
   height: 48px;
   object-fit: cover;
   border-radius: 4px;
   flex: none;
-}.root .item-text {
+}
+.root .item-text {
   flex: 1;
   min-width: 0;
-}.root .item-name {
+}
+.root .item-name {
   margin: 0;
   font-weight: 600;
   font-size: 13px;
-}.root .item-host {
+}
+.root .item-host {
   margin: 0;
   color: var(--muted);
   font-size: 12px;
-}.root button {
+}
+.root button {
   font: inherit;
   padding: 8px 14px;
   border-radius: 4px;
@@ -63,35 +75,43 @@
   color: var(--text);
   border: 1px solid var(--border);
   flex: none;
-}.root button.primary {
+}
+.root button.primary {
   background: var(--link);
   color: var(--background);
   border-color: transparent;
-}.root button[aria-disabled="true"] {
+}
+.root button[aria-disabled='true'] {
   opacity: 0.55;
   cursor: default;
-}.root .plan-row {
+}
+.root .plan-row {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
   margin: 8px 0;
-}.root .plan-note {
+}
+.root .plan-note {
   margin: 0;
   color: var(--muted);
   font-size: 13px;
-}.root .clear-button {
+}
+.root .clear-button {
   margin-bottom: 4px;
-}.root .notice {
+}
+.root .notice {
   margin: 8px 0 0;
   font-size: 13px;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
-}.root .confirm-heading {
+}
+.root .confirm-heading {
   font-size: 14px;
-}.root .confirm-actions {
+}
+.root .confirm-actions {
   display: flex;
   gap: 8px;
   margin: 8px 0;

@@ -149,10 +149,7 @@ export const itinerarySchema = (stopNames: string[]) => {
 };
 
 export const itineraryJsonSchema = (stopNames: string[]): Record<string, unknown> => {
-  const emitted = z.toJSONSchema(itinerarySchema(stopNames)) as unknown as Record<
-    string,
-    unknown
-  >;
+  const emitted = z.toJSONSchema(itinerarySchema(stopNames)) as unknown as Record<string, unknown>;
   const { $schema: _dropped, ...schema } = emitted;
   return schema;
 };
@@ -262,8 +259,6 @@ export const scanBatchJsonSchema = (): Record<string, unknown> => {
   const { $schema: _dropped, ...schema } = emitted;
   return schema;
 };
-
-
 
 export const PROVIDER_CAPABILITIES_SCHEMA = z.strictObject({
   video: z.boolean(),

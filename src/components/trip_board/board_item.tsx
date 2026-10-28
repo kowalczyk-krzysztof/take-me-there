@@ -17,7 +17,9 @@ export const BoardItem = ({ item, onRemovePin }: Props) => (
         onError={(event) => event.currentTarget.remove()}
       />
     ) : (
-      <div className="thumb-monogram" aria-hidden="true">{item.title.trim().charAt(0)}</div>
+      <div className="thumb-monogram" aria-hidden="true">
+        {item.title.trim().charAt(0)}
+      </div>
     )}
     <div className={styles['item-text']}>
       <p className={styles['item-name']}>{item.title}</p>

@@ -192,7 +192,9 @@ describe('makeThumbnail', () => {
 
   it('walks the quality ladder and fails closed above the cap', async () => {
     const big = `data:image/jpeg,${'x'.repeat(THUMB_MAX_BYTES)}`;
-    toDataURL.mockImplementationOnce(() => big).mockImplementationOnce(() => 'data:image/jpeg,fits');
+    toDataURL
+      .mockImplementationOnce(() => big)
+      .mockImplementationOnce(() => 'data:image/jpeg,fits');
     expect(await makeThumbnail('data:image/jpeg,aaa')).toBe('data:image/jpeg,fits');
     expect(toDataURL.mock.calls.map((call) => call[1])).toEqual([0.85, 0.7]);
     toDataURL.mockImplementation(() => big);

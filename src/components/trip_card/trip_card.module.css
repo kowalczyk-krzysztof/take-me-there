@@ -1,17 +1,23 @@
-.root { display: block; }.root h2 {
+.root {
+  display: block;
+}
+.root h2 {
   font-size: 18px;
   margin: 0 0 4px;
-}.root .subtitle {
+}
+.root .subtitle {
   margin: 0 0 4px;
   color: var(--muted);
-}.root .oneliner {
+}
+.root .oneliner {
   margin: 0 0 8px;
   display: -webkit-box;
   -webkit-line-clamp: 3;
   line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
-}.root .badge {
+}
+.root .badge {
   display: inline-block;
   font-size: 12px;
   padding: 2px 8px;
@@ -20,27 +26,35 @@
   color: var(--badge);
   margin-left: 8px;
   vertical-align: middle;
-}.root .hint { margin: 0 0 4px; }.root .shortcut {
+}
+.root .hint {
+  margin: 0 0 4px;
+}
+.root .shortcut {
   margin: 0;
   font-size: 13px;
   color: var(--muted);
-}.root .skeleton {
+}
+.root .skeleton {
   display: flex;
   flex-direction: column;
   gap: 8px;
-}.root .cosmetic {
+}
+.root .cosmetic {
   color: var(--muted);
   font-size: 13px;
   margin: 8px 0 0;
   min-height: 20px;
-}.root .disagree-row {
+}
+.root .disagree-row {
   display: flex;
   gap: 8px;
   align-items: center;
   margin-top: 8px;
   font-size: 13px;
   color: var(--muted);
-}.root button {
+}
+.root button {
   font: inherit;
   padding: 8px 14px;
   border-radius: 4px;
@@ -48,107 +62,139 @@
   background: transparent;
   color: var(--text);
   border: 1px solid var(--border);
-}.root button.primary {
+}
+.root button.primary {
   background: var(--link);
   color: var(--background);
   border-color: transparent;
-}.root button[aria-disabled="true"] {
+}
+.root button[aria-disabled='true'] {
   opacity: 0.55;
   cursor: default;
-}.root .fallback {
+}
+.root .fallback {
   font-size: 13px;
   color: var(--muted);
-}.root a { color: var(--link); }.root .pin-button { margin: 4px 0 0; }.root .plan-trip-button {
+}
+.root a {
+  color: var(--link);
+}
+.root .pin-button {
+  margin: 4px 0 0;
+}
+.root .plan-trip-button {
   margin: 8px 0 0;
   background: var(--link);
   color: var(--background);
   border-color: transparent;
-}.root .pin-button[aria-pressed="true"] {
+}
+.root .pin-button[aria-pressed='true'] {
   border-color: var(--link);
   color: var(--link);
-}.root .stop-list {
+}
+.root .stop-list {
   margin: 8px 0;
   padding-left: 20px;
   display: flex;
   flex-direction: column;
   gap: 8px;
-}.root .stop-name {
+}
+.root .stop-name {
   margin: 0;
   font-weight: 600;
-}.root .stop-nights {
+}
+.root .stop-nights {
   margin: 0;
   font-size: 13px;
   color: var(--muted);
-}.root .stop-links {
+}
+.root .stop-links {
   margin: 4px 0 0;
   font-size: 13px;
-}.root .maps-link {
+}
+.root .maps-link {
   display: inline-block;
   margin-top: 8px;
   font-weight: 600;
-}.root .chips-row {
+}
+.root .chips-row {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
   align-items: center;
   margin-top: 8px;
-}.root .chips-label {
+}
+.root .chips-label {
   font-size: 13px;
   color: var(--muted);
-}.root .chip {
+}
+.root .chip {
   border-radius: 999px;
   padding: 6px 12px;
   font-size: 13px;
-}.root .alternates {
+}
+.root .alternates {
   display: flex;
   flex-direction: column;
   gap: 8px;
   margin-top: 8px;
-}.root .alternates[hidden] {
+}
+.root .alternates[hidden] {
   display: none;
-}.root .alternates-skeletons {
+}
+.root .alternates-skeletons {
   display: flex;
   flex-direction: column;
   gap: 8px;
-}.root .skeleton-card {
+}
+.root .skeleton-card {
   min-height: 72px;
-}.root .alternate-card {
+}
+.root .alternate-card {
   border: 1px solid var(--border);
   border-radius: 4px;
   padding: 8px;
-}.root .alternate-head {
+}
+.root .alternate-head {
   display: flex;
   gap: 8px;
   align-items: center;
   margin: 0 0 4px;
-}.root .alternate-actions {
+}
+.root .alternate-actions {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
-}.root .alternate-name {
+}
+.root .alternate-name {
   margin: 0;
   font-weight: 600;
   flex: 1;
-}.root .alternate-why {
+}
+.root .alternate-why {
   margin: 0 0 4px;
   font-size: 13px;
-}.root .alternate-month {
+}
+.root .alternate-month {
   margin: 0 0 8px;
   font-size: 13px;
   color: var(--muted);
-}.root .compare-row {
+}
+.root .compare-row {
   display: flex;
   gap: 8px;
   align-items: flex-end;
   margin-top: 8px;
-}.root .compare-row label {
+}
+.root .compare-row label {
   display: flex;
   flex-direction: column;
   gap: 4px;
   font-size: 13px;
   color: var(--muted);
   flex: 1;
-}.root .compare-row select {
+}
+.root .compare-row select {
   font: inherit;
   padding: 8px;
   border-radius: 4px;

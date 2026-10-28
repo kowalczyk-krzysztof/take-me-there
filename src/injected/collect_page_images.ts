@@ -33,11 +33,7 @@ export const collectPageImages = (): HarvestedImage[] => {
       el = el.parentElement
     ) {
       hops += 1;
-      for (
-        let sib = el.previousElementSibling;
-        sib;
-        sib = sib.previousElementSibling
-      ) {
+      for (let sib = el.previousElementSibling; sib; sib = sib.previousElementSibling) {
         if (/^H[1-6]$/.test(sib.tagName)) {
           return clean(sib.textContent);
         }
@@ -106,8 +102,7 @@ export const collectPageImages = (): HarvestedImage[] => {
     if (out.length >= MAX_IMAGES) {
       break;
     }
-    total +=
-      candidate.url.length + candidate.caption.length + candidate.heading.length;
+    total += candidate.url.length + candidate.caption.length + candidate.heading.length;
     if (total > MAX_TOTAL) {
       break;
     }

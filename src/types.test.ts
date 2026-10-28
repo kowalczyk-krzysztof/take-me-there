@@ -96,9 +96,9 @@ describe('place schema pipeline', () => {
   });
 
   it('rejects oversized, type-confused, incomplete, and loose output', () => {
-    expect(
-      PLACE_SCHEMA.safeParse({ ...VALID_PLACE, placeName: 'x'.repeat(101) }).success,
-    ).toBe(false);
+    expect(PLACE_SCHEMA.safeParse({ ...VALID_PLACE, placeName: 'x'.repeat(101) }).success).toBe(
+      false,
+    );
     expect(PLACE_SCHEMA.safeParse({ ...VALID_PLACE, identified: 'yes' }).success).toBe(false);
     expect(PLACE_SCHEMA.safeParse({ ...VALID_PLACE, confidence: 'high' }).success).toBe(false);
     const { country: _dropped, ...missingCountry } = VALID_PLACE;
@@ -130,9 +130,7 @@ describe('itinerary schema pipeline', () => {
       ],
     };
     expect(schema.safeParse(valid).success).toBe(true);
-    expect(
-      schema.safeParse({ ...valid, stops: ['Oia', 'Paris'] }).success,
-    ).toBe(false);
+    expect(schema.safeParse({ ...valid, stops: ['Oia', 'Paris'] }).success).toBe(false);
     expect(
       schema.safeParse({
         ...valid,
@@ -169,9 +167,7 @@ describe('handoff schemas', () => {
       TRIP_REQUEST_SCHEMA.safeParse({ ...collecting, status: 'ready', signals: validSignals() })
         .success,
     ).toBe(true);
-    expect(
-      TRIP_REQUEST_SCHEMA.safeParse({ ...collecting, status: 'bogus' }).success,
-    ).toBe(false);
+    expect(TRIP_REQUEST_SCHEMA.safeParse({ ...collecting, status: 'bogus' }).success).toBe(false);
     expect(TRIP_REQUEST_SCHEMA.safeParse({ ...collecting, signals: {} }).success).toBe(false);
   });
 
@@ -262,7 +258,12 @@ describe('alternates pipeline', () => {
     const schema = alternatesSchema();
     const valid = {
       alternatives: [
-        { placeName: 'Fira', country: 'Greece', why: 'Same caldera, lower prices.', bestMonth: 'May' },
+        {
+          placeName: 'Fira',
+          country: 'Greece',
+          why: 'Same caldera, lower prices.',
+          bestMonth: 'May',
+        },
       ],
     };
     expect(schema.safeParse(valid).success).toBe(true);

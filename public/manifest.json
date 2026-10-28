@@ -12,6 +12,13 @@
   "optional_host_permissions": ["https://*/*"],
   "side_panel": { "default_path": "sidepanel.html" },
   "options_ui": { "page": "options.html", "open_in_tab": false },
-  "action": { "default_title": "__MSG_appName__", "default_icon": { "16": "icons/16.png", "48": "icons/48.png" } },
-  "commands": { "_execute_action": { "suggested_key": { "default": "Ctrl+Shift+Period", "mac": "Command+Shift+Period" } } }
+  "action": {
+    "default_title": "__MSG_appName__",
+    "default_icon": { "16": "icons/16.png", "48": "icons/48.png" }
+  },
+  "commands": {
+    "_execute_action": {
+      "suggested_key": { "default": "Ctrl+Shift+Period", "mac": "Command+Shift+Period" }
+    }
+  }
 }

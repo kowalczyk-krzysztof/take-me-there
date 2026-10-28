@@ -27,9 +27,7 @@ chrome.runtime.onInstalled.addListener((details) => {
       contexts: ['page'],
     });
   });
-  chrome.sidePanel
-    .setPanelBehavior({ openPanelOnActionClick: true })
-    .catch(() => undefined);
+  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => undefined);
   if (details.reason === 'install') {
     void chrome.tabs.create({ url: chrome.runtime.getURL('onboarding.html') });
   }
@@ -121,11 +119,8 @@ const handleVideoClick = async (
     captureWithTimeout(tabId, frameId, srcUrl),
   ]);
   const frame =
-    captured && captured.ok
-      ? { dataUrl: captured.dataUrl, time: captured.time }
-      : undefined;
-  const frameError =
-    captured && !captured.ok ? captured.reason : captured ? undefined : 'no-match';
+    captured && captured.ok ? { dataUrl: captured.dataUrl, time: captured.time } : undefined;
+  const frameError = captured && !captured.ok ? captured.reason : captured ? undefined : 'no-match';
   await writeTerminalState(requestId, {
     requestId,
     status: 'ready',

@@ -18,4 +18,3 @@ export const BookingGrid = ({ destination }: Props) => (
       : null}
   </div>
 );
-

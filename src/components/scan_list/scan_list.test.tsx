@@ -5,7 +5,13 @@ import { installChromeMock, uninstallChromeMock } from '../../test/chrome_mock';
 import { renderSync } from '../../test/render_sync';
 
 const ITEMS: ScanItemView[] = [
-  { placeName: 'Oia', country: 'Greece', title: 'Oia, Greece', image: 'https://img/oia.jpg', pinned: false },
+  {
+    placeName: 'Oia',
+    country: 'Greece',
+    title: 'Oia, Greece',
+    image: 'https://img/oia.jpg',
+    pinned: false,
+  },
   { placeName: 'Fira', country: 'Greece', title: 'Fira, Greece', image: null, pinned: true },
 ];
 
@@ -81,7 +87,13 @@ describe('scan-list', () => {
     const onGuide = vi.fn();
     const onPin = vi.fn();
     const root = renderSync(
-      <ScanList loading={false} items={ITEMS} onGuide={onGuide} onPin={onPin} onPinSelected={noop} />,
+      <ScanList
+        loading={false}
+        items={ITEMS}
+        onGuide={onGuide}
+        onPin={onPin}
+        onPinSelected={noop}
+      />,
     ).container;
     const cards = root.querySelectorAll('.scan-card');
     (cards[1]?.querySelectorAll('button')[0] as HTMLButtonElement).click();
@@ -94,7 +106,13 @@ describe('scan-list', () => {
     const i18n = vi.spyOn(chrome.i18n, 'getMessage');
     const onPinSelected = vi.fn();
     const rendered = renderSync(
-      <ScanList loading={false} items={ITEMS} onGuide={noop} onPin={noop} onPinSelected={onPinSelected} />,
+      <ScanList
+        loading={false}
+        items={ITEMS}
+        onGuide={noop}
+        onPin={noop}
+        onPinSelected={onPinSelected}
+      />,
     );
     const root = rendered.container;
     const boxes = root.querySelectorAll('input[type="checkbox"]');
@@ -119,7 +137,13 @@ describe('scan-list', () => {
   it('ignores pin-selected with nothing checked', () => {
     const onPinSelected = vi.fn();
     const root = renderSync(
-      <ScanList loading={false} items={ITEMS} onGuide={noop} onPin={noop} onPinSelected={onPinSelected} />,
+      <ScanList
+        loading={false}
+        items={ITEMS}
+        onGuide={noop}
+        onPin={noop}
+        onPinSelected={onPinSelected}
+      />,
     ).container;
     (root.querySelector('.pin-selected') as HTMLButtonElement).click();
     expect(onPinSelected).not.toHaveBeenCalled();

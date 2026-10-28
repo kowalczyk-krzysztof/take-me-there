@@ -35,9 +35,7 @@ interface Props {
   callbacks: KeySetupCallbacks;
 }
 
-export const KeySetup = ({
-  mode, pending, error, sessionOnly, resetKey, callbacks,
-}: Props) => {
+export const KeySetup = ({ mode, pending, error, sessionOnly, resetKey, callbacks }: Props) => {
   const [revealed, setRevealed] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
   useLayoutEffect(() => {
@@ -101,7 +99,9 @@ export const KeySetup = ({
             callbacks.onSave(key);
           }}
         >
-          <label className={styles['field-label']} htmlFor="key-input">{msg('keyLabel')}</label>
+          <label className={styles['field-label']} htmlFor="key-input">
+            {msg('keyLabel')}
+          </label>
           <input
             id="key-input"
             ref={inputRef}
@@ -114,7 +114,9 @@ export const KeySetup = ({
             placeholder={msg('keyPlaceholder')}
             onChange={(event) => callbacks.onDraftChange?.(event.currentTarget.value)}
           />
-          <p className={styles.hint} id="key-hint">{msg('keyHint')}</p>
+          <p className={styles.hint} id="key-hint">
+            {msg('keyHint')}
+          </p>
           <p className={styles.dashboard}>
             <a href={DASHBOARD_URL} target="_blank" rel="noopener noreferrer">
               {msg('dashboardLink')}
@@ -137,11 +139,7 @@ export const KeySetup = ({
             <span>{msg('sessionOnlyLabel')}</span>
           </label>
           <div className={styles['button-row']}>
-            <button
-              type="submit"
-              className={styles.primary}
-              aria-disabled={pending || undefined}
-            >
+            <button type="submit" className={styles.primary} aria-disabled={pending || undefined}>
               {msg(pending ? 'validatingButton' : 'saveKeyButton')}
             </button>
             <button
@@ -160,4 +158,3 @@ export const KeySetup = ({
     </div>
   );
 };
-

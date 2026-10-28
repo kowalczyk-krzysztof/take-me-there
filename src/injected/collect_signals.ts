@@ -42,8 +42,7 @@ export const collectSignals = (srcUrl: string): PageSignalData => {
   const target = abs(srcUrl);
   const clean = (s: string | null | undefined): string =>
     (s || '').replace(/\s+/g, ' ').trim().slice(0, 300);
-  const meta = (sel: string): string =>
-    clean(document.querySelector(sel)?.getAttribute('content'));
+  const meta = (sel: string): string => clean(document.querySelector(sel)?.getAttribute('content'));
 
   // Locate the clicked img: currentSrc (srcset/picture winner) -> src attr ->
   // any srcset candidate. Scan cap: a hostile page with 100k imgs must not
@@ -63,7 +62,11 @@ export const collectSignals = (srcUrl: string): PageSignalData => {
   // (hop-capped on crafted DOMs).
   const nearestPrev = (sel: string): Element | null => {
     let hops = 0;
-    for (let el: Element | null = img; el && el !== document.documentElement; el = el.parentElement) {
+    for (
+      let el: Element | null = img;
+      el && el !== document.documentElement;
+      el = el.parentElement
+    ) {
       for (let sib = el.previousElementSibling; sib; sib = sib.previousElementSibling) {
         if (++hops > 400) return null;
         if (sib.matches(sel)) return sib;
@@ -91,9 +94,7 @@ export const collectSignals = (srcUrl: string): PageSignalData => {
       walk(JSON.parse(s.textContent || ''));
       for (const n of nodes) {
         const record = n as Record<string, any>;
-        const types = ([] as Array<unknown>)
-          .concat(record['@type'] || [])
-          .map(String);
+        const types = ([] as Array<unknown>).concat(record['@type'] || []).map(String);
         if (
           record.geo ||
           types.some((t) =>
@@ -107,9 +108,7 @@ export const collectSignals = (srcUrl: string): PageSignalData => {
             name: clean(record.name),
             locality: clean(record.address?.addressLocality),
             country: clean(country?.name || country),
-            lat: Number.isFinite(Number(record.geo?.latitude))
-              ? Number(record.geo.latitude)
-              : null,
+            lat: Number.isFinite(Number(record.geo?.latitude)) ? Number(record.geo.latitude) : null,
             lon: Number.isFinite(Number(record.geo?.longitude))
               ? Number(record.geo.longitude)
               : null,

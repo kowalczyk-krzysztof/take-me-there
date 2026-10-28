@@ -1,10 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  ProviderError,
-  setConsented,
-  type GuideEvent,
-  type IdentifyInput,
-} from './index';
+import { ProviderError, setConsented, type GuideEvent, type IdentifyInput } from './index';
 import { MuseProvider } from './muse';
 import { installChromeMock, uninstallChromeMock, type ChromeMock } from '../test/chrome_mock';
 
@@ -17,19 +12,13 @@ const VALID_PLACE = {
   oneLiner: 'Blue domes over the caldera.',
 };
 
-const chatResponse = (
-  place: unknown,
-  usage = { prompt_tokens: 100, completion_tokens: 50 },
-) =>
+const chatResponse = (place: unknown, usage = { prompt_tokens: 100, completion_tokens: 50 }) =>
   new Response(
     JSON.stringify({ choices: [{ message: { content: JSON.stringify(place) } }], usage }),
     { status: 200 },
   );
 
-const rawChatResponse = (
-  content: string,
-  usage = { prompt_tokens: 100, completion_tokens: 50 },
-) =>
+const rawChatResponse = (content: string, usage = { prompt_tokens: 100, completion_tokens: 50 }) =>
   new Response(JSON.stringify({ choices: [{ message: { content } }], usage }), {
     status: 200,
   });
@@ -95,7 +84,12 @@ describe('muse identify', () => {
     fetchMock.mockResolvedValue(chatResponse(VALID_PLACE));
     const result = await provider.identifyPlace('LLM_key', identifyInput());
     expect(result.place).toEqual(VALID_PLACE);
-    expect(result.usage).toEqual({ inputTokens: 100, outputTokens: 50, searchCount: 0, flatFeesUsd: 0 });
+    expect(result.usage).toEqual({
+      inputTokens: 100,
+      outputTokens: 50,
+      searchCount: 0,
+      flatFeesUsd: 0,
+    });
     expect(result.textFallback).toBe(false);
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -119,12 +113,10 @@ describe('muse identify', () => {
     fetchMock
       .mockResolvedValueOnce(rawChatResponse('not json {'))
       .mockResolvedValueOnce(rawChatResponse('{"identified":'));
-    const failure = await provider
-      .identifyPlace('LLM_key', identifyInput())
-      .then(
-        () => null,
-        (err: unknown) => err as ProviderError,
-      );
+    const failure = await provider.identifyPlace('LLM_key', identifyInput()).then(
+      () => null,
+      (err: unknown) => err as ProviderError,
+    );
     expect(failure).toBeInstanceOf(ProviderError);
     expect(failure?.code).toBe('invalid_response');
     expect(failure?.retryable).toBe(true);
@@ -217,10 +209,7 @@ describe('muse identify', () => {
   it('sanitizes the rejected place on guess-escalating retries', async () => {
     await consented();
     fetchMock.mockResolvedValue(chatResponse(VALID_PLACE));
-    await provider.identifyPlace(
-      'LLM_key',
-      identifyInput({ rejectedPlace: 'Paris\nHACK' }),
-    );
+    await provider.identifyPlace('LLM_key', identifyInput({ rejectedPlace: 'Paris\nHACK' }));
     const body = requestBody();
     expect(body.reasoning_effort).toBe('medium');
     const text = body.messages[1].content[0].text as string;
@@ -314,7 +303,6 @@ describe('muse video identify (rung 2)', () => {
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
-
 });
 
 describe('muse streamGuide', () => {
@@ -398,7 +386,10 @@ describe('muse streamGuide', () => {
     const events = await collect(provider.streamGuide('LLM_key', input({ transport: 'chat' })));
     expect(events).toEqual([
       { type: 'delta', text: 'Hi' },
-      { type: 'usage', usage: { inputTokens: 10, outputTokens: 5, searchCount: 0, flatFeesUsd: 0 } },
+      {
+        type: 'usage',
+        usage: { inputTokens: 10, outputTokens: 5, searchCount: 0, flatFeesUsd: 0 },
+      },
     ]);
     expect(events.some((e) => e.type === 'sources')).toBe(false);
     const body = requestBody();
@@ -458,7 +449,12 @@ describe('muse planItinerary', () => {
     fetchMock.mockResolvedValue(chatResponse(VALID_PLAN));
     const result = await provider.planItinerary('LLM_key', planInput());
     expect(result.plan).toEqual(VALID_PLAN);
-    expect(result.usage).toEqual({ inputTokens: 100, outputTokens: 50, searchCount: 0, flatFeesUsd: 0 });
+    expect(result.usage).toEqual({
+      inputTokens: 100,
+      outputTokens: 50,
+      searchCount: 0,
+      flatFeesUsd: 0,
+    });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const body = requestBody();
     expect(body.response_format.type).toBe('json_schema');
@@ -529,8 +525,20 @@ describe('muse scanPlaces', () => {
 
   const scanInput = () => ({
     images: [
-      { url: 'https://cdn.example.com/a.jpg', caption: 'Blue domes', heading: '', width: 800, height: 600 },
-      { url: 'https://cdn.example.com/b.jpg', caption: '', heading: 'Fira', width: 640, height: 480 },
+      {
+        url: 'https://cdn.example.com/a.jpg',
+        caption: 'Blue domes',
+        heading: '',
+        width: 800,
+        height: 600,
+      },
+      {
+        url: 'https://cdn.example.com/b.jpg',
+        caption: '',
+        heading: 'Fira',
+        width: 640,
+        height: 480,
+      },
     ],
     signal: new AbortController().signal,
   });
@@ -540,7 +548,12 @@ describe('muse scanPlaces', () => {
     fetchMock.mockResolvedValue(chatResponse(VALID_BATCH));
     const result = await provider.scanPlaces('LLM_key', scanInput());
     expect(result.places).toHaveLength(2);
-    expect(result.usage).toEqual({ inputTokens: 100, outputTokens: 50, searchCount: 0, flatFeesUsd: 0 });
+    expect(result.usage).toEqual({
+      inputTokens: 100,
+      outputTokens: 50,
+      searchCount: 0,
+      flatFeesUsd: 0,
+    });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const body = requestBody();
     expect(body.response_format.type).toBe('json_schema');
@@ -607,7 +620,12 @@ describe('muse duelPlaces', () => {
     expect(result.criteria).toHaveLength(1);
     expect(result.verdict).toContain('Pick Oia');
     expect(result.sources).toEqual([{ title: 'Costs', url: 'https://example.com/cost' }]);
-    expect(result.usage).toEqual({ inputTokens: 200, outputTokens: 80, searchCount: 1, flatFeesUsd: 0 });
+    expect(result.usage).toEqual({
+      inputTokens: 200,
+      outputTokens: 80,
+      searchCount: 1,
+      flatFeesUsd: 0,
+    });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const url = fetchMock.mock.calls[0][0] as string;
     expect(url).toContain('/responses');
@@ -667,7 +685,12 @@ describe('muse duelPlaces', () => {
 describe('muse findAlternates', () => {
   const VALID_ALTERNATES = {
     alternatives: [
-      { placeName: 'Fira', country: 'Greece', why: 'Same caldera, lower prices.', bestMonth: 'May' },
+      {
+        placeName: 'Fira',
+        country: 'Greece',
+        why: 'Same caldera, lower prices.',
+        bestMonth: 'May',
+      },
       { placeName: 'Naxos', country: 'Greece', why: 'Quiet beaches.', bestMonth: 'June' },
     ],
   };

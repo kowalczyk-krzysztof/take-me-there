@@ -30,7 +30,11 @@
   outline-offset: 2px;
 }
 
-button, a, input, select, summary {
+button,
+a,
+input,
+select,
+summary {
   min-height: 24px;
   min-width: 24px;
 }
@@ -76,8 +80,12 @@ button, a, input, select, summary {
   }
 
   @keyframes skeleton-shimmer {
-    from { background-position: 200% 0; }
-    to { background-position: -200% 0; }
+    from {
+      background-position: 200% 0;
+    }
+    to {
+      background-position: -200% 0;
+    }
   }
 }
 

@@ -91,9 +91,7 @@ describe('options', () => {
     expect(document.querySelector('#privacy-body')?.textContent).toBe('optionsPrivacyBody');
     expect(document.querySelector('#reset-cost')?.textContent).toBe('resetCostButton');
     await waitFor(() => {
-      expect(document.querySelector('#cost-line')?.textContent).toBe(
-        'optionsCostMonth:$1.50',
-      );
+      expect(document.querySelector('#cost-line')?.textContent).toBe('optionsCostMonth:$1.50');
     });
   });
 
@@ -237,9 +235,7 @@ describe('options', () => {
       });
     });
     await waitFor(() => {
-      expect(
-        (document.querySelector('#provider-compat') as HTMLInputElement).checked,
-      ).toBe(true);
+      expect((document.querySelector('#provider-compat') as HTMLInputElement).checked).toBe(true);
     });
     expect(document.querySelector('#compat-fields')?.hasAttribute('hidden')).toBe(false);
     expect((document.querySelector('#compat-base-url') as HTMLInputElement).value).toBe(

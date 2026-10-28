@@ -1,11 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { installChromeMock, uninstallChromeMock } from './test/chrome_mock';
-import {
-  frameCacheSeed,
-  hasVideoConsented,
-  isMp4RungUsable,
-  setVideoConsented,
-} from './video';
+import { frameCacheSeed, hasVideoConsented, isMp4RungUsable, setVideoConsented } from './video';
 
 afterEach(() => {
   uninstallChromeMock();

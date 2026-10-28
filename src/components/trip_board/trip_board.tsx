@@ -36,7 +36,13 @@ interface Props extends TripBoardCallbacks {
 }
 
 export const TripBoard = ({
-  items, canPlan, notice, onRemovePin, onPlan, onClearConfirm, onRetryPin,
+  items,
+  canPlan,
+  notice,
+  onRemovePin,
+  onPlan,
+  onClearConfirm,
+  onRetryPin,
 }: Props) => {
   const [open, setOpen] = useState(true);
   const [confirming, setConfirming] = useState<number | null>(null);
@@ -86,7 +92,9 @@ export const TripBoard = ({
                   type="button"
                   onClick={() => {
                     flushSync(() => setConfirming(null));
-                    rootRef.current?.querySelector<HTMLButtonElement>(`.${styles['clear-button']}`)?.focus();
+                    rootRef.current
+                      ?.querySelector<HTMLButtonElement>(`.${styles['clear-button']}`)
+                      ?.focus();
                   }}
                 >
                   {msg('videoConfirmCancel')}
@@ -129,7 +137,9 @@ export const TripBoard = ({
                   className={styles['clear-button']}
                   onClick={() => {
                     flushSync(() => setConfirming(items.length));
-                    rootRef.current?.querySelector<HTMLElement>(`.${styles['confirm-heading']}`)?.focus();
+                    rootRef.current
+                      ?.querySelector<HTMLElement>(`.${styles['confirm-heading']}`)
+                      ?.focus();
                   }}
                 >
                   {msg('boardClear')}
@@ -150,4 +160,3 @@ export const TripBoard = ({
     </div>
   );
 };
-

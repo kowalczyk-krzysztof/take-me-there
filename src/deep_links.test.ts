@@ -80,7 +80,11 @@ describe('mapsDirUrl', () => {
     const url = mapsDirUrl(stops);
     expect(url?.split('%7C')).toHaveLength(9);
     expect(url).toContain('destination=End');
-    const long = ['Start', ...Array.from({ length: 11 }, (_, i) => `L${'o'.repeat(110)}${i}`), 'End'];
+    const long = [
+      'Start',
+      ...Array.from({ length: 11 }, (_, i) => `L${'o'.repeat(110)}${i}`),
+      'End',
+    ];
     const capped = mapsDirUrl(long);
     expect(capped && capped.length <= 2048).toBe(true);
     expect(capped).toContain('origin=Start');

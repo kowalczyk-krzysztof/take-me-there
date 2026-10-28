@@ -81,10 +81,7 @@ export const loadKey = async (providerId: string): Promise<KeyStatus> => {
     string,
     KeyRecord | undefined
   >;
-  const fromLocal = (await chrome.storage.local.get(name)) as Record<
-    string,
-    KeyRecord | undefined
-  >;
+  const fromLocal = (await chrome.storage.local.get(name)) as Record<string, KeyRecord | undefined>;
   const record = fromSession[name] ?? fromLocal[name];
   if (!record || typeof record.ciphertext !== 'string' || typeof record.iv !== 'string') {
     return { state: 'missing', orphaned: false };

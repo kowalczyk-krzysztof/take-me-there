@@ -31,7 +31,10 @@ const addVideo = (stubs: VideoStubs): HTMLVideoElement => {
   Object.defineProperty(video, 'paused', { value: stubs.paused ?? false, configurable: true });
   Object.defineProperty(video, 'ended', { value: stubs.ended ?? false, configurable: true });
   Object.defineProperty(video, 'readyState', { value: stubs.readyState ?? 4, configurable: true });
-  Object.defineProperty(video, 'videoWidth', { value: stubs.videoWidth ?? 1280, configurable: true });
+  Object.defineProperty(video, 'videoWidth', {
+    value: stubs.videoWidth ?? 1280,
+    configurable: true,
+  });
   Object.defineProperty(video, 'videoHeight', {
     value: stubs.videoHeight ?? 720,
     configurable: true,
@@ -56,11 +59,14 @@ beforeEach(() => {
   document.body.innerHTML = '';
   drawImage.mockClear();
   toDataURL.mockClear();
-  toDataURL.mockImplementation((_type: string, _quality: number): string => 'data:image/jpeg,small');
+  toDataURL.mockImplementation(
+    (_type: string, _quality: number): string => 'data:image/jpeg,small',
+  );
   HTMLCanvasElement.prototype.getContext = vi.fn(
     () => ({ drawImage }) as unknown as CanvasRenderingContext2D,
   ) as unknown as typeof HTMLCanvasElement.prototype.getContext;
-  HTMLCanvasElement.prototype.toDataURL = toDataURL as unknown as typeof HTMLCanvasElement.prototype.toDataURL;
+  HTMLCanvasElement.prototype.toDataURL =
+    toDataURL as unknown as typeof HTMLCanvasElement.prototype.toDataURL;
 });
 
 afterEach(() => {

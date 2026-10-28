@@ -122,10 +122,7 @@ export const dataUrlToBytes = (dataUrl: string): Uint8Array | null => {
 
 // Crop the bitmap to the validated box, downscaling the crop to the fetch
 // cap so the re-identify stays bounded. Returns a JPEG data: URL.
-export const cropToSamBox = async (
-  bitmap: ImageBitmap,
-  box: SamPixelBox,
-): Promise<string> => {
+export const cropToSamBox = async (bitmap: ImageBitmap, box: SamPixelBox): Promise<string> => {
   const sw = Math.max(1, Math.round(box.x2 - box.x1));
   const sh = Math.max(1, Math.round(box.y2 - box.y1));
   const scale = Math.min(1, FETCH_MAX_SIDE / Math.max(sw, sh));

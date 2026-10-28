@@ -28,7 +28,9 @@ export const AlternatesView = ({ alternates, onPinAlternate, onPlanInstead }: Pr
       {alternates.cards.map((card, index) => (
         <div key={index} className={styles['alternate-card']}>
           <div className={styles['alternate-head']}>
-            <div className="thumb-monogram" aria-hidden="true">{card.name.trim().charAt(0)}</div>
+            <div className="thumb-monogram" aria-hidden="true">
+              {card.name.trim().charAt(0)}
+            </div>
             <p className={styles['alternate-name']}>{card.name}</p>
           </div>
           <p className={styles['alternate-why']}>{card.why}</p>

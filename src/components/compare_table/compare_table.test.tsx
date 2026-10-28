@@ -51,7 +51,13 @@ describe('compare-table', () => {
     const rendered = renderTable({ mode: 'loading', a: 'Oia, Greece', b: 'Fira, Greece' });
     rendered.rerender(
       <CompareTable
-        table={{ mode: 'ready', a: 'Oia, Greece', b: 'Fira, Greece', rows: ROWS, verdict: 'Pick Oia for views.' }}
+        table={{
+          mode: 'ready',
+          a: 'Oia, Greece',
+          b: 'Fira, Greece',
+          rows: ROWS,
+          verdict: 'Pick Oia for views.',
+        }}
         onRetry={() => {}}
       />,
     );
@@ -73,7 +79,10 @@ describe('compare-table', () => {
 
   it('collapses to an inline error with retry', () => {
     const onRetry = vi.fn();
-    const root = renderTable({ mode: 'error', a: 'Oia, Greece', b: 'Fira, Greece' }, onRetry).container;
+    const root = renderTable(
+      { mode: 'error', a: 'Oia, Greece', b: 'Fira, Greece' },
+      onRetry,
+    ).container;
     expect(root.querySelector('table')).toBeNull();
     expect(root.querySelector('.duel-error p')?.textContent).toBe('duelError');
     expect(root.querySelector('.duel-error button')?.textContent).toBe('duelRetry');

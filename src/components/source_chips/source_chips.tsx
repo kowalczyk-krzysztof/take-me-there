@@ -34,7 +34,13 @@ export const SourceChips = ({ sources }: Props) => (
         return null;
       }
       return (
-        <a key={`${href}-${index}`} href={href} target="_blank" rel="noopener noreferrer" className={styles.chip}>
+        <a
+          key={`${href}-${index}`}
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={styles.chip}
+        >
           {hostnameOf(href)}
           <span className="visually-hidden">{msg('newTabSuffix')}</span>
         </a>
@@ -42,4 +48,3 @@ export const SourceChips = ({ sources }: Props) => (
     })}
   </div>
 );
-

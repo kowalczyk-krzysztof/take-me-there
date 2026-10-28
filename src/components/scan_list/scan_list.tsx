@@ -35,9 +35,7 @@ interface Props extends ScanListCallbacks {
   items: ScanItemView[];
 }
 
-export const ScanList = ({
-  loading, items, onGuide, onPin, onPinSelected,
-}: Props) => {
+export const ScanList = ({ loading, items, onGuide, onPin, onPinSelected }: Props) => {
   const checkedRef = useRef<Set<string>>(new Set());
   const [epoch, setEpoch] = useState(0);
   const prevItems = useRef(items);
@@ -77,7 +75,9 @@ export const ScanList = ({
   return (
     <div className={styles.root}>
       <section aria-busy={loading} aria-labelledby="scan-heading">
-        <h2 id="scan-heading" tabIndex={-1}>{msg('scanTitle')}</h2>
+        <h2 id="scan-heading" tabIndex={-1}>
+          {msg('scanTitle')}
+        </h2>
         {loading ? (
           <div className={styles['skeleton-grid']} aria-hidden="true">
             {[0, 1, 2, 3, 4, 5].map((index) => (
@@ -107,4 +107,3 @@ export const ScanList = ({
     </div>
   );
 };
-

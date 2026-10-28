@@ -32,13 +32,7 @@ import {
 import { buildDestination, buildLinks, mapsDirUrl } from './deep_links';
 import { downscaleToJpegDataUrl, fetchImageBytes } from './image_fetch';
 import { clearKey, isVaultKey, loadKey, saveKey, type KeyStatus } from './key_vault';
-import {
-  cropToSamBox,
-  dataUrlToBytes,
-  parseSamBoxes,
-  selectSamBox,
-  type SamPixelBox,
-} from './sam';
+import { cropToSamBox, dataUrlToBytes, parseSamBoxes, selectSamBox, type SamPixelBox } from './sam';
 import { estimateCostUsd, formatUsd, recordMonthSpend } from './pricing';
 import { createGuideRenderer, findGuideStart } from './render_markdown';
 import {
@@ -51,12 +45,7 @@ import {
   type ScannedPlace,
   type TripRequest,
 } from './types';
-import {
-  frameCacheSeed,
-  hasVideoConsented,
-  isMp4RungUsable,
-  setVideoConsented,
-} from './video';
+import { frameCacheSeed, hasVideoConsented, isMp4RungUsable, setVideoConsented } from './video';
 import {
   ProviderError,
   addUsage,
@@ -226,7 +215,13 @@ interface PreviewOverlay {
 
 type PreviewState =
   | { kind: 'placeholder' }
-  | { kind: 'image'; src: string; frame: boolean; identified: string | null; overlay: PreviewOverlay | null }
+  | {
+      kind: 'image';
+      src: string;
+      frame: boolean;
+      identified: string | null;
+      overlay: PreviewOverlay | null;
+    }
   | { kind: 'crop'; src: string; identified: string | null };
 
 interface ResultSlotState {
@@ -440,7 +435,13 @@ const swapResultSlot = (build: () => void): void => {
 const updatePreview = (srcUrl: string | null, kind: 'image' | 'frame' = 'image'): void => {
   if (srcUrl && isAllowedPreviewUrl(srcUrl)) {
     store.set({
-      preview: { kind: 'image', src: srcUrl, frame: kind === 'frame', identified: null, overlay: null },
+      preview: {
+        kind: 'image',
+        src: srcUrl,
+        frame: kind === 'frame',
+        identified: null,
+        overlay: null,
+      },
     });
   } else {
     showPreviewPlaceholder();
@@ -479,14 +480,7 @@ const showSources = (sources: GuideSource[]): void => {
 };
 
 type PrivacyMode =
-  | 'image'
-  | 'image-only'
-  | 'cache'
-  | 'idle'
-  | 'video-frame'
-  | 'video-url'
-  | 'board'
-  | 'names';
+  'image' | 'image-only' | 'cache' | 'idle' | 'video-frame' | 'video-url' | 'board' | 'names';
 
 const updatePrivacy = (mode: PrivacyMode): void => {
   const keys: Record<PrivacyMode, string> = {
@@ -638,8 +632,7 @@ const onVideoConfirmCancel = (): void => {
 
 // Callers check the vault first; a missing key surfaces as onboarding
 // before any run starts, so this only ever sees the ok state.
-const runKey = (keyStatus: KeyStatus): string =>
-  keyStatus.state === 'ok' ? keyStatus.key : '';
+const runKey = (keyStatus: KeyStatus): string => (keyStatus.state === 'ok' ? keyStatus.key : '');
 
 const abortActive = (): void => {
   if (activeController) {
@@ -705,10 +698,7 @@ type RunOutcome = 'result' | 'no-place' | 'error' | 'aborted';
 // Rung-2 media for a video request: only when no frame was captured, the URL
 // is server-fetchable, and the provider speaks video. Centralized so re-runs
 // (look again, re-analyze, retry) route exactly like the first attempt.
-const videoUrlForRequest = (
-  request: TripRequest,
-  provider: Provider,
-): string | undefined =>
+const videoUrlForRequest = (request: TripRequest, provider: Provider): string | undefined =>
   request.mediaType === 'video' &&
   !request.frame &&
   provider.capabilities.video &&
@@ -1149,9 +1139,7 @@ const runGuidePlan = async (): Promise<void> => {
   announceStatus('statusPlanningTrip');
   const controller = new AbortController();
   activeController = controller;
-  const privacy = activeRequest
-    ? privacyForRequest(activeRequest, settings, provider)
-    : 'image';
+  const privacy = activeRequest ? privacyForRequest(activeRequest, settings, provider) : 'image';
   let outcome: RunOutcome = 'error';
   try {
     outcome = await runGuide({
@@ -1241,9 +1229,7 @@ const renderCached = async (entry: CacheEntry, origin: 'gesture' | 'panel'): Pro
 };
 
 type VideoRoute =
-  | { kind: 'frame' }
-  | { kind: 'rung2' }
-  | { kind: 'error'; titleKey: string; bodyKey: string };
+  { kind: 'frame' } | { kind: 'rung2' } | { kind: 'error'; titleKey: string; bodyKey: string };
 
 const routeVideoRequest = (request: TripRequest, provider: Provider): VideoRoute => {
   if (request.frame) {
@@ -1297,10 +1283,7 @@ const runVideoAnalysis = async (
   }
   if (route.kind === 'frame' && request.frame) {
     updatePreview(request.frame.dataUrl, 'frame');
-    currentCacheKey = await hashCacheKey(
-      frameCacheSeed(request.frame.time),
-      request.pageUrl ?? '',
-    );
+    currentCacheKey = await hashCacheKey(frameCacheSeed(request.frame.time), request.pageUrl ?? '');
   } else {
     updatePreview(null);
     currentCacheKey = await hashCacheKey(request.srcUrl, request.pageUrl ?? '');
@@ -1313,7 +1296,11 @@ const runVideoAnalysis = async (
     return;
   }
   announceStatus(
-    superseded ? 'statusCanceledNew' : route.kind === 'frame' ? 'statusAnalyzingFrame' : 'statusAnalyzingVideo',
+    superseded
+      ? 'statusCanceledNew'
+      : route.kind === 'frame'
+        ? 'statusAnalyzingFrame'
+        : 'statusAnalyzingVideo',
   );
   showSkeleton(request.requestId);
   await runIdentify({
@@ -1347,7 +1334,10 @@ const pairScanThumb = (place: ScannedPlace, images: ScannedImage[]): string | nu
   return url && isAllowedPreviewUrl(url) ? url : null;
 };
 
-const scanItemViews = async (places: ScannedPlace[], thumbs: Array<string | null>): Promise<ScanItemView[]> => {
+const scanItemViews = async (
+  places: ScannedPlace[],
+  thumbs: Array<string | null>,
+): Promise<ScanItemView[]> => {
   const views: ScanItemView[] = [];
   for (const [index, place] of places.entries()) {
     views.push({
@@ -1699,8 +1689,7 @@ const samCropAttempt = async (
   key: string,
 ): Promise<SamCrop | null> => {
   const direct =
-    request.frame?.dataUrl ??
-    (request.srcUrl.startsWith('data:image/') ? request.srcUrl : null);
+    request.frame?.dataUrl ?? (request.srcUrl.startsWith('data:image/') ? request.srcUrl : null);
   let inputBytes = direct ? dataUrlToBytes(direct) : null;
   if (!inputBytes) {
     if (request.mediaType || request.scanImages || !request.srcUrl.startsWith('https://')) {
@@ -1760,11 +1749,7 @@ const samCropAttempt = async (
       signal: new AbortController().signal,
     });
     runUsage = addUsage(runUsage, segment.usage);
-    const box = selectSamBox(
-      parseSamBoxes(segment.text),
-      bitmap.width,
-      bitmap.height,
-    );
+    const box = selectSamBox(parseSamBoxes(segment.text), bitmap.width, bitmap.height);
     if (!box || activeRequest !== request || highestRequestId !== request.requestId) {
       return null;
     }
@@ -1930,9 +1915,11 @@ const retry = async (): Promise<void> => {
 // click.
 const fetchRetry = async (): Promise<void> => {
   const target =
-    lastRun?.kind === 'request' ? lastRun.request : (
-      activeRequest?.mediaType === undefined ? activeRequest : null
-    );
+    lastRun?.kind === 'request'
+      ? lastRun.request
+      : activeRequest?.mediaType === undefined
+        ? activeRequest
+        : null;
   const srcUrl = target?.srcUrl ?? '';
   if (
     !target ||
@@ -2075,12 +2062,7 @@ const refreshResultCard = async (): Promise<void> => {
   store.set({ result: { ...blankResultSlot(), card: await resultCardProps(currentPlace) } });
 };
 
-const runDuel = async (
-  a: DuelSide,
-  b: DuelSide,
-  aTitle: string,
-  bTitle: string,
-): Promise<void> => {
+const runDuel = async (a: DuelSide, b: DuelSide, aTitle: string, bTitle: string): Promise<void> => {
   duelController?.abort();
   const controller = new AbortController();
   duelController = controller;
@@ -2342,8 +2324,7 @@ const boardItemViews = (pins: BoardPin[]): BoardItemView[] =>
     title: pinDisplayName(pin),
     host: pin.sourceHost,
     image:
-      pin.thumbnail ??
-      (pin.imageUrl && isAllowedPreviewUrl(pin.imageUrl) ? pin.imageUrl : null),
+      pin.thumbnail ?? (pin.imageUrl && isAllowedPreviewUrl(pin.imageUrl) ? pin.imageUrl : null),
   }));
 
 const renderBoard = async (): Promise<BoardPin[]> => {
@@ -2376,7 +2357,9 @@ const attemptPin = async (pin: Omit<BoardPin, 'addedAt'>, withoutThumb = false):
     outcome = await pinPlace(candidate);
   } catch {
     failedPin = pin;
-    store.set({ boardNotice: { text: msg('boardNoticePinFail', pin.place.placeName), retry: true } });
+    store.set({
+      boardNotice: { text: msg('boardNoticePinFail', pin.place.placeName), retry: true },
+    });
     announceAlert('alertPinFail', pin.place.placeName);
     return;
   }
@@ -2736,7 +2719,11 @@ const PreviewFrame = ({ preview }: PreviewFrameProps) => {
       <>
         <img
           referrerPolicy="no-referrer"
-          alt={preview.identified ? msg('previewAltIdentified', preview.identified) : msg('previewAltCrop')}
+          alt={
+            preview.identified
+              ? msg('previewAltIdentified', preview.identified)
+              : msg('previewAltCrop')
+          }
           src={preview.src}
           onError={() => showPreviewPlaceholder()}
         />
@@ -2803,7 +2790,9 @@ const SidepanelApp = () => {
   const selected = (tab: PanelTab): boolean => state.tab === tab;
   return (
     <main>
-      <h1 id="page-title" className="visually-hidden">{msg('appName')}</h1>
+      <h1 id="page-title" className="visually-hidden">
+        {msg('appName')}
+      </h1>
       <div id="tab-bar" role="tablist" aria-label={msg('tabsLabel')} onKeyDown={onTabKeyDown}>
         <button
           id="tab-main"
@@ -2837,112 +2826,133 @@ const SidepanelApp = () => {
           {msg('settingsTab')}
         </button>
       </div>
-      <section id="main-panel" role="tabpanel" aria-labelledby="tab-main" hidden={!main || undefined}>
-      <header id="preview-header">
-        <h2 id="preview-heading" className="visually-hidden" tabIndex={-1}>{msg('previewHeading')}</h2>
-        <div id="preview-frame">
-          <PreviewFrame preview={state.preview} />
+      <section
+        id="main-panel"
+        role="tabpanel"
+        aria-labelledby="tab-main"
+        hidden={!main || undefined}
+      >
+        <header id="preview-header">
+          <h2 id="preview-heading" className="visually-hidden" tabIndex={-1}>
+            {msg('previewHeading')}
+          </h2>
+          <div id="preview-frame">
+            <PreviewFrame preview={state.preview} />
+          </div>
+        </header>
+        <div id="status-region" role="status" className="visually-hidden">
+          <span key={state.statusSeq}>{state.status}</span>
         </div>
-      </header>
-      <div id="status-region" role="status" className="visually-hidden">
-        <span key={state.statusSeq}>{state.status}</span>
-      </div>
-      <div id="alert-region" role="alert" className="visually-hidden">
-        <span key={state.alertSeq}>{state.alert}</span>
-      </div>
-      <div id="result-slot" aria-busy={state.resultBusy || undefined}>
-        {state.result.card ? (
-          <TripCard
-            card={state.result.card}
-            callbacks={{
-              onPin: () => void onPinToggle(),
-              onPlanTrip: () => void runGuidePlan(),
-              onReanalyze: () => void reanalyze(),
-              onRetry: () => void retry(),
-              onFetchRetry: () => void fetchRetry(),
-              onLookAgain: () => void lookAgain(),
-              onAlternates: (intent) => void onAlternates(intent),
-              onCompare: (value) => void onCompare(value),
-              onPinAlternate: (index) => void onPinAlternate(index),
-              onPlanInstead: (index) => void onPlanInstead(index),
-            }}
-          />
-        ) : null}
-        {state.result.scan ? (
-          <ScanList
-            loading={state.result.scan.loading}
-            items={state.result.scan.items}
-            onGuide={(index) => void onScanGuide(index)}
-            onPin={(index) => void onScanPin(index)}
-            onPinSelected={(indices) => void onScanPinSelected(indices)}
-          />
-        ) : null}
-        {state.result.consent ? (
-          <KeySetup
-            mode="consent"
-            pending={keyForm.pending}
-            error={keyForm.error}
-            sessionOnly={keyForm.sessionOnly}
-            resetKey={keyForm.resetKey}
-            callbacks={{
-              onSave: (key) => void onKeySave(key),
-              onError: (text) => setKeyForm({ error: text }),
-              onSessionOnlyChange: (checked) => void onSessionOnlyChange(checked),
-              onConsentDecision: (agreed) => void onConsentDecision(agreed),
-            }}
-          />
-        ) : null}
-        {state.result.video ? (
-          <>
-            <h2 tabIndex={-1}>{msg('videoConfirmTitle')}</h2>
-            <p>{msg('videoConfirmBody')}</p>
-            {state.result.video.rung2 ? <p>{msg('videoConfirmRung2Note')}</p> : null}
-            <div className="confirm-actions">
-              <button type="button" className="primary" onClick={() => void onVideoConfirmAgree()}>
-                {msg('videoConfirmAgree')}
-              </button>
-              <button type="button" onClick={() => onVideoConfirmCancel()}>
-                {msg('videoConfirmCancel')}
-              </button>
-            </div>
-          </>
-        ) : null}
-      </div>
-      <div id="links-slot" hidden={state.links === null || undefined}>
-        <h2 id="booking-heading">{msg('bookingHeading')}</h2>
-        {state.links !== null ? <BookingGrid destination={state.links} /> : null}
-      </div>
-      <div id="guide-slot" hidden={!state.guideVisible || undefined}>
-        <h2 id="guide-heading">{msg('guideHeading')}</h2>
-        <p id="search-line" hidden={!state.searching || undefined}>
-          {state.searching ? msg('statusSearchingWeb') : null}
-        </p>
-        <div id="guide-content" aria-busy={state.guideBusy || undefined} />
-      </div>
-      <div id="duel-slot" hidden={state.duel === null || undefined}>
-        {state.duel ? (
-          <CompareTable table={state.duel} onRetry={() => void onDuelRetry()} />
-        ) : null}
-      </div>
-      <div id="sources-slot" hidden={state.sources.length === 0 || undefined}>
-        <h2 id="sources-heading">{msg('sourcesHeading')}</h2>
-        <SourceChips sources={state.sources} />
-      </div>
+        <div id="alert-region" role="alert" className="visually-hidden">
+          <span key={state.alertSeq}>{state.alert}</span>
+        </div>
+        <div id="result-slot" aria-busy={state.resultBusy || undefined}>
+          {state.result.card ? (
+            <TripCard
+              card={state.result.card}
+              callbacks={{
+                onPin: () => void onPinToggle(),
+                onPlanTrip: () => void runGuidePlan(),
+                onReanalyze: () => void reanalyze(),
+                onRetry: () => void retry(),
+                onFetchRetry: () => void fetchRetry(),
+                onLookAgain: () => void lookAgain(),
+                onAlternates: (intent) => void onAlternates(intent),
+                onCompare: (value) => void onCompare(value),
+                onPinAlternate: (index) => void onPinAlternate(index),
+                onPlanInstead: (index) => void onPlanInstead(index),
+              }}
+            />
+          ) : null}
+          {state.result.scan ? (
+            <ScanList
+              loading={state.result.scan.loading}
+              items={state.result.scan.items}
+              onGuide={(index) => void onScanGuide(index)}
+              onPin={(index) => void onScanPin(index)}
+              onPinSelected={(indices) => void onScanPinSelected(indices)}
+            />
+          ) : null}
+          {state.result.consent ? (
+            <KeySetup
+              mode="consent"
+              pending={keyForm.pending}
+              error={keyForm.error}
+              sessionOnly={keyForm.sessionOnly}
+              resetKey={keyForm.resetKey}
+              callbacks={{
+                onSave: (key) => void onKeySave(key),
+                onError: (text) => setKeyForm({ error: text }),
+                onSessionOnlyChange: (checked) => void onSessionOnlyChange(checked),
+                onConsentDecision: (agreed) => void onConsentDecision(agreed),
+              }}
+            />
+          ) : null}
+          {state.result.video ? (
+            <>
+              <h2 tabIndex={-1}>{msg('videoConfirmTitle')}</h2>
+              <p>{msg('videoConfirmBody')}</p>
+              {state.result.video.rung2 ? <p>{msg('videoConfirmRung2Note')}</p> : null}
+              <div className="confirm-actions">
+                <button
+                  type="button"
+                  className="primary"
+                  onClick={() => void onVideoConfirmAgree()}
+                >
+                  {msg('videoConfirmAgree')}
+                </button>
+                <button type="button" onClick={() => onVideoConfirmCancel()}>
+                  {msg('videoConfirmCancel')}
+                </button>
+              </div>
+            </>
+          ) : null}
+        </div>
+        <div id="links-slot" hidden={state.links === null || undefined}>
+          <h2 id="booking-heading">{msg('bookingHeading')}</h2>
+          {state.links !== null ? <BookingGrid destination={state.links} /> : null}
+        </div>
+        <div id="guide-slot" hidden={!state.guideVisible || undefined}>
+          <h2 id="guide-heading">{msg('guideHeading')}</h2>
+          <p id="search-line" hidden={!state.searching || undefined}>
+            {state.searching ? msg('statusSearchingWeb') : null}
+          </p>
+          <div id="guide-content" aria-busy={state.guideBusy || undefined} />
+        </div>
+        <div id="duel-slot" hidden={state.duel === null || undefined}>
+          {state.duel ? (
+            <CompareTable table={state.duel} onRetry={() => void onDuelRetry()} />
+          ) : null}
+        </div>
+        <div id="sources-slot" hidden={state.sources.length === 0 || undefined}>
+          <h2 id="sources-heading">{msg('sourcesHeading')}</h2>
+          <SourceChips sources={state.sources} />
+        </div>
       </section>
-      <section id="board-panel" role="tabpanel" aria-labelledby="tab-board" hidden={selected('board') ? undefined : true}>
-      <div id="board-slot">
-        <TripBoard
-          items={state.boardItems}
-          canPlan={state.boardCanPlan}
-          notice={state.boardNotice}
-          onRemovePin={(detail) => void onRemovePin(detail)}
-          onPlan={() => void planTrip()}
-          onClearConfirm={() => void onClearConfirm()}
-          onRetryPin={() => void onRetryPin()}
-        />
-      </div>
+      <section
+        id="board-panel"
+        role="tabpanel"
+        aria-labelledby="tab-board"
+        hidden={selected('board') ? undefined : true}
+      >
+        <div id="board-slot">
+          <TripBoard
+            items={state.boardItems}
+            canPlan={state.boardCanPlan}
+            notice={state.boardNotice}
+            onRemovePin={(detail) => void onRemovePin(detail)}
+            onPlan={() => void planTrip()}
+            onClearConfirm={() => void onClearConfirm()}
+            onRetryPin={() => void onRetryPin()}
+          />
+        </div>
       </section>
-      <section id="settings-panel" role="tabpanel" aria-labelledby="tab-settings" hidden={selected('settings') ? undefined : true}>
+      <section
+        id="settings-panel"
+        role="tabpanel"
+        aria-labelledby="tab-settings"
+        hidden={selected('settings') ? undefined : true}
+      >
         <h2 id="settings-heading">{msg('settingsKeyHeading')}</h2>
         {state.showOrphaned ? <p className="key-notice">{msg('keyReenterNotice')}</p> : null}
         {!state.keySaved || state.replacing ? (

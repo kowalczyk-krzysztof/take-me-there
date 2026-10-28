@@ -39,7 +39,10 @@ export const buildLinks = (destination: string): BookingLink[] => {
   const query = encodeURIComponent(capped);
   const links: BookingLink[] = [
     { id: 'maps', href: `https://www.google.com/maps/search/?api=1&query=${query}` },
-    { id: 'flights', href: `https://www.google.com/travel/flights?q=Flights%20to%20${query}&hl=en` },
+    {
+      id: 'flights',
+      href: `https://www.google.com/travel/flights?q=Flights%20to%20${query}&hl=en`,
+    },
     { id: 'hotels', href: `https://www.google.com/travel/hotels?q=${query}&hl=en` },
     {
       id: 'airbnb',
@@ -70,8 +73,7 @@ export const mapsDirUrl = (stops: string[]): string | null => {
   if (stops.length < 2) {
     return null;
   }
-  const clean = (name: string): string =>
-    capDestination(name.replace(/[\0-\x1F\x7F|]+/g, ''));
+  const clean = (name: string): string => capDestination(name.replace(/[\0-\x1F\x7F|]+/g, ''));
   const origin = clean(stops[0]);
   const destination = clean(stops[stops.length - 1]);
   if (!origin || !destination) {

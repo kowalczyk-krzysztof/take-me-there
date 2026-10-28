@@ -8,7 +8,6 @@ import { ItineraryView } from './itinerary_view';
 import { NoPlaceView } from './no_place_view';
 import { ErrorView } from './error_view';
 
-
 export interface ItineraryStopView {
   name: string;
   nights: number | null;
@@ -69,30 +68,30 @@ export type CardState =
   | { view: 'idle'; hint: string; shortcut: string }
   | { view: 'loading' }
   | {
-    view: 'result';
-    place: PlaceResult;
-    lowConfidence: boolean;
-    pinned: boolean;
-    planState: PlanState;
-    compareOptions?: CompareOptionView[];
-    alternates?: AlternatesView;
-  }
+      view: 'result';
+      place: PlaceResult;
+      lowConfidence: boolean;
+      pinned: boolean;
+      planState: PlanState;
+      compareOptions?: CompareOptionView[];
+      alternates?: AlternatesView;
+    }
   | { view: 'no-place'; showLookAgain: boolean; fallback: { label: string; href: string } | null }
   | {
-    view: 'error';
-    title: string;
-    body: string;
-    showRetry: boolean;
-    fallback?: { label: string; href: string } | null;
-    showFetchRetry?: boolean;
-  }
+      view: 'error';
+      title: string;
+      body: string;
+      showRetry: boolean;
+      fallback?: { label: string; href: string } | null;
+      showFetchRetry?: boolean;
+    }
   | {
-    view: 'itinerary';
-    title: string;
-    stops: ItineraryStopView[];
-    mapsUrl: string | null;
-    mapsLabel: string;
-  };
+      view: 'itinerary';
+      title: string;
+      stops: ItineraryStopView[];
+      mapsUrl: string | null;
+      mapsLabel: string;
+    };
 
 interface Props {
   card: CardState;

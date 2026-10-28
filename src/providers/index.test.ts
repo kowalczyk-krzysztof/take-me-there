@@ -187,8 +187,20 @@ describe('prompt builders', () => {
   it('builds the scan batch with indexed images and hint captions', () => {
     const [developer, user] = buildScanMessages(
       [
-        { url: 'https://cdn.example.com/a.jpg', caption: 'Blue domes', heading: '', width: 800, height: 600 },
-        { url: 'https://cdn.example.com/b.jpg', caption: '', heading: 'Fira', width: 640, height: 480 },
+        {
+          url: 'https://cdn.example.com/a.jpg',
+          caption: 'Blue domes',
+          heading: '',
+          width: 800,
+          height: 600,
+        },
+        {
+          url: 'https://cdn.example.com/b.jpg',
+          caption: '',
+          heading: 'Fira',
+          width: 640,
+          height: 480,
+        },
       ],
       false,
     );
@@ -211,8 +223,20 @@ describe('prompt builders', () => {
           message: {
             content: JSON.stringify({
               places: [
-                { placeName: 'Oia', city: 'Oia', country: 'Greece', confidence: 0.5, imageIndex: 0 },
-                { placeName: 'Oia', city: 'Oia', country: 'Greece', confidence: 0.9, imageIndex: 1 },
+                {
+                  placeName: 'Oia',
+                  city: 'Oia',
+                  country: 'Greece',
+                  confidence: 0.5,
+                  imageIndex: 0,
+                },
+                {
+                  placeName: 'Oia',
+                  city: 'Oia',
+                  country: 'Greece',
+                  confidence: 0.9,
+                  imageIndex: 1,
+                },
                 { placeName: 'Broken', city: 'X', country: 'Y', confidence: 'high', imageIndex: 2 },
                 null,
               ],
@@ -425,7 +449,9 @@ describe('prompt builders', () => {
     expect(extracted?.inputTokens).toBe(200);
     expect(extracted?.outputTokens).toBe(80);
     expect(extractResponsesStructured({})).toBeUndefined();
-    expect(extractResponsesStructured({ output: [{ type: 'message', content: [] }] })).toBeUndefined();
+    expect(
+      extractResponsesStructured({ output: [{ type: 'message', content: [] }] }),
+    ).toBeUndefined();
     expect(
       extractResponsesStructured({
         output: [{ type: 'message', content: [{ type: 'output_text', text: 'nope' }] }],
@@ -444,7 +470,11 @@ describe('prompt builders', () => {
       ],
       usage: { input_tokens: 10, output_tokens: 5 },
     };
-    expect(extractResponsesText(data)).toEqual({ text: 'boxes here', inputTokens: 10, outputTokens: 5 });
+    expect(extractResponsesText(data)).toEqual({
+      text: 'boxes here',
+      inputTokens: 10,
+      outputTokens: 5,
+    });
     expect(extractResponsesText({})).toBeUndefined();
     expect(extractResponsesText({ output: [] })).toBeUndefined();
   });

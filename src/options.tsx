@@ -4,12 +4,7 @@ import { flushSync } from 'react-dom';
 import { KeySetup } from './components/key_setup/key_setup';
 import { clearKey, loadKey, saveKey } from './key_vault';
 import { formatUsd, readMonthSpend, resetMonthSpend } from './pricing';
-import {
-  ProviderError,
-  getActiveProvider,
-  loadSettings,
-  saveSettings,
-} from './providers/index';
+import { ProviderError, getActiveProvider, loadSettings, saveSettings } from './providers/index';
 import { msg } from './utils/i18n';
 import { createStore } from './utils/store';
 import './styles/options.css';
@@ -191,7 +186,9 @@ const onCompatSave = (): void => {
       return;
     }
     const settings = await loadSettings();
-    const structuredSelect = document.getElementById('compat-structured') as HTMLSelectElement | null;
+    const structuredSelect = document.getElementById(
+      'compat-structured',
+    ) as HTMLSelectElement | null;
     await saveSettings({
       ...settings,
       activeProviderId: 'openai_compat',
@@ -270,16 +267,16 @@ const OptionsApp = () => {
         />
       </div>
       <div className="button-row">
-        <button id="test-key" type="button" onClick={onTestKey}>{msg('testKeyButton')}</button>
-        <button id="clear-key" type="button" onClick={onClearKey}>{msg('clearKeyButton')}</button>
+        <button id="test-key" type="button" onClick={onTestKey}>
+          {msg('testKeyButton')}
+        </button>
+        <button id="clear-key" type="button" onClick={onClearKey}>
+          {msg('clearKeyButton')}
+        </button>
       </div>
       <div key={settings === null ? 'loading' : 'ready'}>
         <label className="checkbox-row" id="image-only-row">
-          <input
-            type="checkbox"
-            id="image-only"
-            defaultChecked={settings?.imageOnly ?? false}
-          />
+          <input type="checkbox" id="image-only" defaultChecked={settings?.imageOnly ?? false} />
           <span id="image-only-label">{msg('imageOnlyLabel')}</span>
         </label>
         <h2 id="provider-heading">{msg('optionsProviderHeading')}</h2>
@@ -308,29 +305,60 @@ const OptionsApp = () => {
         <fieldset id="compat-fields" hidden={!state.compatOpen || undefined}>
           <label className="field-row">
             <span id="compat-base-url-label">{msg('compatBaseUrl')}</span>
-            <input type="url" id="compat-base-url" autoComplete="url" defaultValue={settings?.compat.baseURL ?? ''} />
+            <input
+              type="url"
+              id="compat-base-url"
+              autoComplete="url"
+              defaultValue={settings?.compat.baseURL ?? ''}
+            />
           </label>
           <label className="field-row">
             <span id="compat-model-label">{msg('compatModel')}</span>
-            <input type="text" id="compat-model" autoComplete="off" defaultValue={settings?.compat.model ?? ''} />
+            <input
+              type="text"
+              id="compat-model"
+              autoComplete="off"
+              defaultValue={settings?.compat.model ?? ''}
+            />
           </label>
           <label className="field-row">
             <span id="compat-structured-label">{msg('compatStructured')}</span>
-            <select id="compat-structured" defaultValue={settings?.compat.structured ?? 'json_schema'}>
-              <option value="json_schema" id="compat-structured-schema">{msg('compatStructuredSchema')}</option>
-              <option value="json_object" id="compat-structured-object">{msg('compatStructuredObject')}</option>
+            <select
+              id="compat-structured"
+              defaultValue={settings?.compat.structured ?? 'json_schema'}
+            >
+              <option value="json_schema" id="compat-structured-schema">
+                {msg('compatStructuredSchema')}
+              </option>
+              <option value="json_object" id="compat-structured-object">
+                {msg('compatStructuredObject')}
+              </option>
             </select>
           </label>
           <label className="field-row">
             <span id="compat-input-rate-label">{msg('compatInputRate')}</span>
-            <input type="number" id="compat-input-rate" min="0" step="any" defaultValue={settings?.compat.inputRate ?? ''} />
+            <input
+              type="number"
+              id="compat-input-rate"
+              min="0"
+              step="any"
+              defaultValue={settings?.compat.inputRate ?? ''}
+            />
           </label>
           <label className="field-row">
             <span id="compat-output-rate-label">{msg('compatOutputRate')}</span>
-            <input type="number" id="compat-output-rate" min="0" step="any" defaultValue={settings?.compat.outputRate ?? ''} />
+            <input
+              type="number"
+              id="compat-output-rate"
+              min="0"
+              step="any"
+              defaultValue={settings?.compat.outputRate ?? ''}
+            />
           </label>
           <div className="button-row">
-            <button id="compat-save" type="button" onClick={onCompatSave}>{msg('compatSave')}</button>
+            <button id="compat-save" type="button" onClick={onCompatSave}>
+              {msg('compatSave')}
+            </button>
           </div>
           <p id="compat-error" role="alert" hidden={state.compatError === null || undefined}>
             {state.compatError}
@@ -356,7 +384,9 @@ const OptionsApp = () => {
       </div>
       <h2 id="privacy-heading">{msg('optionsPrivacyHeading')}</h2>
       <p id="privacy-body">{msg('optionsPrivacyBody')}</p>
-      <div id="status-region" role="status" className="visually-hidden">{state.status}</div>
+      <div id="status-region" role="status" className="visually-hidden">
+        {state.status}
+      </div>
     </main>
   );
 };

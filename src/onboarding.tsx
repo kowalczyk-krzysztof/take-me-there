@@ -3,12 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import { KeySetup } from './components/key_setup/key_setup';
 import { loadKey, saveKey } from './key_vault';
-import {
-  ProviderError,
-  getActiveProvider,
-  loadSettings,
-  saveSettings,
-} from './providers/index';
+import { ProviderError, getActiveProvider, loadSettings, saveSettings } from './providers/index';
 import { msg } from './utils/i18n';
 import { createStore } from './utils/store';
 import './styles/options.css';
@@ -99,7 +94,9 @@ const OnboardingApp = () => {
           }}
         />
       </div>
-      <div id="status-region" role="status" className="visually-hidden">{state.status}</div>
+      <div id="status-region" role="status" className="visually-hidden">
+        {state.status}
+      </div>
       <p id="try-hint">{msg('onboardingTryHint')}</p>
     </main>
   );
