@@ -342,4 +342,151 @@ describe('options', () => {
     };
     expect(stored.settings.activeProviderId).toBe('muse');
   });
+
+  it('saves an HTTP loopback server after the origin grant', async () => {
+    await setup();
+
+    const permsRequest = vi.fn().mockResolvedValue(true);
+    const permsContains = vi.fn().mockResolvedValue(false);
+    (chrome as unknown as { permissions: unknown }).permissions = {
+      contains: permsContains,
+      request: permsRequest,
+    };
+
+    const compat = document.querySelector('#provider-compat') as HTMLInputElement;
+    compat.checked = true;
+    compat.dispatchEvent(new Event('change', { bubbles: true }));
+    (document.querySelector('#compat-base-url') as HTMLInputElement).value =
+      'http://127.0.0.1:11434/v1';
+    (document.querySelector('#compat-model') as HTMLInputElement).value = 'local-model';
+    const save = document.querySelector('#compat-save') as HTMLButtonElement;
+    save.click();
+    await waitFor(() => {
+      expect(document.querySelector('#compat-error')?.textContent).toBe(
+        'compatHostWarning(127.0.0.1:11434)'
+      );
+    });
+    save.click();
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('statusProviderSaved');
+    });
+    expect(permsRequest).toHaveBeenCalledWith({ origins: ['http://127.0.0.1:11434/*'] });
+  });
+
+  it('removes the owned grant when the save fails', async () => {
+    const mock = await setup();
+
+    const permsRequest = vi.fn().mockResolvedValue(true);
+    const permsContains = vi.fn().mockResolvedValue(false);
+    const permsRemove = vi.fn().mockResolvedValue(undefined);
+    (chrome as unknown as { permissions: unknown }).permissions = {
+      contains: permsContains,
+      request: permsRequest,
+      remove: permsRemove,
+    };
+
+    mock.local.fault = (op, keys) => {
+      if (op === 'set' && keys.includes('settings')) {
+        throw new Error('quota');
+      }
+    };
+
+    const compat = document.querySelector('#provider-compat') as HTMLInputElement;
+    compat.checked = true;
+    compat.dispatchEvent(new Event('change', { bubbles: true }));
+    (document.querySelector('#compat-base-url') as HTMLInputElement).value =
+      'https://llm.example.com/v1';
+    (document.querySelector('#compat-model') as HTMLInputElement).value = 'test-model';
+    const save = document.querySelector('#compat-save') as HTMLButtonElement;
+    save.click();
+    await waitFor(() => {
+      expect(document.querySelector('#compat-error')?.textContent).toContain('compatHostWarning');
+    });
+    save.click();
+    await waitFor(() => {
+      expect(document.querySelector('#compat-error')?.textContent).toBe('settingsSaveFailed');
+    });
+    expect(permsRemove).toHaveBeenCalledWith({ origins: ['https://llm.example.com/*'] });
+    expect(mock.local.data.get('settings')).toBeUndefined();
+
+    mock.local.fault = () => undefined;
+  });
+
+  it('removes the obsolete grant after a host change', async () => {
+    await setup(async (inner) => {
+      await inner.local.set({
+        settings: {
+          v: 1,
+          settings: {
+            activeProviderId: 'openai_compat',
+            openaiCompat: {
+              baseURL: 'https://old.example.com/v1',
+              model: 'm',
+              structuredOutput: 'json_object',
+            },
+            imageOnly: false,
+            sessionOnly: false,
+            skipWebSearch: false,
+          },
+        },
+      });
+    });
+
+    const permsRequest = vi.fn().mockResolvedValue(true);
+    const permsContains = vi.fn().mockImplementation(async (query: { origins: string[] }) => {
+      return query.origins[0] === 'https://old.example.com/*';
+    });
+    const permsRemove = vi.fn().mockResolvedValue(undefined);
+    (chrome as unknown as { permissions: unknown }).permissions = {
+      contains: permsContains,
+      request: permsRequest,
+      remove: permsRemove,
+    };
+
+    (document.querySelector('#compat-base-url') as HTMLInputElement).value =
+      'https://new.example.com/v1';
+    const save = document.querySelector('#compat-save') as HTMLButtonElement;
+    save.click();
+    await waitFor(() => {
+      expect(document.querySelector('#compat-error')?.textContent).toContain('compatHostWarning');
+    });
+    save.click();
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('statusProviderSaved');
+    });
+    expect(permsRemove).toHaveBeenCalledTimes(1);
+    expect(permsRemove).toHaveBeenCalledWith({ origins: ['https://old.example.com/*'] });
+  });
+
+  it('removes the custom grant when switching back to Muse', async () => {
+    await setup(async (inner) => {
+      await inner.local.set({
+        settings: {
+          v: 1,
+          settings: {
+            activeProviderId: 'openai_compat',
+            openaiCompat: {
+              baseURL: 'https://llm.example.com/v1',
+              model: 'm',
+              structuredOutput: 'json_object',
+            },
+            imageOnly: false,
+            sessionOnly: false,
+            skipWebSearch: false,
+          },
+        },
+      });
+    });
+
+    const permsRemove = vi.fn().mockResolvedValue(undefined);
+    (chrome as unknown as { permissions: unknown }).permissions = { remove: permsRemove };
+
+    const muse = document.querySelector('#provider-muse') as HTMLInputElement;
+    muse.checked = true;
+    muse.dispatchEvent(new Event('change', { bubbles: true }));
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('statusProviderSaved');
+    });
+    expect(permsRemove).toHaveBeenCalledWith({ origins: ['https://llm.example.com/*'] });
+  });
 });

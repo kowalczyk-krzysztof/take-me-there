@@ -1,4 +1,5 @@
 import type { ModelRates } from '../pricing';
+import { parseEndpointOrigin } from '../settings_store';
 import {
   alternatesJsonSchema,
   duelJsonSchema,
@@ -93,6 +94,16 @@ export class OpenAiCompatProvider implements Provider {
 
     if (!base || !this.config.model) {
       throw new ProviderError('not_configured', 'openai_compat provider is not configured', false);
+    }
+
+    try {
+      parseEndpointOrigin(base);
+    } catch {
+      throw new ProviderError(
+        'not_configured',
+        'openai_compat endpoint URL is not supported',
+        false
+      );
     }
 
     return base;

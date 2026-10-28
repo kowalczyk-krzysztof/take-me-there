@@ -11,6 +11,11 @@ import {
   handleHandoffMessage,
   handoffSlotKey,
 } from './handoff';
+import { reconcileTempGrants } from './grants';
+
+// Startup sweep for temp grants abandoned by dead panels. The ledger
+// persists, so a suspension mid-sweep simply retries next startup.
+void reconcileTempGrants();
 
 const MENU_ID = 'plan-trip';
 

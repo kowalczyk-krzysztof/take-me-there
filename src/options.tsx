@@ -9,6 +9,7 @@ import {
   customHostOf,
   getActiveProvider,
   loadSettings,
+  parseEndpointOrigin,
   saveSettings,
   type ExtensionSettings,
 } from './providers/index';
@@ -189,6 +190,28 @@ const onClearAllKeys = (): void => {
   })();
 };
 
+// Previously configured custom origin, for obsolete-grant removal after a
+// provider change. Empty unless custom is active with a parseable URL.
+const customOriginOf = (settings: ExtensionSettings): string => {
+  if (settings.activeProviderId !== 'openai_compat' || !settings.openaiCompat.baseURL) {
+    return '';
+  }
+
+  try {
+    return new URL(settings.openaiCompat.baseURL).origin;
+  } catch {
+    return '';
+  }
+};
+
+const removeGrant = async (origin: string): Promise<void> => {
+  try {
+    await chrome.permissions.remove({ origins: [`${origin}/*`] });
+  } catch {
+    // The grant is already gone; nothing to clean up.
+  }
+};
+
 const onCompatSave = (): void => {
   void (async () => {
     store.set({ compatError: null });
@@ -198,20 +221,7 @@ const onCompatSave = (): void => {
     let origin = '';
 
     try {
-      const parsed = new URL(baseURL);
-
-      const local =
-        parsed.hostname === 'localhost' ||
-        parsed.hostname === '127.0.0.1' ||
-        parsed.hostname === '[::1]';
-
-      if (
-        (parsed.protocol !== 'https:' && !(parsed.protocol === 'http:' && local)) ||
-        !parsed.hostname
-      ) {
-        throw new Error('unsupported server URL');
-      }
-      origin = parsed.origin;
+      origin = parseEndpointOrigin(baseURL);
     } catch {
       store.set({ compatError: msg('providerErrorUrl') });
 
@@ -258,18 +268,29 @@ const onCompatSave = (): void => {
       return;
     }
 
-    let granted = false;
+    let preexisting = false;
 
     try {
-      granted = await chrome.permissions.request({ origins: [`${origin}/*`] });
+      preexisting = await chrome.permissions.contains({ origins: [`${origin}/*`] });
     } catch {
-      granted = false;
+      preexisting = false;
+    }
+
+    let granted = preexisting;
+
+    if (!preexisting) {
+      try {
+        granted = await chrome.permissions.request({ origins: [`${origin}/*`] });
+      } catch {
+        granted = false;
+      }
     }
     if (!granted) {
       store.set({ compatError: msg('providerErrorDenied') });
       return;
     }
     const settings = await loadSettings();
+    const previousOrigin = customOriginOf(settings);
     const structuredSelect = document.getElementById(
       'compat-structured'
     ) as HTMLSelectElement | null;
@@ -287,8 +308,18 @@ const onCompatSave = (): void => {
     try {
       await saveSettings(next);
     } catch {
+      // The grant we just created is orphaned by the failed save: remove
+      // it unless it predates us.
+      if (!preexisting) {
+        await removeGrant(origin);
+      }
       store.set({ compatError: msg('settingsSaveFailed') });
       return;
+    }
+    // The replaced origin is obsolete to us: remove its grant. The new
+    // origin keeps its (possibly pre-existing) grant.
+    if (previousOrigin && previousOrigin !== origin) {
+      await removeGrant(previousOrigin);
     }
     store.set({ compatError: null, compatConfirmHost: null, status: msg('statusProviderSaved') });
   })();
@@ -332,13 +363,24 @@ const OptionsApp = () => {
         })();
       } else if (box.id === 'provider-muse' && box.checked) {
         void (async () => {
+          let current;
           try {
-            const current = await loadSettings();
+            current = await loadSettings();
+          } catch {
+            box.checked = false;
+            store.set({ status: msg('settingsSaveFailed') });
+            return;
+          }
+          const previousOrigin = customOriginOf(current);
+          try {
             await saveSettings({ ...current, activeProviderId: 'muse' });
           } catch {
             box.checked = false;
             store.set({ status: msg('settingsSaveFailed') });
             return;
+          }
+          if (previousOrigin) {
+            await removeGrant(previousOrigin);
           }
           store.set({ compatOpen: false, compatError: null, status: msg('statusProviderSaved') });
         })();

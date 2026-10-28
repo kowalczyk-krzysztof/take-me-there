@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { TEMP_GRANT_KEY } from './grants';
 import type { ChromeMock } from './test/chrome_mock';
 import { installChromeMock, uninstallChromeMock } from './test/chrome_mock';
 import { TRIP_REQUEST_SCHEMA } from './types';
@@ -65,6 +66,24 @@ const storedRequest = async (mock: ChromeMock, windowId = 3): Promise<Record<str
   >;
 
 describe('service-worker', () => {
+  it('reconciles abandoned temp grants on startup', async () => {
+    vi.resetModules();
+
+    const mock = installChromeMock();
+
+    const permsRemove = vi.fn().mockResolvedValue(undefined);
+    (chrome as unknown as { permissions: unknown }).permissions = { remove: permsRemove };
+
+    await mock.session.set({
+      [TEMP_GRANT_KEY]: { 'https://old.example.com': Date.now() - 11 * 60 * 1000 },
+    });
+    await import('./service-worker');
+    await flush();
+
+    expect(permsRemove).toHaveBeenCalledWith({ origins: ['https://old.example.com/*'] });
+    expect((await mock.session.get(TEMP_GRANT_KEY))[TEMP_GRANT_KEY]).toEqual({});
+  });
+
   it('wires menus, panel behavior, and onboarding on install', async () => {
     const mock = await setup();
 

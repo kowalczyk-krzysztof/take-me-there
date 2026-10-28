@@ -48,6 +48,7 @@ import {
 } from './types';
 import { frameCacheSeed, hasVideoConsented, isMp4RungUsable, setVideoConsented } from './video';
 import { HANDOFF_TTL_MS, ackRequest, handoffSlotKey } from './handoff';
+import { withTempGrant } from './grants';
 import {
   absorbRunUsage,
   activeRun,
@@ -750,39 +751,6 @@ export const isLoopbackHttp = (srcUrl: string): boolean => {
     );
   } catch {
     return false;
-  }
-};
-
-// One origin grant with guaranteed cleanup. Loopback http skips the
-// grant entirely: optional_host_permissions only covers https, so the
-// request could never be authorized and the fetch goes direct instead.
-const withOriginGrant = async <T,>(
-  origin: string,
-  loopback: boolean,
-  task: () => Promise<T>
-): Promise<{ granted: boolean; result?: T }> => {
-  if (!loopback) {
-    let granted = false;
-
-    try {
-      granted = await chrome.permissions.request({ origins: [`${origin}/*`] });
-    } catch {
-      granted = false;
-    }
-    if (!granted) {
-      return { granted: false };
-    }
-  }
-  try {
-    return { granted: true, result: await task() };
-  } finally {
-    if (!loopback) {
-      try {
-        await chrome.permissions.remove({ origins: [`${origin}/*`] });
-      } catch {
-        // The grant is already gone; nothing to clean up.
-      }
-    }
   }
 };
 
@@ -2170,7 +2138,7 @@ const samCropAttempt = async (run: RunContext, request: TripRequest): Promise<Sa
     }
     let outcome: { granted: boolean; result?: Uint8Array };
     try {
-      outcome = await withOriginGrant(origin, loopback, async () =>
+      outcome = await withTempGrant(origin, loopback, async () =>
         fetchImageBytes(request.srcUrl, run.signal)
       );
     } catch {
@@ -2403,7 +2371,7 @@ const fetchRetry = async (): Promise<void> => {
     return;
   }
   // Gesture rule: the permission prompt is the first await in this handler.
-  const outcome = await withOriginGrant(origin, loopback, async () => {
+  const outcome = await withTempGrant(origin, loopback, async () => {
     cancelAllWork();
     clearStaleTimer();
     announceStatus('statusAnalyzing');

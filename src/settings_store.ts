@@ -4,6 +4,24 @@ export const SETTINGS_STORAGE_KEY = 'settings';
 
 export const SETTINGS_VERSION = 1;
 
+// Custom endpoint rule, enforced both at save time and before any request
+// attaches credentials: HTTPS anywhere, or HTTP for the loopback hosts the
+// manifest narrowly permits. Returns the grantable origin.
+export const parseEndpointOrigin = (baseURL: string): string => {
+  const parsed = new URL(baseURL);
+
+  const loopback = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1';
+
+  if (
+    (parsed.protocol !== 'https:' && !(parsed.protocol === 'http:' && loopback)) ||
+    !parsed.hostname
+  ) {
+    throw new Error('unsupported server URL');
+  }
+
+  return parsed.origin;
+};
+
 export interface SettingsRecord {
   v: number;
   settings: Partial<ExtensionSettings>;

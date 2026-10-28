@@ -9,7 +9,7 @@
   "background": { "service_worker": "service-worker.js" },
   "permissions": ["contextMenus", "sidePanel", "scripting", "activeTab", "storage"],
   "host_permissions": ["https://api.meta.ai/*"],
-  "optional_host_permissions": ["https://*/*"],
+  "optional_host_permissions": ["https://*/*", "http://127.0.0.1/*", "http://localhost/*"],
   "side_panel": { "default_path": "sidepanel.html" },
   "options_ui": { "page": "options.html", "open_in_tab": false },
   "action": {

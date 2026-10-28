@@ -133,6 +133,30 @@ describe('openai_compat', () => {
     });
   });
 
+  it('rejects unsupported endpoint URLs before attaching credentials', async () => {
+    await setConsented();
+    fetchMock.mockResolvedValue(new Response('[]', { status: 200 }));
+
+    for (const baseURL of [
+      'http://remote.example.com/v1',
+      'http://192.168.1.2:11434/v1',
+      'file:///tmp/x',
+    ]) {
+      fetchMock.mockClear();
+
+      const provider = new OpenAiCompatProvider(config({ baseURL }));
+      await expect(provider.testKey('sk_key')).rejects.toMatchObject({ code: 'not_configured' });
+      await expect(provider.identifyPlace('sk_key', input())).rejects.toMatchObject({
+        code: 'not_configured',
+      });
+      expect(fetchMock).not.toHaveBeenCalled();
+    }
+
+    const loopback = new OpenAiCompatProvider(config({ baseURL: 'http://127.0.0.1:11434/v1' }));
+    await expect(loopback.testKey('sk_key')).resolves.toBeUndefined();
+    expect(fetchMock.mock.calls[0][0]).toBe('http://127.0.0.1:11434/v1/models');
+  });
+
   it('exposes user-supplied rates or nothing', () => {
     expect(new OpenAiCompatProvider(config()).getRates()).toBeUndefined();
     expect(

@@ -1571,7 +1571,7 @@ export const customHostOf = (settings: {
 
 export const CONSENT_VERSION: number = 2;
 
-export { loadSettings, saveSettings } from '../settings_store';
+export { loadSettings, parseEndpointOrigin, saveSettings } from '../settings_store';
 export type { ExtensionSettings, OpenAiCompatSettings } from '../settings_store';
 import { loadSettings } from '../settings_store';
 import type { ExtensionSettings } from '../settings_store';

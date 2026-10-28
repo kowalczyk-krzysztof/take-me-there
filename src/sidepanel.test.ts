@@ -2197,6 +2197,70 @@ describe('sidepanel', () => {
     expect(imagePart?.image_url?.url.startsWith('data:image/jpeg;base64,')).toBe(true);
   });
 
+  it('keeps the provider grant when the image origin is the provider origin', async () => {
+    const mock = await setup(async (seed) => {
+      await seed.local.set({
+        settings: {
+          v: 1,
+          settings: {
+            activeProviderId: 'openai_compat',
+            openaiCompat: {
+              baseURL: 'https://cdn.example.com/v1',
+              model: 'test-model',
+              structuredOutput: 'json_object',
+            },
+            imageOnly: false,
+            sessionOnly: false,
+            skipWebSearch: false,
+          },
+        },
+      });
+    });
+    const { saveKey } = await import('./key_vault');
+    await saveKey('openai_compat', 'sk_x', false);
+    await plantKeyAndConsent();
+
+    const permsRequest = vi.fn().mockResolvedValue(true);
+    const permsRemove = vi.fn().mockResolvedValue(undefined);
+    (chrome as unknown as { permissions: unknown }).permissions = {
+      request: permsRequest,
+      remove: permsRemove,
+    };
+    vi.stubGlobal(
+      'createImageBitmap',
+      vi.fn().mockResolvedValue({ width: 400, height: 300, close: vi.fn() })
+    );
+    vi.stubGlobal(
+      'OffscreenCanvas',
+      vi.fn().mockImplementation(function (this: unknown) {
+        return {
+          getContext: () => ({ drawImage: vi.fn() }),
+          convertToBlob: async () => new Blob(['fakejpeg']),
+        };
+      })
+    );
+    fetchMock
+      .mockResolvedValueOnce(new Response('bad image', { status: 400 }))
+      .mockResolvedValueOnce(new Response('boom', { status: 500 }))
+      .mockResolvedValueOnce(
+        new Response(new Uint8Array([1, 2, 3]), { headers: { 'content-type': 'image/jpeg' } })
+      )
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE));
+    await mock.session.set({ [SLOT]: READY() });
+    await waitFor(() => {
+      const card = document.querySelector('#result-slot');
+      expect(card?.querySelectorAll('button')).toHaveLength(2);
+    });
+
+    const buttons = document.querySelector('#result-slot')?.querySelectorAll('button');
+    (buttons?.[1] as HTMLButtonElement).click();
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot h2')?.textContent).toBe('Oia');
+    });
+    expect(permsRequest).toHaveBeenCalledWith({ origins: ['https://cdn.example.com/*'] });
+    expect(permsRemove).not.toHaveBeenCalled();
+  });
+
   it('removes the origin grant when the byte fetch fails', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
