@@ -26,6 +26,7 @@ describe('render_markdown', () => {
     render.finish();
     expect(tagNames()).toEqual(['P', 'UL', 'P']);
     expect(container.querySelectorAll('li')).toHaveLength(2);
+
     const strongs = container.querySelectorAll('strong');
     expect(strongs).toHaveLength(2);
     expect(strongs[0].textContent).toBe('bold');
@@ -48,6 +49,7 @@ describe('render_markdown', () => {
     expect(container.querySelector('img')).toBeNull();
     expect(container.querySelector('a')).toBeNull();
     expect(container.textContent).toContain('<img src=x onerror="alert(1)">');
+
     for (const el of container.querySelectorAll('*')) {
       expect(el.attributes.length).toBe(0);
     }
@@ -83,6 +85,7 @@ describe('hostile model output', () => {
       '\0\0\0',
       '\u202Ereversed',
     ].join('\n\n');
+
     const render = createGuideRenderer(container, 'truncated');
     expect(() => {
       render.push(hostile);
@@ -96,6 +99,7 @@ describe('findGuideStart', () => {
   it('cuts throat-clearing before the first heading', () => {
     const glued = "I'll research Martissant to build your factual trip guide.## Martissant";
     expect(findGuideStart(glued)).toBe(glued.indexOf('## Martissant'));
+
     const spaced = 'One moment please. ## Martissant, Port-au-Prince';
     expect(findGuideStart(spaced)).toBe(spaced.indexOf('## Martissant'));
   });

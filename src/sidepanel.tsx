@@ -82,7 +82,9 @@ import './styles/sidepanel.css';
 import './components/shared_styles.css';
 
 const SKELETON_DELAY_MS = 200;
+
 const SKELETON_MIN_MS = 300;
+
 const STALE_COLLECTING_MS = 5000;
 
 const EMPTY_SIGNALS: PageSignals = {
@@ -111,17 +113,29 @@ type PendingRun =
   | { kind: 'itinerary' };
 
 let initialized = false;
+
 let scanPlaces: ScannedPlace[] = [];
+
 let scanThumbs: Array<string | null> = [];
+
 let currentCompareOptions: BoardPin[] = [];
+
 let currentAlternates: { intent: AlternateIntent; alternatives: PlaceAlternate[] } | null = null;
+
 let alternatesLoading: AlternateIntent | null = null;
+
 let lastDuel: { a: DuelSide; b: DuelSide; aTitle: string; bTitle: string } | null = null;
+
 let duelRunId = 0;
+
 let alternatesRunId = 0;
+
 let duelController: AbortController | null = null;
+
 let alternatesController: AbortController | null = null;
+
 let failedPin: Omit<BoardPin, 'addedAt'> | null = null;
+
 let failedRemove: TripRemovePinDetail | null = null;
 
 interface PreviewOverlay {
@@ -234,15 +248,20 @@ const TAB_IDS: Record<PanelTab, string> = {
 
 const selectTab = (tab: PanelTab, force = false): void => {
   const state = store.get();
+
   if (tab === 'main' && !state.unlocked && !force) {
     return;
   }
+
   if (tab === state.tab) {
     return;
   }
   store.set({ tab });
+
   const active = document.activeElement as HTMLElement | null;
+
   const panel = active?.closest('#main-panel, #board-panel, #settings-panel');
+
   if (panel?.hasAttribute('hidden')) {
     document.getElementById(TAB_IDS[tab])?.focus();
   }
@@ -250,6 +269,7 @@ const selectTab = (tab: PanelTab, force = false): void => {
 
 const enabledTabs = (): PanelTab[] => {
   const tabs: PanelTab[] = ['main', 'board', 'settings'];
+
   return store.get().unlocked ? tabs : tabs.filter((tab) => tab !== 'main');
 };
 
@@ -257,8 +277,10 @@ let lockEpoch = 0;
 
 const refreshLock = async (): Promise<void> => {
   const epoch = ++lockEpoch;
+
   try {
     const { provider, settings } = await getActiveProvider();
+
     const keyStatus = await loadKey(provider.id);
 
     if (epoch !== lockEpoch) {
@@ -288,8 +310,11 @@ const setKeyForm = (patch: Partial<KeyFormState>): void => {
 const guideContentEl = (): HTMLElement | null => document.getElementById('guide-content');
 
 let highestRequestId = '';
+
 let highestStatusRank = -1;
+
 const HANDOFF_TTL_MS = 10 * 60 * 1000;
+
 let panelWindowPromise: Promise<number | undefined> | null = null;
 
 // The handoff key is extension-global, so every open panel sees every
@@ -303,31 +328,53 @@ const getPanelWindowId = (): Promise<number | undefined> => {
       () => undefined
     );
   }
+
   return panelWindowPromise;
 };
+
 let activeController: AbortController | null = null;
+
 let analysisInFlight = false;
+
 let currentRunId: string | null = null;
+
 let runUsage: Usage = emptyUsage();
+
 let recordedUsd = 0;
+
 let activeRequest: TripRequest | null = null;
 
 const isStaleRequest = (request: TripRequest): boolean =>
   activeRequest?.requestId !== request.requestId;
+
 let runSettings: ExtensionSettings | null = null;
+
 let pendingRun: PendingRun | null = null;
+
 let lastRun: PendingRun | null = null;
+
 let currentCacheKey = '';
+
 let currentPlace: PlaceResult | null = null;
+
 let currentDestination = '';
+
 let currentView = '';
+
 let shortcutText = '';
+
 let skeletonTimer: ReturnType<typeof setTimeout> | undefined;
+
 let skeletonFor = '';
+
 let skeletonShownAt = 0;
+
 let staleTimer: ReturnType<typeof setTimeout> | undefined;
+
 let guidePlanning = false;
+
 let currentPlanState: PlanState = 'idle';
+
 const lookAgainUsed = new Set<string>();
 
 const announceStatus = (key: string, subs?: string | string[]): void => {
@@ -344,6 +391,7 @@ const composedActiveElement = (): Element | null => document.activeElement;
 
 const isTyping = (): boolean => {
   const active = composedActiveElement();
+
   return (
     !!active &&
     (active.tagName === 'INPUT' ||
@@ -369,8 +417,10 @@ const focusResultHeading = (): void => {
 const swapResultSlot = (build: () => void): void => {
   const before = composedActiveElement();
   build();
+
   if (before && !before.isConnected) {
     const heading = document.querySelector('#result-slot h2') as HTMLElement | null;
+
     if (heading) {
       heading.focus({ preventScroll: true });
     } else {
@@ -401,6 +451,7 @@ const showPreviewPlaceholder = (): void => {
 
 const setPreviewIdentified = (placeName: string): void => {
   const preview = store.get().preview;
+
   if (preview.kind === 'image' || preview.kind === 'crop') {
     store.set({ preview: { ...preview, identified: placeName } });
   }
@@ -446,6 +497,7 @@ const privacyDestination = (): string => {
       return 'the custom server';
     }
   }
+
   return "Meta's Muse API";
 };
 
@@ -471,29 +523,36 @@ const clearCost = (): void => {
 };
 
 const priceMutex = createMutex();
+
 const keyWriteMutex = createMutex();
 
 const priceAndRecord = async (provider: Provider): Promise<void> =>
   priceMutex(async () => {
     const rates = provider.getRates();
+
     const usd = estimateCostUsd(runUsage, rates);
+
     if (usd === null) {
       store.set({
         cost: msg('costLineTokens', [String(runUsage.inputTokens), String(runUsage.outputTokens)]),
       });
+
       return;
     }
     // runUsage is cumulative across stages, so only the unrecorded delta
     // reaches the monthly total. The watermark advances after a successful
     // write, so a failed write is retried by the next stage instead of lost.
     const delta = Math.max(0, usd - recordedUsd);
+
     let monthTotal = usd;
+
     try {
       monthTotal = await recordMonthSpend(delta);
       recordedUsd = usd;
     } catch {
       // The run figure still renders; only the monthly total is stale.
     }
+
     const saved = rates ? estimateCachedSavingUsd(runUsage, rates) : 0;
     store.set({
       cost:
@@ -505,6 +564,7 @@ const priceAndRecord = async (provider: Provider): Promise<void> =>
 
 const cancelSkeleton = (): void => {
   skeletonFor = '';
+
   if (skeletonTimer !== undefined) {
     clearTimeout(skeletonTimer);
     skeletonTimer = undefined;
@@ -528,8 +588,10 @@ const showSkeleton = (id: string): void => {
 
 const settleSkeleton = async (): Promise<void> => {
   cancelSkeleton();
+
   if (skeletonShownAt > 0) {
     const elapsed = Date.now() - skeletonShownAt;
+
     if (elapsed < SKELETON_MIN_MS) {
       await new Promise((resolve) => setTimeout(resolve, SKELETON_MIN_MS - elapsed));
     }
@@ -583,6 +645,7 @@ const showConsent = (focusGate: boolean): void => {
   swapResultSlot(() => {
     store.set({ result: { ...blankResultSlot(), consent: true } });
   });
+
   if (focusGate && !isTyping()) {
     focusSelector('#result-slot h2');
   }
@@ -598,6 +661,7 @@ const showVideoConfirm = (rung2: boolean, focusGate: boolean): void => {
   swapResultSlot(() => {
     store.set({ result: { ...blankResultSlot(), video: { rung2 } } });
   });
+
   if (focusGate && !isTyping()) {
     focusSelector('#result-slot h2');
   }
@@ -608,6 +672,7 @@ const onVideoConfirmAgree = async (): Promise<void> => {
     await setVideoConsented();
   } catch {
     announceAlert('settingsSaveFailed');
+
     return;
   }
   await resumePending();
@@ -631,21 +696,27 @@ type GateResult =
 const gateRun = async (pending: PendingRun | null): Promise<GateResult> => {
   const { provider, settings } = await getActiveProvider();
   runSettings = settings;
+
   const keyStatus = await loadKey(provider.id);
+
   if (keyStatus.state !== 'ok') {
     if (pending) {
       pendingRun = pending;
       showOnboarding(keyStatus.orphaned);
     }
+
     return { ready: false, reason: 'key' };
   }
+
   if (!(await hasConsented())) {
     if (pending) {
       pendingRun = pending;
       showConsent(false);
     }
+
     return { ready: false, reason: 'consent' };
   }
+
   return { ready: true, provider, settings, key: keyStatus.key };
 };
 
@@ -656,6 +727,7 @@ const announceGate = (reason: 'key' | 'consent'): void => {
 export const isLoopbackHttp = (srcUrl: string): boolean => {
   try {
     const parsed = new URL(srcUrl);
+
     return (
       parsed.protocol === 'http:' &&
       (parsed.hostname === 'localhost' ||
@@ -677,6 +749,7 @@ const withOriginGrant = async <T,>(
 ): Promise<{ granted: boolean; result?: T }> => {
   if (!loopback) {
     let granted = false;
+
     try {
       granted = await chrome.permissions.request({ origins: [`${origin}/*`] });
     } catch {

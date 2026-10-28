@@ -34,6 +34,7 @@ export const KeySetup = ({
   callbacks,
 }: Props) => {
   const [revealed, setRevealed] = useState(false);
+
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   useLayoutEffect(() => {
@@ -49,6 +50,7 @@ export const KeySetup = ({
 
     const onChange = (event: Event): void => {
       const box = event.target;
+
       if (!(box instanceof HTMLInputElement) || box.id !== 'session-only') {
         return;
       }
@@ -91,12 +93,16 @@ export const KeySetup = ({
           noValidate
           onSubmit={(event) => {
             event.preventDefault();
+
             if (pending) {
               return;
             }
+
             const key = (inputRef.current?.value ?? '').trim();
+
             if (!key) {
               callbacks.onError(msg('keyErrorEmpty'));
+
               return;
             }
             callbacks.onSave(key);

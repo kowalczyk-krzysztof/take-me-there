@@ -33,8 +33,10 @@ const TAB = { id: 7, windowId: 3 };
 
 const setup = async (): Promise<ChromeMock> => {
   vi.resetModules();
+
   const mock = installChromeMock();
   await import('./service-worker');
+
   return mock;
 };
 
@@ -62,6 +64,7 @@ const storedRequest = async (mock: ChromeMock): Promise<Record<string, unknown>>
 describe('service-worker', () => {
   it('wires menus, panel behavior, and onboarding on install', async () => {
     const mock = await setup();
+
     for (const fn of mock.worker.installed) {
       fn({ reason: 'install' });
     }
@@ -93,6 +96,7 @@ describe('service-worker', () => {
       ],
       costTotals: { '2026-03': 1.5 },
     });
+
     for (const fn of mock.worker.installed) {
       fn({ reason: 'update' });
     }
@@ -107,6 +111,7 @@ describe('service-worker', () => {
 
   it('hands off image clicks as collecting then schema-valid ready', async () => {
     const mock = await setup();
+
     const statuses: unknown[] = [];
     mock.session.onChanged.addListener((changes) => {
       statuses.push((changes['tripRequest']?.newValue as { status?: unknown } | undefined)?.status);
@@ -117,6 +122,7 @@ describe('service-worker', () => {
     expect(statuses).toEqual(['collecting', 'ready']);
     expect(mock.worker.scriptingCalls).toHaveLength(1);
     expect(mock.worker.scriptingCalls[0].args).toEqual(['https://cdn.example.com/oia.jpg']);
+
     const record = await storedRequest(mock);
     expect(TRIP_REQUEST_SCHEMA.safeParse(record).success).toBe(true);
     expect(record).not.toHaveProperty('signals');
@@ -130,6 +136,7 @@ describe('service-worker', () => {
     mock.worker.scriptingImpl = async () => [{ result: SIGNALS }];
     fireClick(mock, { ...IMAGE_INFO }, { ...TAB });
     await flush();
+
     const record = await storedRequest(mock);
     expect(TRIP_REQUEST_SCHEMA.safeParse(record).success).toBe(true);
     expect(record['signals']).toMatchObject({ imgFound: true, alt: 'Blue domes' });
@@ -137,6 +144,7 @@ describe('service-worker', () => {
 
   it('hands off page scans with the harvested images', async () => {
     const mock = await setup();
+
     const images = [
       { url: 'https://cdn.example.com/a.jpg', caption: '', heading: '', width: 4, height: 3 },
     ];
@@ -147,6 +155,7 @@ describe('service-worker', () => {
       { ...TAB }
     );
     await flush();
+
     const record = await storedRequest(mock);
     expect(TRIP_REQUEST_SCHEMA.safeParse(record).success).toBe(true);
     expect(record['scanImages']).toEqual(images);
@@ -158,6 +167,7 @@ describe('service-worker', () => {
       if ((call.func as { name?: string }).name === 'captureVideoFrame') {
         return [{ result: { ok: true, dataUrl: 'data:image/jpeg,frame', time: 4.2 } }];
       }
+
       return [{ result: null }];
     };
     fireClick(
@@ -166,6 +176,7 @@ describe('service-worker', () => {
       { ...TAB }
     );
     await flush();
+
     const record = await storedRequest(mock);
     expect(TRIP_REQUEST_SCHEMA.safeParse(record).success).toBe(true);
     expect(record['mediaType']).toBe('video');
@@ -181,6 +192,7 @@ describe('service-worker', () => {
       { ...TAB }
     );
     await flush();
+
     const record = await storedRequest(mock);
     expect(TRIP_REQUEST_SCHEMA.safeParse(record).success).toBe(true);
     expect(record['frame']).toBeUndefined();
@@ -189,6 +201,7 @@ describe('service-worker', () => {
 
   it('lets the newest click win when it lands mid-write', async () => {
     const mock = await setup();
+
     const releases: Array<(value: Array<{ result: unknown }>) => void> = [];
     mock.worker.scriptingImpl = () =>
       new Promise<Array<{ result: unknown }>>((resolve) => {
@@ -205,6 +218,7 @@ describe('service-worker', () => {
     await flush(15);
     releases[1]([{ result: null }]);
     await flush();
+
     const record = await storedRequest(mock);
     expect(record['srcUrl']).toBe('https://cdn.example.com/fira.jpg');
   });
@@ -213,6 +227,7 @@ describe('service-worker', () => {
     const mock = await setup();
     fireClick(mock, { ...IMAGE_INFO, srcUrl: `data:image/jpeg,${'x'.repeat(100001)}` }, { ...TAB });
     await flush();
+
     const record = await storedRequest(mock);
     expect(TRIP_REQUEST_SCHEMA.safeParse(record).success).toBe(true);
     expect(record['srcUrl']).toBe('');

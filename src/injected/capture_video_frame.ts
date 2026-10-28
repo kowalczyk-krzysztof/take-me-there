@@ -18,6 +18,7 @@ export type CaptureVideoFrameResult = CapturedFrame | FrameMiss;
 export const captureVideoFrame = (srcUrl: string): CaptureVideoFrameResult => {
   // storage.session carries the handoff: keep the frame well under quota.
   const MAX_BYTES = 512000;
+
   const abs = (u: string): string => {
     try {
       return new URL(u, document.baseURI).href;
@@ -25,22 +26,30 @@ export const captureVideoFrame = (srcUrl: string): CaptureVideoFrameResult => {
       return '';
     }
   };
+
   const strip = (u: string): string => {
     const href = abs(u);
+
     const cut = href.search(/[?#]/);
+
     return cut < 0 ? href : href.slice(0, cut);
   };
 
   const target = abs(srcUrl);
+
   const bare = strip(srcUrl);
+
   const videos = [...document.querySelectorAll('video')].slice(0, 500);
+
   const byExact = videos.find((v) => abs(v.currentSrc) === target || abs(v.src) === target) ?? null;
+
   const byBare =
     byExact ??
     videos.find((v) => {
       if (!bare) {
         return false;
       }
+
       return strip(v.currentSrc) === bare || strip(v.src) === bare;
     }) ??
     null;
@@ -48,6 +57,7 @@ export const captureVideoFrame = (srcUrl: string): CaptureVideoFrameResult => {
   // candidate exists. On multi-video pages a wrong guess could capture a
   // webcam or meeting frame the user never clicked.
   const playing = videos.filter((v) => !v.paused && !v.ended && v.readyState >= 2);
+
   const video = byBare ?? (playing.length === 1 ? playing[0] : null);
 
   if (!video) {
@@ -63,6 +73,7 @@ export const captureVideoFrame = (srcUrl: string): CaptureVideoFrameResult => {
   }
 
   const canvas = document.createElement('canvas');
+
   const ctx = canvas.getContext('2d');
 
   if (!ctx) {

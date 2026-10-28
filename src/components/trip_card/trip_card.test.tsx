@@ -61,6 +61,7 @@ describe('trip-card', () => {
 
   it('renders an aria-hidden skeleton while loading', () => {
     const root = renderCard({ view: 'loading' }).container;
+
     const skeleton = root.querySelector('.skeleton');
     expect(skeleton?.getAttribute('aria-hidden')).toBe('true');
     expect(skeleton?.querySelectorAll('.skeleton-block').length).toBeGreaterThan(0);
@@ -69,10 +70,12 @@ describe('trip-card', () => {
 
   it('renders results with badges and disagree actions', () => {
     const onReanalyze = vi.fn();
+
     const rendered = renderCard(
       { view: 'result', place: PLACE, lowConfidence: false, pinned: false, planState: 'ready' },
       { onReanalyze }
     );
+
     const root = rendered.container;
     expect(root.querySelector('h2')?.textContent).toBe('Oia');
     expect(root.querySelector('.subtitle')?.textContent).toBe('Oia, Greece');
@@ -89,8 +92,10 @@ describe('trip-card', () => {
       { onReanalyze }
     );
     expect(root.querySelector('.badge')?.textContent).toBe('bestGuessBadge');
+
     const disagree = root.querySelector('.disagree-row') as HTMLElement;
     expect(disagree.querySelector('span')?.textContent).toBe('notThisPlace');
+
     const button = disagree.querySelector('button') as HTMLButtonElement;
     expect(button.textContent).toBe('reanalyzeButton');
     act(() => {
@@ -113,6 +118,7 @@ describe('trip-card', () => {
 
   it('keeps the full description on the clamped oneliner', () => {
     const oneLiner = 'A very long description that the stylesheet clamps to three lines.';
+
     const root = renderCard({
       view: 'result',
       place: { ...PLACE, oneLiner },
@@ -120,6 +126,7 @@ describe('trip-card', () => {
       pinned: false,
       planState: 'ready',
     }).container;
+
     const oneliner = root.querySelector('.oneliner') as HTMLElement;
     expect(oneliner.textContent).toBe(oneLiner);
     expect(oneliner.getAttribute('title')).toBe(oneLiner);
@@ -127,10 +134,12 @@ describe('trip-card', () => {
 
   it('renders intent chips that emit one-shot alternates events', () => {
     const onAlternates = vi.fn();
+
     const root = renderCard(
       { view: 'result', place: PLACE, lowConfidence: false, pinned: false, planState: 'ready' },
       { onAlternates }
     ).container;
+
     const chips = root.querySelectorAll('.chips-row .chip');
     expect(chips).toHaveLength(3);
     expect(root.querySelector('.chips-label')?.textContent).toBe('alternatesLabel');
@@ -144,6 +153,7 @@ describe('trip-card', () => {
 
   it('marks the pressed chip aria-disabled with skeleton cards while loading', () => {
     const onAlternates = vi.fn();
+
     const root = renderCard(
       {
         view: 'result',
@@ -155,6 +165,7 @@ describe('trip-card', () => {
       },
       { onAlternates }
     ).container;
+
     const chips = root.querySelectorAll('.chips-row .chip');
     expect(chips[0]?.getAttribute('aria-disabled')).toBe('true');
     expect(chips[1]?.hasAttribute('aria-disabled')).toBe(false);
@@ -162,6 +173,7 @@ describe('trip-card', () => {
       (chips[0] as HTMLButtonElement).click();
     });
     expect(onAlternates).not.toHaveBeenCalled();
+
     const skeletons = root.querySelector('.alternates-skeletons');
     expect(skeletons?.getAttribute('aria-hidden')).toBe('true');
     expect(skeletons?.querySelectorAll('.skeleton-block')).toHaveLength(3);
@@ -170,6 +182,7 @@ describe('trip-card', () => {
 
   it('renders alternate cards with instead actions', () => {
     const onPlanInstead = vi.fn();
+
     const root = renderCard(
       {
         view: 'result',
@@ -206,6 +219,7 @@ describe('trip-card', () => {
 
   it('pins alternate cards with a monogram tile', () => {
     const onPinAlternate = vi.fn();
+
     const root = renderCard(
       {
         view: 'result',
@@ -229,10 +243,12 @@ describe('trip-card', () => {
       },
       { onPinAlternate }
     ).container;
+
     const tiles = root.querySelectorAll('.alternate-card .thumb-monogram');
     expect(tiles).toHaveLength(2);
     expect(tiles[0]?.textContent).toBe('F');
     expect(tiles[0]?.getAttribute('aria-hidden')).toBe('true');
+
     const pins = root.querySelectorAll(
       '.alternate-card .pin-button'
     ) as NodeListOf<HTMLButtonElement>;
@@ -247,11 +263,14 @@ describe('trip-card', () => {
 
   it('disables the compare picker without options', () => {
     const onCompare = vi.fn();
+
     const rendered = renderCard(
       { view: 'result', place: PLACE, lowConfidence: false, pinned: false, planState: 'ready' },
       { onCompare }
     );
+
     const root = rendered.container;
+
     const empty = root.querySelector('.compare-row') as HTMLElement;
     expect(empty.querySelector('select')?.hasAttribute('disabled')).toBe(true);
     expect(empty.querySelector('option')?.textContent).toBe('compareEmpty');
@@ -272,6 +291,7 @@ describe('trip-card', () => {
       },
       { onCompare }
     );
+
     const row = root.querySelector('.compare-row');
     expect(row?.querySelector('label')?.textContent).toContain('compareLabel');
     expect(row?.querySelector('.compare-go')?.textContent).toBe('compareGo');
@@ -283,6 +303,7 @@ describe('trip-card', () => {
 
   it('renders no-place cards with escapes', () => {
     const onLookAgain = vi.fn();
+
     const rendered = renderCard(
       {
         view: 'no-place',
@@ -291,14 +312,17 @@ describe('trip-card', () => {
       },
       { onLookAgain }
     );
+
     const root = rendered.container;
     expect(root.querySelector('h2')?.textContent).toBe('noPlaceTitle');
+
     const button = root.querySelector('button.primary') as HTMLButtonElement;
     expect(button.textContent).toBe('lookAgainButton');
     act(() => {
       button.click();
     });
     expect(onLookAgain).toHaveBeenCalledTimes(1);
+
     const link = root.querySelector('.fallback a') as HTMLAnchorElement;
     expect(link.textContent).toContain('Santorini');
     expect(link.target).toBe('_blank');
@@ -314,10 +338,12 @@ describe('trip-card', () => {
 
   it('renders error cards with optional retry', () => {
     const onRetry = vi.fn();
+
     const rendered = renderCard(
       { view: 'error', title: 'T', body: 'B', showRetry: true },
       { onRetry }
     );
+
     const root = rendered.container;
     expect(root.querySelector('h2')?.textContent).toBe('T');
     act(() => {
@@ -330,11 +356,14 @@ describe('trip-card', () => {
 
   it('renders the byte-fetch retry alongside the plain retry', () => {
     const onRetry = vi.fn();
+
     const onFetchRetry = vi.fn();
+
     const root = renderCard(
       { view: 'error', title: 'T', body: 'B', showRetry: true, showFetchRetry: true },
       { onRetry, onFetchRetry }
     ).container;
+
     const buttons = root.querySelectorAll('button');
     expect(buttons).toHaveLength(2);
     expect(buttons[1]?.textContent).toBe('fetchRetryButton');
@@ -358,6 +387,7 @@ describe('trip-card', () => {
       pinned: false,
       planState: 'ready',
     }).container;
+
     const heading = root.querySelector('h2') as HTMLHeadingElement;
     heading.focus();
     expect(document.activeElement?.tagName).toBe('H2');
@@ -365,11 +395,14 @@ describe('trip-card', () => {
 
   it('gates the guide behind the plan button', () => {
     const onPlanTrip = vi.fn();
+
     const rendered = renderCard(
       { view: 'result', place: PLACE, lowConfidence: false, pinned: false, planState: 'idle' },
       { onPlanTrip }
     );
+
     const root = rendered.container;
+
     const button = root.querySelector('.plan-trip-button') as HTMLButtonElement;
     expect(button.textContent).toBe('planTripButton');
     expect(button.hasAttribute('aria-disabled')).toBe(false);
@@ -382,6 +415,7 @@ describe('trip-card', () => {
       { view: 'result', place: PLACE, lowConfidence: false, pinned: false, planState: 'planning' },
       { onPlanTrip }
     );
+
     const busy = root.querySelector('.plan-trip-button') as HTMLButtonElement;
     expect(busy.textContent).toBe('planningButton');
     expect(busy.getAttribute('aria-disabled')).toBe('true');
@@ -399,11 +433,14 @@ describe('trip-card', () => {
 
   it('renders the pin toggle with pressed state and event', () => {
     const onPin = vi.fn();
+
     const rendered = renderCard(
       { view: 'result', place: PLACE, lowConfidence: false, pinned: false, planState: 'ready' },
       { onPin }
     );
+
     const root = rendered.container;
+
     const pin = root.querySelector('.pin-button') as HTMLButtonElement;
     expect(pin.textContent).toBe('pinButton(Oia)');
     expect(pin.getAttribute('aria-pressed')).toBe('false');
@@ -435,15 +472,18 @@ describe('trip-card', () => {
       mapsLabel: 'Open route in Google Maps (2 stops)',
     }).container;
     expect(root.querySelector('h2')?.textContent).toBe('Trip plan - 2 stops');
+
     const entries = [...root.querySelectorAll('.stop-list li')];
     expect(entries).toHaveLength(2);
     expect(entries[0].querySelector('.stop-name')?.textContent).toBe('Oia, Greece');
     expect(entries[0].querySelector('.stop-nights')?.textContent).toBe('itineraryNights(2)');
     expect(entries[1].querySelector('.stop-nights')).toBeNull();
+
     const stopLink = entries[0].querySelector('.stop-links a') as HTMLAnchorElement;
     expect(stopLink.href).toBe('https://maps.example/q');
     expect(stopLink.target).toBe('_blank');
     expect(stopLink.querySelector('.visually-hidden')?.textContent).toBe('newTabSuffix');
+
     const maps = root.querySelector('.maps-link') as HTMLAnchorElement;
     expect(maps.textContent).toContain('Open route in Google Maps (2 stops)');
     expect(maps.querySelector('.visually-hidden')?.textContent).toBe('newTabSuffix');
@@ -462,10 +502,12 @@ describe('trip-card', () => {
 
   it('fires retry once with a loading state', () => {
     const onRetry = vi.fn();
+
     const root = renderCard(
       { view: 'error', title: 'Fail', body: 'Why', showRetry: true },
       { onRetry }
     ).container;
+
     const retry = root.querySelector('.primary') as HTMLButtonElement;
     act(() => {
       retry.click();
@@ -480,10 +522,12 @@ describe('trip-card', () => {
 
   it('fires look-again once with a loading state', () => {
     const onLookAgain = vi.fn();
+
     const root = renderCard(
       { view: 'no-place', showLookAgain: true, fallback: null },
       { onLookAgain }
     ).container;
+
     const lookAgain = root.querySelector('.primary') as HTMLButtonElement;
     act(() => {
       lookAgain.click();

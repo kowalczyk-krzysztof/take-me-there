@@ -5,9 +5,11 @@ import { ExternalLink } from '../external_link/external_link';
 const safeHttpUrl = (raw: string): string | null => {
   try {
     const parsed = new URL(raw);
+
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
       return null;
     }
+
     return parsed.href;
   } catch {
     return null;

@@ -21,9 +21,12 @@ const getMessage = (key: string, subs?: string | string[]): string => {
   if (!Object.hasOwn(catalog, key)) {
     return '';
   }
+
   const list = subs === undefined ? [] : Array.isArray(subs) ? subs : [subs];
+
   return list.length === 0 ? key : `${key}(${list.join(' | ')})`;
 };
+
 export interface MockStorageChange {
   oldValue?: unknown;
   newValue?: unknown;
@@ -58,17 +61,21 @@ export class MockStorageArea {
     if (keys === null || keys === undefined) {
       return structuredClone(Object.fromEntries(this.data));
     }
+
     const out: Record<string, unknown> = {};
+
     for (const key of Array.isArray(keys) ? keys : [keys]) {
       if (this.data.has(key)) {
         out[key] = structuredClone(this.data.get(key));
       }
     }
+
     return out;
   }
 
   async set(items: Record<string, unknown>): Promise<void> {
     const changes: Record<string, MockStorageChange> = {};
+
     for (const [key, value] of Object.entries(items)) {
       changes[key] = {
         oldValue: structuredClone(this.data.get(key)),
@@ -81,6 +88,7 @@ export class MockStorageArea {
 
   async remove(keys: string | string[]): Promise<void> {
     const changes: Record<string, MockStorageChange> = {};
+
     for (const key of Array.isArray(keys) ? keys : [keys]) {
       if (this.data.has(key)) {
         changes[key] = { oldValue: structuredClone(this.data.get(key)), newValue: undefined };
@@ -102,6 +110,7 @@ export class MockStorageArea {
       for (const listener of this.listeners) {
         listener(structuredClone(changes));
       }
+
       for (const listener of this.globalListeners) {
         listener(structuredClone(changes), this.areaName);
       }
@@ -145,8 +154,11 @@ export interface ChromeMock {
 
 export const installChromeMock = (): ChromeMock => {
   const session = new MockStorageArea('session');
+
   const local = new MockStorageArea('local');
+
   const panelWindow = { id: 1 };
+
   const worker: WorkerFakes = {
     installed: [],
     menuClicked: [],
@@ -157,9 +169,11 @@ export const installChromeMock = (): ChromeMock => {
     scriptingCalls: [],
     scriptingImpl: async (call: ScriptingCall) => {
       const name = (call.func as { name?: string })?.name ?? '';
+
       if (name === 'collectPageImages') {
         return [{ result: [] }];
       }
+
       return [{ result: null }];
     },
   };
@@ -196,6 +210,7 @@ export const installChromeMock = (): ChromeMock => {
     contextMenus: {
       create: (props: Record<string, unknown>): unknown => {
         worker.menus.push(props);
+
         return props['id'];
       },
       removeAll: (callback?: () => void): void => {
@@ -221,6 +236,7 @@ export const installChromeMock = (): ChromeMock => {
     tabs: {
       create: async (props: Record<string, unknown>): Promise<Record<string, unknown>> => {
         worker.tabsCreated.push(props);
+
         return { id: 99, ...props };
       },
     },
@@ -232,10 +248,12 @@ export const installChromeMock = (): ChromeMock => {
       }): Promise<Array<{ result: unknown }>> => {
         const call: ScriptingCall = { target: opts.target, func: opts.func, args: opts.args };
         worker.scriptingCalls.push(call);
+
         return worker.scriptingImpl(call);
       },
     },
   };
+
   return { session, local, panelWindow, worker };
 };
 

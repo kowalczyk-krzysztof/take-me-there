@@ -6,11 +6,15 @@ import type { ScannedImage } from './types';
 import { msg } from './utils/i18n';
 
 const MENU_ID = 'plan-trip';
+
 const SCAN_MENU_ID = 'scan-page';
+
 const INJECT_TIMEOUT_MS = 2000;
+
 const MAX_INLINE_DATA_URL = 100000;
 
 let requestCounter = 0;
+
 let latestRequestId = '';
 
 chrome.runtime.onInstalled.addListener((details) => {
@@ -27,6 +31,7 @@ chrome.runtime.onInstalled.addListener((details) => {
     });
   });
   chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => undefined);
+
   if (details.reason === 'install') {
     void chrome.tabs
       .create({ url: chrome.runtime.getURL('onboarding.html') })
@@ -41,18 +46,22 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (tab?.id === undefined) {
     return;
   }
+
   if (info.menuItemId === SCAN_MENU_ID) {
     // GESTURE RULE: sidePanel.open must run before any await in this handler.
     void chrome.sidePanel.open({ tabId: tab.id }).catch(() => undefined);
     void handleScanClick(info.pageUrl ?? null, info.frameId ?? 0, tab.id, tab.windowId);
+
     return;
   }
+
   if (info.menuItemId !== MENU_ID) {
     return;
   }
   // GESTURE RULE: sidePanel.open must run before any await in this handler.
   // Anything awaited first drops the user gesture and open() rejects.
   void chrome.sidePanel.open({ tabId: tab.id }).catch(() => undefined);
+
   if (info.mediaType === 'video') {
     void handleVideoClick(
       info.srcUrl ?? '',
@@ -61,6 +70,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
       tab.id,
       tab.windowId
     );
+
     return;
   }
   void handleImageClick(
@@ -80,11 +90,13 @@ const handleImageClick = async (
   windowId: number
 ): Promise<void> => {
   requestCounter += 1;
+
   const requestId = `${Date.now()}-${requestCounter}`;
   latestRequestId = requestId;
   // storage.session is small and shared: huge inline payloads stay out of it.
   // The panel treats a blank srcUrl with dataPending as an error state.
   const dataPending = srcUrl.startsWith('data:') && srcUrl.length > MAX_INLINE_DATA_URL;
+
   const storedSrcUrl = dataPending ? '' : srcUrl;
   await chrome.storage.session.set({
     tripRequest: {
@@ -98,6 +110,7 @@ const handleImageClick = async (
       at: Date.now(),
     },
   });
+
   const signals = await scrapeWithTimeout(tabId, frameId, srcUrl);
   await writeTerminalState(requestId, {
     requestId,
@@ -120,9 +133,12 @@ const handleVideoClick = async (
   windowId: number
 ): Promise<void> => {
   requestCounter += 1;
+
   const requestId = `${Date.now()}-${requestCounter}`;
   latestRequestId = requestId;
+
   const dataPending = srcUrl.startsWith('data:') && srcUrl.length > MAX_INLINE_DATA_URL;
+
   const storedSrcUrl = dataPending ? '' : srcUrl;
   await chrome.storage.session.set({
     tripRequest: {
@@ -143,8 +159,10 @@ const handleVideoClick = async (
     scrapeWithTimeout(tabId, frameId, srcUrl),
     captureWithTimeout(tabId, frameId, srcUrl),
   ]);
+
   const frame =
     captured && captured.ok ? { dataUrl: captured.dataUrl, time: captured.time } : undefined;
+
   const frameError = captured && !captured.ok ? captured.reason : captured ? undefined : 'no-match';
   await writeTerminalState(requestId, {
     requestId,
@@ -169,6 +187,7 @@ const handleScanClick = async (
   windowId: number
 ): Promise<void> => {
   requestCounter += 1;
+
   const requestId = `${Date.now()}-${requestCounter}`;
   latestRequestId = requestId;
   await chrome.storage.session.set({
@@ -184,6 +203,7 @@ const handleScanClick = async (
       scanImages: [],
     },
   });
+
   const scanImages = await harvestWithTimeout(tabId, frameId);
   await writeTerminalState(requestId, {
     requestId,
@@ -208,7 +228,9 @@ const harvestWithTimeout = async (tabId: number, frameId: number): Promise<Scann
       }),
       INJECT_TIMEOUT_MS
     );
+
     const images = (results[0]?.result ?? []) as ScannedImage[];
+
     return Array.isArray(images) ? images : [];
   } catch {
     return [];
@@ -232,7 +254,9 @@ const scrapeWithTimeout = async (
       }),
       INJECT_TIMEOUT_MS
     );
+
     const result = (results[0]?.result ?? {}) as Record<string, unknown>;
+
     return Object.keys(result).length > 0 ? result : null;
   } catch {
     // Timeout, missing permission, or a page that refuses injection: the
@@ -257,6 +281,7 @@ const captureWithTimeout = async (
       }),
       INJECT_TIMEOUT_MS
     );
+
     return (results[0]?.result ?? null) as CaptureVideoFrameResult | null;
   } catch {
     return null;
@@ -265,9 +290,11 @@ const captureWithTimeout = async (
 
 const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> => {
   let timer: ReturnType<typeof setTimeout> | undefined;
+
   const timeout = new Promise<never>((_resolve, reject) => {
     timer = setTimeout(() => reject(new Error('inject timeout')), ms);
   });
+
   return Promise.race([promise.finally(() => clearTimeout(timer)), timeout]);
 };
 
@@ -300,10 +327,12 @@ const writeTerminalState = async (requestId: string, record: TerminalRecord): Pr
       if (isCurrentRequest(requestId)) {
         const slim: TerminalRecord = { ...record };
         delete slim.signals;
+
         if (slim.frame) {
           delete slim.frame;
           slim.frameError = 'too-large';
         }
+
         if (slim.scanImages) {
           delete slim.scanImages;
         }

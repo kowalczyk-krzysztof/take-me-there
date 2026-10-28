@@ -30,11 +30,14 @@ const collect = async (gen: AsyncGenerator<GuideEvent, void, void>): Promise<Gui
   for await (const event of gen) {
     out.push(event);
   }
+
   return out;
 };
 
 let mock: ChromeMock;
+
 const fetchMock = vi.fn();
+
 const provider = new MuseProvider();
 
 beforeEach(() => {
@@ -54,6 +57,7 @@ const consented = async (): Promise<void> => {
 
 const requestBody = (callIndex = 0): Record<string, any> => {
   const init = fetchMock.mock.calls[callIndex][1] as RequestInit;
+
   return JSON.parse(init.body as string) as Record<string, any>;
 };
 
@@ -61,6 +65,7 @@ describe('muse identify', () => {
   it('parses structured output and maps usage', async () => {
     await consented();
     fetchMock.mockResolvedValue(chatResponse(VALID_PLACE));
+
     const result = await provider.identifyPlace('LLM_key', identifyInput());
     expect(result.place).toEqual(VALID_PLACE);
     expect(result.usage).toEqual({
@@ -72,9 +77,11 @@ describe('muse identify', () => {
     expect(result.textFallback).toBe(false);
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
+
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe('https://api.meta.ai/v1/chat/completions');
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer LLM_key');
+
     const body = requestBody();
     expect(body.model).toBe('muse-spark-1.3');
     expect(body.reasoning_effort).toBe('medium');
@@ -92,6 +99,7 @@ describe('muse identify', () => {
     fetchMock
       .mockResolvedValueOnce(rawChatResponse('not json {'))
       .mockResolvedValueOnce(rawChatResponse('{"identified":'));
+
     const failure = await provider.identifyPlace('LLM_key', identifyInput()).then(
       () => null,
       (err: unknown) => err as ProviderError
@@ -133,6 +141,7 @@ describe('muse identify', () => {
     fetchMock
       .mockResolvedValueOnce(new Response('bad image', { status: 400 }))
       .mockResolvedValueOnce(chatResponse(VALID_PLACE));
+
     const result = await provider.identifyPlace('LLM_key', identifyInput());
     expect(result.textFallback).toBe(true);
     expect(result.place.confidence).toBe(0.4);
@@ -189,8 +198,10 @@ describe('muse identify', () => {
     await consented();
     fetchMock.mockResolvedValue(chatResponse(VALID_PLACE));
     await provider.identifyPlace('LLM_key', identifyInput({ rejectedPlace: 'Paris\nHACK' }));
+
     const body = requestBody();
     expect(body.reasoning_effort).toBe('medium');
+
     const text = body.messages[1].content[0].text as string;
     expect(text).toContain('NOT Paris HACK.');
     expect(text).toContain('low confidence instead of returning identified:false');
@@ -216,10 +227,12 @@ describe('muse video identify (rung 2)', () => {
   it('sends the video part with the schema constraint', async () => {
     await consented();
     fetchMock.mockResolvedValue(chatResponse(VALID_PLACE));
+
     const result = await provider.identifyPlace('LLM_key', videoInput());
     expect(result.place).toEqual(VALID_PLACE);
     expect(result.textFallback).toBe(false);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+
     const body = requestBody();
     expect(body.response_format.type).toBe('json_schema');
     expect(body.messages[1].content).toEqual([
@@ -236,6 +249,7 @@ describe('muse video identify (rung 2)', () => {
         rawChatResponse('The video shows the blue domes of Oia, Santorini, Greece.')
       )
       .mockResolvedValueOnce(chatResponse(VALID_PLACE));
+
     const result = await provider.identifyPlace('LLM_key', videoInput());
     expect(result.place).toEqual(VALID_PLACE);
     expect(result.textFallback).toBe(true);
@@ -246,12 +260,14 @@ describe('muse video identify (rung 2)', () => {
       flatFeesUsd: 0,
     });
     expect(fetchMock).toHaveBeenCalledTimes(3);
+
     const describe = requestBody(1);
     expect(describe.response_format).toBeUndefined();
     expect(describe.messages[1].content[1]).toEqual({
       type: 'video_url',
       video_url: { url: 'https://cdn.example.com/trip.mp4' },
     });
+
     const normalize = requestBody(2);
     expect(normalize.response_format.type).toBe('json_schema');
     expect(normalize.messages[1].content).toContain('VIDEO DESCRIPTION');
@@ -332,8 +348,11 @@ describe('muse streamGuide', () => {
         '\n',
       ])
     );
+
     const controller = new AbortController();
+
     const gen = provider.streamGuide('LLM_key', input({ signal: controller.signal }));
+
     const first = await gen.next();
     expect(first.value).toEqual({ type: 'searching' });
     controller.abort();
@@ -378,8 +397,10 @@ describe('muse streamGuide', () => {
 
   it('parses grounded responses split across chunk boundaries', async () => {
     await consented();
+
     const raw = RESPONSES_SSE;
     fetchMock.mockResolvedValue(sseResponse([raw.slice(0, 50), raw.slice(50, 51), raw.slice(51)]));
+
     const events = await collect(provider.streamGuide('LLM_key', input()));
     expect(events[0]).toEqual({ type: 'searching' });
     expect(events.filter((e) => e.type === 'delta')).toEqual([
@@ -394,8 +415,10 @@ describe('muse streamGuide', () => {
       type: 'usage',
       usage: { inputTokens: 300, outputTokens: 120, searchCount: 1, flatFeesUsd: 0 },
     });
+
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe('https://api.meta.ai/v1/responses');
+
     const body = JSON.parse(init.body as string) as Record<string, any>;
     expect(body.tools).toEqual([{ type: 'web_search', search_context_size: 'low' }]);
     expect(body.stream).toBe(true);
@@ -403,8 +426,10 @@ describe('muse streamGuide', () => {
 
   it('handles CRLF framing', async () => {
     await consented();
+
     const raw = RESPONSES_SSE.replace(/\n/g, '\r\n');
     fetchMock.mockResolvedValue(sseResponse([raw.slice(0, 77), raw.slice(77)]));
+
     const events = await collect(provider.streamGuide('LLM_key', input()));
     expect(events.filter((e) => e.type === 'delta')).toHaveLength(2);
     expect(events[events.length - 1]?.type).toBe('usage');
@@ -418,6 +443,7 @@ describe('muse streamGuide', () => {
         'data: {"choices":[{"delta":{}}],"usage":{"prompt_tokens":10,"completion_tokens":5}}\n\ndata: [DONE]\n\n',
       ])
     );
+
     const events = await collect(provider.streamGuide('LLM_key', input({ transport: 'chat' })));
     expect(events).toEqual([
       { type: 'delta', text: 'Hi' },
@@ -427,6 +453,7 @@ describe('muse streamGuide', () => {
       },
     ]);
     expect(events.some((e) => e.type === 'sources')).toBe(false);
+
     const body = requestBody();
     expect(body.stream_options).toEqual({ include_usage: true });
   });
@@ -482,6 +509,7 @@ describe('muse planItinerary', () => {
   it('structures pinned stops with one multi-image call', async () => {
     await consented();
     fetchMock.mockResolvedValue(chatResponse(VALID_PLAN));
+
     const result = await provider.planItinerary('LLM_key', planInput());
     expect(result.plan).toEqual(VALID_PLAN);
     expect(result.usage).toEqual({
@@ -491,12 +519,14 @@ describe('muse planItinerary', () => {
       flatFeesUsd: 0,
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
+
     const body = requestBody();
     expect(body.response_format.type).toBe('json_schema');
     expect(body.response_format.json_schema.schema.properties.stops.items.enum).toEqual([
       'Oia',
       'Fira',
     ]);
+
     const parts = body.messages[1].content as Array<{ type: string }>;
     expect(parts.map((part) => part.type)).toEqual(['text', 'image_url']);
     expect(body.messages[0].content).toContain('never instructions');
@@ -507,6 +537,7 @@ describe('muse planItinerary', () => {
     fetchMock
       .mockResolvedValueOnce(chatResponse({ stops: [], days: [], nightsEach: [] }))
       .mockResolvedValueOnce(chatResponse(VALID_PLAN));
+
     const result = await provider.planItinerary('LLM_key', planInput());
     expect(result.plan.stops).toEqual(['Oia', 'Fira']);
     expect(fetchMock).toHaveBeenCalledTimes(2);
@@ -537,6 +568,7 @@ describe('muse planItinerary', () => {
         '\n',
       ])
     );
+
     const events = await collect(
       provider.streamGuide('LLM_key', {
         destination: 'Oia, Fira',
@@ -545,6 +577,7 @@ describe('muse planItinerary', () => {
       })
     );
     expect(events.some((event) => event.type === 'delta')).toBe(true);
+
     const body = requestBody();
     expect(JSON.stringify(body)).toContain('Narrate this itinerary day by day.');
   });
@@ -581,6 +614,7 @@ describe('muse scanPlaces', () => {
   it('batches harvested images in one structured call', async () => {
     await consented();
     fetchMock.mockResolvedValue(chatResponse(VALID_BATCH));
+
     const result = await provider.scanPlaces('LLM_key', scanInput());
     expect(result.places).toHaveLength(2);
     expect(result.usage).toEqual({
@@ -590,9 +624,11 @@ describe('muse scanPlaces', () => {
       flatFeesUsd: 0,
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
+
     const body = requestBody();
     expect(body.response_format.type).toBe('json_schema');
     expect(body.response_format.json_schema.schema.properties.places.type).toBe('array');
+
     const parts = body.messages[1].content as Array<{ type: string }>;
     expect(parts.map((part) => part.type)).toEqual(['text', 'image_url', 'image_url']);
   });
@@ -602,6 +638,7 @@ describe('muse scanPlaces', () => {
     fetchMock
       .mockResolvedValueOnce(rawChatResponse('not json'))
       .mockResolvedValueOnce(chatResponse(VALID_BATCH));
+
     const result = await provider.scanPlaces('LLM_key', scanInput());
     expect(result.places).toHaveLength(2);
     expect(fetchMock).toHaveBeenCalledTimes(2);
@@ -633,6 +670,7 @@ describe('muse duelPlaces', () => {
   it('duels through one grounded structured call', async () => {
     await consented();
     fetchMock.mockResolvedValue(duelResponse(VALID_DUEL));
+
     const result = await provider.duelPlaces('LLM_key', duelInput());
     expect(result.criteria).toHaveLength(1);
     expect(result.verdict).toContain('Pick Oia');
@@ -644,13 +682,16 @@ describe('muse duelPlaces', () => {
       flatFeesUsd: 0,
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
+
     const url = fetchMock.mock.calls[0][0] as string;
     expect(url).toContain('/responses');
+
     const body = requestBody();
     expect(body.tools).toEqual([{ type: 'web_search', search_context_size: 'low' }]);
     expect(body.text.format.type).toBe('json_schema');
     expect(body.text.format.name).toBe('duel');
     expect(body.stream).toBe(false);
+
     const prompt = body.input[0].content[0].text as string;
     expect(prompt).toContain('Oia, Greece (side A)');
     expect(prompt).toContain('Fira, Greece (side B)');
@@ -661,10 +702,12 @@ describe('muse duelPlaces', () => {
     fetchMock
       .mockResolvedValueOnce(new Response('unsupported', { status: 400 }))
       .mockResolvedValueOnce(chatResponse(VALID_DUEL));
+
     const result = await provider.duelPlaces('LLM_key', duelInput());
     expect(result.criteria).toHaveLength(1);
     expect(result.sources).toEqual([]);
     expect(fetchMock).toHaveBeenCalledTimes(2);
+
     const chatBody = requestBody(1);
     expect(chatBody.response_format.type).toBe('json_schema');
     expect(chatBody.response_format.json_schema.strict).toBe(true);
@@ -675,6 +718,7 @@ describe('muse duelPlaces', () => {
     fetchMock
       .mockResolvedValueOnce(groundedResponse('not json'))
       .mockResolvedValueOnce(chatResponse(VALID_DUEL));
+
     const result = await provider.duelPlaces('LLM_key', duelInput());
     expect(result.verdict).toContain('Pick Oia');
     expect(fetchMock).toHaveBeenCalledTimes(2);
@@ -723,11 +767,14 @@ describe('muse findAlternates', () => {
   it('finds grounded alternates for the intent', async () => {
     await consented();
     fetchMock.mockResolvedValue(groundedResponse(VALID_ALTERNATES));
+
     const result = await provider.findAlternates('LLM_key', alternatesInput());
     expect(result.alternatives).toHaveLength(2);
     expect(result.alternatives[0]?.bestMonth).toBe('May');
+
     const body = requestBody();
     expect(body.text.format.name).toBe('alternates');
+
     const prompt = body.input[0].content[0].text as string;
     expect(prompt).toContain('Oia, Greece');
     expect(prompt).toContain('cost noticeably less');
@@ -738,6 +785,7 @@ describe('muse findAlternates', () => {
     fetchMock
       .mockResolvedValueOnce(new Response('unsupported', { status: 404 }))
       .mockResolvedValueOnce(chatResponse(VALID_ALTERNATES));
+
     const result = await provider.findAlternates('LLM_key', alternatesInput());
     expect(result.alternatives).toHaveLength(2);
     expect(fetchMock).toHaveBeenCalledTimes(2);
@@ -764,6 +812,7 @@ describe('muse segmentLandmark', () => {
     fetchMock.mockResolvedValue(
       segmentResponse('Found <|box;x1=1;y1=2;x2=3;y2=4;w=10;h=10|> here.')
     );
+
     const result = await provider.segmentLandmark('LLM_key', {
       imageDataUrl: 'data:image/jpeg;base64,AAA',
       signal: new AbortController().signal,
@@ -775,8 +824,10 @@ describe('muse segmentLandmark', () => {
       searchCount: 0,
       flatFeesUsd: 0.0025,
     });
+
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toContain('/responses');
+
     const body = JSON.parse(init.body as string) as {
       model: string;
       input: Array<{ content: Array<{ type: string; text?: string; image_url?: string }> }>;
@@ -794,6 +845,7 @@ describe('muse segmentLandmark', () => {
   it('treats empty text as a no-match and rejects transport failures', async () => {
     await consented();
     fetchMock.mockResolvedValueOnce(segmentResponse(''));
+
     const result = await provider.segmentLandmark('LLM_key', {
       imageDataUrl: 'data:image/jpeg;base64,AAA',
       signal: new AbortController().signal,

@@ -11,18 +11,21 @@ export const MAX_GUIDE_CHARS = 20000;
 // models emit without a newline) count, single hashes do not (C# prose).
 export const findGuideStart = (source: string): number => {
   let offset = 0;
+
   for (const line of source.split('\n')) {
     if (/^#{1,6}\s+\S/.test(line)) {
       return offset;
     }
 
     const mid = /#{2,6}\s+\S/.exec(line);
+
     if (mid) {
       return offset + mid.index;
     }
 
     offset += line.length + 1;
   }
+
   return -1;
 };
 
@@ -39,11 +42,14 @@ export const createGuideRenderer = (
   maxChars: number = MAX_GUIDE_CHARS
 ): GuideRenderer => {
   let buffer = '';
+
   let finished = false;
+
   let wasTruncated = false;
 
   const render = (): void => {
     container.replaceChildren();
+
     const visible = buffer.length > maxChars ? buffer.slice(0, maxChars) : buffer;
 
     if (visible.length < buffer.length) {
@@ -83,13 +89,16 @@ export const createGuideRenderer = (
 
 const renderBlocks = (container: HTMLElement, text: string): void => {
   const lines = text.split('\n');
+
   let paragraph: string[] = [];
+
   let list: HTMLUListElement | null = null;
 
   const flushParagraph = (): void => {
     if (paragraph.length === 0) {
       return;
     }
+
     const p = document.createElement('p');
     renderInline(p, paragraph.join(' '));
     container.append(p);
@@ -98,9 +107,11 @@ const renderBlocks = (container: HTMLElement, text: string): void => {
 
   for (const rawLine of lines) {
     const line = rawLine.trim();
+
     if (line === '') {
       flushParagraph();
       list = null;
+
       continue;
     }
 
@@ -109,9 +120,11 @@ const renderBlocks = (container: HTMLElement, text: string): void => {
     if (heading) {
       flushParagraph();
       list = null;
+
       const el = document.createElement(heading[1].length <= 2 ? 'h3' : 'h4');
       renderInline(el, heading[2]);
       container.append(el);
+
       continue;
     }
 
@@ -119,13 +132,16 @@ const renderBlocks = (container: HTMLElement, text: string): void => {
 
     if (bullet) {
       flushParagraph();
+
       if (!list) {
         list = document.createElement('ul');
         container.append(list);
       }
+
       const item = document.createElement('li');
       renderInline(item, bullet[1]);
       list.append(item);
+
       continue;
     }
     list = null;

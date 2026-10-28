@@ -27,6 +27,7 @@ describe('source-chips', () => {
         ]}
       />
     ).container;
+
     const chips = [...root.querySelectorAll('a.chip')] as HTMLAnchorElement[];
     expect(chips).toHaveLength(2);
     expect(chips[0].textContent).toContain('Model title');
@@ -46,6 +47,7 @@ describe('source-chips', () => {
         ]}
       />
     ).container;
+
     const chips = [...root.querySelectorAll('a.chip')] as HTMLAnchorElement[];
     expect(chips).toHaveLength(2);
     expect(chips[0].textContent).toContain('Caldera views');
@@ -55,6 +57,7 @@ describe('source-chips', () => {
   it('renders nothing for empty or fully invalid sources', () => {
     const rendered = renderSync(<SourceChips sources={[]} />);
     expect(rendered.container.querySelectorAll('a.chip')).toHaveLength(0);
+
     const invalid: GuideSource[] = [{ title: 'x', url: 'data:text/html,hi' }];
     rendered.rerender(<SourceChips sources={invalid} />);
     expect(rendered.container.querySelectorAll('a.chip')).toHaveLength(0);

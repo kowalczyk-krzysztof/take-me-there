@@ -2,14 +2,18 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('idb-keyval', () => {
   const stores = new Map<string, Map<unknown, unknown>>();
+
   const area = (id: string): Map<unknown, unknown> => {
     let found = stores.get(id);
+
     if (!found) {
       found = new Map();
       stores.set(id, found);
     }
+
     return found;
   };
+
   return {
     createStore: (db: string, name: string): string => `${db}:${name}`,
     get: async (key: unknown, store: string): Promise<unknown> => area(store).get(key),

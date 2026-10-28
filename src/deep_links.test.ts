@@ -17,10 +17,12 @@ describe('deep_links', () => {
 
   it('percent-encodes hostile destinations', () => {
     const links = buildLinks('A&B #1 "quoted" 100%');
+
     const maps = links.find((link) => link.id === 'maps');
     expect(maps?.href).toBe(
       `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent('A&B #1 "quoted" 100%')}`
     );
+
     for (const link of links) {
       expect(link.href).not.toContain('"');
       expect(link.href).not.toContain('#1');
@@ -40,9 +42,11 @@ describe('deep_links', () => {
       'Oia\nhttps://evil.example',
       'x'.repeat(10000),
     ];
+
     for (const destination of hostile) {
       const capped = capDestination(destination);
       expect(() => encodeURIComponent(capped)).not.toThrow();
+
       for (const link of buildLinks(destination)) {
         expect(() => new URL(link.href)).not.toThrow();
         expect(link.href).not.toMatch(/^javascript:/i);
@@ -52,22 +56,27 @@ describe('deep_links', () => {
 
   it('strips path-breaking characters for the Airbnb segment', () => {
     const links = buildLinks('a/b?c#d e');
+
     const airbnb = links.find((link) => link.id === 'airbnb');
     expect(airbnb?.href).toBe('https://www.airbnb.com/s/abcd%20e/homes');
   });
 
   it('survives astral names cut at the character limit', () => {
     const links = buildLinks(`${'x'.repeat(MAX_DESTINATION_CHARS - 1)}😀tail`);
+
     for (const link of links) {
       expect(() => new URL(link.href)).not.toThrow();
     }
+
     const dir = mapsDirUrl([`${'y'.repeat(MAX_DESTINATION_CHARS - 1)}😀`, 'Oia, Greece']);
     expect(() => (dir ? new URL(dir) : null)).not.toThrow();
   });
 
   it('caps destinations at the character limit', () => {
     const links = buildLinks(`${'sight '.repeat(50)}x&y`);
+
     const maps = links.find((link) => link.id === 'maps');
+
     const query = new URL(maps?.href ?? '').searchParams.get('query') ?? '';
     expect(query.length).toBeLessThanOrEqual(MAX_DESTINATION_CHARS);
   });
@@ -110,14 +119,17 @@ describe('mapsDirUrl', () => {
 
   it('caps waypoints at nine and the URL at 2048 chars', () => {
     const stops = ['Start', ...Array.from({ length: 20 }, (_, i) => `Stop ${i}`), 'End'];
+
     const url = mapsDirUrl(stops);
     expect(url?.split('%7C')).toHaveLength(9);
     expect(url).toContain('destination=End');
+
     const long = [
       'Start',
       ...Array.from({ length: 11 }, (_, i) => `L${'o'.repeat(110)}${i}`),
       'End',
     ];
+
     const capped = mapsDirUrl(long);
     expect(capped && capped.length <= 2048).toBe(true);
     expect(capped).toContain('origin=Start');

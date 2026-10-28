@@ -8,6 +8,7 @@ describe('truncateCodePoints', () => {
 
   it('never splits a surrogate pair at the cut', () => {
     const name = `${'x'.repeat(119)}😀`;
+
     const capped = truncateCodePoints(name, 120);
     expect([...capped]).toHaveLength(120);
     expect(() => encodeURIComponent(capped)).not.toThrow();

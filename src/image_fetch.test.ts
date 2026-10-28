@@ -15,10 +15,13 @@ afterEach(() => {
 describe('encodeBase64', () => {
   it('round-trips bytes through the chunked path', () => {
     const proto = Uint8Array.prototype as unknown as { toBase64?: unknown };
+
     const native = proto.toBase64;
     delete proto.toBase64;
+
     try {
       const bytes = Uint8Array.from({ length: 100000 }, (_, i) => i % 251);
+
       const decoded = Uint8Array.from(atob(encodeBase64(bytes)), (ch) => ch.charCodeAt(0));
       expect(decoded).toEqual(bytes);
     } finally {
@@ -37,11 +40,13 @@ describe('fetchImageBytes', () => {
         new Response(new Uint8Array([1, 2, 3]), { headers: { 'content-type': 'image/jpeg' } })
       );
     vi.stubGlobal('fetch', fetchMock);
+
     const bytes = await fetchImageBytes(
       'https://cdn.example.com/oia.jpg',
       new AbortController().signal
     );
     expect(bytes).toEqual(new Uint8Array([1, 2, 3]));
+
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(init.credentials).toBe('omit');
     fetchMock.mockResolvedValueOnce(new Response('nope', { status: 404 }));
@@ -65,6 +70,7 @@ describe('fetchImageBytes', () => {
   it('refuses non-http URLs without fetching', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
+
     for (const url of [
       'file:///etc/passwd',
       'chrome://extensions',
@@ -90,6 +96,7 @@ describe('fetchImageBytes', () => {
 describe('downscaleToJpegDataUrl', () => {
   it('downscales the long side and encodes bounded JPEG', async () => {
     const drawImage = vi.fn();
+
     const convertToBlob = vi.fn().mockResolvedValue(new Blob(['fakejpeg']));
     vi.stubGlobal(
       'createImageBitmap',
@@ -105,6 +112,7 @@ describe('downscaleToJpegDataUrl', () => {
         return { width, height, getContext: () => ({ drawImage }), convertToBlob };
       })
     );
+
     const url = await downscaleToJpegDataUrl(new Uint8Array([1, 2, 3]));
     expect(url.startsWith('data:image/jpeg;base64,')).toBe(true);
     expect(drawImage).toHaveBeenCalledWith(expect.anything(), 0, 0, 1280, 640);

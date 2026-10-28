@@ -21,10 +21,12 @@ const BOX_TOKEN_RE =
   /<\|box;x1=([^;]+);y1=([^;]+);x2=([^;]+);y2=([^;]+);w=([^;]+);h=([^;|]+)(?:;c=([^;|]+))?\|>/g;
 
 const SAM_BOX_PADDING = 0.08;
+
 const SAM_MIN_AREA_FRAC = 0.01;
 
 const finite = (value: string): number | null => {
   const parsed = Number(value);
+
   return Number.isFinite(parsed) ? parsed : null;
 };
 
@@ -36,11 +38,13 @@ export const parseSamBoxes = (text: string): SamTokenBox[] => {
 
   for (;;) {
     const match = BOX_TOKEN_RE.exec(text);
+
     if (!match) {
       break;
     }
 
     const [, x1, y1, x2, y2, w, h, c] = match as unknown as string[];
+
     const coords = [x1, y1, x2, y2, w, h].map((part) => finite(part ?? ''));
 
     if (coords.some((coord) => coord === null)) {
@@ -52,16 +56,19 @@ export const parseSamBoxes = (text: string): SamTokenBox[] => {
     if (bw <= 0 || bh <= 0) {
       continue;
     }
+
     const box: SamTokenBox = { x1: bx1, y1: by1, x2: bx2, y2: by2, w: bw, h: bh };
 
     if (c !== undefined) {
       const confidence = finite(c);
+
       if (confidence !== null) {
         box.c = confidence;
       }
     }
     boxes.push(box);
   }
+
   return boxes;
 };
 
@@ -74,7 +81,9 @@ export const selectSamBox = (
   imageHeight: number
 ): SamPixelBox | null => {
   let best: SamPixelBox | null = null;
+
   let bestArea = 0;
+
   let bestConfidence = -Infinity;
 
   for (const box of boxes) {
@@ -83,6 +92,7 @@ export const selectSamBox = (
     }
 
     const scaleX = imageWidth / box.w;
+
     const scaleY = imageHeight / box.h;
 
     if (!Number.isFinite(scaleX) || !Number.isFinite(scaleY)) {
@@ -90,10 +100,15 @@ export const selectSamBox = (
     }
 
     let x1 = box.x1 * scaleX;
+
     let y1 = box.y1 * scaleY;
+
     let x2 = box.x2 * scaleX;
+
     let y2 = box.y2 * scaleY;
+
     const padX = (x2 - x1) * SAM_BOX_PADDING;
+
     const padY = (y2 - y1) * SAM_BOX_PADDING;
     x1 = Math.max(0, x1 - padX);
     y1 = Math.max(0, y1 - padY);
@@ -109,6 +124,7 @@ export const selectSamBox = (
     if (area < imageWidth * imageHeight * SAM_MIN_AREA_FRAC) {
       continue;
     }
+
     const confidence = box.c ?? -Infinity;
 
     if (area > bestArea || (area === bestArea && confidence > bestConfidence)) {
@@ -117,11 +133,13 @@ export const selectSamBox = (
       bestConfidence = confidence;
     }
   }
+
   return best;
 };
 
 export const dataUrlToBytes = (dataUrl: string): Uint8Array | null => {
   const marker = ';base64,';
+
   const at = dataUrl.indexOf(marker);
 
   if (!dataUrl.startsWith('data:image/') || at < 0) {
@@ -141,11 +159,17 @@ export const dataUrlToBytes = (dataUrl: string): Uint8Array | null => {
 // cap so the re-identify stays bounded. Returns a JPEG data: URL.
 export const cropToSamBox = async (bitmap: ImageBitmap, box: SamPixelBox): Promise<string> => {
   const sw = Math.max(1, Math.round(box.x2 - box.x1));
+
   const sh = Math.max(1, Math.round(box.y2 - box.y1));
+
   const scale = Math.min(1, FETCH_MAX_SIDE / Math.max(sw, sh));
+
   const dw = Math.max(1, Math.round(sw * scale));
+
   const dh = Math.max(1, Math.round(sh * scale));
+
   const canvas = new OffscreenCanvas(dw, dh);
+
   const ctx = canvas.getContext('2d');
 
   if (!ctx) {
@@ -155,6 +179,7 @@ export const cropToSamBox = async (bitmap: ImageBitmap, box: SamPixelBox): Promi
   ctx.drawImage(bitmap, box.x1, box.y1, sw, sh, 0, 0, dw, dh);
 
   const jpeg = await canvas.convertToBlob({ type: 'image/jpeg', quality: FETCH_JPEG_QUALITY });
+
   const out = new Uint8Array(await jpeg.arrayBuffer());
 
   if (out.length === 0) {

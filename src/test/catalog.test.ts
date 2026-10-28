@@ -9,7 +9,9 @@ import { describe, expect, it } from 'vitest';
 // behavior tests is the only backstop.
 
 const TEST_DIR = dirname(fileURLToPath(import.meta.url));
+
 const SRC = join(TEST_DIR, '..');
+
 const CATALOG_PATH = join(TEST_DIR, '../../public/_locales/en/messages.json');
 
 interface CatalogEntry {
@@ -21,15 +23,19 @@ const catalog = JSON.parse(readFileSync(CATALOG_PATH, 'utf8')) as Record<string,
 
 const sourceFiles = (): string[] => {
   const out: string[] = [];
+
   const walk = (dir: string): void => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       const full = join(dir, entry.name);
+
       if (entry.isDirectory()) {
         if (entry.name !== 'test') {
           walk(full);
         }
+
         continue;
       }
+
       if (/\.test\.[jt]sx?$/.test(entry.name) || !/\.[jt]sx?$/.test(entry.name)) {
         continue;
       }
@@ -37,6 +43,7 @@ const sourceFiles = (): string[] => {
     }
   };
   walk(SRC);
+
   return out;
 };
 
@@ -53,26 +60,35 @@ const KEY = '[A-Za-z0-9_]+';
 // bare identifier of unknown shape which is reported for explicit handling.
 const parseSubs = (text: string, from: number): number | null => {
   let at = from;
+
   while (at < text.length && /\s/.test(text[at] ?? '')) {
     at += 1;
   }
+
   if (text[at] !== ',') {
     return 0;
   }
   at += 1;
+
   while (at < text.length && /\s/.test(text[at] ?? '')) {
     at += 1;
   }
+
   if (text[at] === '[') {
     let depth = 0;
+
     let count = 1;
+
     let quote: string | null = null;
+
     for (let i = at; i < text.length; i += 1) {
       const ch = text[i];
+
       if (quote) {
         if (ch === quote && text[i - 1] !== '\\') {
           quote = null;
         }
+
         continue;
       }
       if (ch === '"' || ch === "'" || ch === '`') {

@@ -48,6 +48,7 @@ import {
 } from './index';
 
 const IDENTIFY_MAX_TOKENS = 2048;
+
 const GUIDE_MAX_TOKENS = 4096;
 
 export class OpenAiCompatProvider implements Provider {
@@ -76,6 +77,7 @@ export class OpenAiCompatProvider implements Provider {
     if (typeof inputRatePerM === 'number' && typeof outputRatePerM === 'number') {
       return { inputUsdPerMTok: inputRatePerM, outputUsdPerMTok: outputRatePerM };
     }
+
     return undefined;
   }
 
@@ -85,6 +87,7 @@ export class OpenAiCompatProvider implements Provider {
     if (!base || !this.config.model) {
       throw new ProviderError('not_configured', 'openai_compat provider is not configured', false);
     }
+
     return base;
   }
 
@@ -119,6 +122,7 @@ export class OpenAiCompatProvider implements Provider {
     await assertConsent();
 
     const base = this.baseURL();
+
     const usage = emptyUsage();
 
     if (input.pins.length === 0) {
@@ -153,6 +157,7 @@ export class OpenAiCompatProvider implements Provider {
         return { plan, usage: { ...usage } };
       }
     }
+
     throw invalidResponse(usage, 'model output failed validation');
   }
 
@@ -162,6 +167,7 @@ export class OpenAiCompatProvider implements Provider {
     await assertConsent();
 
     const base = this.baseURL();
+
     const usage = emptyUsage();
 
     if (input.images.length === 0) {
@@ -194,6 +200,7 @@ export class OpenAiCompatProvider implements Provider {
         return { places, usage: { ...usage } };
       }
     }
+
     throw invalidResponse(usage, 'model output failed validation');
   }
 
@@ -237,6 +244,7 @@ export class OpenAiCompatProvider implements Provider {
         return value;
       }
     }
+
     throw invalidResponse(usage, 'model output failed validation');
   }
 
@@ -246,6 +254,7 @@ export class OpenAiCompatProvider implements Provider {
     await assertConsent();
 
     const usage = emptyUsage();
+
     const verdict = await this.chatStructured(
       key,
       input.signal,
@@ -265,6 +274,7 @@ export class OpenAiCompatProvider implements Provider {
     await assertConsent();
 
     const usage = emptyUsage();
+
     const alternatives = await this.chatStructured(
       key,
       input.signal,
@@ -297,6 +307,7 @@ export class OpenAiCompatProvider implements Provider {
     await assertConsent();
 
     const base = this.baseURL();
+
     const prompt = input.prompt ?? buildGuidePrompt(input.destination, input.language);
 
     yield* postChatStream(

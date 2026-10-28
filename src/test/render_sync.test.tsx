@@ -4,6 +4,7 @@ import { cleanupRenderSync, renderSync } from './render_sync';
 describe('renderSync', () => {
   it('unmounts containers without leaking them into later tests', () => {
     const before = document.body.children.length;
+
     const rendered = renderSync(<p>hello</p>);
     expect(rendered.container.textContent).toBe('hello');
     expect(document.body.children.length).toBe(before + 1);

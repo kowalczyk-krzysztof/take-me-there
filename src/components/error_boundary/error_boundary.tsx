@@ -28,6 +28,7 @@ export class ErrorBoundary extends Component<Props, State> {
         this.setState({ failed: false });
       });
     }
+
     return this.props.children;
   }
 }

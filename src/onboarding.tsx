@@ -39,7 +39,9 @@ const store = createStore<OnboardingState>({
 const onSaveKey = (key: string): void => {
   void (async () => {
     store.set({ keyPending: true, keyError: null, status: msg('statusValidatingKey') });
+
     const { provider, settings } = await getActiveProvider();
+
     try {
       await provider.testKey(key);
     } catch (err) {
@@ -54,6 +56,7 @@ const onSaveKey = (key: string): void => {
         keyError: msg(failureKey),
         status: msg(failureKey),
       });
+
       return;
     }
 
@@ -68,6 +71,7 @@ const onSaveKey = (key: string): void => {
         keyError: msg('keyErrorRetry'),
         status: msg('keyErrorRetry'),
       });
+
       return;
     }
 
@@ -82,6 +86,7 @@ const onSaveKey = (key: string): void => {
 
 const OnboardingApp = () => {
   const state = useSyncExternalStore(store.subscribe, store.get);
+
   return (
     <main>
       <h1 id="title">{msg('appName')}</h1>
@@ -103,7 +108,9 @@ const OnboardingApp = () => {
               void (async () => {
                 const { provider, settings } = await getActiveProvider();
                 await saveSettings({ ...settings, sessionOnly: checked });
+
                 const loaded = await loadKey(provider.id);
+
                 if (loaded.state === 'ok') {
                   await saveKey(provider.id, loaded.key, checked);
                 }

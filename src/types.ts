@@ -14,6 +14,7 @@ export const PLACE_SCHEMA = z.strictObject({
   confidence: z.number(),
   oneLiner: z.string().check(z.maxLength(300)),
 });
+
 export type PlaceResult = z.infer<typeof PLACE_SCHEMA>;
 
 // Payload for the Muse response_format json_schema. toJSONSchema always adds
@@ -22,7 +23,9 @@ export type PlaceResult = z.infer<typeof PLACE_SCHEMA>;
 // schema edit introduces them.
 export const placeJsonSchema = (): Record<string, unknown> => {
   const emitted = z.toJSONSchema(PLACE_SCHEMA) as unknown as Record<string, unknown>;
+
   const { $schema: _dropped, ...schema } = emitted;
+
   return schema;
 };
 
@@ -56,6 +59,7 @@ export const PAGE_SIGNALS_SCHEMA = z.strictObject({
   imgFileSlug: z.string(),
   jsonLd: z.array(JSON_LD_SCHEMA),
 });
+
 export type PageSignals = z.infer<typeof PAGE_SIGNALS_SCHEMA>;
 
 // Frame-capture failure reasons, mirrored from the self-contained injected
@@ -67,6 +71,7 @@ export const FRAME_FAILURE_SCHEMA = z.enum([
   'drm',
   'too-large',
 ]);
+
 export type FrameFailureReason = z.infer<typeof FRAME_FAILURE_SCHEMA>;
 
 export const SCANNED_IMAGE_SCHEMA = z.strictObject({
@@ -76,6 +81,7 @@ export const SCANNED_IMAGE_SCHEMA = z.strictObject({
   width: z.number(),
   height: z.number(),
 });
+
 export type ScannedImage = z.infer<typeof SCANNED_IMAGE_SCHEMA>;
 
 // The worker-to-panel handoff record. Signals ride along only once the
@@ -102,6 +108,7 @@ export const TRIP_REQUEST_SCHEMA = z.strictObject({
   frameError: z.optional(FRAME_FAILURE_SCHEMA),
   scanImages: z.optional(z.array(SCANNED_IMAGE_SCHEMA)),
 });
+
 export type TripRequest = z.infer<typeof TRIP_REQUEST_SCHEMA>;
 
 // Itinerary structure: stop names are constrained to an enum of the pinned
@@ -131,7 +138,9 @@ export const itinerarySchema = (stopNames: string[]) => {
   if (stopNames.length === 0) {
     throw new Error('itinerarySchema needs at least one stop name');
   }
+
   const names = stopNames as [string, ...string[]];
+
   return z.strictObject({
     stops: z.array(z.enum(names)),
     days: z.array(
@@ -152,7 +161,9 @@ export const itinerarySchema = (stopNames: string[]) => {
 
 export const itineraryJsonSchema = (stopNames: string[]): Record<string, unknown> => {
   const emitted = z.toJSONSchema(itinerarySchema(stopNames)) as unknown as Record<string, unknown>;
+
   const { $schema: _dropped, ...schema } = emitted;
+
   return schema;
 };
 
@@ -198,6 +209,7 @@ export const scanPlaceSchema = () =>
   });
 
 export const DUEL_MAX_CRITERIA = 8;
+
 export const ALTERNATES_MAX_COUNT = 3;
 
 export interface DuelCriterion {
@@ -225,7 +237,9 @@ export const duelSchema = () =>
 
 export const duelJsonSchema = (): Record<string, unknown> => {
   const emitted = z.toJSONSchema(duelSchema()) as unknown as Record<string, unknown>;
+
   const { $schema: _dropped, ...schema } = emitted;
+
   return schema;
 };
 
@@ -250,7 +264,9 @@ export const alternatesSchema = () =>
 
 export const alternatesJsonSchema = (): Record<string, unknown> => {
   const emitted = z.toJSONSchema(alternatesSchema()) as unknown as Record<string, unknown>;
+
   const { $schema: _dropped, ...schema } = emitted;
+
   return schema;
 };
 
@@ -258,7 +274,9 @@ export const scanBatchJsonSchema = (): Record<string, unknown> => {
   const emitted = z.toJSONSchema(
     z.strictObject({ places: z.array(scanPlaceSchema()) })
   ) as unknown as Record<string, unknown>;
+
   const { $schema: _dropped, ...schema } = emitted;
+
   return schema;
 };
 
@@ -268,24 +286,31 @@ export const PROVIDER_CAPABILITIES_SCHEMA = z.strictObject({
   segmentation: z.boolean(),
   structuredOutput: z.enum(['json_schema', 'json_object', 'none']),
 });
+
 export type ProviderCapabilities = z.infer<typeof PROVIDER_CAPABILITIES_SCHEMA>;
 
 const REQUEST_ID_RE = /^(\d+)-(\d+)$/;
 
 export const compareRequestIds = (a: string, b: string): number => {
   const pa = REQUEST_ID_RE.exec(a);
+
   const pb = REQUEST_ID_RE.exec(b);
+
   if (pa && pb) {
     return Number(pa[1]) - Number(pb[1]) || Number(pa[2]) - Number(pb[2]);
   }
+
   if (pa) {
     return 1;
   }
+
   if (pb) {
     return -1;
   }
+
   if (a === b) {
     return 0;
   }
+
   return a < b ? -1 : 1;
 };

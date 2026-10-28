@@ -16,6 +16,7 @@ afterEach(() => {
 describe('booking-grid', () => {
   it('renders localized tiles for the verified portals', () => {
     const root = renderSync(<BookingGrid destination="Oia, Greece" />).container;
+
     const tiles = [...root.querySelectorAll('a.tile')] as HTMLAnchorElement[];
     expect(tiles).toHaveLength(4);
     expect(tiles.map((tile) => tile.textContent?.replace('newTabSuffix', ''))).toEqual([
@@ -26,6 +27,7 @@ describe('booking-grid', () => {
     ]);
     expect(tiles[0].href).toContain('https://www.google.com/maps/search/');
     expect(tiles[0].href).toContain(encodeURIComponent('Oia, Greece'));
+
     for (const tile of tiles) {
       expect(tile.target).toBe('_blank');
       expect(tile.rel).toBe('noopener noreferrer');

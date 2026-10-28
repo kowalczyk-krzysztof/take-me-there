@@ -33,7 +33,9 @@ const PIN = (overrides: Partial<BoardPin> = {}): Omit<BoardPin, 'addedAt'> => ({
 let mock: ChromeMock;
 
 let imageDims = { w: 1024, h: 768, fail: false };
+
 const drawImage = vi.fn();
+
 const toDataURL = vi.fn((_type: string, _quality: number): string => 'data:image/jpeg,small');
 
 beforeEach(() => {
@@ -84,6 +86,7 @@ describe('board_store', () => {
   it('pins and lists in insertion order', async () => {
     await pinPlace({ ...PIN(), addedAt: 2 });
     await pinPlace({ ...PIN({ place: PLACE({ placeName: 'Fira' }) }), addedAt: 1 });
+
     const pins = await listPins();
     expect(pins.map((pin) => pin.place.placeName)).toEqual(['Fira', 'Oia']);
   });
@@ -94,6 +97,7 @@ describe('board_store', () => {
     );
     expect(stripUrlEphemera('data:image/jpeg,AAA')).toBe('data:image/jpeg,AAA');
     await pinPlace({ ...PIN({ imageUrl: 'https://cdn.example.com/a.jpg?sig=abc#frag' }) });
+
     const pins = await listPins();
     expect(pins).toHaveLength(1);
     expect(pins[0].imageUrl).toBe('https://cdn.example.com/a.jpg');
@@ -101,6 +105,7 @@ describe('board_store', () => {
 
   it('keeps the existing pin on a dedupe hit', async () => {
     await pinPlace(PIN({ sourceHost: 'first.example' }));
+
     const out = await pinPlace(PIN({ sourceHost: 'second.example' }));
     expect(out.status).toBe('duplicate');
     expect((await listPins())[0].sourceHost).toBe('first.example');
@@ -108,17 +113,21 @@ describe('board_store', () => {
 
   it('treats names differing only by case or control chars as duplicates', async () => {
     await pinPlace(PIN());
+
     const out = await pinPlace(PIN({ place: PLACE({ placeName: 'OIA\n' }) }));
     expect(out.status).toBe('duplicate');
   });
 
   it('never collides tuples across the separator', async () => {
     const a = await dedupeKeyFor('A|B', 'C');
+
     const b = await dedupeKeyFor('A', 'B|C');
+
     const c = await dedupeKeyFor('A|B', 'C');
     expect(a).not.toBe(b);
     expect(a).toBe(c);
     await pinPlace(PIN({ place: PLACE({ placeName: 'A|B', country: 'C' }) }));
+
     const out = await pinPlace(PIN({ place: PLACE({ placeName: 'A', country: 'B|C' }) }));
     expect(out.status).toBe('pinned');
   });
@@ -130,15 +139,18 @@ describe('board_store', () => {
         addedAt: i,
       });
     }
+
     const out = await pinPlace({
       ...PIN({ place: PLACE({ placeName: 'Newest' }) }),
       addedAt: BOARD_CAP,
     });
     expect(out.status).toBe('pinned');
+
     if (out.status !== 'pinned') {
       throw new Error('unreachable');
     }
     expect(out.evicted?.place.placeName).toBe('Place 0');
+
     const pins = await listPins();
     expect(pins).toHaveLength(BOARD_CAP);
     expect(pins.map((pin) => pin.place.placeName)).not.toContain('Place 0');
@@ -147,6 +159,7 @@ describe('board_store', () => {
   it('removes by tuple and clears everything', async () => {
     await pinPlace(PIN());
     await pinPlace(PIN({ place: PLACE({ placeName: 'Fira' }) }));
+
     const remaining = await removePin('Oia', 'Greece');
     expect(remaining.map((pin) => pin.place.placeName)).toEqual(['Fira']);
     expect(await removePin('Nowhere', 'Atlantis')).toHaveLength(1);
@@ -163,8 +176,10 @@ describe('board_store', () => {
   it('migrates a legacy bare-array board to the versioned record', async () => {
     await mock.local.set({ [BOARD_STORAGE_KEY]: [{ ...PIN(), addedAt: 1 }] });
     expect(await listPins()).toHaveLength(1);
+
     const out = await pinPlace(PIN({ place: PLACE({ placeName: 'Fira' }) }));
     expect(out.status).toBe('pinned');
+
     const record = mock.local.data.get(BOARD_STORAGE_KEY) as { v: number; pins: unknown[] };
     expect(record.v).toBe(1);
     expect(record.pins).toHaveLength(2);
@@ -172,6 +187,7 @@ describe('board_store', () => {
 
   it('aborts the pin when the board cannot be read', async () => {
     await pinPlace(PIN());
+
     const before = mock.local.data.get(BOARD_STORAGE_KEY);
     vi.spyOn(mock.local, 'get').mockRejectedValueOnce(new Error('io'));
     await expect(pinPlace(PIN({ place: PLACE({ placeName: 'Fira' }) }))).rejects.toThrow('io');
@@ -194,6 +210,7 @@ describe('board_store', () => {
         { place: { placeName: 42 } },
       ],
     });
+
     const pins = await listPins();
     expect(pins).toHaveLength(1);
     expect(pins[0].place.placeName).toBe('Oia');

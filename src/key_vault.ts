@@ -24,18 +24,23 @@ export const isVaultKey = (key: string): boolean => key.startsWith('apiKey:');
 
 const toBase64 = (bytes: Uint8Array): string => {
   let binary = '';
+
   for (let i = 0; i < bytes.length; i += 0x8000) {
     binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   }
+
   return btoa(binary);
 };
 
 const fromBase64 = (text: string): Uint8Array<ArrayBuffer> => {
   const binary = atob(text);
+
   const bytes = new Uint8Array(binary.length);
+
   for (let i = 0; i < binary.length; i += 1) {
     bytes[i] = binary.charCodeAt(i);
   }
+
   return bytes;
 };
 
@@ -52,6 +57,7 @@ const getOrCreateWrappingKey = async (): Promise<CryptoKey> => {
   ]);
 
   await set(WRAPPING_KEY_ID, created, vaultStore);
+
   return created;
 };
 
@@ -65,7 +71,9 @@ export const saveKey = async (
   }
 
   const wrap = await getOrCreateWrappingKey();
+
   const iv = crypto.getRandomValues(new Uint8Array(12));
+
   const encrypted = await crypto.subtle.encrypt(
     { name: 'AES-GCM', iv },
     wrap,
@@ -77,6 +85,7 @@ export const saveKey = async (
     iv: toBase64(iv),
     ciphertext: toBase64(new Uint8Array(encrypted)),
   };
+
   const name = storageKey(providerId);
 
   if (sessionOnly) {
@@ -90,12 +99,14 @@ export const saveKey = async (
 
 export const loadKey = async (providerId: string): Promise<KeyStatus> => {
   const name = storageKey(providerId);
+
   const fromSession = (await chrome.storage.session.get(name)) as Record<
     string,
     KeyRecord | undefined
   >;
 
   const fromLocal = (await chrome.storage.local.get(name)) as Record<string, KeyRecord | undefined>;
+
   const record = fromSession[name] ?? fromLocal[name];
 
   if (!record || typeof record.ciphertext !== 'string' || typeof record.iv !== 'string') {
@@ -118,6 +129,7 @@ export const loadKey = async (providerId: string): Promise<KeyStatus> => {
       wrap,
       fromBase64(record.ciphertext)
     );
+
     return { state: 'ok', key: new TextDecoder().decode(decrypted) };
   } catch {
     // Never delete here: the ciphertext may belong to a rotated wrapping

@@ -10,6 +10,7 @@ interface Props {
 
 export const CompareRow = ({ options, onCompare }: Props) => {
   const selectRef = useRef<HTMLSelectElement>(null);
+
   const empty = options.length === 0;
 
   return (

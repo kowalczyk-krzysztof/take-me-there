@@ -73,6 +73,7 @@ describe('cache key hashing', () => {
 
   it('hashes deterministically to 64 hex chars', async () => {
     const first = await hashCacheKey(parts);
+
     const second = await hashCacheKey(parts);
     expect(first).toBe(second);
     expect(first).toMatch(/^[0-9a-f]{64}$/);

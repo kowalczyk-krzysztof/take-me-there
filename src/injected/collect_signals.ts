@@ -40,12 +40,14 @@ export const collectSignals = (srcUrl: string): PageSignalData => {
   // surrogates that would throw in encodeURIComponent downstream.
   const clean = (s: string | null | undefined): string =>
     (s || '').replace(/\s+/g, ' ').trim().slice(0, 300).toWellFormed();
+
   const meta = (sel: string): string => clean(document.querySelector(sel)?.getAttribute('content'));
 
   // Locate the clicked img: currentSrc (srcset/picture winner) -> src attr ->
   // any srcset candidate. Scan cap: a hostile page with 100k imgs must not
   // stall the worker's awaited injection.
   const imgs = [...document.querySelectorAll('img')].slice(0, 2000);
+
   const img =
     imgs.find((i) => abs(i.currentSrc) === target) ||
     imgs.find((i) => abs(i.getAttribute('src') || '') === target) ||
@@ -68,8 +70,11 @@ export const collectSignals = (srcUrl: string): PageSignalData => {
     ) {
       for (let sib = el.previousElementSibling; sib; sib = sib.previousElementSibling) {
         if (++hops > 400) return null;
+
         if (sib.matches(sel)) return sib;
+
         const inner = sib.querySelectorAll(sel);
+
         if (inner.length) return inner[inner.length - 1];
       }
     }
@@ -82,10 +87,13 @@ export const collectSignals = (srcUrl: string): PageSignalData => {
 
   for (const s of document.querySelectorAll('script[type="application/ld+json"]')) {
     if ((s.textContent || '').length > 200000) continue; // huge/hostile JSON-LD: skip, don't parse
+
     try {
       const nodes: Array<unknown> = [];
+
       const walk = (n: unknown): void => {
         if (nodes.length >= 2000) return; // bound traversal on crafted trees
+
         if (Array.isArray(n)) n.forEach(walk);
         else if (n && typeof n === 'object') {
           nodes.push(n);
@@ -97,7 +105,9 @@ export const collectSignals = (srcUrl: string): PageSignalData => {
 
       for (const n of nodes) {
         const record = n as Record<string, any>;
+
         const types = ([] as Array<unknown>).concat(record['@type'] || []).map(String);
+
         if (
           record.geo ||
           types.some((t) =>
@@ -172,5 +182,6 @@ export const collectSignals = (srcUrl: string): PageSignalData => {
     out.jsonLd = [];
     out.nearestParagraph = out.nearestParagraph.slice(0, 120).toWellFormed();
   }
+
   return out;
 };

@@ -41,13 +41,16 @@ describe('pricing', () => {
     // 2026-03-01T00:30Z is still February west of UTC: a UTC bucket would
     // file it under March there, while the local-month rule follows the zone.
     const instant = new Date('2026-03-01T00:30:00Z');
+
     const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
     const expected = new Intl.DateTimeFormat('en-CA', {
       timeZone: zone,
       year: 'numeric',
       month: '2-digit',
     }).format(instant);
     await recordMonthSpend(0.5, instant);
+
     const record = mock.local.data.get('costTotals') as { months: Record<string, number> };
     expect(Object.keys(record.months)).toEqual([expected]);
     expect(await readMonthSpend(instant)).toBeCloseTo(0.5, 10);
@@ -58,6 +61,7 @@ describe('pricing', () => {
     // must follow the wall clock, not the UTC date.
     const instant = new Date(2026, 1, 28, 23, 30);
     await recordMonthSpend(0.5, instant);
+
     const record = mock.local.data.get('costTotals') as { months: Record<string, number> };
     expect(Object.keys(record.months)).toEqual(['2026-02']);
   });
@@ -92,6 +96,7 @@ describe('pricing', () => {
 
   it('clamps cached tokens to the reported input', () => {
     const rates = MUSE_SPARK_RATES['muse-spark-1.3'];
+
     const usage = {
       inputTokens: 100,
       outputTokens: 0,
@@ -123,6 +128,7 @@ describe('pricing', () => {
     for (let n = 0; n < 25; n += 1) {
       await recordMonthSpend(0.01, new Date(Date.UTC(2024, n, 2)));
     }
+
     const record = mock.local.data.get('costTotals') as {
       v: number;
       months: Record<string, number>;
@@ -149,6 +155,7 @@ describe('pricing', () => {
 
   it('serializes concurrent records without losing updates', async () => {
     const day = new Date('2026-03-15T12:00:00Z');
+
     const [first, second] = await Promise.all([
       recordMonthSpend(0.5, day),
       recordMonthSpend(0.25, day),

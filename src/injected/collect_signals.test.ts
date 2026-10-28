@@ -136,6 +136,7 @@ describe('collectSignals', () => {
     setPageUrl('https://example.com/%zz?a=%2&b=\ud800');
     document.title = `T\ud800i\0tle ${'x'.repeat(5000)}`;
     document.body.innerHTML = '<img src="https://cdn.example.com/a.jpg" alt="A\ud800lt\udc00">';
+
     const out = collectSignals('https://cdn.example.com/a.jpg');
     expect(out.imgFound).toBe(true);
     expect(() => JSON.stringify(out)).not.toThrow();
@@ -145,6 +146,7 @@ describe('collectSignals', () => {
   it('survives malformed percent-escapes in paths', () => {
     setPageUrl('https://example.com/travel/100%-guide');
     document.body.innerHTML = '<img src="https://cdn.example.com/100%-oia.jpg" alt="Oia">';
+
     const out = collectSignals('https://cdn.example.com/100%-oia.jpg');
     expect(out.imgFound).toBe(true);
     expect(out.urlSlug).toContain('100% guide');
@@ -153,6 +155,7 @@ describe('collectSignals', () => {
 
   it('stays serializable for executeScript', () => {
     expect(collectSignals.length).toBe(1);
+
     const source = collectSignals.toString();
     expect(source).not.toContain('require(');
     expect(source).not.toContain('import ');

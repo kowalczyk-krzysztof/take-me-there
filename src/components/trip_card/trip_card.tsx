@@ -101,6 +101,7 @@ interface Props {
 
 export const TripCard = ({ card, callbacks }: Props) => {
   const [epoch, setEpoch] = useState(0);
+
   const prevCard = useRef(card);
 
   if (prevCard.current !== card) {
@@ -109,12 +110,15 @@ export const TripCard = ({ card, callbacks }: Props) => {
   }
 
   let view: ReactNode;
+
   switch (card.view) {
     case 'idle':
       view = <IdleView hint={card.hint} shortcut={card.shortcut} />;
+
       break;
     case 'loading':
       view = <LoadingView />;
+
       break;
     case 'result':
       view = (
@@ -128,6 +132,7 @@ export const TripCard = ({ card, callbacks }: Props) => {
           callbacks={callbacks}
         />
       );
+
       break;
     case 'no-place':
       view = (
@@ -137,6 +142,7 @@ export const TripCard = ({ card, callbacks }: Props) => {
           onLookAgain={callbacks.onLookAgain}
         />
       );
+
       break;
     case 'error':
       view = (
@@ -149,6 +155,7 @@ export const TripCard = ({ card, callbacks }: Props) => {
           callbacks={callbacks}
         />
       );
+
       break;
     case 'itinerary':
       view = (
@@ -159,8 +166,10 @@ export const TripCard = ({ card, callbacks }: Props) => {
           mapsLabel={card.mapsLabel}
         />
       );
+
       break;
   }
+
   return (
     <div key={epoch} className={styles.root}>
       {view}

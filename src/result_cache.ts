@@ -3,7 +3,9 @@ import type { GuideSource, Usage } from './providers/index';
 import { createMutex } from './utils/mutex';
 
 const MAX_PREVIEW_DATA_URL = 2000000;
+
 const CACHE_SLOTS = 10;
+
 const CACHE_INDEX_KEY = 'cacheKeys';
 
 export interface CacheEntry {
@@ -21,6 +23,7 @@ export const isAllowedPreviewUrl = (srcUrl: string): boolean => {
 
   try {
     const parsed = new URL(srcUrl);
+
     return parsed.protocol === 'https:' || parsed.protocol === 'http:';
   } catch {
     return false;
@@ -46,8 +49,11 @@ export const hashCacheKey = async (parts: CacheKeyParts): Promise<string> => {
     parts.seed,
     parts.pageUrl,
   ];
+
   const encoded = fields.map((field) => `${field.length}:${field}`).join('');
+
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(encoded));
+
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
 };
 
@@ -59,6 +65,7 @@ const isCacheEntry = (value: unknown): value is CacheEntry => {
   }
 
   const entry = value as Partial<CacheEntry>;
+
   return (
     typeof entry.guide === 'string' &&
     Array.isArray(entry.sources) &&
@@ -93,6 +100,7 @@ export const getCacheEntry = async (hash: string): Promise<CacheEntry | undefine
         string,
         unknown
       >;
+
       const entry = stored[cacheKeyFor(hash)];
 
       if (!isCacheEntry(entry)) {
@@ -103,6 +111,7 @@ export const getCacheEntry = async (hash: string): Promise<CacheEntry | undefine
       index.unshift(hash);
 
       await chrome.storage.session.set({ [CACHE_INDEX_KEY]: index.slice(0, CACHE_SLOTS) });
+
       return entry;
     } catch {
       return undefined;

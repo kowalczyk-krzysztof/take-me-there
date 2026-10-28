@@ -2,14 +2,18 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('idb-keyval', () => {
   const stores = new Map<string, Map<unknown, unknown>>();
+
   const area = (id: string): Map<unknown, unknown> => {
     let found = stores.get(id);
+
     if (!found) {
       found = new Map();
       stores.set(id, found);
     }
+
     return found;
   };
+
   return {
     createStore: (db: string, name: string): string => `${db}:${name}`,
     get: async (key: unknown, store: string): Promise<unknown> => area(store).get(key),
@@ -40,6 +44,7 @@ describe('options', () => {
   it('renders sections and the live cost total', async () => {
     await setup(async (mock) => {
       await mock.local.set({ costTotals: { [monthKey()]: 1.5 } });
+
       const chromeGlobal = globalThis as unknown as {
         chrome: { i18n: { getMessage: (key: string, subs?: string | string[]) => string } };
       };
@@ -67,6 +72,7 @@ describe('options', () => {
 
   it('persists the image-only toggle', async () => {
     const mock = await setup();
+
     const box = document.querySelector('#image-only') as HTMLInputElement;
     box.checked = true;
     box.dispatchEvent(new Event('change', { bubbles: true }));
@@ -106,6 +112,7 @@ describe('options', () => {
 
   it('tests the saved key and clears it', async () => {
     const mock = await setup();
+
     const { saveKey, loadKey } = await import('./key_vault');
     await saveKey('muse', 'LLM_x', false);
     fetchMock.mockResolvedValue(new Response('[]', { status: 200 }));
@@ -131,8 +138,10 @@ describe('options', () => {
 
   it('saves a custom server after the origin grant', async () => {
     const mock = await setup();
+
     const permsRequest = vi.fn().mockResolvedValue(true);
     (chrome as unknown as { permissions: unknown }).permissions = { request: permsRequest };
+
     const compat = document.querySelector('#provider-compat') as HTMLInputElement;
     compat.checked = true;
     compat.dispatchEvent(new Event('change', { bubbles: true }));

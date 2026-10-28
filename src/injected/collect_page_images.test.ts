@@ -19,13 +19,17 @@ interface ImgStubs {
 const addImg = (parent: HTMLElement, stubs: ImgStubs): HTMLImageElement => {
   const img = document.createElement('img');
   img.setAttribute('src', stubs.src);
+
   if (stubs.currentSrc !== undefined) {
     Object.defineProperty(img, 'currentSrc', { value: stubs.currentSrc, configurable: true });
   }
+
   if (stubs.alt !== undefined) {
     img.setAttribute('alt', stubs.alt);
   }
+
   const width = stubs.width ?? 640;
+
   const height = stubs.height ?? 480;
   img.getBoundingClientRect = () =>
     ({
@@ -40,6 +44,7 @@ const addImg = (parent: HTMLElement, stubs: ImgStubs): HTMLImageElement => {
       toJSON: () => ({}),
     }) as DOMRect;
   parent.append(img);
+
   return img;
 };
 
@@ -112,6 +117,7 @@ describe('collectPageImages', () => {
 
   it('falls back to figcaption and caps fields at 300 chars', () => {
     const figure = document.createElement('figure');
+
     const caption = document.createElement('figcaption');
     caption.textContent = `x${'y'.repeat(500)}`;
     figure.append(caption);

@@ -20,6 +20,7 @@ describe('external-link', () => {
         Example
       </ExternalLink>
     ).container;
+
     const link = root.querySelector('a');
     expect(link?.href).toBe('https://example.com/');
     expect(link?.target).toBe('_blank');

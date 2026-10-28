@@ -5,12 +5,14 @@ export type Mutex = <T>(task: () => Promise<T>) => Promise<T>;
 // chain stays alive for the next task.
 export const createMutex = (): Mutex => {
   let tail: Promise<void> = Promise.resolve();
+
   return (task) => {
     const run = tail.then(task);
     tail = run.then(
       () => undefined,
       () => undefined
     );
+
     return run;
   };
 };

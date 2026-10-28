@@ -12,6 +12,7 @@ const root = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig((_env, argv) => {
   const isProd = argv?.mode === 'production';
+
   return {
     mode: isProd ? 'production' : 'development',
     context: root,

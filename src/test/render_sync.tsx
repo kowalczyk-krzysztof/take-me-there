@@ -29,12 +29,15 @@ export const cleanupRenderSync = (): void => {
 export const renderSync = (node: ReactNode): Rendered => {
   const container = document.createElement('div');
   document.body.append(container);
+
   const root: Root = createRoot(container);
+
   const entry = { root, container };
   liveRoots.add(entry);
   act(() => {
     root.render(node);
   });
+
   return {
     container,
     rerender: (next: ReactNode) => {

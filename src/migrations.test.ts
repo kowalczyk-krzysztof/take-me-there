@@ -61,21 +61,26 @@ describe('runUpdateMigrations', () => {
 
   it('isolates a failing store so the others still migrate', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
     try {
       await mock.local.set({
         settings: LEGACY_SETTINGS,
         tripBoard: [LEGACY_PIN],
         costTotals: { '2026-03': 1.5 },
       });
+
       const realSet = mock.local.set.bind(mock.local);
+
       const fail = vi
         .spyOn(mock.local, 'set')
         .mockImplementation(async (items: Record<string, unknown>) => {
           if ('tripBoard' in items) {
             throw new Error('quota');
           }
+
           return realSet(items);
         });
+
       try {
         await runUpdateMigrations();
       } finally {

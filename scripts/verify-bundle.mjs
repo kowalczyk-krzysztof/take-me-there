@@ -7,12 +7,16 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+
 const dist = path.join(root, 'dist');
+
 const files = readdirSync(dist).filter((f) => f.endsWith('.js'));
+
 if (files.length === 0) {
   console.error('verify: no bundles in dist/');
   process.exit(1);
 }
+
 let failed = false;
 // CSP forbids more than direct eval: constructed functions, string timers,
 // and remote dynamic imports all fail at runtime under MV3.

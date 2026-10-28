@@ -10,7 +10,9 @@ export interface BoardPin {
 }
 
 export const BOARD_STORAGE_KEY = 'tripBoard';
+
 export const BOARD_CAP = 24;
+
 const BOARD_VERSION = 1;
 
 interface BoardRecord {
@@ -19,8 +21,11 @@ interface BoardRecord {
 }
 
 const boardMutex = createMutex();
+
 export const THUMB_MAX_SIDE = 512;
+
 export const THUMB_MAX_BYTES = 64000;
+
 export const THUMB_MAX_SOURCE_BYTES = 4000000;
 
 const normalizePart = (value: string): string =>
@@ -31,7 +36,9 @@ const normalizePart = (value: string): string =>
 
 export const dedupeKeyFor = async (placeName: string, country: string): Promise<string> => {
   const name = normalizePart(placeName);
+
   const land = normalizePart(country);
+
   const digest = await crypto.subtle.digest(
     'SHA-256',
     new TextEncoder().encode(`${name.length}:${name}|${land.length}:${land}`)
@@ -58,6 +65,7 @@ const validPins = (pins: unknown): BoardPin[] => {
   if (!Array.isArray(pins)) {
     return [];
   }
+
   return pins.filter(isPin).sort((a, b) => a.addedAt - b.addedAt);
 };
 
@@ -66,6 +74,7 @@ const validPins = (pins: unknown): BoardPin[] => {
 // migrate on the next write; unknown versions refuse the write.
 const readBoard = async (): Promise<{ pins: BoardPin[]; writable: boolean }> => {
   const stored = (await chrome.storage.local.get(BOARD_STORAGE_KEY)) as Record<string, unknown>;
+
   const record: unknown = stored[BOARD_STORAGE_KEY];
 
   if (record === undefined) {
@@ -91,7 +100,9 @@ const readBoard = async (): Promise<{ pins: BoardPin[]; writable: boolean }> => 
 // else (versioned, absent, unwritable) is left for the normal read path.
 export const migrateBoard = async (): Promise<void> => {
   const stored = (await chrome.storage.local.get(BOARD_STORAGE_KEY)) as Record<string, unknown>;
+
   const record: unknown = stored[BOARD_STORAGE_KEY];
+
   if (!Array.isArray(record)) {
     return;
   }
@@ -119,10 +130,12 @@ export const stripUrlEphemera = (url: string): string => {
   if (url.startsWith('data:')) {
     return url;
   }
+
   try {
     const parsed = new URL(url);
     parsed.search = '';
     parsed.hash = '';
+
     return parsed.toString();
   } catch {
     return url;
@@ -140,6 +153,7 @@ export const pinPlace = async (
     }
 
     const key = await dedupeKeyFor(pin.place.placeName, pin.place.country);
+
     const keys = await Promise.all(
       pins.map((entry) => dedupeKeyFor(entry.place.placeName, entry.place.country))
     );
@@ -153,7 +167,9 @@ export const pinPlace = async (
       ...(pin.imageUrl ? { imageUrl: stripUrlEphemera(pin.imageUrl) } : {}),
       addedAt: pin.addedAt ?? Date.now(),
     };
+
     const next = [...pins, entry].sort((a, b) => a.addedAt - b.addedAt);
+
     let evicted: BoardPin | null = null;
 
     if (next.length > BOARD_CAP) {
@@ -161,6 +177,7 @@ export const pinPlace = async (
     }
 
     await writeBoard(next);
+
     return { status: 'pinned', pins: next, evicted };
   });
 
@@ -173,14 +190,17 @@ export const removePin = async (placeName: string, country: string): Promise<Boa
     }
 
     const key = await dedupeKeyFor(placeName, country);
+
     const keys = await Promise.all(
       pins.map((entry) => dedupeKeyFor(entry.place.placeName, entry.place.country))
     );
+
     const next = pins.filter((_, index) => keys[index] !== key);
 
     if (next.length !== pins.length) {
       await writeBoard(next);
     }
+
     return next;
   });
 
@@ -210,6 +230,7 @@ export const makeThumbnail = async (
   }
 
   let img: HTMLImageElement;
+
   try {
     img = await decodeImage(dataUrl);
   } catch {
@@ -221,11 +242,13 @@ export const makeThumbnail = async (
   }
 
   const canvas = document.createElement('canvas');
+
   const ctx = canvas.getContext('2d');
 
   if (!ctx) {
     return null;
   }
+
   const scale = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
   canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
   canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
@@ -249,5 +272,6 @@ export const makeThumbnail = async (
       return out;
     }
   }
+
   return null;
 };

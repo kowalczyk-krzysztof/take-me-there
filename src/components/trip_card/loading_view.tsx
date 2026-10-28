@@ -4,6 +4,7 @@ import styles from './trip_card.module.css';
 import { msg } from '../../utils/i18n';
 
 const LOADING_LINES = ['loadingReading', 'loadingIdentifying', 'loadingWriting'];
+
 const ROTATE_MS = 2500;
 
 export const LoadingView = () => {

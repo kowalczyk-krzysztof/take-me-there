@@ -24,6 +24,7 @@ const addVideo = (stubs: VideoStubs): HTMLVideoElement => {
   const video = document.createElement('video');
   document.body.append(video);
   Object.defineProperty(video, 'currentSrc', { value: stubs.currentSrc, configurable: true });
+
   if (stubs.src !== undefined) {
     Object.defineProperty(video, 'src', { value: stubs.src, configurable: true });
   }
@@ -46,10 +47,12 @@ const addVideo = (stubs: VideoStubs): HTMLVideoElement => {
     value: stubs.mediaKeys ?? null,
     configurable: true,
   });
+
   return video;
 };
 
 const drawImage = vi.fn();
+
 const toDataURL = vi.fn((_type: string, _quality: number): string => 'data:image/jpeg,small');
 
 beforeEach(() => {
@@ -159,6 +162,7 @@ describe('captureVideoFrame', () => {
 
   it('walks the quality ladder down until the frame fits', () => {
     addVideo({ currentSrc: 'blob:https://example.com/aaa' });
+
     const big = `data:image/jpeg,${'x'.repeat(600000)}`;
     toDataURL
       .mockImplementationOnce(() => big)

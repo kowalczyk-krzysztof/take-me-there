@@ -4,6 +4,7 @@ import { installChromeMock, MockStorageArea, uninstallChromeMock } from './chrom
 describe('MockStorageArea fidelity', () => {
   it('stores a copy so later caller mutations cannot leak in', async () => {
     const area = new MockStorageArea('session');
+
     const record = { nested: { count: 1 } };
     await area.set({ tripRequest: record });
     record.nested.count = 99;
@@ -13,6 +14,7 @@ describe('MockStorageArea fidelity', () => {
   it('returns copies so reader mutations cannot leak back', async () => {
     const area = new MockStorageArea('local');
     await area.set({ settings: { imageOnly: false } });
+
     const first = await area.get('settings');
     (first['settings'] as { imageOnly: boolean }).imageOnly = true;
     expect(await area.get('settings')).toEqual({ settings: { imageOnly: false } });
@@ -20,10 +22,12 @@ describe('MockStorageArea fidelity', () => {
 
   it('dispatches asynchronously with changes only', async () => {
     const area = new MockStorageArea('session');
+
     const seen: unknown[][] = [];
     area.onChanged.addListener((...args: unknown[]) => {
       seen.push(args);
     });
+
     const pending = area.set({ k: { v: 1 } });
     expect(seen).toHaveLength(0);
     await pending;
@@ -35,6 +39,7 @@ describe('MockStorageArea fidelity', () => {
 
   it('fans out to the global listener with the area name', async () => {
     const mock = installChromeMock();
+
     try {
       const global = vi.fn();
       (

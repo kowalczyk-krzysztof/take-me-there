@@ -70,6 +70,7 @@ const refreshCost = async (): Promise<void> => {
 const onSaveKey = (key: string): void => {
   void (async () => {
     store.set({ keyPending: true, keyError: null, status: msg('statusValidatingKey') });
+
     const { provider, settings } = await getActiveProvider();
 
     try {
@@ -86,6 +87,7 @@ const onSaveKey = (key: string): void => {
         keyError: msg(failureKey),
         status: msg(failureKey),
       });
+
       return;
     }
 
@@ -100,6 +102,7 @@ const onSaveKey = (key: string): void => {
         keyError: msg('keyErrorRetry'),
         status: msg('keyErrorRetry'),
       });
+
       return;
     }
 
@@ -115,7 +118,9 @@ const onSaveKey = (key: string): void => {
 const onTestKey = (): void => {
   void (async () => {
     const { provider } = await getActiveProvider();
+
     const draft = inputValue('key-input').trim();
+
     let key = draft;
 
     if (!key) {
@@ -125,6 +130,7 @@ const onTestKey = (): void => {
 
     if (!key) {
       store.set({ keyError: msg('keyErrorEmpty'), status: msg('keyErrorEmpty') });
+
       return;
     }
     store.set({ status: msg('statusValidatingKey') });
@@ -135,6 +141,7 @@ const onTestKey = (): void => {
       const failureKey =
         err instanceof ProviderError && err.code === 'auth' ? 'keyErrorRejected' : 'keyErrorRetry';
       store.set({ keyError: msg(failureKey), status: msg(failureKey) });
+
       return;
     }
 
@@ -160,14 +167,19 @@ const onClearKey = (): void => {
 const onCompatSave = (): void => {
   void (async () => {
     store.set({ compatError: null });
+
     const baseURL = inputValue('compat-base-url').trim().replace(/\/+$/, '');
+
     let origin = '';
+
     try {
       const parsed = new URL(baseURL);
+
       const local =
         parsed.hostname === 'localhost' ||
         parsed.hostname === '127.0.0.1' ||
         parsed.hostname === '[::1]';
+
       if (
         (parsed.protocol !== 'https:' && !(parsed.protocol === 'http:' && local)) ||
         !parsed.hostname
@@ -177,34 +189,52 @@ const onCompatSave = (): void => {
       origin = parsed.origin;
     } catch {
       store.set({ compatError: msg('providerErrorUrl') });
+
       return;
     }
+
     const model = inputValue('compat-model').trim();
+
     if (!model) {
       store.set({ compatError: msg('providerErrorModel') });
+
       return;
     }
+
     const parseRate = (raw: string): number | undefined => {
       const trimmed = raw.trim();
+
       if (!trimmed) {
         return undefined;
       }
+
       const value = Number(trimmed);
+
       return Number.isFinite(value) && value >= 0 ? value : NaN;
     };
+
     const inputRatePerM = parseRate(inputValue('compat-input-rate'));
+
     const outputRatePerM = parseRate(inputValue('compat-output-rate'));
+
     if (Number.isNaN(inputRatePerM) || Number.isNaN(outputRatePerM)) {
       store.set({ compatError: msg('providerErrorRates') });
+
       return;
     }
+
     const host = new URL(origin).host;
+
     const saved = await loadSettings();
+
     if (customHostOf(saved) !== host && store.get().compatConfirmHost !== host) {
       store.set({ compatError: msg('compatHostWarning', host), compatConfirmHost: host });
+
       return;
     }
+
     let granted = false;
+
     try {
       granted = await chrome.permissions.request({ origins: [`${origin}/*`] });
     } catch {

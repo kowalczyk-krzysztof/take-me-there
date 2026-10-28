@@ -17,6 +17,7 @@ export const PinSelectedButton = ({ items, checked, onPinSelected }: Props) => (
         .map((item, index) => ({ item, index }))
         .filter(({ item }) => checked.has(item.title))
         .map(({ index }) => index);
+
       if (indices.length > 0) {
         onPinSelected(indices);
       }

@@ -25,10 +25,13 @@ describe('error-boundary', () => {
 
   it('shows the fallback and reports when a child throws', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
+
     const onCatch = vi.fn();
+
     const Bomb = (): never => {
       throw new Error('boom');
     };
+
     const root = renderSync(
       <ErrorBoundary fallback={() => <p>fallback</p>} onCatch={onCatch}>
         <Bomb />
@@ -40,13 +43,17 @@ describe('error-boundary', () => {
 
   it('retries the children after reset', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
+
     let armed = true;
+
     const Flaky = (): ReactNode => {
       if (armed) {
         throw new Error('boom');
       }
+
       return <p>recovered</p>;
     };
+
     const rendered = renderSync(
       <ErrorBoundary
         fallback={(reset) => (

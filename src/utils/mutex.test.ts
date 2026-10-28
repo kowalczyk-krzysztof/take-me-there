@@ -4,14 +4,19 @@ import { createMutex } from './mutex';
 describe('mutex', () => {
   it('runs tasks in order and propagates results', async () => {
     const mutex = createMutex();
+
     const order: number[] = [];
+
     const slow = mutex(async () => {
       await new Promise((resolve) => setTimeout(resolve, 20));
       order.push(1);
+
       return 'slow';
     });
+
     const fast = mutex(async () => {
       order.push(2);
+
       return 'fast';
     });
     await expect(slow).resolves.toBe('slow');

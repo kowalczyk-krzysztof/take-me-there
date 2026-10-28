@@ -37,7 +37,9 @@ interface Props extends ScanListCallbacks {
 
 export const ScanList = ({ loading, items, onGuide, onPin, onPinSelected }: Props) => {
   const checkedRef = useRef<Set<string>>(new Set());
+
   const [epoch, setEpoch] = useState(0);
+
   const prevItems = useRef(items);
 
   if (prevItems.current !== items) {
@@ -52,6 +54,7 @@ export const ScanList = ({ loading, items, onGuide, onPin, onPinSelected }: Prop
 
   const attach = (el: HTMLDivElement | null): (() => void) | void => {
     boxRef.current = el;
+
     if (!el) {
       return;
     }

@@ -6,9 +6,11 @@ import { installChromeMock, uninstallChromeMock, type ChromeMock } from './chrom
 
 export const waitFor = async (fn: () => unknown, timeoutMs = 5000): Promise<void> => {
   const start = Date.now();
+
   for (;;) {
     try {
       await fn();
+
       return;
     } catch (err) {
       if (Date.now() - start > timeoutMs) {
@@ -37,7 +39,9 @@ export const setupPage = async (
   beforeImport?: (mock: ChromeMock) => void | Promise<void>
 ): Promise<ChromeMock> => {
   vi.resetModules();
+
   const mock = installChromeMock();
+
   if (beforeImport) {
     await beforeImport(mock);
   }
@@ -45,6 +49,7 @@ export const setupPage = async (
   fetchMock.mockReset();
   vi.stubGlobal('fetch', fetchMock);
   await runEntry();
+
   return mock;
 };
 
@@ -67,6 +72,7 @@ export const chatResponse = (
 
 export const sseResponse = (chunks: string[]): Response => {
   const encoder = new TextEncoder();
+
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
       for (const chunk of chunks) {
@@ -75,6 +81,7 @@ export const sseResponse = (chunks: string[]): Response => {
       controller.close();
     },
   });
+
   return new Response(stream, {
     status: 200,
     headers: { 'Content-Type': 'text/event-stream' },
@@ -98,6 +105,7 @@ export const groundedResponse = (json: unknown, annotations: unknown[] = []): Re
 
 export const plantKeyAndConsent = async (): Promise<void> => {
   const { saveKey } = await import('../key_vault');
+
   const { setConsented } = await import('../providers/index');
   await saveKey('muse', 'LLM_x', false);
   await setConsented();

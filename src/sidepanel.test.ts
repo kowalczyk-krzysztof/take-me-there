@@ -2,14 +2,18 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('idb-keyval', () => {
   const stores = new Map<string, Map<unknown, unknown>>();
+
   const area = (id: string): Map<unknown, unknown> => {
     let found = stores.get(id);
+
     if (!found) {
       found = new Map();
       stores.set(id, found);
     }
+
     return found;
   };
+
   return {
     createStore: (db: string, name: string): string => `${db}:${name}`,
     get: async (key: unknown, store: string): Promise<unknown> => area(store).get(key),
@@ -148,6 +152,7 @@ afterEach(teardownPage);
 describe('sidepanel', () => {
   it('renders the idle hint', async () => {
     await setup();
+
     const card = document.querySelector('#result-slot');
     expect(card?.querySelector('.hint')?.textContent).toBe('panelIdle');
     await waitFor(() => {
@@ -157,7 +162,9 @@ describe('sidepanel', () => {
 
   it('switches tabs with roving focus, counts pins, and surfaces runs', async () => {
     const mock = await setup();
+
     const tabMain = document.querySelector('#tab-main') as HTMLButtonElement;
+
     const tabBoard = document.querySelector('#tab-board') as HTMLButtonElement;
     // Locked first run lands on settings with main disabled.
     await waitFor(() => {
@@ -169,6 +176,7 @@ describe('sidepanel', () => {
       expect(tabMain.getAttribute('aria-disabled')).toBeNull();
     });
     tabMain.click();
+
     const i18n = vi.spyOn(chrome.i18n, 'getMessage');
     expect(tabMain.textContent).toBe('mainTab');
     expect(tabMain.getAttribute('aria-selected')).toBe('true');
@@ -210,8 +218,11 @@ describe('sidepanel', () => {
 
   it('skips the disabled main tab in keyboard navigation', async () => {
     await setup();
+
     const tabMain = document.querySelector('#tab-main') as HTMLButtonElement;
+
     const tabBoard = document.querySelector('#tab-board') as HTMLButtonElement;
+
     const tabSettings = document.querySelector('#tab-settings') as HTMLButtonElement;
     await waitFor(() => {
       expect(tabSettings.getAttribute('aria-selected')).toBe('true');
@@ -231,6 +242,7 @@ describe('sidepanel', () => {
   it('replaces the saved key from settings and returns to main', async () => {
     await setup();
     await plantKeyAndConsent();
+
     const tabMain = document.querySelector('#tab-main') as HTMLButtonElement;
     await waitFor(() => {
       expect(tabMain.getAttribute('aria-disabled')).toBeNull();
@@ -239,6 +251,7 @@ describe('sidepanel', () => {
     await waitFor(() => {
       expect(document.querySelector('#key-saved-status')?.textContent).toBe('keySavedStatus');
     });
+
     const actions = [...document.querySelectorAll('#settings-panel .confirm-actions button')];
     expect(actions.map((button) => button.textContent)).toEqual([
       'keyReplaceButton',
@@ -256,6 +269,7 @@ describe('sidepanel', () => {
     await waitFor(() => {
       expect(tabMain.getAttribute('aria-selected')).toBe('true');
     });
+
     const { loadKey } = await import('./key_vault');
     expect(await loadKey('muse')).toEqual({ state: 'ok', key: 'LLM_new' });
   });
@@ -263,6 +277,7 @@ describe('sidepanel', () => {
   it('clears the key from settings and locks the main tab', async () => {
     await setup();
     await plantKeyAndConsent();
+
     const tabMain = document.querySelector('#tab-main') as HTMLButtonElement;
     await waitFor(() => {
       expect(tabMain.getAttribute('aria-disabled')).toBeNull();
@@ -271,6 +286,7 @@ describe('sidepanel', () => {
     await waitFor(() => {
       expect(document.querySelector('#key-saved-status')).not.toBeNull();
     });
+
     const actions = [...document.querySelectorAll('#settings-panel .confirm-actions button')];
     (actions[1] as HTMLButtonElement).click();
     await waitFor(() => {
@@ -278,6 +294,7 @@ describe('sidepanel', () => {
     });
     expect(document.querySelector('#tab-settings')?.getAttribute('aria-selected')).toBe('true');
     expect(document.querySelector('#settings-panel #key-input')).not.toBeNull();
+
     const { loadKey } = await import('./key_vault');
     expect((await loadKey('muse')).state).toBe('missing');
   });
@@ -290,6 +307,7 @@ describe('sidepanel', () => {
     });
     expect(document.querySelector('#settings-panel')?.hasAttribute('hidden')).toBe(false);
     expect(document.querySelector('#key-input')).not.toBeNull();
+
     const img = document.querySelector('#preview-frame img') as HTMLImageElement | null;
     expect(img?.src).toContain('oia.jpg');
   });
@@ -299,7 +317,9 @@ describe('sidepanel', () => {
     await waitFor(() => {
       expect(document.querySelector('#settings-panel #session-only')).not.toBeNull();
     });
+
     const fail = vi.spyOn(mock.local, 'set').mockRejectedValueOnce(new Error('quota'));
+
     const box = document.querySelector('#settings-panel #session-only') as HTMLInputElement;
     box.checked = true;
     box.dispatchEvent(new Event('change', { bubbles: true }));
@@ -311,9 +331,11 @@ describe('sidepanel', () => {
     expect(
       (document.querySelector('#settings-panel #session-only') as HTMLInputElement).checked
     ).toBe(false);
+
     const { loadSettings } = await import('./providers/index');
     expect((await loadSettings()).sessionOnly).toBe(false);
     fail.mockRestore();
+
     const retry = document.querySelector('#settings-panel #session-only') as HTMLInputElement;
     retry.checked = true;
     retry.dispatchEvent(new Event('change', { bubbles: true }));
@@ -358,14 +380,17 @@ describe('sidepanel', () => {
     await waitFor(() => {
       expect(document.querySelector('#guide-content')?.textContent).toContain('Hello world');
     });
+
     const grid = document.querySelector('#links-slot');
     expect(grid?.querySelectorAll('a.tile')).toHaveLength(4);
+
     const chips = document.querySelector('#sources-slot');
     expect(chips?.querySelectorAll('a.chip')).toHaveLength(1);
     expect(document.querySelector('#cost-line')?.textContent).toBe('costLine($0.004 | $0.004)');
     expect(document.querySelector('#status-region')?.textContent).toBe(
       'statusGuideReadySources(1)'
     );
+
     const guide = document.querySelector('#guide-content') as HTMLElement;
     expect(guide.getAttribute('lang')).toBe('en-US');
     expect(guide.getAttribute('dir')).toBe('ltr');
@@ -378,7 +403,9 @@ describe('sidepanel', () => {
     await setup();
     expect(document.documentElement.lang).toBe('');
     expect(document.documentElement.dir).toBe('');
+
     const shells = ['sidepanel', 'options', 'onboarding'].map(readShell);
+
     for (const shell of shells) {
       expect(shell).toContain('<html lang="en">');
     }
@@ -416,6 +443,7 @@ describe('sidepanel', () => {
     expect(document.querySelector('#guide-slot')?.hasAttribute('hidden')).toBe(true);
     expect(document.querySelector('#guide-content')?.textContent).toBe('');
     expect(document.querySelector('#links-slot a.tile')).not.toBeNull();
+
     const button = document.querySelector('#result-slot .plan-trip-button') as HTMLButtonElement;
     expect(button.textContent).toBe('planTripButton');
     expect(document.querySelector('#cost-line')?.textContent).toBe('costLine($0.000 | $0.000)');
@@ -439,6 +467,7 @@ describe('sidepanel', () => {
   it('renders a long multi-chunk guide in full', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
+
     const deltas = [
       'I will research Oia for you. ',
       '## Oia, Greece\n\n',
@@ -449,7 +478,9 @@ describe('sidepanel', () => {
       '### Getting there\n\n',
       'Final paragraph at the very end MARKER-XYZ.',
     ];
+
     const lines: string[] = [];
+
     for (const d of deltas) {
       lines.push(
         'event: response.output_text.delta\n',
@@ -471,6 +502,7 @@ describe('sidepanel', () => {
     await waitFor(() => {
       expect(document.querySelector('#guide-content')?.textContent).toContain('MARKER-XYZ');
     });
+
     const text = document.querySelector('#guide-content')?.textContent ?? '';
     expect(text).toContain('First paragraph');
     expect(text).toContain('bullet two');
@@ -488,6 +520,7 @@ describe('sidepanel', () => {
     await waitForHeading('Oia');
     await clickPlanTrip();
     await waitForHeading('errorServerTitle');
+
     const card = document.querySelector('#result-slot') as HTMLElement;
     (card.querySelector('.primary') as HTMLButtonElement).click();
     await waitFor(() => {
@@ -501,7 +534,9 @@ describe('sidepanel', () => {
   it('serves repeat images from cache without fetching', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
+
     const { hashCacheKey, setCacheEntry } = await import('./result_cache');
+
     const hash = await hashCacheKey({
       seed: 'https://cdn.example.com/oia.jpg',
       pageUrl: 'https://example.com/guide',
@@ -546,6 +581,7 @@ describe('sidepanel', () => {
   it('gates low-confidence guesses behind the no-place card', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
+
     const GUESS = { ...VALID_PLACE, confidence: 0.2 };
     fetchMock
       .mockResolvedValueOnce(chatResponse(GUESS))
@@ -553,17 +589,21 @@ describe('sidepanel', () => {
     await mock.session.set({ tripRequest: READY() });
     await waitForHeading('noPlaceTitle');
     expect(fetchMock).toHaveBeenCalledTimes(1);
+
     const card = document.querySelector('#result-slot') as HTMLElement;
     (card.querySelector('.primary') as HTMLButtonElement).click();
     await waitFor(() => {
       expect(card.querySelector('h2')?.textContent).toBe('Oia');
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
+
     const init = fetchMock.mock.calls[1][1] as RequestInit;
+
     const body = JSON.parse(init.body as string) as {
       messages: Array<{ content: Array<{ text?: string }> | string }>;
       reasoning_effort: string;
     };
+
     const parts = body.messages[1].content as Array<{ text?: string }>;
     expect(parts[0].text).toContain('NOT Oia');
     expect(body.reasoning_effort).toBe('medium');
@@ -589,7 +629,9 @@ describe('sidepanel', () => {
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusGuideReady');
     });
+
     const { monthKey } = await import('./pricing');
+
     const record = mock.local.data.get('costTotals') as {
       v: number;
       months: Record<string, number>;
@@ -648,6 +690,7 @@ describe('sidepanel', () => {
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusGuideReady');
     });
+
     const content = document.querySelector('#guide-content');
     expect(content?.textContent).toContain('Hello world');
     expect(content?.textContent).not.toContain('research Oia');
@@ -656,6 +699,7 @@ describe('sidepanel', () => {
 
   it('keeps the consent gate for re-click when the flag write fails', async () => {
     const mock = await setup();
+
     const { saveKey } = await import('./key_vault');
     await saveKey('muse', 'LLM_x', false);
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
@@ -663,7 +707,9 @@ describe('sidepanel', () => {
     await waitFor(() => {
       expect(document.querySelector('#result-slot h2')?.textContent).toBe('consentTitle');
     });
+
     const fail = vi.spyOn(mock.local, 'set').mockRejectedValueOnce(new Error('quota'));
+
     const agree = [...document.querySelectorAll('#result-slot button')].find(
       (button) => button.textContent === 'agreeButton'
     ) as HTMLButtonElement;
@@ -674,6 +720,7 @@ describe('sidepanel', () => {
     expect(document.querySelector('#result-slot h2')?.textContent).toBe('consentTitle');
     expect(fetchMock).not.toHaveBeenCalled();
     fail.mockRestore();
+
     const retry = [...document.querySelectorAll('#result-slot button')].find(
       (button) => button.textContent === 'agreeButton'
     ) as HTMLButtonElement;
@@ -684,6 +731,7 @@ describe('sidepanel', () => {
 
   it('shows the consent gate without any network call', async () => {
     const mock = await setup();
+
     const { saveKey } = await import('./key_vault');
     await saveKey('muse', 'LLM_x', false);
     await mock.session.set({ tripRequest: READY() });
@@ -696,7 +744,9 @@ describe('sidepanel', () => {
 
   it('runs exactly once after consent is granted', async () => {
     const mock = await setup();
+
     const { saveKey } = await import('./key_vault');
+
     const { hasConsented } = await import('./providers/index');
     await saveKey('muse', 'LLM_x', false);
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
@@ -704,6 +754,7 @@ describe('sidepanel', () => {
     await waitFor(() => {
       expect(document.querySelector('#result-slot h2')?.textContent).toBe('consentTitle');
     });
+
     const agree = [...document.querySelectorAll('#result-slot button')].find(
       (button) => button.textContent === 'agreeButton'
     ) as HTMLButtonElement;
@@ -715,13 +766,16 @@ describe('sidepanel', () => {
 
   it('leaves consent unset when declined', async () => {
     const mock = await setup();
+
     const { saveKey } = await import('./key_vault');
+
     const { hasConsented } = await import('./providers/index');
     await saveKey('muse', 'LLM_x', false);
     await mock.session.set({ tripRequest: READY() });
     await waitFor(() => {
       expect(document.querySelector('#result-slot h2')?.textContent).toBe('consentTitle');
     });
+
     const decline = [...document.querySelectorAll('#result-slot button')].find(
       (button) => button.textContent === 'declineButton'
     ) as HTMLButtonElement;
@@ -748,11 +802,13 @@ describe('sidepanel', () => {
     });
     expect(document.querySelector('#status-region')?.textContent).toBe('statusVideoConfirmNeeded');
     expect(fetchMock).not.toHaveBeenCalled();
+
     const buttons = [...document.querySelectorAll('#result-slot .confirm-actions button')];
     expect(buttons.map((button) => button.textContent)).toEqual([
       'videoConfirmAgree',
       'videoConfirmCancel',
     ]);
+
     const img = document.querySelector('#preview-frame img') as HTMLImageElement | null;
     expect(img?.getAttribute('src')).toBe('data:image/jpeg,frame');
     expect(img?.alt).toBe('previewAltFrame');
@@ -776,7 +832,9 @@ describe('sidepanel', () => {
     });
     (document.querySelector('#result-slot .confirm-actions .primary') as HTMLButtonElement).click();
     await waitForHeading('Oia');
+
     const init = fetchMock.mock.calls[0][1] as RequestInit;
+
     const body = JSON.parse(init.body as string) as {
       messages: Array<{ content: Array<{ image_url?: { url: string } }> }>;
     };
@@ -800,6 +858,7 @@ describe('sidepanel', () => {
     await waitFor(() => {
       expect(document.querySelector('#result-slot .confirm-actions .primary')).not.toBeNull();
     });
+
     const fail = vi.spyOn(mock.local, 'set').mockRejectedValueOnce(new Error('quota'));
     (document.querySelector('#result-slot .confirm-actions .primary') as HTMLButtonElement).click();
     await waitFor(() => {
@@ -843,6 +902,7 @@ describe('sidepanel', () => {
     await waitFor(() => {
       expect(document.querySelectorAll('#result-slot .confirm-actions button')).toHaveLength(2);
     });
+
     const cancel = [
       ...document.querySelectorAll('#result-slot .confirm-actions button'),
     ][1] as HTMLButtonElement;
@@ -858,6 +918,7 @@ describe('sidepanel', () => {
   it('runs rung 2 for tainted mp4 video with the video part', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
+
     const { setVideoConsented } = await import('./video');
     await setVideoConsented();
     fetchMock
@@ -871,7 +932,9 @@ describe('sidepanel', () => {
       }),
     });
     await waitForHeading('Oia');
+
     const init = fetchMock.mock.calls[0][1] as RequestInit;
+
     const body = JSON.parse(init.body as string) as {
       messages: Array<{ content: Array<{ type: string }> }>;
     };
@@ -889,7 +952,9 @@ describe('sidepanel', () => {
       .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
     await mock.session.set({ tripRequest: READY() });
     await waitForHeading('Oia');
+
     const card = document.querySelector('#result-slot') as HTMLElement;
+
     const pin = card.querySelector('.pin-button') as HTMLButtonElement;
     expect(pin.getAttribute('aria-pressed')).toBe('false');
     pin.click();
@@ -899,7 +964,9 @@ describe('sidepanel', () => {
     expect(
       (card.querySelector('.pin-button') as HTMLButtonElement).getAttribute('aria-pressed')
     ).toBe('true');
+
     const board = document.querySelector('#board-slot') as HTMLElement;
+
     const items = [...(board.querySelectorAll('li') ?? [])];
     expect(items).toHaveLength(1);
     expect(items[0].querySelector('.item-name')?.textContent).toBe('Oia, Greece');
@@ -912,6 +979,7 @@ describe('sidepanel', () => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusPinDuplicate(Oia)');
     });
     expect(board.querySelectorAll('li')).toHaveLength(1);
+
     const remove = items[0].querySelector('button') as HTMLButtonElement;
     remove.click();
     await waitFor(() => {
@@ -932,6 +1000,7 @@ describe('sidepanel', () => {
     await waitFor(() => {
       expect(document.querySelector('#board-slot li')).not.toBeNull();
     });
+
     const fail = vi.spyOn(mock.local, 'set').mockRejectedValueOnce(new Error('quota'));
     (document.querySelector('#board-slot li button') as HTMLButtonElement).click();
     await waitFor(() => {
@@ -950,12 +1019,15 @@ describe('sidepanel', () => {
       .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
     await mock.session.set({ tripRequest: READY() });
     await waitForHeading('Oia');
+
     const fail = vi.spyOn(mock.local, 'set').mockRejectedValueOnce(new Error('quota'));
+
     const card = document.querySelector('#result-slot') as HTMLElement;
     (card.querySelector('.pin-button') as HTMLButtonElement).click();
     await waitFor(() => {
       expect(document.querySelector('#alert-region')?.textContent).toBe('alertPinFail(Oia)');
     });
+
     const board = document.querySelector('#board-slot') as HTMLElement;
     expect(board.querySelector('.notice')?.textContent).toContain('boardNoticePinFail');
     fail.mockRestore();
@@ -964,7 +1036,9 @@ describe('sidepanel', () => {
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned(Oia | 1)');
     });
+
     const { listPins } = await import('./board_store');
+
     const pins = await listPins();
     expect(pins).toHaveLength(1);
     expect(pins[0].thumbnail).toBeUndefined();
@@ -978,21 +1052,25 @@ describe('sidepanel', () => {
       .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
     await mock.session.set({ tripRequest: READY() });
     await waitForHeading('Oia');
+
     const card = document.querySelector('#result-slot') as HTMLElement;
     (card.querySelector('.pin-button') as HTMLButtonElement).click();
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned(Oia | 1)');
     });
+
     const board = document.querySelector('#board-slot') as HTMLElement;
     selectBoardTab();
     (board.querySelector('.clear-button') as HTMLButtonElement).click();
     expect(board.querySelector('.confirm-heading')?.textContent).toBe('boardClearTitle(1)');
+
     const [, cancel] = [
       ...(board.querySelectorAll('.confirm-actions button') ?? []),
     ] as HTMLButtonElement[];
     cancel.click();
     expect(board.querySelectorAll('li')).toHaveLength(1);
     (board.querySelector('.clear-button') as HTMLButtonElement).click();
+
     const [confirm] = [
       ...(board.querySelectorAll('.confirm-actions button') ?? []),
     ] as HTMLButtonElement[];
@@ -1007,7 +1085,9 @@ describe('sidepanel', () => {
   it('plans a trip from two pins with a narrated itinerary', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
+
     const FIRA = { ...VALID_PLACE, placeName: 'Fira', city: 'Fira', oneLiner: 'Cliff views.' };
+
     const VALID_PLAN = {
       stops: ['Oia, Greece', 'Fira, Greece'],
       days: [
@@ -1029,6 +1109,7 @@ describe('sidepanel', () => {
       .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
     await mock.session.set({ tripRequest: READY() });
     await waitForHeading('Oia');
+
     const card = document.querySelector('#result-slot') as HTMLElement;
     (card.querySelector('.pin-button') as HTMLButtonElement).click();
     await waitFor(() => {
@@ -1048,8 +1129,10 @@ describe('sidepanel', () => {
       const board = document.querySelector('#board-slot') as HTMLElement;
       expect(board.querySelectorAll('li')).toHaveLength(2);
     });
+
     const board = document.querySelector('#board-slot') as HTMLElement;
     selectBoardTab();
+
     const plan = board.querySelector('.plan-button') as HTMLButtonElement;
     expect(plan.hasAttribute('aria-disabled')).toBe(false);
     plan.click();
@@ -1060,6 +1143,7 @@ describe('sidepanel', () => {
     expect(document.querySelector('#board-panel')?.hasAttribute('hidden')).toBe(true);
     expect(card.querySelector('h2')?.textContent).toBe('itineraryTitle(2)');
     expect(card.querySelectorAll('.stop-list li')).toHaveLength(2);
+
     const maps = card.querySelector('.maps-link') as HTMLAnchorElement;
     expect(maps.href).toContain('maps/dir');
     expect(maps.href).toContain('origin=');
@@ -1069,8 +1153,10 @@ describe('sidepanel', () => {
     );
     expect(document.querySelector('#cost-line')?.textContent).toBe('costLine($0.004 | $0.004)');
     expect((document.activeElement as HTMLElement)?.tagName).toBe('H2');
+
     const [, , structure] = fetchMock.mock.calls.map((call) => {
       const init = call[1] as RequestInit;
+
       return JSON.parse(init.body as string) as {
         messages: Array<{ content: Array<{ type: string }> }>;
         response_format: { type: string };
@@ -1095,7 +1181,9 @@ describe('sidepanel', () => {
       const list = document.querySelector('#result-slot');
       expect(list?.querySelector('h2')?.textContent).toBe('scanTitle');
     });
+
     const list = document.querySelector('#result-slot');
+
     const grid = list?.querySelector('.skeleton-grid');
     expect(grid?.getAttribute('aria-hidden')).toBe('true');
     expect(grid?.querySelectorAll('.skeleton-block')).toHaveLength(6);
@@ -1140,7 +1228,9 @@ describe('sidepanel', () => {
       expect(list?.querySelectorAll('.scan-card')).toHaveLength(2);
     });
     expect(document.querySelector('#status-region')?.textContent).toBe('scanFound(2)');
+
     const list = document.querySelector('#result-slot');
+
     const cards = list?.querySelectorAll('.scan-card');
     expect(cards?.[0]?.querySelector('img')?.getAttribute('src')).toBe(
       'https://img.example.com/b.jpg'
@@ -1212,6 +1302,7 @@ describe('sidepanel', () => {
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
     await mock.session.set({ tripRequest: READY({ requestId: '200-2' }) });
     await waitForHeading('Oia');
+
     const stored = await mock.session.get('tripRequest');
     expect(stored.tripRequest).toEqual({ requestId: '200-2', status: 'ready' });
   });
@@ -1219,7 +1310,9 @@ describe('sidepanel', () => {
   it('drops a superseded identify that resolves after the next run wins', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
+
     let resolveFirst: (value: Response) => void = () => {};
+
     const gate = new Promise<Response>((resolve) => {
       resolveFirst = resolve;
     });
@@ -1266,6 +1359,7 @@ describe('sidepanel', () => {
     });
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(fetchMock).not.toHaveBeenCalled();
+
     const stored = await mock.session.get('tripRequest');
     expect(stored.tripRequest).toEqual({ requestId: '200-2', status: 'ready' });
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
@@ -1280,6 +1374,7 @@ describe('sidepanel', () => {
     const mock = await setup();
     await plantKeyAndConsent();
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
+
     const record = READY({ requestId: '200-2' });
     delete (record as Record<string, unknown>).signals;
     await mock.session.set({ tripRequest: record });
@@ -1347,6 +1442,7 @@ describe('sidepanel', () => {
       const list = document.querySelector('#result-slot');
       expect(list?.querySelectorAll('.scan-card')).toHaveLength(1);
     });
+
     const list = document.querySelector('#result-slot') as HTMLElement;
     (list.querySelector('.scan-card button') as HTMLButtonElement).click();
     await waitForHeading('Oia');
@@ -1359,6 +1455,7 @@ describe('sidepanel', () => {
   it('pins scan cards singly and in bulk', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
+
     const { listPins } = await import('./board_store');
     fetchMock.mockResolvedValueOnce(
       chatResponse({
@@ -1394,7 +1491,9 @@ describe('sidepanel', () => {
       const list = document.querySelector('#result-slot');
       expect(list?.querySelectorAll('.scan-card')).toHaveLength(2);
     });
+
     const list = document.querySelector('#result-slot') as HTMLElement;
+
     const cards = list.querySelectorAll('.scan-card');
     (cards?.[0]?.querySelector('.pin-button') as HTMLButtonElement).click();
     await waitFor(async () => {
@@ -1409,6 +1508,7 @@ describe('sidepanel', () => {
         ?.getAttribute('aria-pressed');
       expect(pressed).toBe('true');
     });
+
     for (const box of list.querySelectorAll('input[type="checkbox"]') ?? []) {
       (box as HTMLInputElement).click();
     }
@@ -1444,6 +1544,7 @@ describe('sidepanel', () => {
       }),
     });
     await waitForHeading('errorServerTitle');
+
     const card = document.querySelector('#result-slot') as HTMLElement;
     (card.querySelector('.primary') as HTMLButtonElement).click();
     await waitFor(() => {
@@ -1456,6 +1557,7 @@ describe('sidepanel', () => {
   it('duels the result against a pinned place', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
+
     const { pinPlace } = await import('./board_store');
     await pinPlace({
       place: { ...VALID_PLACE, placeName: 'Fira', city: 'Fira', confidence: 0.8 },
@@ -1472,6 +1574,7 @@ describe('sidepanel', () => {
     );
     await mock.session.set({ tripRequest: READY() });
     await waitForHeading('Oia');
+
     const card = document.querySelector('#result-slot') as HTMLElement;
     await waitFor(() => {
       expect(card.querySelectorAll('.compare-row option')).toHaveLength(1);
@@ -1486,14 +1589,17 @@ describe('sidepanel', () => {
     expect(document.querySelector('#privacy-line')?.textContent).toBe(
       "privacyNames(Meta's Muse API)"
     );
+
     const table = document.querySelector('#duel-slot');
     expect(table?.querySelector('caption')?.textContent).toBe(
       'duelCaption(Oia, Greece | Fira, Greece)'
     );
     expect(table?.querySelector('table')?.getAttribute('aria-busy')).toBe('false');
+
     const chips = document.querySelector('#sources-slot');
     expect(chips?.querySelectorAll('a.chip')).toHaveLength(1);
     expect(fetchMock).toHaveBeenCalledTimes(2);
+
     const duelUrl = fetchMock.mock.calls[1][0] as string;
     expect(duelUrl).toContain('/responses');
   });
@@ -1501,6 +1607,7 @@ describe('sidepanel', () => {
   it('cancels a hanging duel and clears the slot', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
+
     const { pinPlace } = await import('./board_store');
     await pinPlace({
       place: { ...VALID_PLACE, placeName: 'Fira', city: 'Fira', confidence: 0.8 },
@@ -1511,6 +1618,7 @@ describe('sidepanel', () => {
       .mockImplementationOnce(() => new Promise<Response>(() => {}));
     await mock.session.set({ tripRequest: READY() });
     await waitForHeading('Oia');
+
     const card = document.querySelector('#result-slot') as HTMLElement;
     await waitFor(() => {
       expect(card.querySelectorAll('.compare-row option')).toHaveLength(1);
@@ -1534,7 +1642,9 @@ describe('sidepanel', () => {
       .mockImplementationOnce(() => new Promise<Response>(() => {}));
     await mock.session.set({ tripRequest: READY() });
     await waitForHeading('Oia');
+
     const card = document.querySelector('#result-slot') as HTMLElement;
+
     const chips = [...card.querySelectorAll('.chips-row .chip')] as HTMLButtonElement[];
     expect(chips).toHaveLength(3);
     chips[0].click();
@@ -1552,6 +1662,7 @@ describe('sidepanel', () => {
   it('falls back to chat when duel grounding is rejected', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
+
     const { pinPlace } = await import('./board_store');
     await pinPlace({
       place: { ...VALID_PLACE, placeName: 'Fira', city: 'Fira', confidence: 0.8 },
@@ -1571,6 +1682,7 @@ describe('sidepanel', () => {
       const card = document.querySelector('#result-slot');
       expect(card?.querySelector('.compare-go')).not.toBeNull();
     });
+
     const card = document.querySelector('#result-slot') as HTMLElement;
     (card.querySelector('.compare-go') as HTMLButtonElement).click();
     await waitFor(() => {
@@ -1584,6 +1696,7 @@ describe('sidepanel', () => {
   it('retries a failed duel inline without losing the result', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
+
     const { pinPlace } = await import('./board_store');
     await pinPlace({
       place: { ...VALID_PLACE, placeName: 'Fira', city: 'Fira', confidence: 0.8 },
@@ -1605,6 +1718,7 @@ describe('sidepanel', () => {
       const card = document.querySelector('#result-slot');
       expect(card?.querySelector('.compare-go')).not.toBeNull();
     });
+
     const card = document.querySelector('#result-slot') as HTMLElement;
     (card.querySelector('.compare-go') as HTMLButtonElement).click();
     await waitFor(() => {
@@ -1614,6 +1728,7 @@ describe('sidepanel', () => {
       );
     });
     expect(card.querySelector('h2')?.textContent).toBe('Oia');
+
     const table = document.querySelector('#duel-slot') as HTMLElement;
     (table.querySelector('.duel-error button') as HTMLButtonElement).click();
     await waitFor(() => {
@@ -1644,13 +1759,16 @@ describe('sidepanel', () => {
       .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
     await mock.session.set({ tripRequest: READY() });
     await waitForHeading('Oia');
+
     const card = document.querySelector('#result-slot') as HTMLElement;
+
     const chips = card.querySelectorAll('.chips-row .chip');
     expect(chips).toHaveLength(3);
     (chips?.[0] as HTMLButtonElement).click();
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('alternatesReady(2)');
     });
+
     const fresh = document.querySelector('#result-slot') as HTMLElement;
     expect(fresh.querySelectorAll('.alternate-card')).toHaveLength(2);
     (
@@ -1658,6 +1776,7 @@ describe('sidepanel', () => {
     ).click();
     await waitFor(() => {
       const grid = document.querySelector('#links-slot');
+
       const tiles = grid?.querySelectorAll('a.tile');
       expect(tiles?.length).toBeGreaterThan(0);
       expect((tiles?.[0] as HTMLAnchorElement).href).toContain('Fira');
@@ -1686,12 +1805,15 @@ describe('sidepanel', () => {
     );
     await mock.session.set({ tripRequest: READY() });
     await waitForHeading('Oia');
+
     const card = document.querySelector('#result-slot') as HTMLElement;
     (card.querySelector('.chips-row .chip') as HTMLButtonElement).click();
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('alternatesReady(1)');
     });
+
     const fresh = document.querySelector('#result-slot') as HTMLElement;
+
     const pin = fresh.querySelector('.alternate-card .pin-button') as HTMLButtonElement;
     expect(pin.getAttribute('aria-pressed')).toBe('false');
     expect(fresh.querySelector('.alternate-card .thumb-monogram')?.textContent).toBe('F');
@@ -1699,11 +1821,14 @@ describe('sidepanel', () => {
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned(Fira | 1)');
     });
+
     const board = document.querySelector('#board-slot') as HTMLElement;
+
     const entries = board.querySelectorAll('li');
     expect(entries).toHaveLength(1);
     expect(entries[0]?.querySelector('.item-name')?.textContent).toContain('Fira');
     expect(entries[0]?.querySelector('.thumb-monogram')?.textContent).toBe('F');
+
     const synced = document.querySelector('#result-slot') as HTMLElement;
     expect(synced.querySelector('.alternate-card .pin-button')?.getAttribute('aria-pressed')).toBe(
       'true'
@@ -1719,11 +1844,13 @@ describe('sidepanel', () => {
       .mockResolvedValueOnce(new Response('boom', { status: 500 }));
     await mock.session.set({ tripRequest: READY() });
     await waitForHeading('Oia');
+
     const card = document.querySelector('#result-slot') as HTMLElement;
     (card.querySelector('.chips-row .chip') as HTMLButtonElement).click();
     await waitFor(() => {
       expect(document.querySelector('#alert-region')?.textContent).toBe('alternatesFail');
     });
+
     const fresh = document.querySelector('#result-slot') as HTMLElement;
     expect(fresh.querySelector('h2')?.textContent).toBe('Oia');
     expect(fresh.querySelectorAll('.chips-row .chip')).toHaveLength(3);
@@ -1735,6 +1862,7 @@ describe('sidepanel', () => {
   it('excludes the current place from duel targets and handles stale picks', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
+
     const { pinPlace, removePin } = await import('./board_store');
     await pinPlace({ place: VALID_PLACE, sourceHost: 'example.com' });
     await pinPlace({
@@ -1747,6 +1875,7 @@ describe('sidepanel', () => {
       const card = document.querySelector('#result-slot');
       expect(card?.querySelectorAll('.compare-row option')).toHaveLength(1);
     });
+
     const card = document.querySelector('#result-slot') as HTMLElement;
     expect(card.querySelector('.compare-row option')?.textContent).toBe('Fira, Greece');
     await removePin('Fira', 'Greece');
@@ -1761,7 +1890,9 @@ describe('sidepanel', () => {
   it('retries an image-400 with downloaded bytes', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
+
     const permsRequest = vi.fn().mockResolvedValue(true);
+
     const permsRemove = vi.fn().mockResolvedValue(undefined);
     (chrome as unknown as { permissions: unknown }).permissions = {
       request: permsRequest,
@@ -1793,7 +1924,9 @@ describe('sidepanel', () => {
       const card = document.querySelector('#result-slot');
       expect(card?.querySelectorAll('button')).toHaveLength(2);
     });
+
     const card = document.querySelector('#result-slot') as HTMLElement;
+
     const buttons = card.querySelectorAll('button');
     expect(buttons?.[1]?.textContent).toBe('fetchRetryButton');
     (buttons?.[1] as HTMLButtonElement).click();

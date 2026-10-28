@@ -45,8 +45,11 @@ export const TripBoard = ({
   onRetryPin,
 }: Props) => {
   const [open, setOpen] = useState(true);
+
   const [confirming, setConfirming] = useState<number | null>(null);
+
   const rootRef = useRef<HTMLDivElement | null>(null);
+
   const focusDisclosure = (root: HTMLDivElement | null): void => {
     root?.querySelector<HTMLButtonElement>(`.${styles.disclosure}`)?.focus();
   };
@@ -55,6 +58,7 @@ export const TripBoard = ({
   const repairFocus = useRef(false);
 
   const prevItems = useRef(items);
+
   if (prevItems.current !== items) {
     prevItems.current = items;
     repairFocus.current = !!document.activeElement?.closest('li');

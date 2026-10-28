@@ -32,6 +32,7 @@ describe('scan-list', () => {
       <ScanList loading={true} items={[]} onGuide={noop} onPin={noop} onPinSelected={noop} />
     ).container;
     expect(root.querySelector('h2')?.textContent).toBe('scanTitle');
+
     const grid = root.querySelector('.skeleton-grid');
     expect(grid?.getAttribute('aria-hidden')).toBe('true');
     expect(grid?.querySelectorAll('.skeleton-block').length).toBe(6);
@@ -45,10 +46,12 @@ describe('scan-list', () => {
     rendered.rerender(
       <ScanList loading={false} items={ITEMS} onGuide={noop} onPin={noop} onPinSelected={noop} />
     );
+
     const root = rendered.container;
     expect(root.querySelector('.skeleton-grid')).toBeNull();
     expect(root.querySelector('section')?.getAttribute('aria-busy')).toBe('false');
     expect(root.querySelectorAll('.scan-card').length).toBe(2);
+
     const list = root.querySelector('ul.scan-results') as HTMLElement;
     expect(list.children).toHaveLength(2);
     expect(list.children[0].tagName).toBe('LI');
@@ -58,12 +61,15 @@ describe('scan-list', () => {
     const root = renderSync(
       <ScanList loading={false} items={ITEMS} onGuide={noop} onPin={noop} onPinSelected={noop} />
     ).container;
+
     const cards = root.querySelectorAll('.scan-card');
     expect(cards[0]?.getAttribute('role')).toBe('group');
     expect(cards[0]?.getAttribute('aria-label')).toBe('Oia, Greece');
+
     const box = cards[0]?.querySelector('input[type="checkbox"]');
     expect(box).not.toBeNull();
     expect(cards[0]?.querySelector('label')?.textContent).toBe('Oia, Greece');
+
     const buttons = cards[0]?.querySelectorAll('button');
     expect(buttons?.length).toBe(2);
     // No card-wide click wrapper: no parent of the controls handles clicks.
@@ -76,18 +82,23 @@ describe('scan-list', () => {
     const root = renderSync(
       <ScanList loading={false} items={ITEMS} onGuide={noop} onPin={noop} onPinSelected={noop} />
     ).container;
+
     const cards = root.querySelectorAll('.scan-card');
+
     const img = cards[0]?.querySelector('img');
     expect(img?.getAttribute('alt')).toBe('');
     expect(img?.getAttribute('src')).toBe('https://img/oia.jpg');
     expect(cards[1]?.querySelector('img')).toBeNull();
+
     const placeholder = cards[1]?.querySelector('.thumb-placeholder');
     expect(placeholder?.getAttribute('aria-hidden')).toBe('true');
   });
 
   it('emits guide and pin events per card', () => {
     const onGuide = vi.fn();
+
     const onPin = vi.fn();
+
     const root = renderSync(
       <ScanList
         loading={false}
@@ -97,6 +108,7 @@ describe('scan-list', () => {
         onPinSelected={noop}
       />
     ).container;
+
     const cards = root.querySelectorAll('.scan-card');
     (cards[1]?.querySelectorAll('button')[0] as HTMLButtonElement).click();
     (cards[0]?.querySelectorAll('button')[1] as HTMLButtonElement).click();
@@ -106,7 +118,9 @@ describe('scan-list', () => {
 
   it('counts checked cards in pin-selected and survives re-render', () => {
     const i18n = vi.spyOn(chrome.i18n, 'getMessage');
+
     const onPinSelected = vi.fn();
+
     const rendered = renderSync(
       <ScanList
         loading={false}
@@ -116,7 +130,9 @@ describe('scan-list', () => {
         onPinSelected={onPinSelected}
       />
     );
+
     const root = rendered.container;
+
     const boxes = root.querySelectorAll('input[type="checkbox"]');
     (boxes[0] as HTMLInputElement).click();
     (boxes[1] as HTMLInputElement).click();
@@ -138,6 +154,7 @@ describe('scan-list', () => {
 
   it('ignores pin-selected with nothing checked', () => {
     const onPinSelected = vi.fn();
+
     const root = renderSync(
       <ScanList
         loading={false}

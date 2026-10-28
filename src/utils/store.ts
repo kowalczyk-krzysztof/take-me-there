@@ -8,11 +8,14 @@ export interface Store<T extends object> {
 
 export const createStore = <T extends object>(initial: T): Store<T> => {
   let state = initial;
+
   const listeners = new Set<() => void>();
+
   return {
     get: () => state,
     subscribe: (listener) => {
       listeners.add(listener);
+
       return () => {
         listeners.delete(listener);
       };

@@ -13,19 +13,25 @@ export const UNVERIFIED_PORTALS_ENABLED = false;
 
 export const buildDestination = (placeName: string, city: string, country: string): string => {
   const seen = new Set<string>();
+
   const parts: string[] = [];
+
   for (const raw of [placeName, city, country]) {
     const cleaned = raw.trim().replace(/\s+/g, ' ');
+
     if (!cleaned) {
       continue;
     }
+
     const key = cleaned.toLowerCase();
+
     if (seen.has(key)) {
       continue;
     }
     seen.add(key);
     parts.push(cleaned);
   }
+
   return capDestination(parts.join(', '));
 };
 
@@ -34,7 +40,9 @@ export const capDestination = (destination: string): string =>
 
 export const buildLinks = (destination: string): BookingLink[] => {
   const capped = capDestination(destination);
+
   const query = encodeURIComponent(capped);
+
   const links: BookingLink[] = [
     { id: 'maps', href: `https://www.google.com/maps/search/?api=1&query=${query}` },
     {
@@ -56,10 +64,12 @@ export const buildLinks = (destination: string): BookingLink[] => {
       { id: 'expedia', href: `https://www.expedia.com/Hotel-Search?destination=${query}` }
     );
   }
+
   return links;
 };
 
 export const MAPS_MAX_WAYPOINTS = 9;
+
 export const MAPS_MAX_URL_CHARS = 2048;
 
 // Multi-stop route link for the itinerary card. Stops arrive in visit order:
@@ -74,7 +84,9 @@ export const mapsDirUrl = (stops: string[]): string | null => {
   }
 
   const clean = (name: string): string => capDestination(name.replace(/[\0-\x1F\x7F|]+/g, ''));
+
   const origin = clean(stops[0]);
+
   const destination = clean(stops[stops.length - 1]);
 
   if (!origin || !destination) {
@@ -82,6 +94,7 @@ export const mapsDirUrl = (stops: string[]): string | null => {
   }
 
   let middles = stops.slice(1, -1).map(clean).filter(Boolean).slice(0, MAPS_MAX_WAYPOINTS);
+
   const build = (waypoints: string[]): string => {
     const base =
       'https://www.google.com/maps/dir/?api=1' +
@@ -101,5 +114,6 @@ export const mapsDirUrl = (stops: string[]): string | null => {
     middles = middles.slice(0, -1);
     url = build(middles);
   }
+
   return url.length > MAPS_MAX_URL_CHARS ? null : url;
 };

@@ -66,9 +66,13 @@ import {
 } from './index';
 
 const API_BASE = 'https://api.meta.ai/v1';
+
 const MODEL = 'muse-spark-1.3';
+
 const IDENTIFY_MAX_TOKENS = 2048;
+
 const GUIDE_MAX_TOKENS = 4096;
+
 const ITINERARY_MAX_TOKENS = 4096;
 
 export class MuseProvider implements Provider {
@@ -93,6 +97,7 @@ export class MuseProvider implements Provider {
     if (input.videoUrl) {
       return this.identifyVideo(key, input);
     }
+
     return runIdentify(key, input, (messages, schema) => this.identifyRequest(messages, schema));
   }
 
@@ -108,14 +113,18 @@ export class MuseProvider implements Provider {
       if (err instanceof ProviderError && err.status === 400) {
         return this.identifyVideoTwoStep(key, input);
       }
+
       throw err;
     }
   }
 
   private async identifyVideoTwoStep(key: string, input: IdentifyInput): Promise<IdentifyResult> {
     const usage = emptyUsage();
+
     const description = await this.describeVideo(key, input, usage);
+
     const place = await this.normalizeDescription(key, input, description, usage);
+
     return { place, usage: { ...usage }, textFallback: true };
   }
 
@@ -163,6 +172,7 @@ export class MuseProvider implements Provider {
     }
 
     let data: unknown;
+
     try {
       data = await res.json();
     } catch {
@@ -181,6 +191,7 @@ export class MuseProvider implements Provider {
     if (typeof content !== 'string' || !content.trim()) {
       throw invalidResponse(usage, 'video description is empty');
     }
+
     return content;
   }
 
@@ -195,6 +206,7 @@ export class MuseProvider implements Provider {
     for (const strictReminder of [false, true]) {
       let text =
         'Return the place described below as JSON matching the schema. If no specific place is described, return identified:false.';
+
       if (strictReminder) {
         text += ' Return ONLY JSON matching this schema, with no other text.';
       }
@@ -214,6 +226,7 @@ export class MuseProvider implements Provider {
       );
 
       let res: Response;
+
       try {
         res = await fetch(request.url, {
           method: 'POST',
@@ -249,6 +262,7 @@ export class MuseProvider implements Provider {
         return place;
       }
     }
+
     throw invalidResponse(usage, 'model output failed validation');
   }
 
@@ -276,6 +290,7 @@ export class MuseProvider implements Provider {
   async planItinerary(key: string, input: ItineraryInput): Promise<ItineraryResult> {
     requireKey(key);
     await assertConsent();
+
     const usage = emptyUsage();
 
     if (input.pins.length === 0) {
@@ -305,18 +320,21 @@ export class MuseProvider implements Provider {
         input.signal,
         usage
       );
+
       const plan = parseItineraryPlan(data, stopNames);
 
       if (plan) {
         return { plan, usage: { ...usage } };
       }
     }
+
     throw invalidResponse(usage, 'model output failed validation');
   }
 
   async scanPlaces(key: string, input: ScanInput): Promise<ScanResult> {
     requireKey(key);
     await assertConsent();
+
     const usage = emptyUsage();
 
     if (input.images.length === 0) {
@@ -347,6 +365,7 @@ export class MuseProvider implements Provider {
         return { places, usage: { ...usage } };
       }
     }
+
     throw invalidResponse(usage, 'model output failed validation');
   }
 
@@ -410,6 +429,7 @@ export class MuseProvider implements Provider {
     }
     absorbUsage(usage, extracted);
     usage.searchCount += extracted.searchCount;
+
     const value = parse(extracted.json);
 
     return value ? { value, sources: extracted.sources } : null;
@@ -448,15 +468,20 @@ export class MuseProvider implements Provider {
         return { value, sources: [] };
       }
     }
+
     return null;
   }
 
   async duelPlaces(key: string, input: DuelInput): Promise<DuelResult> {
     requireKey(key);
     await assertConsent();
+
     const usage = emptyUsage();
+
     const schema = duelJsonSchema();
+
     const prompt = buildDuelPrompt(input.a, input.b);
+
     const grounded = await this.groundedStructured(
       key,
       input.signal,
@@ -491,9 +516,13 @@ export class MuseProvider implements Provider {
   async findAlternates(key: string, input: AlternatesInput): Promise<AlternatesResult> {
     requireKey(key);
     await assertConsent();
+
     const usage = emptyUsage();
+
     const schema = alternatesJsonSchema();
+
     const prompt = buildAlternatesPrompt(input.placeName, input.country, input.intent);
+
     const grounded = await this.groundedStructured(
       key,
       input.signal,
@@ -532,9 +561,11 @@ export class MuseProvider implements Provider {
   async segmentLandmark(key: string, input: SegmentInput): Promise<SegmentResult> {
     requireKey(key);
     await assertConsent();
+
     const usage = emptyUsage();
 
     let res: Response;
+
     try {
       res = await fetch(`${API_BASE}/responses`, {
         method: 'POST',
@@ -565,6 +596,7 @@ export class MuseProvider implements Provider {
     }
 
     let data: unknown;
+
     try {
       data = (await res.json()) as unknown;
     } catch {
@@ -572,6 +604,7 @@ export class MuseProvider implements Provider {
     }
 
     const extracted = extractResponsesText(data);
+
     if (!extracted) {
       throw invalidResponse(usage, 'segmentation response has no text');
     }
@@ -586,6 +619,7 @@ export class MuseProvider implements Provider {
   async *streamGuide(key: string, input: GuideInput): AsyncGenerator<GuideEvent, void, void> {
     requireKey(key);
     await assertConsent();
+
     const prompt = input.prompt ?? buildGuidePrompt(input.destination, input.language);
 
     if (input.transport === 'chat') {
@@ -653,12 +687,17 @@ export class MuseProvider implements Provider {
     }
 
     const usage = emptyUsage();
+
     const sources: GuideSource[] = [];
+
     const seenUrls = new Set<string>();
+
     let announcedSearching = false;
+
     const parser = decodeStream(res.body).pipeThrough(
       new EventSourceParserStream({ maxBufferSize: SSE_MAX_BUFFER, onError: 'terminate' })
     );
+
     const reader = parser.getReader();
 
     try {
@@ -680,6 +719,7 @@ export class MuseProvider implements Provider {
         }
 
         const message = result.value;
+
         const name = message.event ?? '';
 
         if (name === 'keepalive') {
@@ -743,6 +783,7 @@ export class MuseProvider implements Provider {
           }
         } else if (name === 'response.web_search_call.completed') {
           usage.searchCount += 1;
+
           if (!announcedSearching) {
             announcedSearching = true;
             yield { type: 'searching' };
@@ -750,7 +791,9 @@ export class MuseProvider implements Provider {
         } else if (name === 'response.failed') {
           const error = (payload as { response?: { error?: { message?: unknown } } })?.response
             ?.error;
+
           const detail = typeof error?.message === 'string' && error.message ? error.message : '';
+
           throw new ProviderError(
             'server',
             detail ? `guide failed: ${detail}` : 'guide failed',
@@ -759,22 +802,29 @@ export class MuseProvider implements Provider {
         } else if (name === 'response.incomplete') {
           const details = (payload as { response?: { incomplete_details?: { reason?: unknown } } })
             ?.response?.incomplete_details;
+
           const reason =
             typeof details?.reason === 'string' && details.reason ? details.reason : 'unknown';
+
           throw new ProviderError('invalid_response', `guide incomplete: ${reason}`, false);
         } else if (name === 'response.completed') {
           const status = (payload as { response?: { status?: unknown }; status?: unknown })
             ?.response;
+
           const terminal =
             (status as { status?: unknown } | undefined)?.status ??
             (payload as { status?: unknown })?.status;
+
           if (terminal === 'failed') {
             throw new ProviderError('server', 'guide failed', true);
           }
+
           if (terminal === 'incomplete') {
             throw new ProviderError('invalid_response', 'guide incomplete', false);
           }
+
           const tokens = (payload as { response?: { usage?: unknown }; usage?: unknown })?.response;
+
           const usagePayload =
             (
               tokens as
@@ -801,11 +851,14 @@ export class MuseProvider implements Provider {
             usage.inputTokens += usagePayload.input_tokens;
             usage.outputTokens +=
               typeof usagePayload.output_tokens === 'number' ? usagePayload.output_tokens : 0;
+
             const cached = usagePayload.input_tokens_details?.cached_tokens;
+
             if (typeof cached === 'number' && cached > 0) {
               usage.cachedInputTokens = (usage.cachedInputTokens ?? 0) + cached;
             }
           }
+
           break;
         }
         // Every other event is ignored by design.
@@ -814,6 +867,7 @@ export class MuseProvider implements Provider {
       if (err instanceof ProviderError && err.usage === undefined) {
         err.usage = { ...usage };
       }
+
       throw err;
     } finally {
       reader.releaseLock();

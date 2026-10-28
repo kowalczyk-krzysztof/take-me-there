@@ -2,15 +2,18 @@
 // real HTML shells from disk. Only what the tests use is declared.
 declare module 'node:fs' {
   export const readFileSync: (path: string, encoding: string) => string;
+
   export interface Dirent {
     readonly name: string;
     isDirectory(): boolean;
   }
+
   export const readdirSync: (path: string, options: { withFileTypes: true }) => Dirent[];
 }
 
 declare module 'node:path' {
   export const dirname: (path: string) => string;
+
   export const join: (...parts: string[]) => string;
 }
 

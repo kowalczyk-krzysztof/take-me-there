@@ -28,12 +28,15 @@ export const estimateCostUsd = (usage: Usage, rates?: ModelRates): number | null
   if (!rates) {
     return null;
   }
+
   const cached = cachedInputTokensOf(usage);
+
   const tokens =
     ((usage.inputTokens - cached) * rates.inputUsdPerMTok +
       cached * CACHED_INPUT_USD_PER_MTOK +
       usage.outputTokens * rates.outputUsdPerMTok) /
     1_000_000;
+
   return tokens + usage.searchCount * WEB_SEARCH_COST_USD + usage.flatFeesUsd;
 };
 
@@ -41,7 +44,9 @@ export const estimateCachedSavingUsd = (usage: Usage, rates: ModelRates): number
   (cachedInputTokensOf(usage) * (rates.inputUsdPerMTok - CACHED_INPUT_USD_PER_MTOK)) / 1_000_000;
 
 const COST_TOTALS_KEY = 'costTotals';
+
 const MAX_MONTHS_KEPT = 24;
+
 const SPEND_VERSION = 1;
 
 interface SpendRecord {
@@ -57,16 +62,21 @@ export const migrateSpend = async (): Promise<void> => {
   const stored = (await chrome.storage.local.get(COST_TOTALS_KEY)) as {
     costTotals?: unknown;
   };
+
   const record = stored.costTotals;
+
   if (!record || typeof record !== 'object' || Array.isArray(record) || 'v' in record) {
     return;
   }
+
   const months: Record<string, number> = {};
+
   for (const [month, total] of Object.entries(record as Record<string, unknown>)) {
     if (typeof total === 'number') {
       months[month] = total;
     }
   }
+
   const next: SpendRecord = { v: SPEND_VERSION, months };
   await chrome.storage.local.set({ [COST_TOTALS_KEY]: next });
 };
@@ -89,6 +99,7 @@ const readTotals = async (): Promise<Record<string, number>> => {
   const stored = (await chrome.storage.local.get(COST_TOTALS_KEY)) as {
     costTotals?: unknown;
   };
+
   const record = stored.costTotals;
 
   if (record === undefined) {
@@ -113,11 +124,13 @@ const readTotals = async (): Promise<Record<string, number>> => {
   }
 
   const months: Record<string, number> = {};
+
   for (const [month, total] of Object.entries(record as Record<string, unknown>)) {
     if (typeof total === 'number') {
       months[month] = total;
     }
   }
+
   return months;
 };
 
@@ -138,7 +151,9 @@ export const recordMonthSpend = async (
 ): Promise<number> =>
   spendMutex(async () => {
     const totals = await readTotals();
+
     const key = monthKey(date);
+
     const next = (typeof totals[key] === 'number' ? totals[key] : 0) + amountUsd;
     totals[key] = next;
     await writeTotals(totals);
@@ -150,6 +165,7 @@ export const readMonthSpend = async (date: Date = new Date()): Promise<number> =
   const totals = await readTotals();
 
   const value = totals[monthKey(date)];
+
   return typeof value === 'number' ? value : 0;
 };
 

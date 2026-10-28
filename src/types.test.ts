@@ -18,6 +18,7 @@ import {
 
 const forbiddenKeys = (value: unknown, path = '$'): string[] => {
   const hits: string[] = [];
+
   if (Array.isArray(value)) {
     value.forEach((item, index) => hits.push(...forbiddenKeys(item, `${path}[${index}]`)));
   } else if (value && typeof value === 'object') {
@@ -28,26 +29,33 @@ const forbiddenKeys = (value: unknown, path = '$'): string[] => {
       hits.push(...forbiddenKeys(entry, `${path}.${key}`));
     }
   }
+
   return hits;
 };
 
 const assertStrictSubset = (schema: Record<string, unknown>, path = '$'): void => {
   expect(schema.type, `${path} is an object`).toBe('object');
   expect(schema.additionalProperties, `${path} forbids extra keys`).toBe(false);
+
   const props = schema.properties as Record<string, Record<string, unknown>>;
+
   const required = schema.required as string[];
   expect([...required].sort(), `${path} requires every property`).toEqual(
     Object.keys(props).sort()
   );
+
   for (const [name, prop] of Object.entries(props)) {
     if (prop.type === 'string' && !Array.isArray(prop.enum)) {
       expect(typeof prop.maxLength, `${path}.${name} has maxLength`).toBe('number');
     }
+
     if (prop.type === 'object') {
       assertStrictSubset(prop, `${path}.${name}`);
     }
+
     if (prop.type === 'array') {
       const items = prop.items as Record<string, unknown>;
+
       if (items.type === 'object') {
         assertStrictSubset(items, `${path}.${name}[]`);
       }
@@ -102,6 +110,7 @@ describe('place schema pipeline', () => {
     );
     expect(PLACE_SCHEMA.safeParse({ ...VALID_PLACE, identified: 'yes' }).success).toBe(false);
     expect(PLACE_SCHEMA.safeParse({ ...VALID_PLACE, confidence: 'high' }).success).toBe(false);
+
     const { country: _dropped, ...missingCountry } = VALID_PLACE;
     expect(PLACE_SCHEMA.safeParse(missingCountry).success).toBe(false);
     expect(PLACE_SCHEMA.safeParse({ ...VALID_PLACE, extra: 1 }).success).toBe(false);
@@ -115,13 +124,16 @@ describe('itinerary schema pipeline', () => {
     const schema = itineraryJsonSchema(STOPS);
     assertStrictSubset(schema);
     expect(forbiddenKeys(schema)).toEqual([]);
+
     const props = schema.properties as Record<string, Record<string, unknown>>;
+
     const stopsItems = props.stops.items as Record<string, unknown>;
     expect(stopsItems.enum).toEqual(STOPS);
   });
 
   it('accepts a valid plan and constrains every stop to the enum', () => {
     const schema = itinerarySchema(STOPS);
+
     const valid = {
       stops: ['Oia', 'Fira'],
       days: [{ dayTitle: 'Day 1', stopNames: ['Oia'], summary: 'Caldera views.' }],
@@ -223,14 +235,18 @@ describe('scan batch pipeline', () => {
     const schema = scanBatchJsonSchema();
     assertStrictSubset(schema);
     expect(forbiddenKeys(schema)).toEqual([]);
+
     const props = schema.properties as Record<string, Record<string, unknown>>;
+
     const items = props.places.items as Record<string, unknown>;
+
     const itemProps = items.properties as Record<string, unknown>;
     expect(itemProps.imageIndex).toMatchObject({ type: 'integer', minimum: 0, maximum: 11 });
   });
 
   it('validates scan entries and rejects bad indices', () => {
     const schema = scanPlaceSchema();
+
     const valid = {
       placeName: 'Oia',
       city: 'Oia',
@@ -255,6 +271,7 @@ describe('duel pipeline', () => {
 
   it('validates verdicts and rejects oversized strings', () => {
     const schema = duelSchema();
+
     const valid = {
       criteria: [{ criterion: 'Cost', a: 'Pricey sunsets.', b: 'Cheaper stays.' }],
       verdict: 'Pick Oia for views, Fira for budget.',
@@ -279,6 +296,7 @@ describe('alternates pipeline', () => {
 
   it('validates alternatives and rejects oversized strings', () => {
     const schema = alternatesSchema();
+
     const valid = {
       alternatives: [
         {

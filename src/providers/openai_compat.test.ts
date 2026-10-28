@@ -47,6 +47,7 @@ const collect = async (gen: AsyncGenerator<GuideEvent, void, void>): Promise<Gui
   for await (const event of gen) {
     out.push(event);
   }
+
   return out;
 };
 
@@ -54,7 +55,9 @@ describe('openai_compat', () => {
   it('identifies with json_object and client-side validation', async () => {
     await setConsented();
     fetchMock.mockResolvedValue(chatResponse(VALID_PLACE));
+
     const provider = new OpenAiCompatProvider(config());
+
     const result = await provider.identifyPlace('sk_key', input());
     expect(result.place).toEqual(VALID_PLACE);
     expect(result.usage).toEqual({
@@ -67,6 +70,7 @@ describe('openai_compat', () => {
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe('https://llm.example.com/v1/chat/completions');
+
     const body = JSON.parse(init.body as string) as Record<string, any>;
     expect(body.model).toBe('test-model');
     expect(body.response_format).toEqual({ type: 'json_object' });
@@ -76,9 +80,12 @@ describe('openai_compat', () => {
   it('supports json_schema mode without vendor flags', async () => {
     await setConsented();
     fetchMock.mockResolvedValue(chatResponse(VALID_PLACE));
+
     const provider = new OpenAiCompatProvider(config({ structuredOutput: 'json_schema' }));
     await provider.identifyPlace('sk_key', input());
+
     const init = fetchMock.mock.calls[0][1] as RequestInit;
+
     const body = JSON.parse(init.body as string) as Record<string, any>;
     expect(body.response_format.type).toBe('json_schema');
     expect(body.response_format.json_schema.schema.additionalProperties).toBe(false);
@@ -90,7 +97,9 @@ describe('openai_compat', () => {
     fetchMock
       .mockResolvedValueOnce(new Response('bad image', { status: 400 }))
       .mockResolvedValueOnce(chatResponse(VALID_PLACE));
+
     const provider = new OpenAiCompatProvider(config());
+
     const result = await provider.identifyPlace('sk_key', input());
     expect(result.textFallback).toBe(true);
     expect(result.place.confidence).toBe(0.4);
@@ -101,6 +110,7 @@ describe('openai_compat', () => {
     fetchMock
       .mockResolvedValueOnce(chatResponse({ ...VALID_PLACE, confidence: 'lots' }))
       .mockResolvedValueOnce(chatResponse({ ...VALID_PLACE, confidence: 'lots' }));
+
     const provider = new OpenAiCompatProvider(config());
     await expect(provider.identifyPlace('sk_key', input())).rejects.toMatchObject({
       code: 'invalid_response',
@@ -110,6 +120,7 @@ describe('openai_compat', () => {
 
   it('validates keys and requires configuration', async () => {
     fetchMock.mockResolvedValue(new Response('[]', { status: 200 }));
+
     const provider = new OpenAiCompatProvider(config());
     await expect(provider.testKey('sk_key')).resolves.toBeUndefined();
     expect(fetchMock.mock.calls[0][0]).toBe('https://llm.example.com/v1/models');
@@ -135,7 +146,9 @@ describe('openai_compat', () => {
         'data: {"choices":[{"delta":{}}],"usage":{"prompt_tokens":7,"completion_tokens":3}}\n\ndata: [DONE]\n\n',
       ])
     );
+
     const provider = new OpenAiCompatProvider(config());
+
     const events = await collect(
       provider.streamGuide('sk_key', {
         destination: 'Oia, Greece',
@@ -156,7 +169,9 @@ describe('openai_compat', () => {
         'data: {"choices":[{"delta":{"content":" there"}}],"usage":{"prompt_tokens":9,"completion_tokens":5}}\n\ndata: [DONE]\n\n',
       ])
     );
+
     const provider = new OpenAiCompatProvider(config());
+
     const events = await collect(
       provider.streamGuide('sk_key', {
         destination: 'Oia, Greece',
@@ -181,12 +196,16 @@ describe('openai_compat', () => {
         'data: {"choices":[{"delta":{"content":" there"}}]}\n\n',
       ])
     );
+
     const provider = new OpenAiCompatProvider(config());
+
     const controller = new AbortController();
+
     const gen = provider.streamGuide('sk_key', {
       destination: 'Oia, Greece',
       signal: controller.signal,
     });
+
     const first = await gen.next();
     expect(first.value).toEqual({ type: 'delta', text: 'Hi' });
     controller.abort();
@@ -231,11 +250,15 @@ describe('compat planItinerary', () => {
   it('uses the configured envelope and validates client-side', async () => {
     await setConsented();
     fetchMock.mockResolvedValue(chatResponse(VALID_PLAN));
+
     const provider = new OpenAiCompatProvider(config({ structuredOutput: 'json_schema' }));
+
     const result = await provider.planItinerary('sk_key', planInput());
     expect(result.plan.stops).toEqual(['Oia', 'Fira']);
+
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe('https://llm.example.com/v1/chat/completions');
+
     const body = JSON.parse(init.body as string) as Record<string, Record<string, unknown>>;
     expect((body.response_format as Record<string, string>).type).toBe('json_schema');
   });
@@ -243,10 +266,14 @@ describe('compat planItinerary', () => {
   it('falls back to json_object with the same client validation', async () => {
     await setConsented();
     fetchMock.mockResolvedValue(chatResponse(VALID_PLAN));
+
     const provider = new OpenAiCompatProvider(config({ structuredOutput: 'json_object' }));
+
     const result = await provider.planItinerary('sk_key', planInput());
     expect(result.plan.stops).toEqual(['Oia', 'Fira']);
+
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+
     const body = JSON.parse(init.body as string) as Record<string, Record<string, unknown>>;
     expect((body.response_format as Record<string, string>).type).toBe('json_object');
   });
@@ -261,7 +288,9 @@ describe('compat planItinerary', () => {
         '\n',
       ])
     );
+
     const provider = new OpenAiCompatProvider(config());
+
     const events: GuideEvent[] = [];
     for await (const event of provider.streamGuide('sk_key', {
       destination: 'X',
@@ -271,6 +300,7 @@ describe('compat planItinerary', () => {
       events.push(event);
     }
     expect(events.some((event) => event.type === 'delta')).toBe(true);
+
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(init.body as string).toContain('Custom narration prompt.');
   });
@@ -297,11 +327,15 @@ describe('compat scanPlaces', () => {
   it('uses the configured envelope for batches', async () => {
     await setConsented();
     fetchMock.mockResolvedValue(chatResponse(VALID_BATCH));
+
     const provider = new OpenAiCompatProvider(config());
+
     const result = await provider.scanPlaces('sk_key', scanInput());
     expect(result.places).toHaveLength(1);
+
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe('https://llm.example.com/v1/chat/completions');
+
     const body = JSON.parse(init.body as string) as Record<string, Record<string, unknown>>;
     expect((body.response_format as Record<string, string>).type).toBe('json_object');
   });
@@ -322,12 +356,16 @@ describe('compat duelPlaces', () => {
   it('duels over structured chat with no citations', async () => {
     await setConsented();
     fetchMock.mockResolvedValue(chatResponse(VALID_DUEL));
+
     const provider = new OpenAiCompatProvider(config({ structuredOutput: 'json_schema' }));
+
     const result = await provider.duelPlaces('sk_key', duelInput());
     expect(result.criteria).toHaveLength(1);
     expect(result.sources).toEqual([]);
+
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe('https://llm.example.com/v1/chat/completions');
+
     const body = JSON.parse(init.body as string) as {
       response_format: { type: string; json_schema: { name: string } };
     };
@@ -359,7 +397,9 @@ describe('compat findAlternates', () => {
   it('finds alternates over chat and reports usage', async () => {
     await setConsented();
     fetchMock.mockResolvedValue(chatResponse(VALID_ALTERNATES));
+
     const provider = new OpenAiCompatProvider(config());
+
     const result = await provider.findAlternates('sk_key', alternatesInput());
     expect(result.alternatives).toHaveLength(1);
     expect(result.usage).toEqual({
@@ -368,6 +408,7 @@ describe('compat findAlternates', () => {
       searchCount: 0,
       flatFeesUsd: 0,
     });
+
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(init.body as string).toContain('smaller crowds');
   });
@@ -376,6 +417,7 @@ describe('compat findAlternates', () => {
 describe('compat segmentLandmark', () => {
   it('throws not_configured without fetching', async () => {
     await setConsented();
+
     const provider = new OpenAiCompatProvider(config());
     await expect(
       provider.segmentLandmark('sk_key', {
