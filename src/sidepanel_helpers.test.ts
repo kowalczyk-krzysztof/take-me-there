@@ -90,7 +90,7 @@ describe('cache key hashing', () => {
   });
 });
 
-describe('session result cache', () => {
+describe('persistent result cache', () => {
   it('round-trips entries and evicts past ten', async () => {
     for (let n = 0; n < 11; n += 1) {
       await setCacheEntry(`hash${n}`, entry(`Place${n}`));
@@ -99,9 +99,26 @@ describe('session result cache', () => {
     expect((await getCacheEntry('hash10'))?.place.placeName).toBe('Place10');
   });
 
+  it('stores versioned envelopes in local storage', async () => {
+    const mock = installChromeMock();
+    await setCacheEntry('hash0', entry('Place0'));
+    const stored = mock.local.data.get('cache:hash0') as { v: number; entry: CacheEntry };
+    expect(stored.v).toBe(1);
+    expect(stored.entry.place.placeName).toBe('Place0');
+    expect(mock.session.data.has('cache:hash0')).toBe(false);
+  });
+
+  it('accepts legacy bare entries but rejects unknown versions', async () => {
+    const mock = installChromeMock();
+    await mock.local.set({ 'cache:bare': entry('Bare') });
+    await mock.local.set({ 'cache:future': { v: 99, entry: entry('Future') } });
+    expect((await getCacheEntry('bare'))?.place.placeName).toBe('Bare');
+    expect(await getCacheEntry('future')).toBeUndefined();
+  });
+
   it('treats corrupt entries as misses', async () => {
-    const { local: _local, session } = installChromeMock();
-    await session.set({ 'cache:bad': { nope: true } });
+    const { local } = installChromeMock();
+    await local.set({ 'cache:bad': { nope: true } });
     expect(await getCacheEntry('bad')).toBeUndefined();
   });
 });

@@ -8,6 +8,8 @@ const CACHE_SLOTS = 10;
 
 const CACHE_INDEX_KEY = 'cacheKeys';
 
+const CACHE_ENTRY_VERSION = 1;
+
 export interface CacheEntry {
   place: PlaceResult;
   guide: string;
@@ -59,7 +61,7 @@ export const hashCacheKey = async (parts: CacheKeyParts): Promise<string> => {
 
 const cacheKeyFor = (hash: string): string => `cache:${hash}`;
 
-const isCacheEntry = (value: unknown): value is CacheEntry => {
+const isBareEntry = (value: unknown): value is CacheEntry => {
   if (!value || typeof value !== 'object') {
     return false;
   }
@@ -77,9 +79,25 @@ const isCacheEntry = (value: unknown): value is CacheEntry => {
   );
 };
 
+const unwrapEntry = (value: unknown): CacheEntry | undefined => {
+  if (!value || typeof value !== 'object') {
+    return undefined;
+  }
+
+  if ('entry' in value) {
+    const record = value as { v?: unknown; entry?: unknown };
+
+    return record.v === CACHE_ENTRY_VERSION && isBareEntry(record.entry)
+      ? (record.entry as CacheEntry)
+      : undefined;
+  }
+
+  return isBareEntry(value) ? (value as CacheEntry) : undefined;
+};
+
 const readCacheIndex = async (): Promise<string[]> => {
   try {
-    const stored = (await chrome.storage.session.get(CACHE_INDEX_KEY)) as {
+    const stored = (await chrome.storage.local.get(CACHE_INDEX_KEY)) as {
       cacheKeys?: unknown;
     };
 
@@ -96,21 +114,18 @@ const cacheMutex = createMutex();
 export const getCacheEntry = async (hash: string): Promise<CacheEntry | undefined> =>
   cacheMutex(async () => {
     try {
-      const stored = (await chrome.storage.session.get(cacheKeyFor(hash))) as Record<
-        string,
-        unknown
-      >;
+      const stored = (await chrome.storage.local.get(cacheKeyFor(hash))) as Record<string, unknown>;
 
-      const entry = stored[cacheKeyFor(hash)];
+      const entry = unwrapEntry(stored[cacheKeyFor(hash)]);
 
-      if (!isCacheEntry(entry)) {
+      if (!entry) {
         return undefined;
       }
 
       const index = (await readCacheIndex()).filter((key) => key !== hash);
       index.unshift(hash);
 
-      await chrome.storage.session.set({ [CACHE_INDEX_KEY]: index.slice(0, CACHE_SLOTS) });
+      await chrome.storage.local.set({ [CACHE_INDEX_KEY]: index.slice(0, CACHE_SLOTS) });
 
       return entry;
     } catch {
@@ -121,7 +136,9 @@ export const getCacheEntry = async (hash: string): Promise<CacheEntry | undefine
 export const setCacheEntry = async (hash: string, entry: CacheEntry): Promise<void> =>
   cacheMutex(async () => {
     try {
-      await chrome.storage.session.set({ [cacheKeyFor(hash)]: entry });
+      await chrome.storage.local.set({
+        [cacheKeyFor(hash)]: { v: CACHE_ENTRY_VERSION, entry },
+      });
 
       const index = (await readCacheIndex()).filter((key) => key !== hash);
 
@@ -129,10 +146,10 @@ export const setCacheEntry = async (hash: string, entry: CacheEntry): Promise<vo
 
       const evicted = index.slice(CACHE_SLOTS);
 
-      await chrome.storage.session.set({ [CACHE_INDEX_KEY]: index.slice(0, CACHE_SLOTS) });
+      await chrome.storage.local.set({ [CACHE_INDEX_KEY]: index.slice(0, CACHE_SLOTS) });
 
       for (const key of evicted) {
-        await chrome.storage.session.remove(cacheKeyFor(key));
+        await chrome.storage.local.remove(cacheKeyFor(key));
       }
     } catch {
       // Cache writes are best-effort; a failure never breaks the analysis.
