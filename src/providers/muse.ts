@@ -15,6 +15,7 @@ import {
   GUIDE_MAX_CITATIONS,
   SSE_MAX_BUFFER,
   STRICT_REMINDER,
+  allowsVideoMedia,
   assertConsent,
   buildAlternatesMessages,
   buildAlternatesPrompt,
@@ -29,6 +30,7 @@ import {
   extractResponsesStructured,
   extractResponsesText,
   fetchChatCompletion,
+  filterScanImages,
   invalidResponse,
   parseAlternatesContent,
   parseDuelContent,
@@ -38,6 +40,7 @@ import {
   postStreamHeaders,
   readBoundedJson,
   readStall,
+  remapScanPlaces,
   fetchTimeout,
   absorbUsage,
   readChatUsage,
@@ -129,8 +132,11 @@ export class MuseProvider implements Provider {
   }
 
   identifyPlace(key: string, input: IdentifyInput): Promise<IdentifyResult> {
-    if (input.videoUrl) {
-      return this.identifyVideo(key, input);
+    const videoUrl =
+      input.videoUrl && allowsVideoMedia(input.videoUrl) ? input.videoUrl : undefined;
+
+    if (videoUrl) {
+      return this.identifyVideo(key, { ...input, videoUrl });
     }
 
     return runIdentify(key, input, (messages, schema) => this.identifyRequest(messages, schema));
@@ -368,6 +374,12 @@ export class MuseProvider implements Provider {
       throw invalidResponse(usage, 'no images to scan');
     }
 
+    const { kept, originalIndex } = filterScanImages(input.images);
+
+    if (kept.length === 0) {
+      return { places: [], usage: { ...usage } };
+    }
+
     for (const strictReminder of [false, true]) {
       const data = await fetchChatCompletion(
         `${API_BASE}/chat/completions`,
@@ -377,7 +389,7 @@ export class MuseProvider implements Provider {
           prompt_cache_key: PROMPT_CACHE_KEY,
           reasoning_effort: 'low',
           max_completion_tokens: ITINERARY_MAX_TOKENS,
-          messages: buildScanMessages(input.images, strictReminder),
+          messages: buildScanMessages(kept, strictReminder),
           response_format: {
             type: 'json_schema',
             json_schema: { name: 'scan_batch', strict: true, schema: scanBatchJsonSchema() },
@@ -387,10 +399,10 @@ export class MuseProvider implements Provider {
         usage
       );
 
-      const places = parseScanBatch(data, input.images.length);
+      const places = parseScanBatch(data, kept.length);
 
       if (places) {
-        return { places, usage: { ...usage } };
+        return { places: remapScanPlaces(places, originalIndex), usage: { ...usage } };
       }
     }
 

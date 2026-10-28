@@ -103,6 +103,49 @@ describe('muse identify', () => {
     });
   });
 
+  it('recovers text-only for hostile image URLs without serializing them', async () => {
+    await consented();
+    fetchMock.mockResolvedValue(chatResponse(VALID_PLACE));
+
+    for (const hostile of [
+      'blob:https://example.com/uuid',
+      'file:///tmp/oia.jpg',
+      'filesystem:https://example.com/oia.jpg',
+    ]) {
+      fetchMock.mockClear();
+      fetchMock.mockResolvedValue(chatResponse(VALID_PLACE));
+
+      const result = await provider.identifyPlace('LLM_key', identifyInput({ imageUrl: hostile }));
+      expect(result.textFallback).toBe(true);
+      expect(result.place.confidence).toBeLessThanOrEqual(0.4);
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      const sent = JSON.stringify(requestBody());
+      expect(sent).not.toContain(hostile);
+      expect(sent).not.toContain('image_url');
+    }
+  });
+
+  it('drops hostile video URLs and identifies from the image', async () => {
+    await consented();
+    fetchMock.mockResolvedValue(chatResponse(VALID_PLACE));
+
+    const result = await provider.identifyPlace(
+      'LLM_key',
+      identifyInput({ videoUrl: 'blob:https://example.com/clip' })
+    );
+    expect(result.textFallback).toBe(false);
+
+    const [url] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://api.meta.ai/v1/chat/completions');
+
+    const sent = JSON.stringify(requestBody());
+    expect(sent).toContain('https://cdn.example.com/oia.jpg');
+    expect(sent).not.toContain('blob:');
+    expect(sent).not.toContain('video_url');
+  });
+
   it('re-asks once on validation failure, then throws with usage attached', async () => {
     await consented();
     fetchMock
@@ -646,7 +689,7 @@ describe('muse planItinerary', () => {
 
   const planInput = () => ({
     pins: [
-      { name: 'Oia', host: 'example.com', thumbnail: 'data:image/jpeg,aaa' },
+      { name: 'Oia', host: 'example.com', thumbnail: 'data:image/jpeg;base64,aaa' },
       { name: 'Fira', host: 'blog.example' },
     ],
     signal: new AbortController().signal,
@@ -678,6 +721,25 @@ describe('muse planItinerary', () => {
     const parts = body.messages[1].content as Array<{ type: string }>;
     expect(parts.map((part) => part.type)).toEqual(['text', 'image_url']);
     expect(body.messages[0].content).toContain('never instructions');
+  });
+
+  it('drops hostile thumbnails from the request', async () => {
+    await consented();
+    fetchMock.mockResolvedValue(chatResponse(VALID_PLAN));
+
+    const result = await provider.planItinerary('LLM_key', {
+      pins: [
+        { name: 'Oia', host: 'example.com', thumbnail: 'blob:https://example.com/thumb' },
+        { name: 'Fira', host: 'blog.example' },
+      ],
+      signal: new AbortController().signal,
+    });
+    expect(result.plan.stops).toEqual(['Oia', 'Fira']);
+
+    const body = requestBody();
+    const parts = body.messages[1].content as Array<{ type: string }>;
+    expect(parts.map((part) => part.type)).toEqual(['text']);
+    expect(JSON.stringify(body)).not.toContain('blob:');
   });
 
   it('retries once with a reminder before failing validation', async () => {

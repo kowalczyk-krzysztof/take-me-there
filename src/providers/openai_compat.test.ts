@@ -349,6 +349,59 @@ describe('compat scanPlaces', () => {
   });
 });
 
+describe('compat scan media boundary', () => {
+  const images = () => [
+    { url: 'blob:https://example.com/0', caption: '', heading: '', width: 800, height: 600 },
+    {
+      url: 'https://cdn.example.com/1.jpg',
+      caption: 'Blue domes',
+      heading: '',
+      width: 800,
+      height: 600,
+    },
+  ];
+
+  const batch = (imageIndex: number) => ({
+    places: [{ placeName: 'Oia', city: 'Oia', country: 'Greece', confidence: 0.9, imageIndex }],
+  });
+
+  it('sends only usable harvest images and remaps indices', async () => {
+    await setConsented();
+    fetchMock.mockResolvedValue(sharedChatResponse(batch(0)));
+
+    const provider = new OpenAiCompatProvider(config());
+
+    const result = await provider.scanPlaces('sk_key', {
+      images: images(),
+      signal: new AbortController().signal,
+    });
+    expect(result.places).toHaveLength(1);
+    expect(result.places[0].imageIndex).toBe(1);
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const sent = init.body as string;
+    expect(sent).toContain('https://cdn.example.com/1.jpg');
+    expect(sent).not.toContain('blob:');
+  });
+
+  it('returns empty without any request when every image is hostile', async () => {
+    await setConsented();
+    fetchMock.mockResolvedValue(sharedChatResponse(batch(0)));
+
+    const provider = new OpenAiCompatProvider(config());
+
+    const result = await provider.scanPlaces('sk_key', {
+      images: [
+        { url: 'file:///tmp/0.jpg', caption: '', heading: '', width: 800, height: 600 },
+        { url: 'blob:https://example.com/1', caption: '', heading: '', width: 800, height: 600 },
+      ],
+      signal: new AbortController().signal,
+    });
+    expect(result.places).toEqual([]);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
 describe('compat duelPlaces', () => {
   const VALID_DUEL = {
     criteria: [{ criterion: 'Cost', a: 'Pricey sunsets.', b: 'Cheaper stays.' }],

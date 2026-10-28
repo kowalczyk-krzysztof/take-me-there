@@ -498,6 +498,38 @@ export const PROMPT_CACHE_KEY = 'take-me-there';
 // 24h retention is a Responses-only option; chat requests must not send it.
 export const PROMPT_CACHE_RETENTION = '24h';
 
+// Outbound media boundary: only HTTP(S) addresses and validated inline
+// image/video bytes may ride a provider request. file:, blob: and
+// filesystem: addresses (and anything unparseable) never serialize;
+// callers recover text-only or drop the decorative part instead.
+export const allowsImageMedia = (url: string): boolean => {
+  if (url.startsWith('data:')) {
+    return /^data:image\/(png|jpe?g|gif|webp);base64,[a-z0-9+/=]+$/i.test(url);
+  }
+
+  try {
+    const protocol = new URL(url).protocol;
+
+    return protocol === 'https:' || protocol === 'http:';
+  } catch {
+    return false;
+  }
+};
+
+export const allowsVideoMedia = (url: string): boolean => {
+  if (url.startsWith('data:')) {
+    return /^data:video\/mp4;base64,[a-z0-9+/=]+$/i.test(url);
+  }
+
+  try {
+    const protocol = new URL(url).protocol;
+
+    return protocol === 'https:' || protocol === 'http:';
+  } catch {
+    return false;
+  }
+};
+
 export interface IdentifyMessageOptions {
   signalsText: string;
   imageUrl: string | null;
@@ -611,6 +643,31 @@ export const buildScanMessages = (
 // Client-side batch validation: shape-parse, drop malformed entries,
 // truncate strings, keep the best guess per place. Index pairing happens in
 // the panel (invalid index → placeholder, never a wrong image).
+// Scan media boundary: hostile harvest URLs never reach the wire. The
+// model numbers the kept images, so its indices remap to harvest order;
+// anything unmappable pairs with the placeholder downstream.
+export const filterScanImages = (
+  images: ScannedImage[]
+): { kept: ScannedImage[]; originalIndex: number[] } => {
+  const kept: ScannedImage[] = [];
+  const originalIndex: number[] = [];
+
+  for (const [index, image] of images.entries()) {
+    if (allowsImageMedia(image.url)) {
+      kept.push(image);
+      originalIndex.push(index);
+    }
+  }
+
+  return { kept, originalIndex };
+};
+
+export const remapScanPlaces = (places: ScannedPlace[], originalIndex: number[]): ScannedPlace[] =>
+  places.map((place) => ({
+    ...place,
+    imageIndex: originalIndex[place.imageIndex] ?? -1,
+  }));
+
 export const parseScanBatch = (data: unknown, maxPlaces: number): ScannedPlace[] | undefined =>
   parseScanContent(extractChatJson(data), maxPlaces);
 
@@ -1045,7 +1102,7 @@ export const buildItineraryMessages = (
   const parts: ChatContentPart[] = [{ type: 'text', text }];
 
   for (const pin of pins) {
-    if (pin.thumbnail) {
+    if (pin.thumbnail && allowsImageMedia(pin.thumbnail)) {
       parts.push({ type: 'image_url', image_url: { url: pin.thumbnail } });
     }
   }
@@ -1143,12 +1200,32 @@ const identifyAttempt = async (
   textOnly: boolean,
   strictReminder: boolean
 ): Promise<IdentifyResult> => {
+  const usableImage = textOnly ? null : (input.imageUrl ?? null);
+  const usableVideo = textOnly ? null : (input.videoUrl ?? null);
+  const safeImage = usableImage && allowsImageMedia(usableImage) ? usableImage : null;
+  const safeVideo = usableVideo && allowsVideoMedia(usableVideo) ? usableVideo : null;
+
+  if (!textOnly && (usableImage || usableVideo) && !safeImage && !safeVideo) {
+    // Every media part is hostile: skip the image attempt entirely and
+    // recover text-only, flagged like the 400 fallback.
+    const result = await identifyAttempt(input, key, usage, buildRequest, true, strictReminder);
+
+    return {
+      ...result,
+      place: {
+        ...result.place,
+        confidence: Math.min(result.place.confidence, TEXT_FALLBACK_CONFIDENCE_CAP),
+      },
+      textFallback: true,
+    };
+  }
+
   const messages = buildIdentifyMessages({
     signalsText: input.signalsText,
-    imageUrl: textOnly ? null : input.imageUrl,
+    imageUrl: safeImage,
     rejectedPlace: input.rejectedPlace ? sanitizePromptHint(input.rejectedPlace) : undefined,
     strictReminder,
-    videoUrl: textOnly ? null : (input.videoUrl ?? null),
+    videoUrl: safeVideo,
   });
 
   const request = buildRequest(messages, placeJsonSchema());

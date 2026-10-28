@@ -17,12 +17,14 @@ import {
   emptyUsage,
   extractChatJson,
   fetchChatCompletion,
+  filterScanImages,
   invalidResponse,
   parseAlternatesContent,
   parseDuelContent,
   parseItineraryPlan,
   parseScanBatch,
   postChatStream,
+  remapScanPlaces,
   requireKey,
   runIdentify,
   testModelsEndpoint,
@@ -181,6 +183,12 @@ export class OpenAiCompatProvider implements Provider {
       throw invalidResponse(usage, 'no images to scan');
     }
 
+    const { kept, originalIndex } = filterScanImages(input.images);
+
+    if (kept.length === 0) {
+      return { places: [], usage: { ...usage } };
+    }
+
     for (const strictReminder of [false, true]) {
       const data = await fetchChatCompletion(
         `${base}/chat/completions`,
@@ -189,7 +197,7 @@ export class OpenAiCompatProvider implements Provider {
           model: this.config.model,
           prompt_cache_key: PROMPT_CACHE_KEY,
           max_completion_tokens: ITINERARY_MAX_TOKENS,
-          messages: buildScanMessages(input.images, strictReminder),
+          messages: buildScanMessages(kept, strictReminder),
           response_format:
             this.config.structuredOutput === 'json_schema'
               ? {
@@ -202,10 +210,10 @@ export class OpenAiCompatProvider implements Provider {
         usage
       );
 
-      const places = parseScanBatch(data, input.images.length);
+      const places = parseScanBatch(data, kept.length);
 
       if (places) {
-        return { places, usage: { ...usage } };
+        return { places: remapScanPlaces(places, originalIndex), usage: { ...usage } };
       }
     }
 

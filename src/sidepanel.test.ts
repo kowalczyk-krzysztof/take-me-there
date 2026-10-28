@@ -1002,7 +1002,7 @@ describe('sidepanel', () => {
       [SLOT]: READY({
         srcUrl: 'blob:https://example.com/aaa',
         mediaType: 'video',
-        frame: { dataUrl: 'data:image/jpeg,frame', time: 12.5 },
+        frame: { dataUrl: 'data:image/jpeg;base64,ZnJhbWU=', time: 12.5 },
       }),
     });
     await waitFor(() => {
@@ -1018,7 +1018,7 @@ describe('sidepanel', () => {
     ]);
 
     const img = document.querySelector('#preview-frame img') as HTMLImageElement | null;
-    expect(img?.getAttribute('src')).toBe('data:image/jpeg,frame');
+    expect(img?.getAttribute('src')).toBe('data:image/jpeg;base64,ZnJhbWU=');
     expect(img?.alt).toBe('previewAltFrame');
   });
 
@@ -1032,7 +1032,7 @@ describe('sidepanel', () => {
       [SLOT]: READY({
         srcUrl: 'blob:https://example.com/aaa',
         mediaType: 'video',
-        frame: { dataUrl: 'data:image/jpeg,frame', time: 12.5 },
+        frame: { dataUrl: 'data:image/jpeg;base64,ZnJhbWU=', time: 12.5 },
       }),
     });
     await waitFor(() => {
@@ -1046,7 +1046,7 @@ describe('sidepanel', () => {
     const body = JSON.parse(init.body as string) as {
       messages: Array<{ content: Array<{ image_url?: { url: string } }> }>;
     };
-    expect(body.messages[1].content[1].image_url?.url).toBe('data:image/jpeg,frame');
+    expect(body.messages[1].content[1].image_url?.url).toBe('data:image/jpeg;base64,ZnJhbWU=');
     expect(document.querySelector('#privacy-line')?.textContent).toBe(
       "privacyVideoFrame(Meta's Muse API)"
     );
@@ -1060,7 +1060,7 @@ describe('sidepanel', () => {
       [SLOT]: READY({
         srcUrl: 'blob:https://example.com/aaa',
         mediaType: 'video',
-        frame: { dataUrl: 'data:image/jpeg,frame', time: 12.5 },
+        frame: { dataUrl: 'data:image/jpeg;base64,ZnJhbWU=', time: 12.5 },
       }),
     });
     await waitFor(() => {
@@ -1088,7 +1088,7 @@ describe('sidepanel', () => {
         requestId: '200-2',
         srcUrl: 'blob:https://example.com/bbb',
         mediaType: 'video',
-        frame: { dataUrl: 'data:image/jpeg,frame2', time: 3 },
+        frame: { dataUrl: 'data:image/jpeg;base64,ZnJhbWUy', time: 3 },
       }),
     });
     await waitFor(() => {
@@ -1104,7 +1104,7 @@ describe('sidepanel', () => {
       [SLOT]: READY({
         srcUrl: 'blob:https://example.com/aaa',
         mediaType: 'video',
-        frame: { dataUrl: 'data:image/jpeg,frame', time: 12.5 },
+        frame: { dataUrl: 'data:image/jpeg;base64,ZnJhbWU=', time: 12.5 },
       }),
     });
     await waitFor(() => {

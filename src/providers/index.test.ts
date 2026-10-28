@@ -25,9 +25,13 @@ import {
   parseScanBatch,
   customHostOf,
   emptyUsage,
+  allowsImageMedia,
+  allowsVideoMedia,
+  filterScanImages,
   postChatStream,
   readBoundedJson,
   readChatUsage,
+  remapScanPlaces,
   fetchChatCompletion,
   readStall,
   responseError,
@@ -353,6 +357,56 @@ describe('prompt builders', () => {
     await expect(readBoundedJson(small, emptyUsage(), 'response')).resolves.toEqual({ a: 1 });
   });
 
+  it('classifies outbound media URLs', () => {
+    expect(allowsImageMedia('https://cdn.example.com/oia.jpg')).toBe(true);
+    expect(allowsImageMedia('http://127.0.0.1:8000/oia.jpg')).toBe(true);
+    expect(allowsImageMedia('data:image/png;base64,aGVsbG8=')).toBe(true);
+    expect(allowsImageMedia('data:image/jpeg;base64,/9j/4AA=')).toBe(true);
+    expect(allowsImageMedia('data:image/gif;base64,R0lGODw==')).toBe(true);
+    expect(allowsImageMedia('data:image/webp;base64,UklGRg==')).toBe(true);
+    expect(allowsImageMedia('data:image/svg+xml;base64,PHN2Zw==')).toBe(false);
+    expect(allowsImageMedia('data:image/jpeg,not-base64')).toBe(false);
+    expect(allowsImageMedia('data:image/jpeg;base64,')).toBe(false);
+    expect(allowsImageMedia('blob:https://example.com/uuid')).toBe(false);
+    expect(allowsImageMedia('file:///tmp/oia.jpg')).toBe(false);
+    expect(allowsImageMedia('filesystem:https://example.com/img.jpg')).toBe(false);
+    expect(allowsImageMedia('ftp://example.com/oia.jpg')).toBe(false);
+    expect(allowsImageMedia('not a url')).toBe(false);
+    expect(allowsImageMedia('')).toBe(false);
+
+    expect(allowsVideoMedia('https://cdn.example.com/clip.mp4')).toBe(true);
+    expect(allowsVideoMedia('data:video/mp4;base64,AAAAIGZ0')).toBe(true);
+    expect(allowsVideoMedia('data:image/jpeg;base64,/9j/4AA=')).toBe(false);
+    expect(allowsVideoMedia('blob:https://example.com/uuid')).toBe(false);
+    expect(allowsVideoMedia('file:///tmp/clip.mp4')).toBe(false);
+  });
+
+  it('filters hostile scan images and remaps model indices', () => {
+    const images = [
+      { url: 'blob:https://example.com/0', caption: '', heading: '', width: 800, height: 600 },
+      { url: 'https://cdn.example.com/1.jpg', caption: '', heading: '', width: 800, height: 600 },
+      { url: 'file:///tmp/2.jpg', caption: '', heading: '', width: 800, height: 600 },
+      { url: 'https://cdn.example.com/3.jpg', caption: '', heading: '', width: 800, height: 600 },
+    ];
+
+    const { kept, originalIndex } = filterScanImages(images);
+    expect(kept.map((image) => image.url)).toEqual([
+      'https://cdn.example.com/1.jpg',
+      'https://cdn.example.com/3.jpg',
+    ]);
+    expect(originalIndex).toEqual([1, 3]);
+
+    const places = remapScanPlaces(
+      [
+        { placeName: 'A', city: '', country: 'Greece', confidence: 0.9, imageIndex: 0 },
+        { placeName: 'B', city: '', country: 'Greece', confidence: 0.8, imageIndex: 1 },
+        { placeName: 'C', city: '', country: 'Greece', confidence: 0.7, imageIndex: 7 },
+      ],
+      originalIndex
+    );
+    expect(places.map((place) => place.imageIndex)).toEqual([1, 3, -1]);
+  });
+
   it('carries the HTTP status on mapped errors', () => {
     expect(responseError(new Response(null, { status: 400 })).status).toBe(400);
     expect(responseError(new Response(null, { status: 429 }))).toMatchObject({
@@ -364,7 +418,7 @@ describe('prompt builders', () => {
   it('builds the itinerary prompt with posture, stops, and pixel parts', () => {
     const [developer, user] = buildItineraryMessages(
       [
-        { name: 'Oia', host: 'example.com', thumbnail: 'data:image/jpeg,aaa' },
+        { name: 'Oia', host: 'example.com', thumbnail: 'data:image/jpeg;base64,YWFh' },
         { name: 'Fira', host: '' },
       ],
       false
@@ -378,7 +432,7 @@ describe('prompt builders', () => {
     expect(parts).toHaveLength(2);
     expect(parts[1]).toEqual({
       type: 'image_url',
-      image_url: { url: 'data:image/jpeg,aaa' },
+      image_url: { url: 'data:image/jpeg;base64,YWFh' },
     });
   });
 
