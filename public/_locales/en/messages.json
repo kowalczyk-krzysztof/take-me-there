@@ -1224,7 +1224,7 @@
     }
   },
   "securityNoticeCustom": {
-    "message": "Your API key is encrypted before it's saved (AES-GCM, with a non-extractable key kept in this browser profile) and never leaves this device except to authenticate requests to $1. Saving the key sends only the key itself to validate it. Someone with full access to your computer account could still recover it, so only save it on a trusted device - or enable session-only mode, which keeps the key in memory and forgets it when the browser closes.",
+    "message": "Your API key is encrypted before it's saved (AES-GCM, with a non-extractable key kept in this browser profile) and never leaves this device except to authenticate requests to $1. Saving the key sends only the key itself to validate it - images and page text are never sent before you click 'Agree & analyze'. Someone with full access to your computer account could still recover it, so only save it on a trusted device - or enable session-only mode, which keeps the key in memory and forgets it when the browser closes.",
     "description": "Key security notice naming the custom server.",
     "placeholders": {
       "host": {
@@ -1394,5 +1394,13 @@
         "example": "Meta's Muse API"
       }
     }
+  },
+  "keyLabelCustom": {
+    "message": "Custom server API key",
+    "description": "Key field label for a custom server."
+  },
+  "keyPlaceholderCustom": {
+    "message": "Your API key",
+    "description": "Key field placeholder for a custom server."
   }
 }

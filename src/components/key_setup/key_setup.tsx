@@ -109,7 +109,7 @@ export const KeySetup = ({
           }}
         >
           <label className={styles['field-label']} htmlFor="key-input">
-            {msg('keyLabel')}
+            {customHost ? msg('keyLabelCustom') : msg('keyLabel')}
           </label>
           <input
             id="key-input"
@@ -120,7 +120,7 @@ export const KeySetup = ({
             spellCheck={false}
             aria-describedby={error === null ? 'key-hint' : 'key-hint key-error'}
             aria-invalid={error === null ? undefined : 'true'}
-            placeholder={msg('keyPlaceholder')}
+            placeholder={msg(customHost ? 'keyPlaceholderCustom' : 'keyPlaceholder')}
             onChange={(event) => callbacks.onDraftChange?.(event.currentTarget.value)}
           />
           <p className={styles.hint} id="key-hint">

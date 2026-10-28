@@ -143,6 +143,10 @@ describe('onboarding', () => {
     await waitFor(() => {
       expect(document.querySelector('#key-hint')?.textContent).toBe('keyHintCustom');
     });
+    expect(document.querySelector('label[for="key-input"]')?.textContent).toBe('keyLabelCustom');
+    expect((document.querySelector('#key-input') as HTMLInputElement).placeholder).toBe(
+      'keyPlaceholderCustom'
+    );
   });
 
   it('switches back to Muse from onboarding', async () => {

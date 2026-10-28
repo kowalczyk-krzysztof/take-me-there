@@ -46,8 +46,9 @@ mode keeps it in memory and forgets it when the browser closes.
 - Saving a key sends only the key itself to validate it. Nothing
   else leaves your machine until you click "Agree & analyze".
 - Analysis requests go to Meta's Muse API, or to your custom server
-  if you configured one on the Options page. Your key, images, and
-  page text are used only to produce the result you asked for.
+  if you configured one on the Settings tab or the Options page.
+  Your key, images, and page text are used only to produce the
+  result you asked for.
 - Page images are downloaded only when needed, without your cookies,
   and the one-time permission is removed right after.
 - No analytics, no tracking, no ads.
@@ -59,7 +60,9 @@ calls above:
   only, in session-only mode).
 - Trip board: pinned places with page addresses and thumbnails.
 - Cost totals: monthly spend per provider.
-- Result cache: recent results keyed by image and page.
+- Result cache: recent results keyed by image and page, kept 7 days
+  by default (1 or 30 days in Settings), at most 10 entries and
+  2 MB, with a Clear control.
 - Settings and consent flags: provider choice, toggles, Agree state.
 
 ## Architecture
@@ -76,7 +79,7 @@ flowchart TB
         direction TB
         main["Main<br/>identify, guide, compare, alternatives, scan"]
         board["Trip board<br/>pinned places and planned routes"]
-        settingsTab["Settings<br/>API key setup"]
+        settingsTab["Settings<br/>key, provider, modes, cache, cost"]
     end
 
     panel --> providers["Provider layer (one interface)"]
@@ -101,7 +104,7 @@ It is the only website the extension talks to by default.
 
 A typical analysis costs a few cents: tokens plus about $0.0025 per
 web search. The panel shows the exact figure after every run, and a
-monthly total on the options page. Prefer another backend? Point the
+monthly total on the Settings tab. Prefer another backend? Point the
 custom server option at any OpenAI-style endpoint instead.
 
 ## Develop

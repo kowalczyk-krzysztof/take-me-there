@@ -36,9 +36,12 @@ warns that a custom server has its own data handling.
 
 AES-GCM encrypted API key in this browser profile (or memory
 only in session-only mode), wrapping key in IndexedDB, settings,
-consent flags, trip board pins, monthly cost totals, recent
-result cache, and the short-lived tab handoff (session storage,
-consumed or expired). Nothing here is uploaded anywhere.
+consent flags, trip board pins, monthly cost totals, the recent
+result cache (session storage: 7-day default expiry with a 1/7/30
+day setting, at most 10 entries and 2 MB, least-recently-used
+eviction, plus a Clear control), and the short-lived tab handoff
+(session storage, consumed or expired). Nothing here is uploaded
+anywhere.
 
 ## Data never touched
 
@@ -57,8 +60,9 @@ addresses are hashed locally for cache keys and never sent.
   session handoff between worker and panel.
 - Host `https://api.meta.ai/*`: the Muse API.
 - Optional host `https://*/*`: a one-time per-run grant to
-  download the clicked image when bytes are needed. Removed
-  right after the fetch, with a startup sweep for strays.
+  download the clicked image when bytes are needed. The fetch runs
+  in the page without cookies; the grant is removed right after the
+  fetch, with a startup sweep for strays.
 
 ## Account deletion
 

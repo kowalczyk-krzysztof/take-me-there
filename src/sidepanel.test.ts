@@ -3177,4 +3177,33 @@ describe('sidepanel', () => {
       "privacyVideoFrameOnly(Meta's Muse API)"
     );
   });
+
+  it('discloses the full-video payload when the frame is missing', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+
+    fetchMock
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
+      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
+    await mock.session.set({
+      [SLOT]: READY({
+        srcUrl: 'https://cdn.example.com/v.mp4',
+        mediaType: 'video',
+      }),
+    });
+
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot h2')?.textContent).toBe('videoConfirmTitle');
+    });
+
+    const paragraphs = [...document.querySelectorAll('#result-slot p')].map((p) => p.textContent);
+    expect(paragraphs).toContain('videoConfirmBody');
+    expect(paragraphs).toContain('videoConfirmRung2Note');
+
+    (document.querySelector('#result-slot .confirm-actions .primary') as HTMLButtonElement).click();
+    await waitForHeading('Oia');
+    expect(document.querySelector('#privacy-line')?.textContent).toBe(
+      "privacyVideoUrl(Meta's Muse API)"
+    );
+  });
 });

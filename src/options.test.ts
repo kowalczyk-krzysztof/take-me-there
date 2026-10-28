@@ -587,4 +587,39 @@ describe('options', () => {
 
     mock.session.fault = () => undefined;
   });
+
+  it('keeps retention and key mode independent', async () => {
+    const mock = await setup();
+
+    const { saveKey, loadKey } = await import('./key_vault');
+    await saveKey('muse', 'LLM_x', false);
+
+    await waitFor(() => {
+      expect(document.querySelector('#cost-line')?.textContent).toContain('optionsCostMonth');
+    });
+
+    const sessionOnly = document.querySelector('#session-only') as HTMLInputElement;
+    sessionOnly.checked = true;
+    sessionOnly.dispatchEvent(new Event('change', { bubbles: true }));
+
+    await waitFor(async () => {
+      expect((await loadKey('muse')).state).toBe('ok');
+    });
+
+    const retention = document.querySelector('#retention-select') as HTMLSelectElement;
+    retention.value = '30';
+    retention.dispatchEvent(new Event('change', { bubbles: true }));
+
+    await waitFor(() => {
+      const record = mock.local.data.get('settings') as {
+        settings: { cacheTtlDays: number; sessionOnly: boolean };
+      };
+
+      expect(record.settings.cacheTtlDays).toBe(30);
+      expect(record.settings.sessionOnly).toBe(true);
+    });
+
+    expect(await loadKey('muse')).toEqual({ state: 'ok', key: 'LLM_x' });
+    expect(mock.session.data.has('apiKey:muse')).toBe(true);
+  });
 });
