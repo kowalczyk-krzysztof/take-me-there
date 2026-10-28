@@ -1086,6 +1086,10 @@
     "message": "Created in your provider's dashboard.",
     "description": "Key hint for custom servers."
   },
+  "compatCachedRate": {
+    "message": "Cached input $/1M tokens (optional)",
+    "description": "Custom provider cached-input rate field."
+  },
   "compatHostWarning": {
     "message": "Keys, images, and page text will be sent to $1 instead of api.meta.ai. Click Save again to confirm.",
     "description": "One-time warning before saving a new custom server.",

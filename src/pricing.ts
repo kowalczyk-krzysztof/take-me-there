@@ -7,22 +7,33 @@ import { sendCommand } from './storage_client';
 export interface ModelRates {
   inputUsdPerMTok: number;
   outputUsdPerMTok: number;
+  cachedInputUsdPerMTok?: number;
 }
+
+// Prompt-cache reads bill below full input price on Muse only: other
+// providers fall back to their full input rate unless they configure
+// their own cached rate, so the UI never invents savings for them.
+export const CACHED_INPUT_USD_PER_MTOK = 0.15;
 
 // muse-spark-1.3: $1.25 per 1M input tokens, $4.25 per 1M output tokens.
 export const MUSE_SPARK_RATES: Record<string, ModelRates> = {
-  'muse-spark-1.3': { inputUsdPerMTok: 1.25, outputUsdPerMTok: 4.25 },
+  'muse-spark-1.3': {
+    inputUsdPerMTok: 1.25,
+    outputUsdPerMTok: 4.25,
+    cachedInputUsdPerMTok: CACHED_INPUT_USD_PER_MTOK,
+  },
 };
 
 // Web grounding bills per search query on top of tokens.
 export const WEB_SEARCH_COST_USD = 0.0025;
 // Flat fee per sam-3.1 image call.
 export const SAM_IMAGE_COST_USD = 0.0025;
-// Prompt-cache reads bill below full input price.
-export const CACHED_INPUT_USD_PER_MTOK = 0.15;
 
 export const cachedInputTokensOf = (usage: Usage): number =>
   Math.min(Math.max(0, usage.cachedInputTokens ?? 0), Math.max(0, usage.inputTokens));
+
+const cachedRateOf = (rates: ModelRates): number =>
+  rates.cachedInputUsdPerMTok ?? rates.inputUsdPerMTok;
 
 export const estimateCostUsd = (usage: Usage, rates?: ModelRates): number | null => {
   if (!rates) {
@@ -33,7 +44,7 @@ export const estimateCostUsd = (usage: Usage, rates?: ModelRates): number | null
 
   const tokens =
     ((usage.inputTokens - cached) * rates.inputUsdPerMTok +
-      cached * CACHED_INPUT_USD_PER_MTOK +
+      cached * cachedRateOf(rates) +
       usage.outputTokens * rates.outputUsdPerMTok) /
     1_000_000;
 
@@ -41,7 +52,7 @@ export const estimateCostUsd = (usage: Usage, rates?: ModelRates): number | null
 };
 
 export const estimateCachedSavingUsd = (usage: Usage, rates: ModelRates): number =>
-  (cachedInputTokensOf(usage) * (rates.inputUsdPerMTok - CACHED_INPUT_USD_PER_MTOK)) / 1_000_000;
+  (cachedInputTokensOf(usage) * (rates.inputUsdPerMTok - cachedRateOf(rates))) / 1_000_000;
 
 const COST_TOTALS_KEY = 'costTotals';
 

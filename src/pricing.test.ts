@@ -110,6 +110,42 @@ describe('pricing', () => {
     expect(estimateCachedSavingUsd(usage, rates)).toBeCloseTo((100 * 1.1) / 1_000_000, 12);
   });
 
+  it('bills custom cached input at full rate without a configured discount', () => {
+    const rates = { inputUsdPerMTok: 2, outputUsdPerMTok: 6 };
+    const usage = {
+      inputTokens: 1_000_000,
+      outputTokens: 0,
+      searchCount: 0,
+      flatFeesUsd: 0,
+      cachedInputTokens: 1_000_000,
+    };
+    expect(estimateCostUsd(usage, rates)).toBeCloseTo(2, 10);
+    expect(estimateCachedSavingUsd(usage, rates)).toBe(0);
+  });
+
+  it('honors a configured custom cached rate', () => {
+    const rates = { inputUsdPerMTok: 2, outputUsdPerMTok: 6, cachedInputUsdPerMTok: 0.5 };
+    const usage = {
+      inputTokens: 1_000_000,
+      outputTokens: 0,
+      searchCount: 0,
+      flatFeesUsd: 0,
+      cachedInputTokens: 1_000_000,
+    };
+    expect(estimateCostUsd(usage, rates)).toBeCloseTo(0.5, 10);
+    expect(estimateCachedSavingUsd(usage, rates)).toBeCloseTo(1.5, 10);
+  });
+
+  it('keeps zero-rate providers at zero cost', () => {
+    const rates = { inputUsdPerMTok: 0, outputUsdPerMTok: 0 };
+    expect(
+      estimateCostUsd(
+        { inputTokens: 1000, outputTokens: 500, searchCount: 0, flatFeesUsd: 0 },
+        rates
+      )
+    ).toBe(0);
+  });
+
   it('returns null without a rate table so the UI shows tokens', () => {
     expect(
       estimateCostUsd({ inputTokens: 10, outputTokens: 10, searchCount: 0, flatFeesUsd: 0 })

@@ -58,6 +58,7 @@ const settingsSchema = z.strictObject({
     structuredOutput: z.enum(['json_object', 'json_schema']),
     inputRatePerM: z.optional(z.number()),
     outputRatePerM: z.optional(z.number()),
+    cachedRatePerM: z.optional(z.number()),
   }),
   imageOnly: z.boolean(),
   sessionOnly: z.boolean(),

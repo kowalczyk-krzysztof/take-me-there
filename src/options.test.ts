@@ -231,6 +231,7 @@ describe('options', () => {
     (document.querySelector('#compat-model') as HTMLInputElement).value = 'test-model';
     (document.querySelector('#compat-structured') as HTMLSelectElement).value = 'json_schema';
     (document.querySelector('#compat-input-rate') as HTMLInputElement).value = '1.5';
+    (document.querySelector('#compat-cached-rate') as HTMLInputElement).value = '0.2';
     (document.querySelector('#compat-save') as HTMLButtonElement).click();
     await waitFor(() => {
       expect(document.querySelector('#compat-error')?.textContent).toBe(
@@ -254,6 +255,7 @@ describe('options', () => {
           model: 'test-model',
           structuredOutput: 'json_schema',
           inputRatePerM: 1.5,
+          cachedRatePerM: 0.2,
         },
         imageOnly: false,
         sessionOnly: false,

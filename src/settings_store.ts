@@ -53,6 +53,7 @@ export interface OpenAiCompatSettings {
   structuredOutput: 'json_schema' | 'json_object';
   inputRatePerM?: number;
   outputRatePerM?: number;
+  cachedRatePerM?: number;
 }
 
 export interface ExtensionSettings {
@@ -114,6 +115,9 @@ export const loadSettings = async (): Promise<ExtensionSettings> => {
         structuredOutput: compat.structuredOutput === 'json_schema' ? 'json_schema' : 'json_object',
         ...(typeof compat.inputRatePerM === 'number'
           ? { inputRatePerM: compat.inputRatePerM }
+          : {}),
+        ...(typeof compat.cachedRatePerM === 'number'
+          ? { cachedRatePerM: compat.cachedRatePerM }
           : {}),
         ...(typeof compat.outputRatePerM === 'number'
           ? { outputRatePerM: compat.outputRatePerM }

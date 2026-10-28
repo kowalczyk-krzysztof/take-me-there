@@ -25,6 +25,7 @@ interface CompatForm {
   structured: string;
   inputRate: string;
   outputRate: string;
+  cachedRate: string;
 }
 
 interface OptionsState {
@@ -252,7 +253,13 @@ const onCompatSave = (): void => {
 
     const outputRatePerM = parseRate(inputValue('compat-output-rate'));
 
-    if (Number.isNaN(inputRatePerM) || Number.isNaN(outputRatePerM)) {
+    const cachedRatePerM = parseRate(inputValue('compat-cached-rate'));
+
+    if (
+      Number.isNaN(inputRatePerM) ||
+      Number.isNaN(outputRatePerM) ||
+      Number.isNaN(cachedRatePerM)
+    ) {
       store.set({ compatError: msg('providerErrorRates') });
 
       return;
@@ -303,6 +310,7 @@ const onCompatSave = (): void => {
         structuredOutput: structuredSelect?.value === 'json_schema' ? 'json_schema' : 'json_object',
         ...(inputRatePerM === undefined ? {} : { inputRatePerM }),
         ...(outputRatePerM === undefined ? {} : { outputRatePerM }),
+        ...(cachedRatePerM === undefined ? {} : { cachedRatePerM }),
       },
     };
     try {
@@ -543,6 +551,16 @@ const OptionsApp = () => {
               defaultValue={settings?.compat.outputRate ?? ''}
             />
           </label>
+          <label className="field-row">
+            <span id="compat-cached-rate-label">{msg('compatCachedRate')}</span>
+            <input
+              type="number"
+              id="compat-cached-rate"
+              min="0"
+              step="any"
+              defaultValue={settings?.compat.cachedRate ?? ''}
+            />
+          </label>
           <div className="button-row">
             <button id="compat-save" type="button" onClick={onCompatSave}>
               {msg(state.compatConfirmHost ? 'compatSaveAnyway' : 'compatSave')}
@@ -634,6 +652,10 @@ export const initOptions = (): void => {
             settings.openaiCompat.outputRatePerM === undefined
               ? ''
               : String(settings.openaiCompat.outputRatePerM),
+          cachedRate:
+            settings.openaiCompat.cachedRatePerM === undefined
+              ? ''
+              : String(settings.openaiCompat.cachedRatePerM),
         },
       },
     });

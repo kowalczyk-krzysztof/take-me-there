@@ -80,10 +80,14 @@ export class OpenAiCompatProvider implements Provider {
   }
 
   getRates(): ModelRates | undefined {
-    const { inputRatePerM, outputRatePerM } = this.config;
+    const { inputRatePerM, outputRatePerM, cachedRatePerM } = this.config;
 
     if (typeof inputRatePerM === 'number' && typeof outputRatePerM === 'number') {
-      return { inputUsdPerMTok: inputRatePerM, outputUsdPerMTok: outputRatePerM };
+      return {
+        inputUsdPerMTok: inputRatePerM,
+        outputUsdPerMTok: outputRatePerM,
+        ...(typeof cachedRatePerM === 'number' ? { cachedInputUsdPerMTok: cachedRatePerM } : {}),
+      };
     }
 
     return undefined;

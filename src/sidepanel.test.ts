@@ -2197,6 +2197,37 @@ describe('sidepanel', () => {
     expect(imagePart?.image_url?.url.startsWith('data:image/jpeg;base64,')).toBe(true);
   });
 
+  it('keeps zero-rate providers at zero cost', async () => {
+    const mock = await setup(async (seed) => {
+      await seed.local.set({
+        settings: {
+          v: 1,
+          settings: {
+            activeProviderId: 'openai_compat',
+            openaiCompat: {
+              baseURL: 'https://llm.example.com/v1',
+              model: 'test-model',
+              structuredOutput: 'json_object',
+              inputRatePerM: 0,
+              outputRatePerM: 0,
+            },
+            imageOnly: false,
+            sessionOnly: false,
+            skipWebSearch: false,
+          },
+        },
+      });
+    });
+    const { saveKey } = await import('./key_vault');
+    await saveKey('openai_compat', 'sk_x', false);
+    await plantKeyAndConsent();
+
+    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
+    await mock.session.set({ [SLOT]: READY() });
+    await waitForHeading('Oia');
+    expect(document.querySelector('#cost-line')?.textContent).toBe('costLine($0.00 | $0.00)');
+  });
+
   it('keeps the provider grant when the image origin is the provider origin', async () => {
     const mock = await setup(async (seed) => {
       await seed.local.set({
