@@ -89,7 +89,7 @@ const handleImageClick = async (
     dataPending,
     pageUrl,
     tabId,
-    signals,
+    ...(signals ? { signals } : {}),
   });
 };
 
@@ -130,7 +130,7 @@ const handleVideoClick = async (
     dataPending,
     pageUrl,
     tabId,
-    signals,
+    ...(signals ? { signals } : {}),
     mediaType: 'video',
     frame,
     frameError,
@@ -163,7 +163,6 @@ const handleScanClick = async (
     dataPending: false,
     pageUrl,
     tabId,
-    signals: {},
     scanImages,
   });
 };
@@ -189,7 +188,7 @@ const scrapeWithTimeout = async (
   tabId: number,
   frameId: number,
   srcUrl: string
-): Promise<Record<string, unknown>> => {
+): Promise<Record<string, unknown> | null> => {
   try {
     const results = await withTimeout(
       chrome.scripting.executeScript({
@@ -202,11 +201,12 @@ const scrapeWithTimeout = async (
       }),
       INJECT_TIMEOUT_MS
     );
-    return (results[0]?.result ?? {}) as Record<string, unknown>;
+    const result = (results[0]?.result ?? {}) as Record<string, unknown>;
+    return Object.keys(result).length > 0 ? result : null;
   } catch {
     // Timeout, missing permission, or a page that refuses injection: the
     // analysis still proceeds, image-only.
-    return {};
+    return null;
   }
 };
 
@@ -247,7 +247,7 @@ interface TerminalRecord {
   dataPending: boolean;
   pageUrl: string | null;
   tabId: number;
-  signals: Record<string, unknown>;
+  signals?: Record<string, unknown>;
   mediaType?: 'video';
   frame?: { dataUrl: string; time: number };
   frameError?: string;
@@ -265,7 +265,8 @@ const writeTerminalState = async (requestId: string, record: TerminalRecord): Pr
     // reaches a terminal state.
     try {
       if (await isCurrentRequest(requestId)) {
-        const slim: TerminalRecord = { ...record, signals: {} };
+        const slim: TerminalRecord = { ...record };
+        delete slim.signals;
         if (slim.frame) {
           delete slim.frame;
           slim.frameError = 'too-large';

@@ -167,8 +167,26 @@ describe('handoff schemas', () => {
       TRIP_REQUEST_SCHEMA.safeParse({ ...collecting, status: 'ready', signals: validSignals() })
         .success
     ).toBe(true);
+    // Worker contract: every record shape the worker writes must parse.
+    // Failed scrapes, page scans, and quota-slimmed retries omit `signals`
+    // entirely rather than writing a partial object.
+    expect(TRIP_REQUEST_SCHEMA.safeParse({ ...collecting, status: 'ready' }).success).toBe(true);
+    expect(
+      TRIP_REQUEST_SCHEMA.safeParse({
+        ...collecting,
+        status: 'ready',
+        srcUrl: '',
+        scanImages: [
+          { url: 'https://cdn.example.com/a.jpg', caption: '', heading: '', width: 1, height: 1 },
+        ],
+      }).success
+    ).toBe(true);
     expect(TRIP_REQUEST_SCHEMA.safeParse({ ...collecting, status: 'bogus' }).success).toBe(false);
     expect(TRIP_REQUEST_SCHEMA.safeParse({ ...collecting, signals: {} }).success).toBe(false);
+    expect(
+      TRIP_REQUEST_SCHEMA.safeParse({ ...collecting, signals: { ...validSignals(), alt: 42 } })
+        .success
+    ).toBe(false);
   });
 
   it('validates page signals and capabilities', () => {

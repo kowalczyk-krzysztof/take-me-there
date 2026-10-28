@@ -842,6 +842,17 @@ describe('sidepanel', () => {
     expect(cards?.[0]?.querySelector('.pin-button')?.getAttribute('aria-pressed')).toBe('false');
   });
 
+  it('identifies image-only when the scrape failed and signals are omitted', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
+    const record = READY({ requestId: '200-2' });
+    delete (record as Record<string, unknown>).signals;
+    await mock.session.set({ tripRequest: record });
+    await waitForHeading('Oia');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('shows honest cards for empty harvests and empty results', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
