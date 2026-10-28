@@ -204,6 +204,12 @@ describe('handoff schemas', () => {
       TRIP_REQUEST_SCHEMA.safeParse({ ...collecting, status: 'error', reason: 'collecting-failed' })
         .success
     ).toBe(true);
+    expect(
+      TRIP_REQUEST_SCHEMA.safeParse({ ...collecting, status: 'ready', frameId: 4 }).success
+    ).toBe(true);
+    expect(
+      TRIP_REQUEST_SCHEMA.safeParse({ ...collecting, status: 'ready', frameId: 'top' }).success
+    ).toBe(false);
     const { seq: _dropped, ...unsequenced } = collecting;
     expect(TRIP_REQUEST_SCHEMA.safeParse(unsequenced).success).toBe(false);
     expect(TRIP_REQUEST_SCHEMA.safeParse({ ...collecting, status: 'bogus' }).success).toBe(false);

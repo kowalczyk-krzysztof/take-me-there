@@ -202,6 +202,7 @@ const handleImageClick = async (
     dataPending,
     pageUrl,
     tabId,
+    frameId,
     windowId,
     at: Date.now(),
     ...(signals ? { signals } : {}),
@@ -261,6 +262,7 @@ const handleVideoClick = async (
     dataPending,
     pageUrl,
     tabId,
+    frameId,
     windowId,
     at: Date.now(),
     ...(signals ? { signals } : {}),
@@ -401,6 +403,7 @@ interface TerminalRecord {
   dataPending: boolean;
   pageUrl: string | null;
   tabId: number;
+  frameId?: number;
   windowId: number;
   at: number;
   signals?: Record<string, unknown>;

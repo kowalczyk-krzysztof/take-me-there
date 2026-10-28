@@ -30,9 +30,14 @@ import {
   type BoardPin,
 } from './board_store';
 import { buildDestination, buildLinks, mapsDirUrl } from './deep_links';
-import { downscaleToJpegDataUrl, fetchImageBytes } from './image_fetch';
+import {
+  dataUrlToBytes,
+  downscaleToJpegDataUrl,
+  fetchImageBytes,
+  fetchImageBytesViaTab,
+} from './image_fetch';
 import { clearAllKeys, clearKey, isVaultKey, loadKey, saveKey, setKeyMode } from './key_vault';
-import { cropToSamBox, dataUrlToBytes, parseSamBoxes, selectSamBox, type SamPixelBox } from './sam';
+import { cropToSamBox, parseSamBoxes, selectSamBox, type SamPixelBox } from './sam';
 import { estimateCachedSavingUsd, estimateCostUsd, formatUsd, readMonthSpend } from './pricing';
 import { createGuideRenderer, findGuideStart } from './render_markdown';
 import {
@@ -2136,18 +2141,35 @@ const samCropAttempt = async (run: RunContext, request: TripRequest): Promise<Sa
     } catch {
       return null;
     }
-    let outcome: { granted: boolean; result?: Uint8Array };
+    // Prompt-free first: the page tab fetches CORS-open hosts with no
+    // extension permission. Any tab failure falls back to the grant path.
     try {
-      outcome = await withTempGrant(origin, loopback, async () =>
-        fetchImageBytes(request.srcUrl, run.signal)
+      inputBytes = await fetchImageBytesViaTab(
+        request.tabId,
+        request.frameId ?? 0,
+        request.srcUrl,
+        run.signal
       );
     } catch {
-      return null;
+      inputBytes = null;
     }
-    if (!outcome.granted || !outcome.result) {
-      return null;
+    if (!inputBytes) {
+      if (run.signal.aborted) {
+        return null;
+      }
+      let outcome: { granted: boolean; result?: Uint8Array };
+      try {
+        outcome = await withTempGrant(origin, loopback, async () =>
+          fetchImageBytes(request.srcUrl, run.signal)
+        );
+      } catch {
+        return null;
+      }
+      if (!outcome.granted || !outcome.result) {
+        return null;
+      }
+      inputBytes = outcome.result;
     }
-    inputBytes = outcome.result;
   }
   if (!inputBytes) {
     return null;
@@ -2370,18 +2392,47 @@ const fetchRetry = async (): Promise<void> => {
   } catch {
     return;
   }
-  // Gesture rule: the permission prompt is the first await in this handler.
+  const controller = new AbortController();
+  const runWithBytes = async (bytes: Uint8Array): Promise<void> => {
+    const dataUrl = await downscaleToJpegDataUrl(bytes);
+    if (!controller.signal.aborted) {
+      await runAnalysis({ ...target, srcUrl: dataUrl, dataPending: false }, 'panel');
+    }
+  };
+  // Prompt-free first: fetch inside the page tab, where CORS-open image
+  // hosts need no extension permission. The attempt is fast, so the click
+  // gesture usually survives for the fallback prompt below.
+  try {
+    const bytes = await fetchImageBytesViaTab(
+      target.tabId,
+      target.frameId ?? 0,
+      srcUrl,
+      controller.signal
+    );
+    cancelAllWork();
+    clearStaleTimer();
+    announceStatus('statusAnalyzing');
+    try {
+      await runWithBytes(bytes);
+    } catch {
+      if (!controller.signal.aborted) {
+        announceAlert('fetchFailed');
+      }
+    }
+    return;
+  } catch {
+    if (controller.signal.aborted) {
+      return;
+    }
+    // The tab is gone, unscriptable, or the host rejects page fetches:
+    // fall through to the permission-gated direct fetch.
+  }
   const outcome = await withTempGrant(origin, loopback, async () => {
     cancelAllWork();
     clearStaleTimer();
     announceStatus('statusAnalyzing');
-    const controller = new AbortController();
     try {
-      const bytes = await fetchImageBytes(srcUrl, controller.signal);
-      const dataUrl = await downscaleToJpegDataUrl(bytes);
-      if (!controller.signal.aborted) {
-        await runAnalysis({ ...target, srcUrl: dataUrl, dataPending: false }, 'panel');
-      }
+      await runWithBytes(await fetchImageBytes(srcUrl, controller.signal));
     } catch {
       if (!controller.signal.aborted) {
         announceAlert('fetchFailed');

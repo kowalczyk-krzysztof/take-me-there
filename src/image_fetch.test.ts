@@ -1,11 +1,13 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   FETCH_JPEG_QUALITY,
   FETCH_MAX_BYTES,
   downscaleToJpegDataUrl,
   encodeBase64,
   fetchImageBytes,
+  fetchImageBytesViaTab,
 } from './image_fetch';
+import { installChromeMock, uninstallChromeMock, type ChromeMock } from './test/chrome_mock';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -29,6 +31,62 @@ describe('encodeBase64', () => {
         proto.toBase64 = native;
       }
     }
+  });
+});
+
+describe('fetchImageBytesViaTab', () => {
+  let mock: ChromeMock;
+
+  beforeEach(() => {
+    mock = installChromeMock();
+  });
+
+  afterEach(() => {
+    uninstallChromeMock();
+  });
+
+  const signal = () => new AbortController().signal;
+
+  it('decodes tab-fetched bytes and targets the click frame', async () => {
+    mock.worker.scriptingImpl = async () => [
+      { result: { ok: true, dataUrl: 'data:image/jpeg;base64,AQID' } },
+    ];
+
+    const bytes = await fetchImageBytesViaTab(7, 3, 'https://cdn.example.com/oia.jpg', signal());
+    expect(bytes).toEqual(new Uint8Array([1, 2, 3]));
+    expect(mock.worker.scriptingCalls).toHaveLength(1);
+    expect(mock.worker.scriptingCalls[0].target).toEqual({ tabId: 7, frameIds: [3] });
+    expect(mock.worker.scriptingCalls[0].args).toEqual([
+      'https://cdn.example.com/oia.jpg',
+      FETCH_MAX_BYTES,
+    ]);
+  });
+
+  it('throws on tab failures so callers fall back', async () => {
+    mock.worker.scriptingImpl = async () => [{ result: null }];
+    await expect(
+      fetchImageBytesViaTab(7, 0, 'https://cdn.example.com/a.jpg', signal())
+    ).rejects.toThrow('no result');
+
+    mock.worker.scriptingImpl = async () => [{ result: { ok: false, reason: 'fetch-failed' } }];
+    await expect(
+      fetchImageBytesViaTab(7, 0, 'https://cdn.example.com/a.jpg', signal())
+    ).rejects.toThrow('fetch-failed');
+
+    mock.worker.scriptingImpl = async () => [{ result: { ok: true, dataUrl: 'garbage' } }];
+    await expect(
+      fetchImageBytesViaTab(7, 0, 'https://cdn.example.com/a.jpg', signal())
+    ).rejects.toThrow('undecodable');
+  });
+
+  it('throws without scripting when already aborted', async () => {
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(
+      fetchImageBytesViaTab(7, 0, 'https://cdn.example.com/a.jpg', controller.signal)
+    ).rejects.toThrow();
+    expect(mock.worker.scriptingCalls).toHaveLength(0);
   });
 });
 

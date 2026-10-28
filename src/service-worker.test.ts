@@ -158,6 +158,17 @@ describe('service-worker', () => {
     expect(record['seq']).toBe(1);
   });
 
+  it('stamps terminal records with the click frame', async () => {
+    const mock = await setup();
+    mock.worker.scriptingImpl = async () => [{ result: SIGNALS }];
+    fireClick(mock, { ...IMAGE_INFO, frameId: 9 }, { ...TAB });
+    await flush();
+
+    const record = await storedRequest(mock);
+    expect(TRIP_REQUEST_SCHEMA.safeParse(record).success).toBe(true);
+    expect(record['frameId']).toBe(9);
+  });
+
   it('attaches page signals when the scrape succeeds', async () => {
     const mock = await setup();
     mock.worker.scriptingImpl = async () => [{ result: SIGNALS }];

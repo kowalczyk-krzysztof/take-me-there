@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cropToSamBox, dataUrlToBytes, parseSamBoxes, selectSamBox } from './sam';
+import { dataUrlToBytes } from './image_fetch';
+import { cropToSamBox, parseSamBoxes, selectSamBox } from './sam';
 
 afterEach(() => {
   vi.unstubAllGlobals();

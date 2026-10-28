@@ -2451,6 +2451,55 @@ describe('sidepanel', () => {
     expect(permsRemove).not.toHaveBeenCalled();
   });
 
+  it('fetches retry bytes in the tab without a permission prompt', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+
+    mock.worker.scriptingImpl = async () => [
+      { result: { ok: true, dataUrl: 'data:image/jpeg;base64,/9j/4AA=' } },
+    ];
+
+    const permsRequest = vi.fn().mockResolvedValue(true);
+    const permsRemove = vi.fn().mockResolvedValue(undefined);
+    (chrome as unknown as { permissions: unknown }).permissions = {
+      request: permsRequest,
+      remove: permsRemove,
+    };
+    vi.stubGlobal(
+      'createImageBitmap',
+      vi.fn().mockResolvedValue({ width: 400, height: 300, close: vi.fn() })
+    );
+    vi.stubGlobal(
+      'OffscreenCanvas',
+      vi.fn().mockImplementation(function (this: unknown) {
+        return {
+          getContext: () => ({ drawImage: vi.fn() }),
+          convertToBlob: async () => new Blob(['fakejpeg']),
+        };
+      })
+    );
+    fetchMock
+      .mockResolvedValueOnce(new Response('bad image', { status: 400 }))
+      .mockResolvedValueOnce(new Response('boom', { status: 500 }))
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE));
+    await mock.session.set({ [SLOT]: READY() });
+    await waitFor(() => {
+      const card = document.querySelector('#result-slot');
+      expect(card?.querySelectorAll('button')).toHaveLength(2);
+    });
+
+    const buttons = document.querySelector('#result-slot')?.querySelectorAll('button');
+    (buttons?.[1] as HTMLButtonElement).click();
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot h2')?.textContent).toBe('Oia');
+    });
+    expect(permsRequest).not.toHaveBeenCalled();
+    expect(permsRemove).not.toHaveBeenCalled();
+    expect(mock.worker.scriptingCalls).toHaveLength(1);
+    expect(mock.worker.scriptingCalls[0].target).toEqual({ tabId: 7, frameIds: [0] });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
   it('removes the origin grant when the byte fetch fails', async () => {
     const mock = await setup();
     await plantKeyAndConsent();

@@ -126,6 +126,7 @@ export const TRIP_REQUEST_SCHEMA = z.strictObject({
   dataPending: z.boolean(),
   pageUrl: z.nullable(z.string()),
   tabId: z.number(),
+  frameId: z.optional(z.number()),
   windowId: z.number(),
   at: z.number(),
   reason: z.optional(z.string()),

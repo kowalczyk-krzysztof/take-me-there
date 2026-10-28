@@ -137,24 +137,6 @@ export const selectSamBox = (
   return best;
 };
 
-export const dataUrlToBytes = (dataUrl: string): Uint8Array | null => {
-  const marker = ';base64,';
-
-  const at = dataUrl.indexOf(marker);
-
-  if (!dataUrl.startsWith('data:image/') || at < 0) {
-    return null;
-  }
-
-  try {
-    const binary = atob(dataUrl.slice(at + marker.length));
-
-    return Uint8Array.from(binary, (ch) => ch.charCodeAt(0));
-  } catch {
-    return null;
-  }
-};
-
 // Crop the bitmap to the validated box, downscaling the crop to the fetch
 // cap so the re-identify stays bounded. Returns a JPEG data: URL.
 export const cropToSamBox = async (bitmap: ImageBitmap, box: SamPixelBox): Promise<string> => {
