@@ -3,7 +3,13 @@ import { createRoot } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import { KeySetup } from './components/key_setup/key_setup';
 import { loadKey, saveKey } from './key_vault';
-import { ProviderError, getActiveProvider, loadSettings, saveSettings } from './providers/index';
+import {
+  ProviderError,
+  customHostOf,
+  getActiveProvider,
+  loadSettings,
+  saveSettings,
+} from './providers/index';
 import { ErrorBoundary } from './components/error_boundary/error_boundary';
 import { msg } from './utils/i18n';
 import { createStore } from './utils/store';
@@ -17,6 +23,7 @@ interface OnboardingState {
   keyError: string | null;
   sessionOnly: boolean;
   keyReset: number;
+  customHost: string | null;
 }
 
 const store = createStore<OnboardingState>({
@@ -26,6 +33,7 @@ const store = createStore<OnboardingState>({
   keyError: null,
   sessionOnly: false,
   keyReset: 0,
+  customHost: null,
 });
 
 const onSaveKey = (key: string): void => {
@@ -80,6 +88,7 @@ const OnboardingApp = () => {
           error={state.keyError}
           sessionOnly={state.sessionOnly}
           resetKey={state.keyReset}
+          customHost={state.customHost}
           callbacks={{
             onSave: onSaveKey,
             onError: (text) => store.set({ keyError: text }),
@@ -146,7 +155,7 @@ export const initOnboarding = (): void => {
   });
 
   void loadSettings().then((settings) => {
-    store.set({ sessionOnly: settings.sessionOnly });
+    store.set({ sessionOnly: settings.sessionOnly, customHost: customHostOf(settings) });
   });
 
   void chrome.commands

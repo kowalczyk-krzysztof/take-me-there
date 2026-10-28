@@ -49,6 +49,7 @@ import { frameCacheSeed, hasVideoConsented, isMp4RungUsable, setVideoConsented }
 import {
   ProviderError,
   addUsage,
+  customHostOf,
   emptyUsage,
   formatSignalsForPrompt,
   getActiveProvider,
@@ -178,6 +179,7 @@ interface PanelState {
   boardNotice: { text: string | null; retry: boolean };
   privacy: string;
   cost: string;
+  customHost: string | null;
   keyForm: KeyFormState;
 }
 
@@ -212,6 +214,7 @@ const store = createStore<PanelState>({
   boardNotice: { text: null, retry: false },
   privacy: '',
   cost: '',
+  customHost: null,
   keyForm: {
     pending: false,
     error: null,
@@ -254,7 +257,7 @@ let lockEpoch = 0;
 const refreshLock = async (): Promise<void> => {
   const epoch = ++lockEpoch;
   try {
-    const { provider } = await getActiveProvider();
+    const { provider, settings } = await getActiveProvider();
     const keyStatus = await loadKey(provider.id);
 
     if (epoch !== lockEpoch) {
@@ -264,6 +267,7 @@ const refreshLock = async (): Promise<void> => {
     store.set({
       unlocked: keyStatus.state === 'ok',
       keySaved: keyStatus.state === 'ok',
+      customHost: customHostOf(settings),
     });
   } catch {
     // Keep the current lock on storage failure.
@@ -412,12 +416,34 @@ const showSources = (sources: GuideSource[]): void => {
 };
 
 type PrivacyMode =
-  'image' | 'image-only' | 'cache' | 'idle' | 'video-frame' | 'video-url' | 'board' | 'names';
+  | 'image'
+  | 'image-only'
+  | 'image-pixels'
+  | 'scan'
+  | 'cache'
+  | 'idle'
+  | 'video-frame'
+  | 'video-url'
+  | 'board'
+  | 'names';
+
+const privacyDestination = (): string => {
+  if (runSettings?.activeProviderId === 'openai_compat') {
+    try {
+      return new URL(runSettings.openaiCompat.baseURL).host || 'the custom server';
+    } catch {
+      return 'the custom server';
+    }
+  }
+  return "Meta's Muse API";
+};
 
 const updatePrivacy = (mode: PrivacyMode): void => {
   const keys: Record<PrivacyMode, string> = {
     image: 'privacyImage',
     'image-only': 'privacyImageOnly',
+    'image-pixels': 'privacyImagePixels',
+    scan: 'privacyScan',
     cache: 'privacyCache',
     idle: 'privacyIdle',
     'video-frame': 'privacyVideoFrame',
@@ -425,7 +451,7 @@ const updatePrivacy = (mode: PrivacyMode): void => {
     board: 'privacyBoard',
     names: 'privacyNames',
   };
-  store.set({ privacy: msg(keys[mode]) });
+  store.set({ privacy: msg(keys[mode], privacyDestination()) });
 };
 
 const clearCost = (): void => {
@@ -683,6 +709,9 @@ const privacyForRequest = (
   if (request.mediaType === 'video') {
     return videoUrlForRequest(request, provider) ? 'video-url' : 'video-frame';
   }
+  if ((request.frame?.dataUrl ?? request.srcUrl).startsWith('data:')) {
+    return 'image-pixels';
+  }
   return settings.imageOnly ? 'image-only' : 'image';
 };
 
@@ -783,7 +812,10 @@ const renderErrorCard = (
 // ran rung 1, a frameless one ran rung 2), everything else keeps the old rule.
 const errorPrivacy = (request: TripRequest | null): PrivacyMode => {
   if (request?.mediaType === 'video') {
-    return request.frame ? 'video-url' : 'video-frame';
+    return request.frame ? 'video-frame' : 'video-url';
+  }
+  if ((request?.frame?.dataUrl ?? request?.srcUrl ?? '').startsWith('data:')) {
+    return 'image-pixels';
   }
   return 'image';
 };
@@ -1309,12 +1341,11 @@ const scanItemViews = async (
 const runScan = async (
   request: TripRequest,
   provider: Provider,
-  settings: ExtensionSettings,
   key: string,
   origin: 'gesture' | 'panel'
 ): Promise<void> => {
   const images = request.scanImages ?? [];
-  const privacy: PrivacyMode = settings.imageOnly ? 'image-only' : 'image';
+  const privacy: PrivacyMode = 'scan';
   if (images.length === 0) {
     analysisInFlight = false;
     renderErrorCard('scanEmptyTitle', 'scanEmptyBody', false, false);
@@ -1519,7 +1550,7 @@ const runAnalysis = async (request: TripRequest, origin: 'gesture' | 'panel'): P
     return;
   }
   if (request.scanImages !== undefined) {
-    await runScan(request, provider, settings, key, origin);
+    await runScan(request, provider, key, origin);
     return;
   }
   if (request.dataPending || !request.srcUrl) {
@@ -2776,6 +2807,7 @@ const SidepanelApp = () => {
               error={keyForm.error}
               sessionOnly={keyForm.sessionOnly}
               resetKey={keyForm.resetKey}
+              customHost={state.customHost}
               callbacks={{
                 onSave: (key) => void onKeySave(key),
                 onError: (text) => setKeyForm({ error: text }),
@@ -2858,6 +2890,7 @@ const SidepanelApp = () => {
             error={keyForm.error}
             sessionOnly={keyForm.sessionOnly}
             resetKey={keyForm.resetKey}
+            customHost={state.customHost}
             callbacks={{
               onSave: (key) => void onKeySave(key),
               onError: (text) => setKeyForm({ error: text }),

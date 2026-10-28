@@ -120,6 +120,13 @@ describe('options', () => {
     (document.querySelector('#compat-input-rate') as HTMLInputElement).value = '1.5';
     (document.querySelector('#compat-save') as HTMLButtonElement).click();
     await waitFor(() => {
+      expect(document.querySelector('#compat-error')?.textContent).toBe('compatHostWarning');
+    });
+    expect(document.querySelector('#compat-save')?.textContent).toBe('compatSaveAnyway');
+    expect(permsRequest).not.toHaveBeenCalled();
+    expect(mock.local.data.get('settings')).toBeUndefined();
+    (document.querySelector('#compat-save') as HTMLButtonElement).click();
+    await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusProviderSaved');
     });
     expect(permsRequest).toHaveBeenCalledWith({ origins: ['https://llm.example.com/*'] });
@@ -170,6 +177,10 @@ describe('options', () => {
       expect(error()).toBe('providerErrorRates');
     });
     (document.querySelector('#compat-input-rate') as HTMLInputElement).value = '';
+    save.click();
+    await waitFor(() => {
+      expect(error()).toBe('compatHostWarning');
+    });
     save.click();
     await waitFor(() => {
       expect(error()).toBe('providerErrorDenied');

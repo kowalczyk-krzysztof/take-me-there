@@ -295,7 +295,7 @@
     "description": "Dashboard link text."
   },
   "securityNotice": {
-    "message": "Your API key is encrypted before it's saved (AES-GCM, with a non-extractable key kept in this browser profile) and never leaves this device except to authenticate requests to api.meta.ai. Someone with full access to your computer account could still recover it, so only save it on a trusted device - or enable session-only mode, which keeps the key in memory and forgets it when the browser closes.",
+    "message": "Your API key is encrypted before it's saved (AES-GCM, with a non-extractable key kept in this browser profile) and never leaves this device except to authenticate requests to api.meta.ai. Someone with full access to your computer account could still recover it, so only save it on a trusted device - or enable session-only mode, which keeps the key in memory and forgets it when the browser closes. Saving the key sends only the key itself to validate it - images and page text are never sent before you click 'Agree & analyze'.",
     "description": "Canonical key security notice."
   },
   "keyHygiene": {
@@ -438,20 +438,29 @@
     "description": "Cache-hit cost line."
   },
   "privacyImage": {
-    "message": "Sent to Meta's Muse API with your key: this image's address, nearby page text, and the page address",
-    "description": "Privacy footer for image analyses."
+    "message": "Sent to $1 with your key: this image's address, nearby page text, and the page address",
+    "description": "Privacy footer for image analyses.",
+    "placeholders": {
+      "destination": { "content": "$1", "example": "Meta's Muse API" }
+    }
   },
   "privacyImageOnly": {
-    "message": "Sent to Meta's Muse API with your key: this image's address only",
-    "description": "Privacy footer for image-only analyses."
+    "message": "Sent to $1 with your key: this image's address only",
+    "description": "Privacy footer for image-only analyses.",
+    "placeholders": {
+      "destination": { "content": "$1", "example": "Meta's Muse API" }
+    }
   },
   "privacyCache": {
     "message": "From cache - nothing was sent.",
     "description": "Privacy footer for cache hits."
   },
   "privacyIdle": {
-    "message": "Analyzing sends image and page context to Meta's Muse API - details appear with each analysis.",
-    "description": "Privacy footer when idle."
+    "message": "Analyzing sends image and page context to $1 - details appear with each analysis.",
+    "description": "Privacy footer when idle.",
+    "placeholders": {
+      "destination": { "content": "$1", "example": "Meta's Muse API" }
+    }
   },
   "previewHeading": {
     "message": "Image being analyzed",
@@ -549,12 +558,18 @@
     "description": "Alert announcement for video failures."
   },
   "privacyVideoFrame": {
-    "message": "Sent to Meta's Muse API with your key: this captured video frame, nearby page text, and the page address.",
-    "description": "Privacy footer for frame analysis."
+    "message": "Sent to $1 with your key: this captured video frame, nearby page text, and the page address.",
+    "description": "Privacy footer for frame analysis.",
+    "placeholders": {
+      "destination": { "content": "$1", "example": "Meta's Muse API" }
+    }
   },
   "privacyVideoUrl": {
-    "message": "Sent to Meta's Muse API with your key: this video and its soundtrack, nearby page text, and the page address.",
-    "description": "Privacy footer for full-video analysis."
+    "message": "Sent to $1 with your key: this video and its soundtrack, nearby page text, and the page address.",
+    "description": "Privacy footer for full-video analysis.",
+    "placeholders": {
+      "destination": { "content": "$1", "example": "Meta's Muse API" }
+    }
   },
   "boardTitle": {
     "message": "Trip board ($1)",
@@ -752,8 +767,11 @@
     }
   },
   "privacyNames": {
-    "message": "Sent to Meta's Muse API with your key: place names only.",
-    "description": "Privacy footer for duels and alternates."
+    "message": "Sent to $1 with your key: place names only.",
+    "description": "Privacy footer for duels and alternates.",
+    "placeholders": {
+      "destination": { "content": "$1", "example": "Meta's Muse API" }
+    }
   },
   "fetchRetryButton": {
     "message": "Download image and retry",
@@ -954,8 +972,11 @@
     }
   },
   "privacyBoard": {
-    "message": "Sent to Meta's Muse API with your key: pinned thumbnails, place names, and source-site addresses.",
-    "description": "Privacy footer for board planning."
+    "message": "Sent to $1 with your key: pinned thumbnails, place names, and source-site addresses.",
+    "description": "Privacy footer for board planning.",
+    "placeholders": {
+      "destination": { "content": "$1", "example": "Meta's Muse API" }
+    }
   },
   "mainTab": {
     "message": "Main",
@@ -980,5 +1001,52 @@
   "keyReplaceButton": {
     "message": "Use a different key",
     "description": "Settings button revealing the key form for replacement."
+  },
+  "privacyScan": {
+    "message": "Sent to $1 with your key: this page's travel images with their captions and headings.",
+    "description": "Privacy footer for page scans.",
+    "placeholders": {
+      "destination": { "content": "$1", "example": "Meta's Muse API" }
+    }
+  },
+  "privacyImagePixels": {
+    "message": "Sent to $1 with your key: this image's pixels, nearby page text, and the page address.",
+    "description": "Privacy footer when image bytes are uploaded.",
+    "placeholders": {
+      "destination": { "content": "$1", "example": "Meta's Muse API" }
+    }
+  },
+  "securityNoticeCustom": {
+    "message": "Your API key is encrypted before it's saved (AES-GCM, with a non-extractable key kept in this browser profile) and never leaves this device except to authenticate requests to $1. Saving the key sends only the key itself to validate it. Someone with full access to your computer account could still recover it, so only save it on a trusted device - or enable session-only mode, which keeps the key in memory and forgets it when the browser closes.",
+    "description": "Key security notice naming the custom server.",
+    "placeholders": {
+      "host": { "content": "$1", "example": "my-server.example" }
+    }
+  },
+  "keyHygieneCustom": {
+    "message": "Create a dedicated key just for this extension, paste it only into the official Web Store install or a build you made yourself from this repo (a modified clone could steal it), and revoke it anytime in your provider's dashboard.",
+    "description": "Key hygiene notice for custom servers."
+  },
+  "consentBodyCustom": {
+    "message": "Analyzing sends the clicked image (its web address or, for inline images, captured frames, and on-demand retries, its pixels), nearby page text (title, captions, metadata), and the page's address to your custom server at $1 using your key. For private images, the image's address itself can grant access to it. Scanning a page sends that page's travel images and their captions the same way (even when the \"image only\" toggle is on), and planning a trip from your board sends the pinned thumbnails, their place names, and the addresses of the sites you pinned them from. Your provider's data terms apply to everything sent.",
+    "description": "Consent body naming the custom server.",
+    "placeholders": {
+      "host": { "content": "$1", "example": "my-server.example" }
+    }
+  },
+  "keyHintCustom": {
+    "message": "Created in your provider's dashboard.",
+    "description": "Key hint for custom servers."
+  },
+  "compatHostWarning": {
+    "message": "Keys, images, and page text will be sent to $1 instead of api.meta.ai. Click Save again to confirm.",
+    "description": "One-time warning before saving a new custom server.",
+    "placeholders": {
+      "host": { "content": "$1", "example": "my-server.example" }
+    }
+  },
+  "compatSaveAnyway": {
+    "message": "Save anyway",
+    "description": "Custom server save button while the host warning is armed."
   }
 }

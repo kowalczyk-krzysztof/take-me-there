@@ -6,19 +6,6 @@ import { ExternalLink } from '../external_link/external_link';
 
 const DASHBOARD_URL = 'https://dev.meta.ai';
 
-export interface KeySaveRequestDetail {
-  key: string;
-  sessionOnly: boolean;
-}
-
-export interface ConsentDecisionDetail {
-  agreed: boolean;
-}
-
-export interface SessionOnlyChangeDetail {
-  checked: boolean;
-}
-
 export interface KeySetupCallbacks {
   onSave: (key: string) => void;
   onError: (text: string) => void;
@@ -33,10 +20,19 @@ interface Props {
   error: string | null;
   sessionOnly: boolean;
   resetKey: number;
+  customHost: string | null;
   callbacks: KeySetupCallbacks;
 }
 
-export const KeySetup = ({ mode, pending, error, sessionOnly, resetKey, callbacks }: Props) => {
+export const KeySetup = ({
+  mode,
+  pending,
+  error,
+  sessionOnly,
+  resetKey,
+  customHost,
+  callbacks,
+}: Props) => {
   const [revealed, setRevealed] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
@@ -69,7 +65,9 @@ export const KeySetup = ({ mode, pending, error, sessionOnly, resetKey, callback
       {mode === 'consent' ? (
         <>
           <h2 tabIndex={-1}>{msg('consentTitle')}</h2>
-          <p className={styles['consent-body']}>{msg('consentBody')}</p>
+          <p className={styles['consent-body']}>
+            {customHost ? msg('consentBodyCustom', customHost) : msg('consentBody')}
+          </p>
           <div className={styles['button-row']}>
             <button
               type="button"
@@ -120,11 +118,13 @@ export const KeySetup = ({ mode, pending, error, sessionOnly, resetKey, callback
             onChange={(event) => callbacks.onDraftChange?.(event.currentTarget.value)}
           />
           <p className={styles.hint} id="key-hint">
-            {msg('keyHint')}
+            {customHost ? msg('keyHintCustom') : msg('keyHint')}
           </p>
-          <p className={styles.dashboard}>
-            <ExternalLink href={DASHBOARD_URL}>{msg('dashboardLink')}</ExternalLink>
-          </p>
+          {customHost ? null : (
+            <p className={styles.dashboard}>
+              <ExternalLink href={DASHBOARD_URL}>{msg('dashboardLink')}</ExternalLink>
+            </p>
+          )}
           <p className={styles.error} id="key-error" hidden={error === null || undefined}>
             {error}
           </p>
@@ -153,8 +153,12 @@ export const KeySetup = ({ mode, pending, error, sessionOnly, resetKey, callback
               {msg(revealed ? 'hideKeyButton' : 'showKeyButton')}
             </button>
           </div>
-          <p className={styles.notice}>{msg('securityNotice')}</p>
-          <p className={styles.hygiene}>{msg('keyHygiene')}</p>
+          <p className={styles.notice}>
+            {customHost ? msg('securityNoticeCustom', customHost) : msg('securityNotice')}
+          </p>
+          <p className={styles.hygiene}>
+            {customHost ? msg('keyHygieneCustom') : msg('keyHygiene')}
+          </p>
         </form>
       )}
     </div>

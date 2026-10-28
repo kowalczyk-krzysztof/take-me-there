@@ -6,6 +6,7 @@ import { clearKey, loadKey, saveKey } from './key_vault';
 import { formatUsd, readMonthSpend, resetMonthSpend } from './pricing';
 import {
   ProviderError,
+  customHostOf,
   getActiveProvider,
   loadSettings,
   saveSettings,
@@ -39,6 +40,7 @@ interface OptionsState {
   } | null;
   compatOpen: boolean;
   compatError: string | null;
+  compatConfirmHost: string | null;
 }
 
 const store = createStore<OptionsState>({
@@ -51,6 +53,7 @@ const store = createStore<OptionsState>({
   settings: null,
   compatOpen: false,
   compatError: null,
+  compatConfirmHost: null,
 });
 
 const inputValue = (id: string): string =>
@@ -192,6 +195,12 @@ const onCompatSave = (): void => {
       store.set({ compatError: msg('providerErrorRates') });
       return;
     }
+    const host = new URL(origin).host;
+    const saved = await loadSettings();
+    if (customHostOf(saved) !== host && store.get().compatConfirmHost !== host) {
+      store.set({ compatError: msg('compatHostWarning', host), compatConfirmHost: host });
+      return;
+    }
     let granted = false;
     try {
       granted = await chrome.permissions.request({ origins: [`${origin}/*`] });
@@ -223,7 +232,7 @@ const onCompatSave = (): void => {
       store.set({ compatError: msg('settingsSaveFailed') });
       return;
     }
-    store.set({ status: msg('statusProviderSaved') });
+    store.set({ compatError: null, compatConfirmHost: null, status: msg('statusProviderSaved') });
   })();
 };
 
@@ -282,6 +291,14 @@ const OptionsApp = () => {
           error={state.keyError}
           sessionOnly={state.sessionOnly}
           resetKey={state.keyReset}
+          customHost={
+            state.settings === null
+              ? null
+              : customHostOf({
+                  activeProviderId: state.settings.providerMuse ? 'muse' : 'openai_compat',
+                  openaiCompat: { baseURL: state.settings.compat.baseURL },
+                })
+          }
           callbacks={{
             onSave: onSaveKey,
             onError: (text) => store.set({ keyError: text }),
@@ -393,7 +410,7 @@ const OptionsApp = () => {
           </label>
           <div className="button-row">
             <button id="compat-save" type="button" onClick={onCompatSave}>
-              {msg('compatSave')}
+              {msg(state.compatConfirmHost ? 'compatSaveAnyway' : 'compatSave')}
             </button>
           </div>
           <p id="compat-error" role="alert" hidden={state.compatError === null || undefined}>

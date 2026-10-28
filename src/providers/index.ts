@@ -1120,6 +1120,20 @@ export const SETTINGS_STORAGE_KEY = 'settings';
 export const CONSENT_STORAGE_KEY = 'consentGiven';
 // Bump when the consent copy or the consented data flows change: stored
 // grants below this version stop counting and the gate re-appears.
+export const customHostOf = (settings: {
+  activeProviderId: string;
+  openaiCompat: { baseURL: string };
+}): string | null => {
+  if (settings.activeProviderId !== 'openai_compat') {
+    return null;
+  }
+  try {
+    return new URL(settings.openaiCompat.baseURL).host || null;
+  } catch {
+    return null;
+  }
+};
+
 export const CONSENT_VERSION: number = 2;
 
 export interface OpenAiCompatSettings {

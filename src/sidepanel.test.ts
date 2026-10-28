@@ -869,6 +869,7 @@ describe('sidepanel', () => {
     expect(cards?.[1]?.querySelector('img')).toBeNull();
     expect(cards?.[1]?.querySelector('.thumb-placeholder')).not.toBeNull();
     expect(cards?.[0]?.querySelector('.pin-button')?.getAttribute('aria-pressed')).toBe('false');
+    expect(document.querySelector('#privacy-line')?.textContent).toBe('privacyScan');
   });
 
   it('ignores handoff records stamped for another window', async () => {
@@ -1354,6 +1355,7 @@ describe('sidepanel', () => {
       const retried = document.querySelector('#result-slot');
       expect(retried?.querySelector('h2')?.textContent).toBe('Oia');
     });
+    expect(document.querySelector('#privacy-line')?.textContent).toBe('privacyImagePixels');
     await clickPlanTrip();
     await waitFor(() => {
       expect(document.querySelector('#guide-content')?.textContent).toContain('Hello world');

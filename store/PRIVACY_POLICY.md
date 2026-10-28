@@ -1,6 +1,6 @@
 # Privacy Policy - Take me there
 
-Effective for version 1.0.0. This policy describes exactly what the
+Effective for version 1.1.0. This policy describes exactly what the
 extension does today. If a future release adds features, this policy
 will be updated before that release ships.
 
@@ -8,13 +8,17 @@ will be updated before that release ships.
 
 "Take me there" identifies travel destinations in photos you
 right-click while browsing, then loads a trip guide into Chrome's side
-panel. It talks to exactly one outside service: the Meta Muse API at
-`https://api.meta.ai`, using an API key you provide. There is no
+panel. By default it talks to exactly one outside service: the Meta
+Muse API at `https://api.meta.ai`, using an API key you provide. If
+you configure a custom server on the Options page, analysis requests
+go to that server instead (the key form, the consent gate, and the
+in-panel privacy line all name the configured host). There is no
 analytics, no tracking, no advertising, and no data sale.
 
-Nothing is sent anywhere until you click "Agree & analyze" (a one-time
-consent gate shown after you save your key). Declining discards the
-staged request.
+Saving a key sends only the key itself to validate it. Nothing else
+is sent anywhere until you click "Agree & analyze" (a consent gate
+shown after you save your key). Declining discards the staged
+request.
 
 ## Data-flow table (source of truth)
 
@@ -24,12 +28,15 @@ this same table.
 
 | When                                                    | What is sent                                                                                                                                                   | Where                                                                                        | Why                                          |
 | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | -------------------------------------------- |
-| Key validation (on save)                                | Your API key, in the Authorization header                                                                                                                      | `https://api.meta.ai/v1/models`                                                              | Confirm the key works before anything else   |
+| Key validation (on save)                                | Your API key, in the Authorization header                                                                                                                      | `https://api.meta.ai/v1/models`, or your custom server's `/models` endpoint                  | Confirm the key works before anything else   |
 | Image analysis (after "Agree & analyze")                | The image's web address (URL), the page URL and title, and short capped page-text snippets (alt text, captions, headings, nearby text, at most a few KB total) | `https://api.meta.ai`                                                                        | Identify the place and write the guide       |
 | Grounded guide                                          | The same request, plus Meta may run web searches on the place topic to ground facts                                                                            | `https://api.meta.ai`                                                                        | Current facts with cited sources             |
 | Video frame analysis (after the one-time video confirm) | The captured frame's pixels (a JPEG data URL), the page URL and title, and short capped page-text snippets                                                     | `https://api.meta.ai`                                                                        | Identify the place in the frame              |
 | Full-video analysis (after the one-time video confirm)  | The video's web address (Meta's servers fetch the video, including its soundtrack), plus the same page context                                                 | `https://api.meta.ai`                                                                        | Identify the place from motion and audio     |
 | Trip-board planning ("Plan this trip")                  | Pinned thumbnails (pixels), their place names, and the addresses of the sites they were pinned from                                                            | `https://api.meta.ai`                                                                        | Sequence the stops and narrate the itinerary |
+| Page scan ("Scan page")                                 | Every travel image found on the page (addresses) with their captions and headings                                                                              | `https://api.meta.ai`                                                                        | Identify each pictured place at once         |
+| Image byte-fetch retry (only after you click it)        | The downloaded image pixels (JPEG data URL) instead of the image address, plus the same page context                                                           | `https://api.meta.ai`                                                                        | Identify images the API cannot fetch itself  |
+| Custom server mode (Options page)                       | The same payloads as the rows above, plus your key for authentication                                                                                          | The server URL you configured                                                                | Same features against your own backend       |
 | Booking-link click                                      | The destination name, embedded in the link URL you clicked                                                                                                     | The booking site you chose (Google, Airbnb, Booking.com, GetYourGuide, TripAdvisor, Expedia) | Open that site's search results              |
 
 Notes:
@@ -49,7 +56,9 @@ Notes:
 | Data                                 | Where                                                                  | Lifetime and controls                                                                                                                                      |
 | ------------------------------------ | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | API key                              | `chrome.storage.local`, AES-GCM encrypted (authentication information) | Until you clear it in Options or uninstall. Session-only mode keeps it in memory only: it is gone after a browser restart and no encrypted copy is written |
-| Consent flag                         | `chrome.storage.local`                                                 | Until uninstall; consent is asked once                                                                                                                     |
+| Consent flag (versioned)             | `chrome.storage.local`                                                 | Until uninstall; asked again if the consent terms change                                                                                                   |
+| Video confirm flag (versioned)       | `chrome.storage.local`                                                 | Until uninstall; asked again if the video terms change                                                                                                     |
+| Key-wrapping key                     | Extension-origin IndexedDB (non-extractable AES-GCM key)               | Until uninstall or profile wipe; API keys cannot be decrypted without it                                                                                   |
 | Monthly cost totals                  | `chrome.storage.local`                                                 | Viewable and resettable in Options; months older than ~24 are pruned                                                                                       |
 | Trip board pins                      | `chrome.storage.local`                                                 | Place data, source hosts, and thumbnail pixels at rest; cleared by "Clear board" or uninstall                                                              |
 | Analysis cache                       | `chrome.storage.session` (text only, hashed keys)                      | Wiped automatically when the browser exits; minimized while running                                                                                        |
@@ -61,8 +70,9 @@ Uninstalling the extension removes all of the above.
 
 - No analytics, crash reporting, tracking pixels, or fingerprinting.
 - No data sale, rental, or sharing for advertising.
-- Nothing is sent anywhere except `https://api.meta.ai` (after consent)
-  and the booking site whose link you click.
+- Nothing is sent anywhere except the configured AI backend
+  (`https://api.meta.ai` by default, or your custom server) after
+  consent, and the booking site whose link you click.
 - The extension never reads pages in the background. It scrapes the
   clicked image's context once per right-click, inside that click, and
   only on the tab you clicked.

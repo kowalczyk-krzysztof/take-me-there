@@ -42,9 +42,11 @@ browser closes.
 
 ## Privacy
 
-- Nothing leaves your machine until you click "Agree & analyze".
-- Analysis requests go to the Meta Muse API only. Your key, images,
-  and page text are used only to produce the result you asked for.
+- Saving a key sends only the key itself to validate it. Nothing
+  else leaves your machine until you click "Agree & analyze".
+- Analysis requests go to Meta's Muse API, or to your custom server
+  if you configured one on the Options page. Your key, images, and
+  page text are used only to produce the result you asked for.
 - Page images are downloaded only when needed, without your cookies,
   and the one-time permission is removed right after.
 - No analytics, no tracking, no ads.

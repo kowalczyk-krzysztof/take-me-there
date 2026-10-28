@@ -21,6 +21,7 @@ import {
   parseDuelContent,
   parseItineraryPlan,
   parseScanBatch,
+  customHostOf,
   responseError,
   saveSettings,
   sanitizePromptHint,
@@ -495,6 +496,21 @@ describe('tryParsePlaceJson', () => {
     });
     expect(parsed).toBeDefined();
     expect(() => encodeURIComponent(parsed?.placeName ?? '')).not.toThrow();
+  });
+});
+
+describe('customHostOf', () => {
+  it('names the custom host only for compat servers', () => {
+    expect(customHostOf({ activeProviderId: 'muse', openaiCompat: { baseURL: '' } })).toBeNull();
+    expect(
+      customHostOf({
+        activeProviderId: 'openai_compat',
+        openaiCompat: { baseURL: 'https://llm.example.com/v1' },
+      })
+    ).toBe('llm.example.com');
+    expect(
+      customHostOf({ activeProviderId: 'openai_compat', openaiCompat: { baseURL: 'bogus' } })
+    ).toBeNull();
   });
 });
 
