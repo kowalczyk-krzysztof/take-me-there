@@ -199,7 +199,7 @@ interface ResultSlotState {
   card: CardState | null;
   scan: { loading: boolean; items: ScanItemView[] } | null;
   consent: boolean;
-  video: { rung2: boolean } | null;
+  video: { rung2: boolean; imageOnly: boolean } | null;
 }
 
 interface KeyFormState {
@@ -745,11 +745,14 @@ type PrivacyMode =
   | 'image'
   | 'image-only'
   | 'image-pixels'
+  | 'image-pixels-only'
   | 'scan'
   | 'cache'
   | 'idle'
   | 'video-frame'
+  | 'video-frame-only'
   | 'video-url'
+  | 'video-url-only'
   | 'board'
   | 'names';
 
@@ -769,11 +772,14 @@ const PRIVACY_KEYS: Record<PrivacyMode, string> = {
   image: 'privacyImage',
   'image-only': 'privacyImageOnly',
   'image-pixels': 'privacyImagePixels',
+  'image-pixels-only': 'privacyImagePixelsOnly',
   scan: 'privacyScan',
   cache: 'privacyCache',
   idle: 'privacyIdle',
   'video-frame': 'privacyVideoFrame',
+  'video-frame-only': 'privacyVideoFrameOnly',
   'video-url': 'privacyVideoUrl',
+  'video-url-only': 'privacyVideoUrlOnly',
   board: 'privacyBoard',
   names: 'privacyNames',
 };
@@ -932,12 +938,12 @@ const showConsent = (focusGate: boolean): void => {
 // First-video gate: the same blocking inline-state pattern as consent
 // (heading, disclosure, agree + explicit decline in DOM order), rendered in
 // the light DOM because no key form is involved.
-const showVideoConfirm = (rung2: boolean, focusGate: boolean): void => {
+const showVideoConfirm = (rung2: boolean, imageOnly: boolean, focusGate: boolean): void => {
   cancelSkeleton();
   currentView = 'video-confirm';
   clearContentSlots();
   swapResultSlot(() => {
-    store.set({ result: { ...blankResultSlot(), video: { rung2 } } });
+    store.set({ result: { ...blankResultSlot(), video: { rung2, imageOnly } } });
   });
 
   if (focusGate && !isTyping()) {
@@ -1132,10 +1138,16 @@ const privacyForRequest = (
   provider: Provider
 ): PrivacyMode => {
   if (request.mediaType === 'video') {
-    return videoUrlForRequest(request, provider) ? 'video-url' : 'video-frame';
+    const full = videoUrlForRequest(request, provider) !== undefined;
+
+    if (settings.imageOnly) {
+      return full ? 'video-url-only' : 'video-frame-only';
+    }
+
+    return full ? 'video-url' : 'video-frame';
   }
   if ((request.frame?.dataUrl ?? request.srcUrl).startsWith('data:')) {
-    return 'image-pixels';
+    return settings.imageOnly ? 'image-pixels-only' : 'image-pixels';
   }
   return settings.imageOnly ? 'image-only' : 'image';
 };
@@ -2018,7 +2030,7 @@ const runVideoAnalysis = async (
 
     pendingRun = { kind: 'request', request };
     updatePreview(request.frame?.dataUrl ?? null, request.frame ? 'frame' : 'image');
-    showVideoConfirm(route.kind === 'rung2', origin === 'panel');
+    showVideoConfirm(route.kind === 'rung2', run.settings.imageOnly, origin === 'panel');
     announceStatus('statusVideoConfirmNeeded');
     return;
   }
@@ -3867,8 +3879,13 @@ const SidepanelApp = () => {
           {state.result.video ? (
             <>
               <h2 tabIndex={-1}>{msg('videoConfirmTitle')}</h2>
-              <p>{msg('videoConfirmBody')}</p>
+              <p>
+                {state.customHost
+                  ? msg('videoConfirmBodyCustom', state.customHost)
+                  : msg('videoConfirmBody')}
+              </p>
               {state.result.video.rung2 ? <p>{msg('videoConfirmRung2Note')}</p> : null}
+              {state.result.video.imageOnly ? <p>{msg('videoConfirmImageOnly')}</p> : null}
               <div className="confirm-actions">
                 <button
                   type="button"

@@ -1346,5 +1346,53 @@
   "cacheClearFailed": {
     "message": "Could not clear the cache - try again.",
     "description": "Cache clear failure."
+  },
+  "onboardingProviderHeading": {
+    "message": "Pick your AI provider",
+    "description": "Onboarding provider section heading."
+  },
+  "videoConfirmBodyCustom": {
+    "message": "This captures the current video frame and sends it to $1 - continue?",
+    "description": "First-video confirm disclosure naming the custom server.",
+    "placeholders": {
+      "host": {
+        "content": "$1",
+        "example": "my-server.example"
+      }
+    }
+  },
+  "videoConfirmImageOnly": {
+    "message": "Image-only mode is on: only the frame is sent, and page text stays on this device.",
+    "description": "First-video confirm note when image-only mode is on."
+  },
+  "privacyImagePixelsOnly": {
+    "message": "Sent to $1 with your key: this image's pixels only.",
+    "description": "Privacy line for inline images with image-only mode on.",
+    "placeholders": {
+      "destination": {
+        "content": "$1",
+        "example": "Meta's Muse API"
+      }
+    }
+  },
+  "privacyVideoFrameOnly": {
+    "message": "Sent to $1 with your key: this captured video frame only.",
+    "description": "Privacy line for a video frame with image-only mode on.",
+    "placeholders": {
+      "destination": {
+        "content": "$1",
+        "example": "Meta's Muse API"
+      }
+    }
+  },
+  "privacyVideoUrlOnly": {
+    "message": "Sent to $1 with your key: this video and its soundtrack only.",
+    "description": "Privacy line for full-video analysis with image-only mode on.",
+    "placeholders": {
+      "destination": {
+        "content": "$1",
+        "example": "Meta's Muse API"
+      }
+    }
   }
 }

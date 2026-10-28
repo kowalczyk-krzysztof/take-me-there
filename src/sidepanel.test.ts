@@ -1124,6 +1124,8 @@ describe('sidepanel', () => {
     });
     expect(await hasConsented()).toBe(false);
     expect(fetchMock).not.toHaveBeenCalled();
+    expect(document.querySelector('#result-slot .hint')?.textContent).toBe('panelIdle');
+    expect(document.querySelector('#result-slot button')).toBeNull();
   });
 
   it('gates the first video analysis behind the frame confirm', async () => {
@@ -3078,5 +3080,101 @@ describe('sidepanel', () => {
     });
     expect(document.querySelector('#status-region')?.textContent).toBe('statusMonthlyReset');
     expect(mock.local.data.get('costTotals')).toEqual({ v: 1, months: {} });
+  });
+
+  it('re-announces a repeated status', async () => {
+    await setup();
+    selectSettingsTab();
+    await waitForSettings();
+
+    const reset = document.querySelector('#settings-reset-cost') as HTMLButtonElement;
+    reset.click();
+
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('statusMonthlyReset');
+    });
+
+    const first = document.querySelector('#status-region span');
+    reset.click();
+
+    await waitFor(() => {
+      expect(document.querySelector('#status-region span')).not.toBe(first);
+    });
+    expect(document.querySelector('#status-region')?.textContent).toBe('statusMonthlyReset');
+  });
+
+  it('names the custom server in the video confirm', async () => {
+    const mock = await setup();
+    const { saveSettings } = await import('./providers/index');
+    const { saveKey } = await import('./key_vault');
+    const { setConsented } = await import('./providers/index');
+    await saveSettings({
+      activeProviderId: 'openai_compat',
+      openaiCompat: {
+        baseURL: 'https://llm.example.com/v1',
+        model: 'm',
+        structuredOutput: 'json_object',
+      },
+      imageOnly: false,
+      sessionOnly: false,
+      skipWebSearch: false,
+      cacheTtlDays: 7,
+    });
+    await saveKey('openai_compat', 'LLM_x', false);
+    await setConsented();
+
+    await mock.session.set({
+      [SLOT]: READY({
+        srcUrl: 'blob:https://example.com/aaa',
+        mediaType: 'video',
+        frame: { dataUrl: 'data:image/jpeg;base64,ZnJhbWU=', time: 12.5 },
+      }),
+    });
+
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot h2')?.textContent).toBe('videoConfirmTitle');
+    });
+
+    const paragraphs = [...document.querySelectorAll('#result-slot p')].map((p) => p.textContent);
+    expect(paragraphs).toContain('videoConfirmBodyCustom(llm.example.com)');
+    expect(paragraphs).not.toContain('videoConfirmImageOnly');
+  });
+
+  it('explains image-only implications in the video confirm', async () => {
+    const mock = await setup();
+    const { saveSettings } = await import('./providers/index');
+    await saveSettings({
+      activeProviderId: 'muse',
+      openaiCompat: { baseURL: '', model: '', structuredOutput: 'json_object' },
+      imageOnly: true,
+      sessionOnly: false,
+      skipWebSearch: false,
+      cacheTtlDays: 7,
+    });
+    await plantKeyAndConsent();
+
+    fetchMock
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
+      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
+    await mock.session.set({
+      [SLOT]: READY({
+        srcUrl: 'blob:https://example.com/aaa',
+        mediaType: 'video',
+        frame: { dataUrl: 'data:image/jpeg;base64,ZnJhbWU=', time: 12.5 },
+      }),
+    });
+
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot h2')?.textContent).toBe('videoConfirmTitle');
+    });
+
+    const paragraphs = [...document.querySelectorAll('#result-slot p')].map((p) => p.textContent);
+    expect(paragraphs).toContain('videoConfirmImageOnly');
+
+    (document.querySelector('#result-slot .confirm-actions .primary') as HTMLButtonElement).click();
+    await waitForHeading('Oia');
+    expect(document.querySelector('#privacy-line')?.textContent).toBe(
+      "privacyVideoFrameOnly(Meta's Muse API)"
+    );
   });
 });

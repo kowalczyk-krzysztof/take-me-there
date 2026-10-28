@@ -102,4 +102,85 @@ describe('onboarding', () => {
     });
     expect(mock.local.data.has('apiKey:muse')).toBe(true);
   });
+
+  it('picks a custom server before the key', async () => {
+    const mock = await setup();
+
+    expect(document.querySelector('#provider-heading')?.textContent).toBe(
+      'onboardingProviderHeading'
+    );
+
+    const permsRequest = vi.fn().mockResolvedValue(true);
+    (chrome as unknown as { permissions: unknown }).permissions = { request: permsRequest };
+
+    const compat = document.querySelector('#provider-compat') as HTMLInputElement;
+    compat.checked = true;
+    compat.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(document.querySelector('#compat-fields')?.hasAttribute('hidden')).toBe(false);
+
+    (document.querySelector('#compat-base-url') as HTMLInputElement).value =
+      'https://llm.example.com/v1';
+    (document.querySelector('#compat-model') as HTMLInputElement).value = 'test-model';
+    (document.querySelector('#compat-save') as HTMLButtonElement).click();
+
+    await waitFor(() => {
+      expect(document.querySelector('#compat-error')?.textContent).toBe(
+        'compatHostWarning(llm.example.com)'
+      );
+    });
+
+    (document.querySelector('#compat-save') as HTMLButtonElement).click();
+
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('statusProviderSaved');
+    });
+
+    const stored = mock.local.data.get('settings') as {
+      settings: { activeProviderId: string };
+    };
+    expect(stored.settings.activeProviderId).toBe('openai_compat');
+
+    await waitFor(() => {
+      expect(document.querySelector('#key-hint')?.textContent).toBe('keyHintCustom');
+    });
+  });
+
+  it('switches back to Muse from onboarding', async () => {
+    const mock = await setup();
+
+    const { saveSettings } = await import('./providers/index');
+    await saveSettings({
+      activeProviderId: 'openai_compat',
+      openaiCompat: {
+        baseURL: 'https://llm.example.com/v1',
+        model: 'm',
+        structuredOutput: 'json_object',
+      },
+      imageOnly: false,
+      sessionOnly: false,
+      skipWebSearch: false,
+      cacheTtlDays: 7,
+    });
+
+    const permsRemove = vi.fn().mockResolvedValue(undefined);
+    (chrome as unknown as { permissions: unknown }).permissions = { remove: permsRemove };
+
+    const muse = document.querySelector('#provider-muse') as HTMLInputElement;
+    muse.checked = true;
+    muse.dispatchEvent(new Event('change', { bubbles: true }));
+
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('statusProviderSaved');
+    });
+
+    const stored = mock.local.data.get('settings') as {
+      settings: { activeProviderId: string };
+    };
+    expect(stored.settings.activeProviderId).toBe('muse');
+    expect(permsRemove).toHaveBeenCalledWith({ origins: ['https://llm.example.com/*'] });
+
+    await waitFor(() => {
+      expect(document.querySelector('#key-hint')?.textContent).toBe('keyHint');
+    });
+  });
 });

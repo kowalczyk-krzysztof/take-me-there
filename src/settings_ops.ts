@@ -201,10 +201,10 @@ export const clearResultCache = async (): Promise<number> =>
   sendCommand<number>({ kind: 'cache.clear' });
 
 export interface SettingsInputHandlers {
-  onMode: (mode: 'imageOnly' | 'skipWebSearch', box: HTMLInputElement) => void;
+  onMode?: (mode: 'imageOnly' | 'skipWebSearch', box: HTMLInputElement) => void;
   onMuse: (box: HTMLInputElement) => void;
   onCompat: () => void;
-  onRetention: (days: number, select: HTMLSelectElement) => void;
+  onRetention?: (days: number, select: HTMLSelectElement) => void;
 }
 
 export const attachSettingsInputs = (
@@ -219,7 +219,7 @@ export const attachSettingsInputs = (
     }
 
     if (target.id === 'image-only' || target.id === 'skip-search') {
-      handlers.onMode(
+      handlers.onMode?.(
         target.id === 'image-only' ? 'imageOnly' : 'skipWebSearch',
         target as HTMLInputElement
       );
@@ -230,7 +230,7 @@ export const attachSettingsInputs = (
     } else if (target.id === 'retention-select') {
       const select = target as HTMLSelectElement;
 
-      handlers.onRetention(Number(select.value), select);
+      handlers.onRetention?.(Number(select.value), select);
     }
   };
 
