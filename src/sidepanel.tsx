@@ -33,7 +33,7 @@ import { buildDestination, buildLinks, mapsDirUrl } from './deep_links';
 import { downscaleToJpegDataUrl, fetchImageBytes } from './image_fetch';
 import { clearAllKeys, clearKey, isVaultKey, loadKey, saveKey, setKeyMode } from './key_vault';
 import { cropToSamBox, dataUrlToBytes, parseSamBoxes, selectSamBox, type SamPixelBox } from './sam';
-import { estimateCachedSavingUsd, estimateCostUsd, formatUsd, recordMonthSpend } from './pricing';
+import { estimateCachedSavingUsd, estimateCostUsd, formatUsd } from './pricing';
 import { createGuideRenderer, findGuideStart } from './render_markdown';
 import {
   TRIP_REQUEST_SCHEMA,
@@ -48,10 +48,19 @@ import {
 import { frameCacheSeed, hasVideoConsented, isMp4RungUsable, setVideoConsented } from './video';
 import { HANDOFF_TTL_MS, ackRequest, handoffSlotKey } from './handoff';
 import {
+  absorbRunUsage,
+  activeRun,
+  cancelActiveRun,
+  createEphemeralRun,
+  markDisplayed,
+  ownsUi,
+  settleStage,
+  startRun,
+  type RunContext,
+} from './run_state';
+import {
   ProviderError,
-  addUsage,
   customHostOf,
-  emptyUsage,
   formatSignalsForPrompt,
   getActiveProvider,
   hasConsented,
@@ -64,7 +73,6 @@ import {
   type ExtensionSettings,
   type GuideSource,
   type Provider,
-  type Usage,
 } from './providers/index';
 import {
   getCacheEntry,
@@ -75,7 +83,6 @@ import {
 } from './result_cache';
 import { ErrorBoundary } from './components/error_boundary/error_boundary';
 import { msg } from './utils/i18n';
-import { createMutex } from './utils/mutex';
 import { dirForLanguage, truncateCodePoints } from './utils/text';
 import { createStore } from './utils/store';
 import './styles/sidepanel.css';
@@ -309,8 +316,6 @@ const setKeyForm = (patch: Partial<KeyFormState>): void => {
 
 const guideContentEl = (): HTMLElement | null => document.getElementById('guide-content');
 
-let highestRequestId = '';
-
 // Delivery cursor: the worker sequence orders records (timestamps only
 // expire them), with a rank so a terminal write supersedes the collecting
 // write of the same click without a panel reopen replaying either.
@@ -335,20 +340,11 @@ const getPanelWindowId = (): Promise<number | undefined> => {
   return panelWindowPromise;
 };
 
-let activeController: AbortController | null = null;
+// Request behind the displayed result (or scan), for follow-up stages that
+// must bind to what the user sees rather than to any live run.
+let displayedRequestId: string | null = null;
 
-let analysisInFlight = false;
-
-let currentRunId: string | null = null;
-
-let runUsage: Usage = emptyUsage();
-
-let recordedUsd = 0;
-
-let activeRequest: TripRequest | null = null;
-
-const isStaleRequest = (request: TripRequest): boolean =>
-  activeRequest?.requestId !== request.requestId;
+let displayedRequest: TripRequest | null = null;
 
 let runSettings: ExtensionSettings | null = null;
 
@@ -525,43 +521,46 @@ const clearCost = (): void => {
   store.set({ cost: '' });
 };
 
-const priceMutex = createMutex();
+// Settles the originating run's stage (stale runs included: the spend
+// happened) but renders the cost line only for the UI owner.
+const priceAndRecord = async (run: RunContext, stage: string): Promise<void> => {
+  const rates = run.provider.getRates();
 
-const priceAndRecord = async (provider: Provider): Promise<void> =>
-  priceMutex(async () => {
-    const rates = provider.getRates();
+  const usd = estimateCostUsd(run.usage, rates);
 
-    const usd = estimateCostUsd(runUsage, rates);
-
-    if (usd === null) {
+  if (usd === null) {
+    if (ownsUi(run)) {
       store.set({
-        cost: msg('costLineTokens', [String(runUsage.inputTokens), String(runUsage.outputTokens)]),
+        cost: msg('costLineTokens', [
+          String(run.usage.inputTokens),
+          String(run.usage.outputTokens),
+        ]),
       });
-
-      return;
-    }
-    // runUsage is cumulative across stages, so only the unrecorded delta
-    // reaches the monthly total. The watermark advances after a successful
-    // write, so a failed write is retried by the next stage instead of lost.
-    const delta = Math.max(0, usd - recordedUsd);
-
-    let monthTotal = usd;
-
-    try {
-      monthTotal = await recordMonthSpend(delta);
-      recordedUsd = usd;
-    } catch {
-      // The run figure still renders; only the monthly total is stale.
     }
 
-    const saved = rates ? estimateCachedSavingUsd(runUsage, rates) : 0;
-    store.set({
-      cost:
-        saved > 0
-          ? msg('costLineCached', [formatUsd(usd), formatUsd(monthTotal), formatUsd(saved)])
-          : msg('costLine', [formatUsd(usd), formatUsd(monthTotal)]),
-    });
+    return;
+  }
+
+  let monthTotal = usd;
+
+  try {
+    monthTotal = await settleStage(run, stage);
+  } catch {
+    // The run figure still renders; only the monthly total is stale.
+  }
+
+  if (!ownsUi(run)) {
+    return;
+  }
+
+  const saved = rates ? estimateCachedSavingUsd(run.usage, rates) : 0;
+  store.set({
+    cost:
+      saved > 0
+        ? msg('costLineCached', [formatUsd(usd), formatUsd(monthTotal), formatUsd(saved)])
+        : msg('costLine', [formatUsd(usd), formatUsd(monthTotal)]),
   });
+};
 
 const cancelSkeleton = (): void => {
   skeletonFor = '';
@@ -681,7 +680,6 @@ const onVideoConfirmAgree = async (): Promise<void> => {
 
 const onVideoConfirmCancel = (): void => {
   pendingRun = null;
-  analysisInFlight = false;
   updatePreview(null);
   showIdle();
   announceStatus('statusVideoConfirmDeclined');
@@ -773,11 +771,11 @@ const withOriginGrant = async <T,>(
   }
 };
 
-const abortActive = (): void => {
-  if (activeController) {
-    activeController.abort();
-    activeController = null;
-  }
+// Duel and alternates belong to the displayed result: a new analysis run
+// aborts their controllers alongside the previous analysis. Ready alternate
+// cards survive (their indices stay valid); only the in-flight marker
+// resets, and the loser of a run race bows out by id.
+const abortSiblings = (): void => {
   if (duelController) {
     duelController.abort();
     duelController = null;
@@ -786,17 +784,67 @@ const abortActive = (): void => {
     alternatesController.abort();
     alternatesController = null;
   }
-  // Ready alternate cards survive (their indices stay valid); only the
-  // in-flight marker resets, and the loser of a run race bows out by id.
   alternatesLoading = null;
 };
 
-const beginRun = (runId: string): void => {
-  if (currentRunId !== runId) {
-    currentRunId = runId;
-    runUsage = emptyUsage();
-    recordedUsd = 0;
+const cancelAllWork = (): void => {
+  cancelActiveRun();
+  abortSiblings();
+};
+
+// Follow-up stages of one request (guide after identify, look-again)
+// inherit the live run's usage snapshot so the run figure stays cumulative
+// while each stage still settles exactly once. Anything else (a new
+// request, a replaced key, a switched provider or model) starts clean.
+const pickInherit = (
+  requestId: string,
+  provider: Provider,
+  key: string
+): RunContext | undefined => {
+  const current = activeRun();
+
+  if (!current || current.cancelled) {
+    return undefined;
   }
+
+  if (current.requestId !== requestId) {
+    return undefined;
+  }
+
+  if (current.provider.id !== provider.id || current.provider.modelName !== provider.modelName) {
+    return undefined;
+  }
+
+  if (current.key !== key) {
+    return undefined;
+  }
+
+  return current;
+};
+
+// Gate ticket: flows that install a run take one before gating and abandon
+// when a newer flow started while they waited, so an older gate can never
+// install over a newer run.
+let runTicket = 0;
+
+let runCounter = 0;
+
+const nextRunId = (requestId: string): string => {
+  runCounter += 1;
+
+  return `${requestId}#${runCounter}`;
+};
+
+// Commits a run's working state to the displayed globals. Callers must own
+// the UI; rendering from any other run's state is a cross-run leak.
+const commitDisplayed = (run: RunContext, view: string): void => {
+  currentPlace = run.place;
+  currentDestination = run.destination;
+  currentCacheKey = run.cacheKey;
+  displayedRequestId = run.requestId;
+  displayedRequest = run.request;
+  markDisplayed(run.runId);
+  currentView = view;
 };
 
 const clearStaleTimer = (): void => {
@@ -863,15 +911,26 @@ const isPlacePinned = async (place: PlaceResult): Promise<boolean> => {
 };
 
 const renderResultHeader = async (
+  run: RunContext,
   place: PlaceResult,
   announce: boolean,
   foundKey = 'statusFoundWriting'
 ): Promise<void> => {
   await settleSkeleton();
+
+  if (!ownsUi(run)) {
+    return;
+  }
+
   cancelSkeleton();
   currentView = 'result';
   currentAlternates = null;
   const props = await resultCardProps(place);
+
+  if (!ownsUi(run)) {
+    return;
+  }
+
   swapResultSlot(() => {
     store.set({ result: { ...blankResultSlot(), card: props } });
   });
@@ -882,8 +941,17 @@ const renderResultHeader = async (
   }
 };
 
-const renderNoPlace = async (request: TripRequest, origin: 'gesture' | 'panel'): Promise<void> => {
+const renderNoPlace = async (
+  request: TripRequest,
+  origin: 'gesture' | 'panel',
+  run: RunContext
+): Promise<void> => {
   await settleSkeleton();
+
+  if (!ownsUi(run)) {
+    return;
+  }
+
   cancelSkeleton();
   currentView = 'no-place';
   currentAlternates = null;
@@ -1025,24 +1093,19 @@ const showProviderError = (
   updatePrivacy(privacy);
 };
 
-const recordPartialUsage = (err: unknown, provider: Provider): void => {
+const recordPartialUsage = (run: RunContext, stage: string, err: unknown): void => {
   if (err instanceof ProviderError && err.usage) {
-    runUsage = addUsage(runUsage, err.usage);
-    void priceAndRecord(provider);
+    absorbRunUsage(run, err.usage);
+    void priceAndRecord(run, stage);
   }
 };
 
 interface GuideArgs {
-  provider: Provider;
-  key: string;
-  destination: string;
-  signal: AbortSignal;
-  cacheKey: string | null;
+  run: RunContext;
   privacy: PrivacyMode;
   origin: 'gesture' | 'panel';
   prompt?: string;
   completeKey?: string;
-  skipWebSearch?: boolean;
 }
 
 const showGuideSkeleton = (content: HTMLElement): void => {
@@ -1067,9 +1130,10 @@ const showGuideSkeleton = (content: HTMLElement): void => {
 // until completion, then the guide renders once into its fixed box. The
 // searching line and sources still arrive live; they own fixed slots.
 const runGuide = async (args: GuideArgs): Promise<RunOutcome> => {
-  const { provider, key, destination, signal, cacheKey, privacy, origin } = args;
+  const { run, privacy, origin } = args;
+  const provider = run.provider;
   const content = guideContentEl();
-  if (!content) {
+  if (!content || !ownsUi(run)) {
     return 'error';
   }
   store.set({ guideVisible: true, guideBusy: true });
@@ -1078,36 +1142,71 @@ const runGuide = async (args: GuideArgs): Promise<RunOutcome> => {
   const sources: GuideSource[] = [];
   let searchedWeb = false;
   try {
-    const events = provider.streamGuide(key, {
-      destination,
-      signal,
+    const events = provider.streamGuide(run.key, {
+      destination: run.destination,
+      signal: run.signal,
       language: chrome.i18n.getUILanguage(),
       prompt: args.prompt,
-      transport: args.skipWebSearch === true ? 'chat' : undefined,
+      transport: run.settings.skipWebSearch === true ? 'chat' : undefined,
     });
     for await (const event of events) {
       if (event.type === 'delta') {
         guideSource += event.text;
       } else if (event.type === 'searching') {
         searchedWeb = true;
-        store.set({ searching: true });
-        announceStatus('statusSearchingWeb');
+
+        if (ownsUi(run)) {
+          store.set({ searching: true });
+          announceStatus('statusSearchingWeb');
+        }
       } else if (event.type === 'sources') {
         sources.push(...event.sources);
-        showSources(sources);
+
+        if (ownsUi(run)) {
+          showSources(sources);
+        }
       } else if (event.type === 'usage') {
-        runUsage = addUsage(runUsage, event.usage);
+        absorbRunUsage(run, event.usage);
       }
     }
   } catch (err) {
     store.set({ guideBusy: false, searching: false, resultBusy: false });
     if (err instanceof ProviderError && err.code === 'aborted') {
       // Streamed tokens were billed even though the run was cancelled.
-      recordPartialUsage(err, provider);
+      recordPartialUsage(run, 'guide', err);
+
+      if (activeRun() !== null) {
+        // Superseded: the incoming run owns every pixel now.
+        return 'aborted';
+      }
+
+      // User-cancelled while owning the UI: keep partial text without
+      // marking complete. Never cached; planning stays available.
+      if (guideSource.trim()) {
+        const start = findGuideStart(guideSource);
+        const renderer = createGuideRenderer(content, msg('truncatedNotice'));
+        renderer.push(start >= 0 ? guideSource.slice(start) : guideSource);
+        renderer.finish();
+        const notice = document.createElement('p');
+        notice.className = 'guide-interrupted';
+        notice.textContent = msg('guideInterrupted');
+        content.append(notice);
+      } else {
+        content.replaceChildren();
+      }
+
+      updatePrivacy(privacy);
+      announceStatus('statusCanceled');
+
       return 'aborted';
     }
-    recordPartialUsage(err, provider);
-    await priceAndRecord(provider);
+    recordPartialUsage(run, 'guide', err);
+    await priceAndRecord(run, 'guide');
+
+    if (!ownsUi(run)) {
+      return 'error';
+    }
+
     if (guideSource.trim()) {
       // Keep what streamed: a partial guide with an interrupted notice
       // beats an error card. It is never cached as complete, and the
@@ -1122,7 +1221,6 @@ const runGuide = async (args: GuideArgs): Promise<RunOutcome> => {
       notice.textContent = msg('guideInterrupted');
       content.append(notice);
       announceAlert('guideInterrupted');
-      analysisInFlight = false;
       return 'partial';
     }
     content.replaceChildren();
@@ -1130,10 +1228,16 @@ const runGuide = async (args: GuideArgs): Promise<RunOutcome> => {
     notice.className = 'guide-interrupted';
     notice.textContent = msg('guideInterrupted');
     content.append(notice);
-    showProviderError(err, activeRequest, privacy);
-    analysisInFlight = false;
+    showProviderError(err, run.request, privacy);
     return 'error';
   }
+  await priceAndRecord(run, 'guide');
+
+  if (!ownsUi(run)) {
+    // Settled but stale: no cache write, no render, no announcement.
+    return 'aborted';
+  }
+
   const start = findGuideStart(guideSource);
   // Degenerate stream with no heading: render everything rather than
   // dropping content the hold-back rule cannot place.
@@ -1143,16 +1247,15 @@ const runGuide = async (args: GuideArgs): Promise<RunOutcome> => {
   renderer.finish();
   guideSource = finalText;
   store.set({ guideBusy: false, searching: false, resultBusy: false });
-  if (cacheKey && currentPlace) {
-    await setCacheEntry(cacheKey, {
-      place: currentPlace,
+  if (run.cacheKey && run.place) {
+    await setCacheEntry(run.cacheKey, {
+      place: run.place,
       guide: guideSource,
       sources: [...sources],
-      usage: { ...runUsage },
+      usage: { ...run.usage },
       searchedWeb,
     });
   }
-  await priceAndRecord(provider);
   updatePrivacy(privacy);
   if (args.completeKey) {
     announceStatus(args.completeKey);
@@ -1164,17 +1267,14 @@ const runGuide = async (args: GuideArgs): Promise<RunOutcome> => {
   if (origin === 'panel') {
     focusResultHeading();
   }
-  analysisInFlight = false;
   return 'result';
 };
 
 interface IdentifyArgs {
-  request: TripRequest;
-  provider: Provider;
-  settings: ExtensionSettings;
-  key: string;
+  run: RunContext;
   origin: 'gesture' | 'panel';
   rejectedPlace?: string;
+  requestOverride?: TripRequest;
 }
 
 // Guesses below this confidence render the no-place card instead of a
@@ -1183,84 +1283,117 @@ interface IdentifyArgs {
 const NO_PLACE_MIN_CONFIDENCE = 0.35;
 
 const runIdentify = async (args: IdentifyArgs): Promise<RunOutcome> => {
-  const { request, provider, settings, key, origin, rejectedPlace } = args;
-  const controller = new AbortController();
-  activeController = controller;
-  const signal = controller.signal;
-  const finishController = (): void => {
-    if (activeController === controller) {
-      activeController = null;
-    }
-  };
+  const { run, origin, rejectedPlace } = args;
+  const request = args.requestOverride ?? run.request;
+
+  if (!request) {
+    return 'error';
+  }
+
   const signals = request.signals ?? EMPTY_SIGNALS;
-  const signalsText = formatSignalsForPrompt(signals, settings.imageOnly);
-  const privacy = privacyForRequest(request, settings, provider);
+  const signalsText = formatSignalsForPrompt(signals, run.settings.imageOnly);
+  const privacy = privacyForRequest(request, run.settings, run.provider);
   let identify;
   try {
-    identify = await provider.identifyPlace(key, {
+    identify = await run.provider.identifyPlace(run.key, {
       imageUrl: request.frame?.dataUrl ?? request.srcUrl,
       signalsText,
-      signal,
+      signal: run.signal,
       rejectedPlace,
-      videoUrl: videoUrlForRequest(request, provider),
+      videoUrl: videoUrlForRequest(request, run.provider),
     });
   } catch (err) {
-    finishController();
-    if (isStaleRequest(request)) {
-      return 'aborted';
-    }
     if (err instanceof ProviderError && err.code === 'aborted') {
+      recordPartialUsage(run, 'identify', err);
+
+      if (activeRun() !== null) {
+        return 'aborted';
+      }
+
+      cancelSkeleton();
+      showIdle();
+      announceStatus('statusCanceled');
+
       return 'aborted';
     }
-    recordPartialUsage(err, provider);
+    recordPartialUsage(run, 'identify', err);
+    await priceAndRecord(run, 'identify');
+
+    if (!ownsUi(run)) {
+      return 'error';
+    }
+
     showProviderError(
       err,
       request,
       undefined,
       !request.mediaType && !request.scanImages && !request.frame
     );
-    analysisInFlight = false;
     return 'error';
   }
-  if (isStaleRequest(request)) {
-    finishController();
+  absorbRunUsage(run, identify.usage);
+
+  if (!ownsUi(run)) {
+    await priceAndRecord(run, 'identify');
+
     return 'aborted';
   }
-  runUsage = addUsage(runUsage, identify.usage);
-  currentPlace = identify.place;
-  await setCacheEntry(currentCacheKey, {
+
+  run.place = identify.place;
+  await setCacheEntry(run.cacheKey, {
     place: identify.place,
     guide: '',
     sources: [],
-    usage: { ...runUsage },
+    usage: { ...run.usage },
     searchedWeb: false,
   });
+
+  if (!ownsUi(run)) {
+    return 'aborted';
+  }
+
   if (!identify.place.identified || identify.place.confidence < NO_PLACE_MIN_CONFIDENCE) {
-    finishController();
     // Stash the guess: look-again rejects it to force a different candidate.
-    currentPlace = identify.place;
-    await renderNoPlace(request, origin);
-    await priceAndRecord(provider);
+    commitDisplayed(run, 'no-place');
+    await renderNoPlace(request, origin, run);
+
+    if (!ownsUi(run)) {
+      return 'aborted';
+    }
+
+    await priceAndRecord(run, 'identify');
+
+    if (!ownsUi(run)) {
+      return 'no-place';
+    }
+
     updatePrivacy(privacy);
-    analysisInFlight = false;
     return 'no-place';
   }
-  const destination = buildDestination(
+  run.destination = buildDestination(
     identify.place.placeName,
     identify.place.city,
     identify.place.country
   );
-  currentDestination = destination;
   currentPlanState = 'idle';
-  await renderResultHeader(identify.place, true, 'statusFoundPlan');
-  await priceAndRecord(provider);
+  commitDisplayed(run, 'result');
+  await renderResultHeader(run, identify.place, true, 'statusFoundPlan');
+
+  if (!ownsUi(run)) {
+    return 'aborted';
+  }
+
+  await priceAndRecord(run, 'identify');
+
+  if (!ownsUi(run)) {
+    return 'result';
+  }
+
   updatePrivacy(privacy);
   store.set({ resultBusy: false });
   if (origin === 'panel') {
     focusResultHeading();
   }
-  analysisInFlight = false;
-  finishController();
   return 'result';
 };
 
@@ -1270,45 +1403,70 @@ const runGuidePlan = async (): Promise<void> => {
   if (guidePlanning || !currentPlace) {
     return;
   }
+  // Snapshot the click-time display: the guide plans for the result the
+  // user saw, even if a newer run lands while the gate is open.
+  const place = currentPlace;
+  const destination = currentDestination;
+  const cacheKey = currentCacheKey;
+  const requestId = displayedRequestId ?? '';
+  const request = displayedRequest;
+  const ticket = ++runTicket;
   const gate = await gateRun({ kind: 'guide' });
+
+  if (ticket !== runTicket) {
+    return;
+  }
+
   if (!gate.ready) {
     announceGate(gate.reason);
     return;
   }
   const { provider, settings, key } = gate;
   guidePlanning = true;
-  analysisInFlight = true;
+  const run = startRun(
+    {
+      runId: nextRunId(`${requestId}-guide`),
+      requestId,
+      kind: 'guide',
+      provider,
+      settings,
+      key,
+      request,
+      place,
+      destination,
+      cacheKey,
+    },
+    { inheritFrom: pickInherit(requestId, provider, key), abortSiblings }
+  );
   lastRun = { kind: 'guide' };
   currentPlanState = 'planning';
   if (currentView !== 'result') {
-    await renderResultHeader(currentPlace, false);
+    commitDisplayed(run, 'result');
+    await renderResultHeader(run, place, false);
   } else {
     await refreshResultCard();
   }
+
+  if (!ownsUi(run)) {
+    guidePlanning = false;
+    return;
+  }
+
   selectTab('main', true);
   showSources([]);
   announceStatus('statusPlanningTrip');
-  const controller = new AbortController();
-  activeController = controller;
-  const privacy = activeRequest ? privacyForRequest(activeRequest, settings, provider) : 'image';
+  const privacy = run.request ? privacyForRequest(run.request, settings, provider) : 'image';
   let outcome: RunOutcome = 'error';
   try {
-    outcome = await runGuide({
-      provider,
-      key: key,
-      destination: currentDestination,
-      signal: controller.signal,
-      cacheKey: currentCacheKey,
-      privacy,
-      origin: 'panel',
-      skipWebSearch: settings.skipWebSearch,
-    });
+    outcome = await runGuide({ run, privacy, origin: 'panel' });
   } finally {
     guidePlanning = false;
-    if (activeController === controller) {
-      activeController = null;
-    }
   }
+
+  if (!ownsUi(run)) {
+    return;
+  }
+
   if (outcome === 'result') {
     currentPlanState = 'ready';
     await refreshResultCard();
@@ -1320,19 +1478,27 @@ const runGuidePlan = async (): Promise<void> => {
   }
 };
 
-const renderCached = async (entry: CacheEntry, origin: 'gesture' | 'panel'): Promise<void> => {
+const renderCached = async (
+  run: RunContext,
+  entry: CacheEntry,
+  origin: 'gesture' | 'panel'
+): Promise<void> => {
+  if (!ownsUi(run)) {
+    return;
+  }
+
   cancelSkeleton();
-  currentPlace = entry.place;
+  run.place = entry.place;
   if (!entry.place.identified) {
-    currentView = 'no-place';
+    commitDisplayed(run, 'no-place');
     swapResultSlot(() => {
       store.set({
         result: {
           ...blankResultSlot(),
           card: {
             view: 'no-place',
-            showLookAgain: !lookAgainUsed.has(currentCacheKey),
-            fallback: activeRequest ? fallbackFor(activeRequest.signals ?? EMPTY_SIGNALS) : null,
+            showLookAgain: !lookAgainUsed.has(run.cacheKey),
+            fallback: run.request ? fallbackFor(run.request.signals ?? EMPTY_SIGNALS) : null,
           },
         },
       });
@@ -1346,15 +1512,16 @@ const renderCached = async (entry: CacheEntry, origin: 'gesture' | 'panel'): Pro
     }
     return;
   }
-  currentDestination = buildDestination(
-    entry.place.placeName,
-    entry.place.city,
-    entry.place.country
-  );
-  currentView = 'result';
+  run.destination = buildDestination(entry.place.placeName, entry.place.city, entry.place.country);
   currentAlternates = null;
   currentPlanState = entry.guide ? 'ready' : 'idle';
+  commitDisplayed(run, 'result');
   const props = await resultCardProps(entry.place);
+
+  if (!ownsUi(run)) {
+    return;
+  }
+
   swapResultSlot(() => {
     store.set({ result: { ...blankResultSlot(), card: props } });
   });
@@ -1405,16 +1572,18 @@ const routeVideoRequest = (request: TripRequest, provider: Provider): VideoRoute
 };
 
 const runVideoAnalysis = async (
-  request: TripRequest,
-  provider: Provider,
-  settings: ExtensionSettings,
-  key: string,
+  run: RunContext,
   origin: 'gesture' | 'panel',
   superseded: boolean
 ): Promise<void> => {
-  const route = routeVideoRequest(request, provider);
+  const request = run.request;
+
+  if (!request) {
+    return;
+  }
+
+  const route = routeVideoRequest(request, run.provider);
   if (route.kind === 'error') {
-    analysisInFlight = false;
     updatePreview(null);
     renderErrorCard(
       route.titleKey,
@@ -1428,43 +1597,50 @@ const runVideoAnalysis = async (
     return;
   }
   if (!(await hasVideoConsented())) {
-    if (isStaleRequest(request)) {
+    if (!ownsUi(run)) {
       return;
     }
-    analysisInFlight = false;
+
     pendingRun = { kind: 'request', request };
     updatePreview(request.frame?.dataUrl ?? null, request.frame ? 'frame' : 'image');
     showVideoConfirm(route.kind === 'rung2', origin === 'panel');
     announceStatus('statusVideoConfirmNeeded');
     return;
   }
-  if (isStaleRequest(request)) {
+
+  if (!ownsUi(run)) {
     return;
   }
+
   const keyScope = {
     pageUrl: request.pageUrl ?? '',
-    providerId: provider.id,
-    model: provider.modelName,
-    imageOnly: settings.imageOnly,
+    providerId: run.provider.id,
+    model: run.provider.modelName,
+    imageOnly: run.settings.imageOnly,
   };
   if (route.kind === 'frame' && request.frame) {
     updatePreview(request.frame.dataUrl, 'frame');
-    currentCacheKey = await hashCacheKey({
+    run.cacheKey = await hashCacheKey({
       ...keyScope,
       seed: frameCacheSeed(request.frame.time, request.srcUrl),
     });
   } else {
     updatePreview(null);
-    currentCacheKey = await hashCacheKey({ ...keyScope, seed: request.srcUrl });
+    run.cacheKey = await hashCacheKey({ ...keyScope, seed: request.srcUrl });
   }
-  if (isStaleRequest(request)) {
+
+  if (!ownsUi(run)) {
     return;
   }
-  const cached = await getCacheEntry(currentCacheKey);
+
+  const cached = await getCacheEntry(run.cacheKey);
+
+  if (!ownsUi(run)) {
+    return;
+  }
+
   if (cached) {
-    analysisInFlight = false;
-    activeController = null;
-    await renderCached(cached, origin);
+    await renderCached(run, cached, origin);
     return;
   }
   announceStatus(
@@ -1475,13 +1651,7 @@ const runVideoAnalysis = async (
         : 'statusAnalyzingVideo'
   );
   showSkeleton(request.requestId);
-  await runIdentify({
-    request,
-    provider,
-    settings,
-    key,
-    origin,
-  });
+  await runIdentify({ run, origin });
 };
 
 // ---- Page scan ----
@@ -1523,16 +1693,16 @@ const scanItemViews = async (
   return views;
 };
 
-const runScan = async (
-  request: TripRequest,
-  provider: Provider,
-  key: string,
-  origin: 'gesture' | 'panel'
-): Promise<void> => {
+const runScan = async (run: RunContext, origin: 'gesture' | 'panel'): Promise<void> => {
+  const request = run.request;
+
+  if (!request) {
+    return;
+  }
+
   const images = request.scanImages ?? [];
   const privacy: PrivacyMode = 'scan';
   if (images.length === 0) {
-    analysisInFlight = false;
     renderErrorCard('scanEmptyTitle', 'scanEmptyBody', false, false);
     announceAlert('scanEmptyBody');
     updatePrivacy('idle');
@@ -1540,37 +1710,49 @@ const runScan = async (
   }
   showScanSkeleton();
   announceStatus('statusAnalyzing');
-  const controller = new AbortController();
-  activeController = controller;
   let result;
   try {
-    result = await provider.scanPlaces(key, { images, signal: controller.signal });
+    result = await run.provider.scanPlaces(run.key, { images, signal: run.signal });
   } catch (err) {
-    if (activeController === controller) {
-      activeController = null;
-    }
-    if (isStaleRequest(request)) {
-      return;
-    }
     if (err instanceof ProviderError && err.code === 'aborted') {
+      recordPartialUsage(run, 'scan', err);
+
+      if (activeRun() !== null) {
+        return;
+      }
+
+      cancelSkeleton();
+      showIdle();
+      announceStatus('statusCanceled');
+
       return;
     }
-    recordPartialUsage(err, provider);
+    recordPartialUsage(run, 'scan', err);
+    await priceAndRecord(run, 'scan');
+
+    if (!ownsUi(run)) {
+      return;
+    }
+
     showProviderError(err, request, privacy);
-    analysisInFlight = false;
     return;
   }
-  if (activeController === controller) {
-    activeController = null;
-  }
-  if (isStaleRequest(request)) {
+  absorbRunUsage(run, result.usage);
+
+  if (!ownsUi(run)) {
+    await priceAndRecord(run, 'scan');
+
     return;
   }
-  runUsage = addUsage(runUsage, result.usage);
+
   if (result.places.length === 0) {
-    await priceAndRecord(provider);
+    await priceAndRecord(run, 'scan');
+
+    if (!ownsUi(run)) {
+      return;
+    }
+
     updatePrivacy(privacy);
-    analysisInFlight = false;
     renderErrorCard('scanNoneTitle', 'scanNoneBody', false, false);
     announceAlert('scanNoneBody');
     return;
@@ -1578,17 +1760,26 @@ const runScan = async (
   scanPlaces = result.places;
   scanThumbs = result.places.map((place) => pairScanThumb(place, images));
   const views = await scanItemViews(scanPlaces, scanThumbs);
-  currentView = 'scan';
+
+  if (!ownsUi(run)) {
+    return;
+  }
+
+  commitDisplayed(run, 'scan');
   swapResultSlot(() => {
     store.set({ result: { ...blankResultSlot(), scan: { loading: false, items: views } } });
   });
-  await priceAndRecord(provider);
+  await priceAndRecord(run, 'scan');
+
+  if (!ownsUi(run)) {
+    return;
+  }
+
   updatePrivacy(privacy);
   announceStatus('scanFound', String(scanPlaces.length));
   if (origin === 'panel') {
     document.getElementById('scan-heading')?.focus();
   }
-  analysisInFlight = false;
 };
 
 const runScanGuide = async (
@@ -1600,11 +1791,9 @@ const runScanGuide = async (
   if (!place) {
     return;
   }
-  abortActive();
+  const ticket = ++runTicket;
+  cancelAllWork();
   clearStaleTimer();
-  analysisInFlight = true;
-  beginRun(`${request.requestId}-guide-${index}`);
-  activeRequest = request;
   lastRun = { kind: 'scan-guide', request, index };
   pendingRun = null;
   const result = scanPlaceResult(place);
@@ -1612,62 +1801,81 @@ const runScanGuide = async (
   updatePreview(thumb);
   clearCost();
   const gate = await gateRun({ kind: 'scan-guide', request, index });
+
+  if (ticket !== runTicket) {
+    return;
+  }
+
   if (!gate.ready) {
-    analysisInFlight = false;
     announceGate(gate.reason);
     return;
   }
-  if (isStaleRequest(request)) {
-    return;
-  }
   const { provider, settings, key } = gate;
+  const run = startRun(
+    {
+      runId: nextRunId(`${request.requestId}-guide-${index}`),
+      requestId: request.requestId,
+      kind: 'scan-guide',
+      provider,
+      settings,
+      key,
+      request,
+      place: result,
+    },
+    { inheritFrom: pickInherit(request.requestId, provider, key), abortSiblings }
+  );
   const privacy: PrivacyMode = settings.imageOnly ? 'image-only' : 'image';
-  currentCacheKey = await hashCacheKey({
+  run.cacheKey = await hashCacheKey({
     seed: thumb ?? `scan:${result.placeName},${result.country}`,
     pageUrl: request.pageUrl ?? '',
     providerId: provider.id,
     model: provider.modelName,
     imageOnly: settings.imageOnly,
   });
-  if (isStaleRequest(request)) {
+
+  if (!ownsUi(run)) {
     return;
   }
-  const cached = await getCacheEntry(currentCacheKey);
+
+  const cached = await getCacheEntry(run.cacheKey);
+
+  if (!ownsUi(run)) {
+    return;
+  }
+
   if (cached) {
-    analysisInFlight = false;
-    activeController = null;
-    await renderCached(cached, origin);
+    await renderCached(run, cached, origin);
     return;
   }
   // The scan already identified the place: stream the guide for the known
   // destination with no second identify pass.
-  const destination = buildDestination(result.placeName, result.city, result.country);
-  currentDestination = destination;
-  currentPlace = result;
-  await setCacheEntry(currentCacheKey, {
+  run.destination = buildDestination(result.placeName, result.city, result.country);
+  await setCacheEntry(run.cacheKey, {
     place: result,
     guide: '',
     sources: [],
-    usage: { ...runUsage },
+    usage: { ...run.usage },
     searchedWeb: false,
   });
-  currentPlanState = 'planning';
-  await renderResultHeader(result, true);
-  const controller = new AbortController();
-  activeController = controller;
-  const outcome = await runGuide({
-    provider,
-    key: key,
-    destination,
-    signal: controller.signal,
-    cacheKey: currentCacheKey,
-    privacy,
-    origin,
-    skipWebSearch: settings.skipWebSearch,
-  });
-  if (activeController === controller) {
-    activeController = null;
+
+  if (!ownsUi(run)) {
+    return;
   }
+
+  currentPlanState = 'planning';
+  commitDisplayed(run, 'result');
+  await renderResultHeader(run, result, true);
+
+  if (!ownsUi(run)) {
+    return;
+  }
+
+  const outcome = await runGuide({ run, privacy, origin });
+
+  if (!ownsUi(run)) {
+    return;
+  }
+
   currentPlanState = outcome === 'result' ? 'ready' : 'idle';
   if (outcome === 'result') {
     await refreshResultCard();
@@ -1682,7 +1890,7 @@ const scanPinFor = (index: number): Omit<BoardPin, 'addedAt'> | null => {
   const thumb = scanThumbs[index] ?? null;
   return {
     place: scanPlaceResult(place),
-    sourceHost: sourceHostFor(activeRequest),
+    sourceHost: sourceHostFor(displayedRequest),
     ...(thumb ? { imageUrl: thumb } : {}),
   };
 };
@@ -1700,7 +1908,7 @@ const refreshScanPins = async (): Promise<void> => {
 };
 
 const onScanGuide = async (index: number): Promise<void> => {
-  const request = activeRequest;
+  const request = displayedRequest;
   if (!request) {
     return;
   }
@@ -1727,68 +1935,82 @@ const onScanPinSelected = async (indices: number[]): Promise<void> => {
 };
 
 const runAnalysis = async (request: TripRequest, origin: 'gesture' | 'panel'): Promise<void> => {
-  abortActive();
+  const superseded = activeRun() !== null;
+  const ticket = ++runTicket;
+  cancelAllWork();
   clearStaleTimer();
-  const superseded = analysisInFlight;
-  analysisInFlight = true;
-  beginRun(request.requestId);
-  activeRequest = request;
   lastRun = { kind: 'request', request };
   pendingRun = null;
   updatePreview(request.srcUrl || null);
   clearCost();
   const gate = await gateRun({ kind: 'request', request });
-  if (isStaleRequest(request)) {
+
+  if (ticket !== runTicket) {
     return;
   }
+
   if (!gate.ready) {
-    analysisInFlight = false;
     announceGate(gate.reason);
     return;
   }
   const { provider, settings, key } = gate;
+  const run = startRun(
+    {
+      runId: nextRunId(request.requestId),
+      requestId: request.requestId,
+      kind:
+        request.scanImages !== undefined
+          ? 'scan'
+          : request.mediaType === 'video'
+            ? 'video'
+            : 'identify',
+      provider,
+      settings,
+      key,
+      request,
+    },
+    { inheritFrom: pickInherit(request.requestId, provider, key), abortSiblings }
+  );
   selectTab('main', true);
   if (request.mediaType === 'video') {
-    await runVideoAnalysis(request, provider, settings, key, origin, superseded);
+    await runVideoAnalysis(run, origin, superseded);
     return;
   }
   if (request.scanImages !== undefined) {
-    await runScan(request, provider, key, origin);
+    await runScan(run, origin);
     return;
   }
   if (request.dataPending || !request.srcUrl) {
-    analysisInFlight = false;
     renderErrorCard('errorDataTitle', 'errorDataBody', false, false);
     announceAlert('errorDataBody');
     updatePrivacy('idle');
     return;
   }
-  currentCacheKey = await hashCacheKey({
+  run.cacheKey = await hashCacheKey({
     seed: request.srcUrl,
     pageUrl: request.pageUrl ?? '',
     providerId: provider.id,
     model: provider.modelName,
     imageOnly: settings.imageOnly,
   });
-  if (isStaleRequest(request)) {
+
+  if (!ownsUi(run)) {
     return;
   }
-  const cached = await getCacheEntry(currentCacheKey);
+
+  const cached = await getCacheEntry(run.cacheKey);
+
+  if (!ownsUi(run)) {
+    return;
+  }
+
   if (cached) {
-    analysisInFlight = false;
-    activeController = null;
-    await renderCached(cached, origin);
+    await renderCached(run, cached, origin);
     return;
   }
   announceStatus(superseded ? 'statusCanceledNew' : 'statusAnalyzing');
   showSkeleton(request.requestId);
-  await runIdentify({
-    request,
-    provider,
-    settings,
-    key: key,
-    origin,
-  });
+  await runIdentify({ run, origin });
 };
 
 const handle = async (value: unknown): Promise<void> => {
@@ -1816,7 +2038,6 @@ const handle = async (value: unknown): Promise<void> => {
   }
   lastSeenSeq = request.seq;
   lastSeenRank = rank;
-  highestRequestId = request.requestId;
   if (request.status === 'error') {
     await ackRequest(request.windowId, request.seq);
     renderErrorCard('handoffFailedTitle', 'handoffFailedBody', false, false);
@@ -1853,8 +2074,7 @@ const handle = async (value: unknown): Promise<void> => {
     // Entry-point net: an unexpected throw surfaces the error card
     // instead of stranding the panel on a skeleton.
     store.set({ guideBusy: false, searching: false, resultBusy: false });
-    activeController = null;
-    analysisInFlight = false;
+    cancelAllWork();
     showProviderError(err, request);
   }
 };
@@ -1873,23 +2093,16 @@ interface SamCrop {
 // Best-effort landmark crop for "look again": any failure (denied origin,
 // undecodable bytes, SAM error, no valid box, superseding gesture) falls
 // back to the full image. Never throws.
-const trySamCrop = async (
-  request: TripRequest,
-  provider: Provider,
-  key: string
-): Promise<SamCrop | null> => {
+const trySamCrop = async (run: RunContext, request: TripRequest): Promise<SamCrop | null> => {
   try {
-    return await samCropAttempt(request, provider, key);
+    return await samCropAttempt(run, request);
   } catch {
     return null;
   }
 };
 
-const samCropAttempt = async (
-  request: TripRequest,
-  provider: Provider,
-  key: string
-): Promise<SamCrop | null> => {
+const samCropAttempt = async (run: RunContext, request: TripRequest): Promise<SamCrop | null> => {
+  const provider = run.provider;
   const direct =
     request.frame?.dataUrl ?? (request.srcUrl.startsWith('data:image/') ? request.srcUrl : null);
   let inputBytes = direct ? dataUrlToBytes(direct) : null;
@@ -1911,7 +2124,7 @@ const samCropAttempt = async (
     let outcome: { granted: boolean; result?: Uint8Array };
     try {
       outcome = await withOriginGrant(origin, loopback, async () =>
-        fetchImageBytes(request.srcUrl, new AbortController().signal)
+        fetchImageBytes(request.srcUrl, run.signal)
       );
     } catch {
       return null;
@@ -1943,13 +2156,13 @@ const samCropAttempt = async (
     return null;
   }
   try {
-    const segment = await provider.segmentLandmark(key, {
+    const segment = await provider.segmentLandmark(run.key, {
       imageDataUrl: samDataUrl,
-      signal: new AbortController().signal,
+      signal: run.signal,
     });
-    runUsage = addUsage(runUsage, segment.usage);
+    absorbRunUsage(run, segment.usage);
     const box = selectSamBox(parseSamBoxes(segment.text), bitmap.width, bitmap.height);
-    if (!box || activeRequest !== request || highestRequestId !== request.requestId) {
+    if (!box || !ownsUi(run)) {
       return null;
     }
     showSamOverlay(box, bitmap.width, bitmap.height);
@@ -1957,7 +2170,7 @@ const samCropAttempt = async (
     if (!prefersReducedMotion()) {
       await new Promise((resolve) => setTimeout(resolve, SAM_OVERLAY_DWELL_MS));
     }
-    if (activeRequest !== request || highestRequestId !== request.requestId) {
+    if (!ownsUi(run)) {
       return null;
     }
     const dataUrl = await cropToSamBox(bitmap, box);
@@ -2002,26 +2215,46 @@ const showSamCrop = (dataUrl: string): void => {
 };
 
 const lookAgain = async (): Promise<void> => {
-  const request = activeRequest;
+  const request = displayedRequest;
   if (!request?.srcUrl || !currentCacheKey || lookAgainUsed.has(currentCacheKey)) {
     return;
   }
-  lookAgainUsed.add(currentCacheKey);
-  analysisInFlight = true;
+  const cacheKey = currentCacheKey;
+  const rejectedPlace = currentPlace?.placeName || undefined;
+  const ticket = ++runTicket;
+  lookAgainUsed.add(cacheKey);
   store.set({ resultBusy: true });
   announceStatus('statusAnalyzing');
   try {
     const gate = await gateRun({ kind: 'request', request });
+
+    if (ticket !== runTicket) {
+      return;
+    }
+
     if (!gate.ready) {
-      analysisInFlight = false;
       announceGate(gate.reason);
       return;
     }
     const { provider, settings, key } = gate;
+    const run = startRun(
+      {
+        runId: nextRunId(`${request.requestId}-look-again`),
+        requestId: request.requestId,
+        kind: 'identify',
+        provider,
+        settings,
+        key,
+        request,
+        cacheKey,
+      },
+      { inheritFrom: pickInherit(request.requestId, provider, key), abortSiblings }
+    );
     let samCrop: SamCrop | null = null;
     if (provider.capabilities.segmentation) {
-      samCrop = await trySamCrop(request, provider, key);
-      if (activeRequest !== request || highestRequestId !== request.requestId) {
+      samCrop = await trySamCrop(run, request);
+
+      if (!ownsUi(run)) {
         return;
       }
     }
@@ -2031,43 +2264,47 @@ const lookAgain = async (): Promise<void> => {
         : samCrop
           ? { ...request, srcUrl: samCrop.dataUrl }
           : request;
-    await runIdentify({
-      request: identifyRequest,
-      provider,
-      settings,
-      key: key,
-      origin: 'panel',
-      rejectedPlace: currentPlace?.placeName || undefined,
-    });
+    await runIdentify({ run, origin: 'panel', rejectedPlace, requestOverride: identifyRequest });
   } finally {
     store.set({ resultBusy: false });
   }
 };
 
 const reanalyze = async (): Promise<void> => {
-  const request = activeRequest;
+  const request = displayedRequest;
   if (!request?.srcUrl || !currentPlace) {
     return;
   }
-  analysisInFlight = true;
+  const rejectedPlace = currentPlace.placeName;
+  const ticket = ++runTicket;
   store.set({ resultBusy: true });
   announceStatus('statusAnalyzing');
   try {
     const gate = await gateRun({ kind: 'request', request });
+
+    if (ticket !== runTicket) {
+      return;
+    }
+
     if (!gate.ready) {
-      analysisInFlight = false;
       announceGate(gate.reason);
       return;
     }
     const { provider, settings, key } = gate;
-    await runIdentify({
-      request,
-      provider,
-      settings,
-      key: key,
-      origin: 'panel',
-      rejectedPlace: currentPlace.placeName,
-    });
+    const run = startRun(
+      {
+        runId: nextRunId(`${request.requestId}-reanalyze`),
+        requestId: request.requestId,
+        kind: 'identify',
+        provider,
+        settings,
+        key,
+        request,
+        cacheKey: currentCacheKey,
+      },
+      { inheritFrom: pickInherit(request.requestId, provider, key), abortSiblings }
+    );
+    await runIdentify({ run, origin: 'panel', rejectedPlace });
   } finally {
     store.set({ resultBusy: false });
   }
@@ -2098,8 +2335,8 @@ const fetchRetry = async (): Promise<void> => {
   const target =
     lastRun?.kind === 'request'
       ? lastRun.request
-      : activeRequest?.mediaType === undefined
-        ? activeRequest
+      : displayedRequest?.mediaType === undefined
+        ? displayedRequest
         : null;
   const srcUrl = target?.srcUrl ?? '';
   const loopback = isLoopbackHttp(srcUrl);
@@ -2120,11 +2357,10 @@ const fetchRetry = async (): Promise<void> => {
   }
   // Gesture rule: the permission prompt is the first await in this handler.
   const outcome = await withOriginGrant(origin, loopback, async () => {
-    abortActive();
+    cancelAllWork();
     clearStaleTimer();
     announceStatus('statusAnalyzing');
     const controller = new AbortController();
-    activeController = controller;
     try {
       const bytes = await fetchImageBytes(srcUrl, controller.signal);
       const dataUrl = await downscaleToJpegDataUrl(bytes);
@@ -2225,7 +2461,14 @@ const refreshResultCard = async (): Promise<void> => {
   if (currentView !== 'result' || !currentPlace) {
     return;
   }
-  store.set({ result: { ...blankResultSlot(), card: await resultCardProps(currentPlace) } });
+  const place = currentPlace;
+  const props = await resultCardProps(place);
+
+  if (currentView !== 'result' || currentPlace !== place) {
+    return;
+  }
+
+  store.set({ result: { ...blankResultSlot(), card: props } });
 };
 
 const runDuel = async (a: DuelSide, b: DuelSide, aTitle: string, bTitle: string): Promise<void> => {
@@ -2235,12 +2478,21 @@ const runDuel = async (a: DuelSide, b: DuelSide, aTitle: string, bTitle: string)
   duelRunId += 1;
   const mine = duelRunId;
   lastDuel = { a, b, aTitle, bTitle };
+  // The duel settles into the displayed run when it is still live, so the
+  // cost figure stays cumulative; a detached duel settles silently.
+  const host = activeRun();
   const gate = await gateRun(null);
   if (!gate.ready) {
-    announceGate(gate.reason);
+    if (mine === duelRunId && (!host || activeRun() === host)) {
+      announceGate(gate.reason);
+    }
+    return;
+  }
+  if (host && activeRun() !== host) {
     return;
   }
   const { provider, key, settings } = gate;
+  const bucket = host ?? createEphemeralRun('duel', provider, settings, key);
   store.set({ duel: { mode: 'loading', a: aTitle, b: bTitle } });
   announceStatus('duelStatus', [a.name, b.name]);
   let result;
@@ -2258,10 +2510,10 @@ const runDuel = async (a: DuelSide, b: DuelSide, aTitle: string, bTitle: string)
     if (err instanceof ProviderError && err.code === 'aborted') {
       return;
     }
-    if (mine !== duelRunId) {
+    recordPartialUsage(bucket, 'duel', err);
+    if (mine !== duelRunId || (host && activeRun() !== host)) {
       return;
     }
-    recordPartialUsage(err, provider);
     updatePrivacy('names');
     store.set({ duel: { mode: 'error', a: aTitle, b: bTitle } });
     if (err instanceof ProviderError && err.code === 'no_key') {
@@ -2276,15 +2528,16 @@ const runDuel = async (a: DuelSide, b: DuelSide, aTitle: string, bTitle: string)
   if (duelController === controller) {
     duelController = null;
   }
-  if (mine !== duelRunId) {
+  absorbRunUsage(bucket, result.usage);
+  if (mine !== duelRunId || (host && activeRun() !== host)) {
+    await priceAndRecord(bucket, 'duel');
     return;
   }
-  runUsage = addUsage(runUsage, result.usage);
   showSources(result.sources);
   store.set({
     duel: { mode: 'ready', a: aTitle, b: bTitle, rows: result.criteria, verdict: result.verdict },
   });
-  await priceAndRecord(provider);
+  await priceAndRecord(bucket, 'duel');
   updatePrivacy('names');
   announceStatus('duelReady');
 };
@@ -2352,9 +2605,10 @@ const runAlternates = async (intent: AlternateIntent): Promise<void> => {
   currentAlternates = null;
   await refreshResultCard();
   announceStatus(FINDING_KEYS[intent]);
+  const host = activeRun();
   const gate = await gateRun(null);
   if (!gate.ready) {
-    if (mine !== alternatesRunId) {
+    if (mine !== alternatesRunId || (host && activeRun() !== host)) {
       return;
     }
     alternatesLoading = null;
@@ -2362,7 +2616,11 @@ const runAlternates = async (intent: AlternateIntent): Promise<void> => {
     announceGate(gate.reason);
     return;
   }
+  if (host && activeRun() !== host) {
+    return;
+  }
   const { provider, settings, key } = gate;
+  const bucket = host ?? createEphemeralRun('alternates', provider, settings, key);
   let result;
   try {
     result = await provider.findAlternates(key, {
@@ -2380,12 +2638,12 @@ const runAlternates = async (intent: AlternateIntent): Promise<void> => {
     if (err instanceof ProviderError && err.code === 'aborted') {
       return;
     }
-    if (mine !== alternatesRunId) {
+    recordPartialUsage(bucket, 'alternates', err);
+    if (mine !== alternatesRunId || (host && activeRun() !== host)) {
       return;
     }
     alternatesLoading = null;
     await refreshResultCard();
-    recordPartialUsage(err, provider);
     updatePrivacy('names');
     announceAlert('alternatesFail');
     return;
@@ -2393,15 +2651,16 @@ const runAlternates = async (intent: AlternateIntent): Promise<void> => {
   if (alternatesController === controller) {
     alternatesController = null;
   }
-  if (mine !== alternatesRunId) {
+  absorbRunUsage(bucket, result.usage);
+  if (mine !== alternatesRunId || (host && activeRun() !== host)) {
+    await priceAndRecord(bucket, 'alternates');
     return;
   }
-  runUsage = addUsage(runUsage, result.usage);
   currentAlternates = { intent, alternatives: result.alternatives };
   alternatesLoading = null;
   await refreshResultCard();
   showSources(result.sources);
-  await priceAndRecord(provider);
+  await priceAndRecord(bucket, 'alternates');
   updatePrivacy('names');
   announceStatus('alternatesReady', String(result.alternatives.length));
 };
@@ -2426,7 +2685,7 @@ const onPinAlternate = async (index: number): Promise<void> => {
   }
   await attemptPin({
     place: alternatePlaceResult(target),
-    sourceHost: sourceHostFor(activeRequest),
+    sourceHost: sourceHostFor(displayedRequest),
   });
 };
 
@@ -2440,36 +2699,53 @@ const onPlanInstead = async (index: number): Promise<void> => {
   if (!destination) {
     return;
   }
+  const ticket = ++runTicket;
   const gate = await gateRun(null);
+
+  if (ticket !== runTicket) {
+    return;
+  }
+
   if (!gate.ready) {
     announceGate(gate.reason);
     return;
   }
-  const { provider, key } = gate;
-  abortActive();
+  const { provider, settings, key } = gate;
   clearStaleTimer();
-  analysisInFlight = true;
+  // A fresh cache key: the alternate-destination guide must never complete
+  // the displayed result's cache entry.
+  const requestId = displayedRequestId ?? '';
+  const run = startRun(
+    {
+      runId: nextRunId(`${requestId}-instead`),
+      requestId,
+      kind: 'guide',
+      provider,
+      settings,
+      key,
+      request: displayedRequest,
+      destination,
+    },
+    { inheritFrom: pickInherit(requestId, provider, key), abortSiblings }
+  );
   currentDestination = destination;
   showSources([]);
   guideContentEl()?.replaceChildren();
   showLinks(destination);
   announceStatus('statusAnalyzing');
-  const controller = new AbortController();
-  activeController = controller;
   currentPlanState = 'planning';
   await refreshResultCard();
-  const outcome = await runGuide({
-    provider,
-    key: key,
-    destination,
-    signal: controller.signal,
-    cacheKey: null,
-    privacy: 'names',
-    origin: 'panel',
-  });
-  if (activeController === controller) {
-    activeController = null;
+
+  if (!ownsUi(run)) {
+    return;
   }
+
+  const outcome = await runGuide({ run, privacy: 'names', origin: 'panel' });
+
+  if (!ownsUi(run)) {
+    return;
+  }
+
   currentPlanState = outcome === 'result' ? 'ready' : 'idle';
   if (outcome === 'result') {
     await refreshResultCard();
@@ -2554,13 +2830,13 @@ const onPinToggle = async (): Promise<void> => {
   if (!place || !place.identified) {
     return;
   }
-  const frame = activeRequest?.frame?.dataUrl;
-  const src = activeRequest?.srcUrl ?? '';
+  const frame = displayedRequest?.frame?.dataUrl;
+  const src = displayedRequest?.srcUrl ?? '';
   const held = frame ?? (src.startsWith('data:image/') ? src : undefined);
   const thumbnail = held ? await makeThumbnail(held) : null;
   const pin: Omit<BoardPin, 'addedAt'> = {
     place,
-    sourceHost: sourceHostFor(activeRequest),
+    sourceHost: sourceHostFor(displayedRequest),
     ...(thumbnail ? { thumbnail } : {}),
     ...(src && isAllowedPreviewUrl(src) && !src.startsWith('data:') ? { imageUrl: src } : {}),
   };
@@ -2671,25 +2947,32 @@ const renderItineraryCard = (pins: BoardPin[], plan: ItineraryPlan): void => {
 };
 
 const planTrip = async (): Promise<void> => {
-  abortActive();
+  const ticket = ++runTicket;
+  cancelAllWork();
   clearStaleTimer();
-  analysisInFlight = true;
   const itinId = `itinerary-${Date.now()}`;
-  beginRun(itinId);
   lastRun = { kind: 'itinerary' };
   pendingRun = null;
   clearCost();
   const gate = await gateRun({ kind: 'itinerary' });
+
+  if (ticket !== runTicket) {
+    return;
+  }
+
   if (!gate.ready) {
-    analysisInFlight = false;
     announceGate(gate.reason);
     return;
   }
-  const { provider, key } = gate;
+  const { provider, settings, key } = gate;
   const pins = await listPins();
+
+  if (ticket !== runTicket) {
+    return;
+  }
+
   if (pins.length < 2) {
     // The Plan button guards this, but the board may have changed underneath.
-    analysisInFlight = false;
     store.set({ boardItems: boardItemViews(pins), boardCanPlan: false });
     return;
   }
@@ -2697,8 +2980,18 @@ const planTrip = async (): Promise<void> => {
   clearContentSlots();
   announceStatus('statusPlanning', String(pins.length));
   showSkeleton(itinId);
-  const controller = new AbortController();
-  activeController = controller;
+  const run = startRun(
+    {
+      runId: nextRunId(itinId),
+      requestId: itinId,
+      kind: 'itinerary',
+      provider,
+      settings,
+      key,
+      request: null,
+    },
+    { abortSiblings }
+  );
   let result;
   try {
     result = await provider.planItinerary(key, {
@@ -2707,39 +3000,53 @@ const planTrip = async (): Promise<void> => {
         host: pin.sourceHost,
         thumbnail: pin.thumbnail,
       })),
-      signal: controller.signal,
+      signal: run.signal,
     });
   } catch (err) {
-    if (activeController === controller) {
-      activeController = null;
-    }
     if (err instanceof ProviderError && err.code === 'aborted') {
+      recordPartialUsage(run, 'itinerary', err);
+
+      if (activeRun() !== null) {
+        return;
+      }
+
+      cancelSkeleton();
+      showIdle();
+      announceStatus('statusCanceled');
+
       return;
     }
-    recordPartialUsage(err, provider);
+    recordPartialUsage(run, 'itinerary', err);
+    await priceAndRecord(run, 'itinerary');
+
+    if (!ownsUi(run)) {
+      return;
+    }
+
     showProviderError(err, null, 'board');
-    analysisInFlight = false;
     return;
   }
-  runUsage = addUsage(runUsage, result.usage);
+  absorbRunUsage(run, result.usage);
   await settleSkeleton();
+
+  if (!ownsUi(run)) {
+    await priceAndRecord(run, 'itinerary');
+
+    return;
+  }
+
+  commitDisplayed(run, 'itinerary');
   renderItineraryCard(pins, result.plan);
   updatePrivacy('board');
   focusResultHeading();
+  run.destination = result.plan.stops.join(', ');
   await runGuide({
-    provider,
-    key: key,
-    destination: result.plan.stops.join(', '),
-    signal: controller.signal,
-    cacheKey: null,
+    run,
     privacy: 'board',
     origin: 'panel',
     prompt: narrationPrompt(pins, result.plan),
     completeKey: 'statusItineraryReady',
   });
-  if (activeController === controller) {
-    activeController = null;
-  }
 };
 
 const resumePending = async (): Promise<void> => {
@@ -2846,7 +3153,6 @@ const onRemoveAllKeys = (): void => {
 const onConsentDecision = async (agreed: boolean): Promise<void> => {
   if (!agreed) {
     pendingRun = null;
-    analysisInFlight = false;
     updatePreview(null);
     showIdle();
     announceStatus('statusConsentDeclined');
@@ -3245,8 +3551,7 @@ const renderCrashFallback = (reset: () => void) => (
 );
 
 const onPanelCrash = (): void => {
-  activeController = null;
-  analysisInFlight = false;
+  cancelAllWork();
 };
 
 export const initPanel = (): void => {
