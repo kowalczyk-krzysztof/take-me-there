@@ -53,10 +53,22 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   // Anything awaited first drops the user gesture and open() rejects.
   void chrome.sidePanel.open({ tabId: tab.id }).catch(() => undefined);
   if (info.mediaType === 'video') {
-    void handleVideoClick(info.srcUrl ?? '', info.pageUrl ?? null, info.frameId ?? 0, tab.id, tab.windowId);
+    void handleVideoClick(
+      info.srcUrl ?? '',
+      info.pageUrl ?? null,
+      info.frameId ?? 0,
+      tab.id,
+      tab.windowId
+    );
     return;
   }
-  void handleImageClick(info.srcUrl ?? '', info.pageUrl ?? null, info.frameId ?? 0, tab.id, tab.windowId);
+  void handleImageClick(
+    info.srcUrl ?? '',
+    info.pageUrl ?? null,
+    info.frameId ?? 0,
+    tab.id,
+    tab.windowId
+  );
 });
 
 const handleImageClick = async (
