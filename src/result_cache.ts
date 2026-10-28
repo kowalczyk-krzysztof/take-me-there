@@ -27,11 +27,27 @@ export const isAllowedPreviewUrl = (srcUrl: string): boolean => {
   }
 };
 
-export const hashCacheKey = async (srcUrl: string, pageUrl: string): Promise<string> => {
-  const digest = await crypto.subtle.digest(
-    'SHA-256',
-    new TextEncoder().encode(`${srcUrl}|${pageUrl}`)
-  );
+export const CACHE_VERSION = 1;
+
+export interface CacheKeyParts {
+  seed: string;
+  pageUrl: string;
+  providerId: string;
+  model: string;
+  imageOnly: boolean;
+}
+
+export const hashCacheKey = async (parts: CacheKeyParts): Promise<string> => {
+  const fields = [
+    String(CACHE_VERSION),
+    parts.providerId,
+    parts.model,
+    parts.imageOnly ? 'image-only' : 'full',
+    parts.seed,
+    parts.pageUrl,
+  ];
+  const encoded = fields.map((field) => `${field.length}:${field}`).join('');
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(encoded));
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
 };
 

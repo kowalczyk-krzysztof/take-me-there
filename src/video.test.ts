@@ -46,8 +46,18 @@ describe('isMp4RungUsable', () => {
 
 describe('frameCacheSeed', () => {
   it('seeds on the whole-second timestamp', () => {
-    expect(frameCacheSeed(12.9)).toBe('#t=12');
-    expect(frameCacheSeed(0)).toBe('#t=0');
+    expect(frameCacheSeed(12.9, 'https://cdn.example.com/a.mp4')).toBe(
+      'https://cdn.example.com/a.mp4#t=12'
+    );
+    expect(frameCacheSeed(0, 'https://cdn.example.com/a.mp4')).toBe(
+      'https://cdn.example.com/a.mp4#t=0'
+    );
+    expect(frameCacheSeed(12.9, 'https://cdn.example.com/b.mp4')).not.toBe(
+      frameCacheSeed(12.9, 'https://cdn.example.com/a.mp4')
+    );
+    expect(frameCacheSeed(5, 'https://cdn.example.com/a.mp4?sig=abc#frag')).toBe(
+      'https://cdn.example.com/a.mp4#t=5'
+    );
   });
 });
 

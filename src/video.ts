@@ -60,4 +60,15 @@ export const isMp4RungUsable = (srcUrl: string): boolean => {
 
 // Frame cache key seed: the blob: address is unstable across loads, so the
 // key is the page plus the whole-second timestamp of the captured frame.
-export const frameCacheSeed = (time: number): string => `#t=${Math.floor(time)}`;
+export const frameCacheSeed = (time: number, srcUrl: string): string => {
+  let stripped = srcUrl;
+  try {
+    const parsed = new URL(srcUrl);
+    parsed.search = '';
+    parsed.hash = '';
+    stripped = parsed.toString();
+  } catch {
+    // Non-URL sources (blobs, data) seed verbatim.
+  }
+  return `${stripped}#t=${Math.floor(time)}`;
+};

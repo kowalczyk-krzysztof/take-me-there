@@ -397,7 +397,13 @@ describe('sidepanel', () => {
     const mock = await setup();
     await plantKeyAndConsent();
     const { hashCacheKey, setCacheEntry } = await import('./result_cache');
-    const hash = await hashCacheKey('https://cdn.example.com/oia.jpg', 'https://example.com/guide');
+    const hash = await hashCacheKey({
+      seed: 'https://cdn.example.com/oia.jpg',
+      pageUrl: 'https://example.com/guide',
+      providerId: 'muse',
+      model: 'muse-spark-1.3',
+      imageOnly: false,
+    });
     await setCacheEntry(hash, {
       place: VALID_PLACE,
       guide: 'Cached guide text.',

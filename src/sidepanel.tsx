@@ -1352,12 +1352,21 @@ const runVideoAnalysis = async (
   if (isStaleRequest(request)) {
     return;
   }
+  const keyScope = {
+    pageUrl: request.pageUrl ?? '',
+    providerId: provider.id,
+    model: provider.modelName,
+    imageOnly: settings.imageOnly,
+  };
   if (route.kind === 'frame' && request.frame) {
     updatePreview(request.frame.dataUrl, 'frame');
-    currentCacheKey = await hashCacheKey(frameCacheSeed(request.frame.time), request.pageUrl ?? '');
+    currentCacheKey = await hashCacheKey({
+      ...keyScope,
+      seed: frameCacheSeed(request.frame.time, request.srcUrl),
+    });
   } else {
     updatePreview(null);
-    currentCacheKey = await hashCacheKey(request.srcUrl, request.pageUrl ?? '');
+    currentCacheKey = await hashCacheKey({ ...keyScope, seed: request.srcUrl });
   }
   if (isStaleRequest(request)) {
     return;
@@ -1524,10 +1533,13 @@ const runScanGuide = async (
   }
   const { provider, settings, key } = gate;
   const privacy: PrivacyMode = settings.imageOnly ? 'image-only' : 'image';
-  currentCacheKey = await hashCacheKey(
-    thumb ?? `scan:${result.placeName},${result.country}`,
-    request.pageUrl ?? ''
-  );
+  currentCacheKey = await hashCacheKey({
+    seed: thumb ?? `scan:${result.placeName},${result.country}`,
+    pageUrl: request.pageUrl ?? '',
+    providerId: provider.id,
+    model: provider.modelName,
+    imageOnly: settings.imageOnly,
+  });
   if (isStaleRequest(request)) {
     return;
   }
@@ -1661,7 +1673,13 @@ const runAnalysis = async (request: TripRequest, origin: 'gesture' | 'panel'): P
     updatePrivacy('idle');
     return;
   }
-  currentCacheKey = await hashCacheKey(request.srcUrl, request.pageUrl ?? '');
+  currentCacheKey = await hashCacheKey({
+    seed: request.srcUrl,
+    pageUrl: request.pageUrl ?? '',
+    providerId: provider.id,
+    model: provider.modelName,
+    imageOnly: settings.imageOnly,
+  });
   if (isStaleRequest(request)) {
     return;
   }

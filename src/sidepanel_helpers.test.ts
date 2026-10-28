@@ -63,14 +63,29 @@ describe('preview allowlist', () => {
 });
 
 describe('cache key hashing', () => {
+  const parts = {
+    seed: 'https://cdn.example.com/oia.jpg',
+    pageUrl: 'https://example.com/g',
+    providerId: 'muse',
+    model: 'muse-spark-1.3',
+    imageOnly: false,
+  };
+
   it('hashes deterministically to 64 hex chars', async () => {
-    const first = await hashCacheKey('https://cdn.example.com/oia.jpg', 'https://example.com/g');
-    const second = await hashCacheKey('https://cdn.example.com/oia.jpg', 'https://example.com/g');
+    const first = await hashCacheKey(parts);
+    const second = await hashCacheKey(parts);
     expect(first).toBe(second);
     expect(first).toMatch(/^[0-9a-f]{64}$/);
-    expect(
-      await hashCacheKey('https://cdn.example.com/other.jpg', 'https://example.com/g')
-    ).not.toBe(first);
+    expect(await hashCacheKey({ ...parts, seed: 'https://cdn.example.com/other.jpg' })).not.toBe(
+      first
+    );
+  });
+
+  it('scopes keys by provider, model, and image-only mode', async () => {
+    const base = await hashCacheKey(parts);
+    expect(await hashCacheKey({ ...parts, providerId: 'openai_compat' })).not.toBe(base);
+    expect(await hashCacheKey({ ...parts, model: 'other-model' })).not.toBe(base);
+    expect(await hashCacheKey({ ...parts, imageOnly: true })).not.toBe(base);
   });
 });
 

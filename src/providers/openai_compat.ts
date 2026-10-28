@@ -54,6 +54,10 @@ export class OpenAiCompatProvider implements Provider {
   readonly id = 'openai_compat';
   readonly capabilities: ProviderCapabilities;
 
+  get modelName(): string {
+    return this.config.model;
+  }
+
   private readonly config: OpenAiCompatSettings;
 
   constructor(config: OpenAiCompatSettings) {

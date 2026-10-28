@@ -72,6 +72,7 @@ const ITINERARY_MAX_TOKENS = 4096;
 
 export class MuseProvider implements Provider {
   readonly id = 'muse';
+  readonly modelName = MODEL;
   readonly capabilities: ProviderCapabilities = {
     video: true,
     webGrounding: true,

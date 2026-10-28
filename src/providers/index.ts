@@ -296,6 +296,7 @@ export interface AlternatesResult {
 
 export interface Provider {
   readonly id: string;
+  readonly modelName: string;
   readonly capabilities: ProviderCapabilities;
   testKey(key: string): Promise<void>;
   identifyPlace(key: string, input: IdentifyInput): Promise<IdentifyResult>;
