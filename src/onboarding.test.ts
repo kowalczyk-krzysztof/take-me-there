@@ -47,6 +47,19 @@ describe('onboarding', () => {
     expect(document.querySelector('#key-host button.primary')?.textContent).toBe('saveKeyButton');
   });
 
+  it('announces key validation failures in the status region', async () => {
+    await setup();
+    fetchMock.mockResolvedValue(new Response('[]', { status: 401 }));
+    (document.querySelector('#key-input') as HTMLInputElement).value = 'LLM_bad';
+    (document.querySelector('#key-host form') as HTMLFormElement).dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('keyErrorRejected');
+    });
+    expect(document.querySelector('#key-error')?.getAttribute('role')).toBe('alert');
+  });
+
   it('saves keys through validation', async () => {
     const mock = await setup();
     fetchMock.mockResolvedValue(new Response('[]', { status: 200 }));

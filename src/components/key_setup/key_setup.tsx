@@ -125,7 +125,12 @@ export const KeySetup = ({
               <ExternalLink href={DASHBOARD_URL}>{msg('dashboardLink')}</ExternalLink>
             </p>
           )}
-          <p className={styles.error} id="key-error" hidden={error === null || undefined}>
+          <p
+            className={styles.error}
+            id="key-error"
+            role="alert"
+            hidden={error === null || undefined}
+          >
             {error}
           </p>
           <label className={styles['checkbox-row']}>

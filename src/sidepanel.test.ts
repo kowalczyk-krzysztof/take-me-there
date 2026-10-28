@@ -310,6 +310,26 @@ describe('sidepanel', () => {
     expect(document.querySelector('#settings-panel #key-error')?.hasAttribute('hidden')).toBe(true);
   });
 
+  it('keeps live regions outside tabpanels and announces key failures', async () => {
+    await setup();
+    expect(document.querySelector('main > #status-region')).not.toBeNull();
+    expect(document.querySelector('main > #alert-region')).not.toBeNull();
+    expect(document.querySelector('#main-panel #status-region')).toBeNull();
+    expect(document.querySelector('#board-panel #alert-region')).toBeNull();
+    fetchMock.mockResolvedValue(new Response('[]', { status: 401 }));
+    (document.querySelector('#settings-panel #key-input') as HTMLInputElement).value = 'LLM_bad';
+    (document.querySelector('#settings-panel form') as HTMLFormElement).dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('keyErrorRejected');
+    });
+    expect(document.querySelector('#tab-settings')?.getAttribute('aria-selected')).toBe('true');
+    expect(document.querySelector('#settings-panel #key-error')?.getAttribute('role')).toBe(
+      'alert'
+    );
+  });
+
   it('runs identify plus a grounded guide end to end', async () => {
     const mock = await setup();
     await plantKeyAndConsent();

@@ -2671,14 +2671,14 @@ const onKeySave = async (key: string): Promise<void> => {
   try {
     await provider.testKey(key);
   } catch (err) {
-    setKeyForm({ pending: false });
-    if (err instanceof ProviderError && err.code === 'auth') {
-      setKeyForm({ error: msg('keyErrorRejected') });
-    } else if (err instanceof ProviderError && err.code === 'network') {
-      setKeyForm({ error: msg('keyErrorNetwork') });
-    } else {
-      setKeyForm({ error: msg('keyErrorRetry') });
-    }
+    const failureKey =
+      err instanceof ProviderError && err.code === 'auth'
+        ? 'keyErrorRejected'
+        : err instanceof ProviderError && err.code === 'network'
+          ? 'keyErrorNetwork'
+          : 'keyErrorRetry';
+    setKeyForm({ pending: false, error: msg(failureKey) });
+    announceStatus(failureKey);
     return;
   }
   try {
@@ -2689,6 +2689,7 @@ const onKeySave = async (key: string): Promise<void> => {
     });
   } catch {
     setKeyForm({ pending: false, error: msg('keyErrorRetry') });
+    announceStatus('keyErrorRetry');
     return;
   }
   setKeyForm({ pending: false, error: null, resetKey: store.get().keyForm.resetKey + 1 });
@@ -2867,6 +2868,12 @@ const SidepanelApp = () => {
       <h1 id="page-title" className="visually-hidden">
         {msg('appName')}
       </h1>
+      <div id="status-region" role="status" className="visually-hidden">
+        <span key={state.statusSeq}>{state.status}</span>
+      </div>
+      <div id="alert-region" role="alert" className="visually-hidden">
+        <span key={state.alertSeq}>{state.alert}</span>
+      </div>
       <div id="tab-bar" role="tablist" aria-label={msg('tabsLabel')} onKeyDown={onTabKeyDown}>
         <button
           type="button"
@@ -2917,12 +2924,6 @@ const SidepanelApp = () => {
             <PreviewFrame preview={state.preview} />
           </div>
         </header>
-        <div id="status-region" role="status" className="visually-hidden">
-          <span key={state.statusSeq}>{state.status}</span>
-        </div>
-        <div id="alert-region" role="alert" className="visually-hidden">
-          <span key={state.alertSeq}>{state.alert}</span>
-        </div>
         <div id="result-slot" aria-busy={state.resultBusy || undefined}>
           {state.result.card ? (
             <TripCard

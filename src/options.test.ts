@@ -88,6 +88,19 @@ describe('options', () => {
     expect(mock.local.data.has('apiKey:muse')).toBe(true);
   });
 
+  it('announces key validation failures in the status region', async () => {
+    await setup();
+    fetchMock.mockResolvedValue(new Response('[]', { status: 401 }));
+    (document.querySelector('#key-input') as HTMLInputElement).value = 'LLM_bad';
+    (document.querySelector('#key-host form') as HTMLFormElement).dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('keyErrorRejected');
+    });
+    expect(document.querySelector('#key-error')?.getAttribute('role')).toBe('alert');
+  });
+
   it('tests the saved key and clears it', async () => {
     const mock = await setup();
     const { saveKey, loadKey } = await import('./key_vault');

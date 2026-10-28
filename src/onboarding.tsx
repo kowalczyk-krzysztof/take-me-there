@@ -43,14 +43,16 @@ const onSaveKey = (key: string): void => {
     try {
       await provider.testKey(key);
     } catch (err) {
+      const failureKey =
+        err instanceof ProviderError && err.code === 'auth'
+          ? 'keyErrorRejected'
+          : err instanceof ProviderError && err.code === 'network'
+            ? 'keyErrorNetwork'
+            : 'keyErrorRetry';
       store.set({
         keyPending: false,
-        keyError:
-          err instanceof ProviderError && err.code === 'auth'
-            ? msg('keyErrorRejected')
-            : err instanceof ProviderError && err.code === 'network'
-              ? msg('keyErrorNetwork')
-              : msg('keyErrorRetry'),
+        keyError: msg(failureKey),
+        status: msg(failureKey),
       });
       return;
     }
@@ -61,7 +63,11 @@ const onSaveKey = (key: string): void => {
       await saveKey(provider.id, key, sessionOnly);
       await saveSettings({ ...settings, sessionOnly });
     } catch {
-      store.set({ keyPending: false, keyError: msg('keyErrorRetry') });
+      store.set({
+        keyPending: false,
+        keyError: msg('keyErrorRetry'),
+        status: msg('keyErrorRetry'),
+      });
       return;
     }
 
