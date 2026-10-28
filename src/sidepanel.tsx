@@ -348,7 +348,7 @@ let lockEpoch = 0;
 const refreshLock = async (): Promise<void> => {
   const epoch = ++lockEpoch;
   try {
-    const { provider, settings } = await getActiveProvider();
+    const { provider } = await getActiveProvider();
     const keyStatus = await loadKey(provider.id);
 
     if (epoch !== lockEpoch) {
@@ -383,14 +383,12 @@ let analysisInFlight = false;
 let currentRunId: string | null = null;
 let runUsage: Usage = emptyUsage();
 let activeRequest: TripRequest | null = null;
-let activeProvider: Provider | null = null;
 let runSettings: ExtensionSettings | null = null;
 let pendingRun: PendingRun | null = null;
 let lastRun: PendingRun | null = null;
 let currentCacheKey = '';
 let currentPlace: PlaceResult | null = null;
 let currentDestination = '';
-let currentSources: GuideSource[] = [];
 let currentView = '';
 let shortcutText = '';
 let skeletonTimer: ReturnType<typeof setTimeout> | undefined;
@@ -968,7 +966,6 @@ const runGuide = async (args: GuideArgs): Promise<RunOutcome> => {
         announceStatus('statusSearchingWeb');
       } else if (event.type === 'sources') {
         sources.push(...event.sources);
-        currentSources = [...sources];
         showSources(sources);
       } else if (event.type === 'usage') {
         runUsage = addUsage(runUsage, event.usage);
@@ -1039,7 +1036,6 @@ const NO_PLACE_MIN_CONFIDENCE = 0.35;
 
 const runIdentify = async (args: IdentifyArgs): Promise<RunOutcome> => {
   const { request, provider, settings, key, origin, rejectedPlace } = args;
-  activeProvider = provider;
   const controller = new AbortController();
   activeController = controller;
   const signal = controller.signal;
@@ -1101,7 +1097,6 @@ const runIdentify = async (args: IdentifyArgs): Promise<RunOutcome> => {
     identify.place.country
   );
   currentDestination = destination;
-  currentSources = [];
   currentPlanState = 'idle';
   await renderResultHeader(identify.place, true, 'statusFoundPlan');
   await priceAndRecord(provider);
@@ -1122,7 +1117,6 @@ const runGuidePlan = async (): Promise<void> => {
     return;
   }
   const { provider, settings } = await getActiveProvider();
-  activeProvider = provider;
   runSettings = settings;
   const keyStatus = await loadKey(provider.id);
   if (keyStatus.state !== 'ok') {
@@ -1180,7 +1174,6 @@ const runGuidePlan = async (): Promise<void> => {
 const renderCached = async (entry: CacheEntry, origin: 'gesture' | 'panel'): Promise<void> => {
   cancelSkeleton();
   currentPlace = entry.place;
-  currentSources = [...entry.sources];
   if (!entry.place.identified) {
     currentView = 'no-place';
     swapResultSlot(() => {
@@ -1448,7 +1441,6 @@ const runScanGuide = async (
   updatePreview(thumb);
   clearCost();
   const { provider, settings } = await getActiveProvider();
-  activeProvider = provider;
   runSettings = settings;
   const keyStatus = await loadKey(provider.id);
   if (keyStatus.state !== 'ok') {
@@ -1481,7 +1473,6 @@ const runScanGuide = async (
   // destination with no second identify pass.
   const destination = buildDestination(result.placeName, result.city, result.country);
   currentDestination = destination;
-  currentSources = [];
   currentPlace = result;
   await setCacheEntry(currentCacheKey, {
     place: result,
@@ -1576,7 +1567,6 @@ const runAnalysis = async (request: TripRequest, origin: 'gesture' | 'panel'): P
   updatePreview(request.srcUrl || null);
   clearCost();
   const { provider, settings } = await getActiveProvider();
-  activeProvider = provider;
   runSettings = settings;
   const keyStatus = await loadKey(provider.id);
   if (keyStatus.state !== 'ok') {
@@ -1825,7 +1815,6 @@ const lookAgain = async (): Promise<void> => {
   announceStatus('statusAnalyzing');
   try {
     const { provider, settings } = await getActiveProvider();
-    activeProvider = provider;
     runSettings = settings;
     const keyStatus = await loadKey(provider.id);
     if (keyStatus.state !== 'ok' || !(await hasConsented())) {
@@ -1876,7 +1865,6 @@ const reanalyze = async (): Promise<void> => {
   announceStatus('statusAnalyzing');
   try {
     const { provider, settings } = await getActiveProvider();
-    activeProvider = provider;
     runSettings = settings;
     const keyStatus = await loadKey(provider.id);
     if (keyStatus.state !== 'ok' || !(await hasConsented())) {
@@ -2082,7 +2070,6 @@ const runDuel = async (a: DuelSide, b: DuelSide, aTitle: string, bTitle: string)
   const mine = duelRunId;
   lastDuel = { a, b, aTitle, bTitle };
   const { provider, settings } = await getActiveProvider();
-  activeProvider = provider;
   runSettings = settings;
   const keyStatus = await loadKey(provider.id);
   if (keyStatus.state !== 'ok') {
@@ -2127,7 +2114,6 @@ const runDuel = async (a: DuelSide, b: DuelSide, aTitle: string, bTitle: string)
     return;
   }
   runUsage = addUsage(runUsage, result.usage);
-  currentSources = [...result.sources];
   showSources(result.sources);
   store.set({
     duel: { mode: 'ready', a: aTitle, b: bTitle, rows: result.criteria, verdict: result.verdict },
@@ -2192,7 +2178,6 @@ const runAlternates = async (intent: AlternateIntent): Promise<void> => {
   await refreshResultCard();
   announceStatus(FINDING_KEYS[intent]);
   const { provider, settings } = await getActiveProvider();
-  activeProvider = provider;
   runSettings = settings;
   const keyStatus = await loadKey(provider.id);
   if (keyStatus.state !== 'ok') {
@@ -2249,7 +2234,6 @@ const runAlternates = async (intent: AlternateIntent): Promise<void> => {
   currentAlternates = { intent, alternatives: result.alternatives };
   alternatesLoading = null;
   await refreshResultCard();
-  currentSources = [...result.sources];
   showSources(result.sources);
   await priceAndRecord(provider);
   updatePrivacy('names');
@@ -2282,7 +2266,6 @@ const onPlanInstead = async (index: number): Promise<void> => {
     return;
   }
   const { provider, settings } = await getActiveProvider();
-  activeProvider = provider;
   runSettings = settings;
   const keyStatus = await loadKey(provider.id);
   if (keyStatus.state !== 'ok') {
@@ -2297,7 +2280,6 @@ const onPlanInstead = async (index: number): Promise<void> => {
   clearStaleTimer();
   analysisInFlight = true;
   currentDestination = destination;
-  currentSources = [];
   showSources([]);
   guideContentEl()?.replaceChildren();
   showLinks(destination);
@@ -2522,7 +2504,6 @@ const planTrip = async (): Promise<void> => {
   pendingRun = null;
   clearCost();
   const { provider, settings } = await getActiveProvider();
-  activeProvider = provider;
   runSettings = settings;
   const keyStatus = await loadKey(provider.id);
   if (keyStatus.state !== 'ok') {
@@ -2618,7 +2599,6 @@ const onKeySave = async (key: string): Promise<void> => {
   setKeyForm({ pending: true });
   announceStatus('statusValidatingKey');
   const { provider, settings } = await getActiveProvider();
-  activeProvider = provider;
   runSettings = settings;
   try {
     await provider.testKey(key);

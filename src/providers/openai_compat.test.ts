@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { chatResponse as sharedChatResponse, sseResponse } from '../test/helpers';
 import { setConsented, type GuideEvent, type OpenAiCompatSettings } from './index';
 import { OpenAiCompatProvider } from './openai_compat';
-import { installChromeMock, uninstallChromeMock, type ChromeMock } from '../test/chrome_mock';
+import { installChromeMock, uninstallChromeMock } from '../test/chrome_mock';
 
 const VALID_PLACE = {
   identified: true,
@@ -23,11 +23,10 @@ const config = (overrides: Partial<OpenAiCompatSettings> = {}): OpenAiCompatSett
 const chatResponse = (place: unknown) =>
   sharedChatResponse(place, { prompt_tokens: 40, completion_tokens: 20 });
 
-let mock: ChromeMock;
 const fetchMock = vi.fn();
 
 beforeEach(() => {
-  mock = installChromeMock();
+  installChromeMock();
   fetchMock.mockReset();
   vi.stubGlobal('fetch', fetchMock);
 });
