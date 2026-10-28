@@ -65,6 +65,7 @@ describe('nanoAvailability', () => {
     const LM = globalThis as unknown as { LanguageModel: { availability: ReturnType<typeof vi.fn> } };
     expect(LM.LanguageModel.availability).toHaveBeenCalledWith({
       expectedInputs: [{ type: 'text' }, { type: 'image' }],
+      outputLanguage: 'en',
     });
   });
 
@@ -101,6 +102,7 @@ describe('downloadNanoModel', () => {
     await downloadNanoModel((frac) => seen.push(frac));
     expect(seen).toEqual([0.25, 0.75]);
     expect(LM.availability).toHaveBeenCalled();
+    expect(LM.create).toHaveBeenCalledWith(expect.objectContaining({ outputLanguage: 'en' }));
   });
 
   it('throws when the model never becomes ready', async () => {

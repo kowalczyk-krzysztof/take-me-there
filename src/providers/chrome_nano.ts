@@ -71,8 +71,13 @@ const languageModel = (): NanoLanguageModel | null => {
   }
 };
 
+// The extension ships English only, so every session asks for English
+// output. Chrome requires the code for quality and safety attestation.
+const OUTPUT_LANGUAGE = 'en';
+
 // Availability answers are option-specific: always probe with the exact
-// inputs used (text + image). Anything unexpected means unavailable.
+// options used (text + image inputs, English output). Anything unexpected
+// means unavailable.
 export const nanoAvailability = async (): Promise<NanoAvailability> => {
   try {
     const model = languageModel();
@@ -81,6 +86,7 @@ export const nanoAvailability = async (): Promise<NanoAvailability> => {
     }
     const state = await model.availability({
       expectedInputs: [{ type: 'text' }, { type: 'image' }],
+      outputLanguage: OUTPUT_LANGUAGE,
     });
     return state === 'readily' || state === 'downloadable' || state === 'downloading'
       ? state
@@ -113,6 +119,7 @@ export const downloadNanoModel = async (onProgress: (frac: number) => void): Pro
   let session: NanoSession;
   try {
     session = await model.create({
+      outputLanguage: OUTPUT_LANGUAGE,
       monitor: (monitor: {
         addEventListener: (name: string, fn: (event: { loaded?: unknown }) => void) => void;
       }) => {
@@ -169,7 +176,7 @@ const acquireNanoSession = async (
   }
   if (!baseSession) {
     try {
-      baseSession = await model.create();
+      baseSession = await model.create({ outputLanguage: OUTPUT_LANGUAGE });
     } catch (err) {
       throw toNanoError(err, signal);
     }
@@ -190,7 +197,7 @@ const acquireNanoSession = async (
     // Stale base session: rebuild once, then run against the fresh clone.
     resetNanoSession();
     try {
-      baseSession = await model.create();
+      baseSession = await model.create({ outputLanguage: OUTPUT_LANGUAGE });
       const session = await baseSession.clone();
       return {
         session,
