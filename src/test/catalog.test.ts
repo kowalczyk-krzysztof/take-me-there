@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -22,15 +22,15 @@ const catalog = JSON.parse(readFileSync(CATALOG_PATH, 'utf8')) as Record<string,
 const sourceFiles = (): string[] => {
   const out: string[] = [];
   const walk = (dir: string): void => {
-    for (const name of readdirSync(dir)) {
-      const full = join(dir, name);
-      if (statSync(full).isDirectory()) {
-        if (name !== 'test') {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (entry.name !== 'test') {
           walk(full);
         }
         continue;
       }
-      if (/\.test\.[jt]sx?$/.test(name) || !/\.[jt]sx?$/.test(name)) {
+      if (/\.test\.[jt]sx?$/.test(entry.name) || !/\.[jt]sx?$/.test(entry.name)) {
         continue;
       }
       out.push(full);
