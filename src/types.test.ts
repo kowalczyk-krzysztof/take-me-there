@@ -169,8 +169,12 @@ describe('handoff schemas', () => {
     ).toBe(true);
     // Worker contract: every record shape the worker writes must parse.
     // Failed scrapes, page scans, and quota-slimmed retries omit `signals`
-    // entirely rather than writing a partial object.
+    // entirely rather than writing a partial object. Records carry the
+    // source window so foreign panels ignore them.
     expect(TRIP_REQUEST_SCHEMA.safeParse({ ...collecting, status: 'ready' }).success).toBe(true);
+    expect(
+      TRIP_REQUEST_SCHEMA.safeParse({ ...collecting, status: 'ready', windowId: 2 }).success
+    ).toBe(true);
     expect(
       TRIP_REQUEST_SCHEMA.safeParse({
         ...collecting,

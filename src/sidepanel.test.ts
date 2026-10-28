@@ -871,6 +871,25 @@ describe('sidepanel', () => {
     expect(cards?.[0]?.querySelector('.pin-button')?.getAttribute('aria-pressed')).toBe('false');
   });
 
+  it('ignores handoff records stamped for another window', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    await mock.session.set({ tripRequest: READY({ requestId: '200-2', windowId: 2 }) });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(document.querySelector('#result-slot')?.textContent).toContain('panelIdle');
+    expect(document.querySelector('#status-region')?.textContent).toBe('');
+  });
+
+  it('runs handoff records stamped for its own window', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
+    await mock.session.set({ tripRequest: READY({ requestId: '200-2', windowId: 1 }) });
+    await waitForHeading('Oia');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('identifies image-only when the scrape failed and signals are omitted', async () => {
     const mock = await setup();
     await plantKeyAndConsent();

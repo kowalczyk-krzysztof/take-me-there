@@ -284,6 +284,21 @@ const guideContentEl = (): HTMLElement | null => document.getElementById('guide-
 
 let highestRequestId = '';
 let highestStatusRank = -1;
+let panelWindowPromise: Promise<number | undefined> | null = null;
+
+// The handoff key is extension-global, so every open panel sees every
+// request. Each panel resolves its own window once and ignores records
+// stamped for another window: one click, one analysis, no cross-window
+// display of another window's browsing.
+const getPanelWindowId = (): Promise<number | undefined> => {
+  if (!panelWindowPromise) {
+    panelWindowPromise = chrome.windows.getCurrent().then(
+      (win) => win?.id,
+      () => undefined
+    );
+  }
+  return panelWindowPromise;
+};
 let activeController: AbortController | null = null;
 let analysisInFlight = false;
 let currentRunId: string | null = null;
@@ -1543,6 +1558,14 @@ const handle = async (value: unknown): Promise<void> => {
     return;
   }
   const request = parsed.data;
+  const panelWindowId = await getPanelWindowId();
+  if (
+    request.windowId !== undefined &&
+    panelWindowId !== undefined &&
+    request.windowId !== panelWindowId
+  ) {
+    return;
+  }
   const rank = request.status === 'ready' ? 1 : 0;
   if (request.requestId < highestRequestId) {
     return;

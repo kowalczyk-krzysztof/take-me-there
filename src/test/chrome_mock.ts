@@ -77,11 +77,13 @@ export class MockStorageArea {
 export interface ChromeMock {
   session: MockStorageArea;
   local: MockStorageArea;
+  panelWindow: { id: number };
 }
 
 export const installChromeMock = (): ChromeMock => {
   const session = new MockStorageArea('session');
   const local = new MockStorageArea('local');
+  const panelWindow = { id: 1 };
   (globalThis as unknown as { chrome: unknown }).chrome = {
     storage: {
       session,
@@ -93,9 +95,10 @@ export const installChromeMock = (): ChromeMock => {
       getUILanguage: (): string => 'en-US',
     },
     commands: { getAll: async (): Promise<Array<{ name?: string }>> => [] },
+    windows: { getCurrent: async (): Promise<{ id: number }> => ({ id: panelWindow.id }) },
     runtime: { getURL: (path: string): string => `chrome-extension://test/${path}`, id: 'test' },
   };
-  return { session, local };
+  return { session, local, panelWindow };
 };
 
 export const uninstallChromeMock = (): void => {

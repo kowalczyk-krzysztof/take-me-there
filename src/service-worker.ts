@@ -43,7 +43,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId === SCAN_MENU_ID) {
     // GESTURE RULE: sidePanel.open must run before any await in this handler.
     void chrome.sidePanel.open({ tabId: tab.id }).catch(() => undefined);
-    void handleScanClick(info.pageUrl ?? null, info.frameId ?? 0, tab.id);
+    void handleScanClick(info.pageUrl ?? null, info.frameId ?? 0, tab.id, tab.windowId);
     return;
   }
   if (info.menuItemId !== MENU_ID) {
@@ -53,17 +53,18 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   // Anything awaited first drops the user gesture and open() rejects.
   void chrome.sidePanel.open({ tabId: tab.id }).catch(() => undefined);
   if (info.mediaType === 'video') {
-    void handleVideoClick(info.srcUrl ?? '', info.pageUrl ?? null, info.frameId ?? 0, tab.id);
+    void handleVideoClick(info.srcUrl ?? '', info.pageUrl ?? null, info.frameId ?? 0, tab.id, tab.windowId);
     return;
   }
-  void handleImageClick(info.srcUrl ?? '', info.pageUrl ?? null, info.frameId ?? 0, tab.id);
+  void handleImageClick(info.srcUrl ?? '', info.pageUrl ?? null, info.frameId ?? 0, tab.id, tab.windowId);
 });
 
 const handleImageClick = async (
   srcUrl: string,
   pageUrl: string | null,
   frameId: number,
-  tabId: number
+  tabId: number,
+  windowId: number
 ): Promise<void> => {
   requestCounter += 1;
   const requestId = `${Date.now()}-${requestCounter}`;
@@ -79,6 +80,7 @@ const handleImageClick = async (
       dataPending,
       pageUrl,
       tabId,
+      windowId,
     },
   });
   const signals = await scrapeWithTimeout(tabId, frameId, srcUrl);
@@ -89,6 +91,7 @@ const handleImageClick = async (
     dataPending,
     pageUrl,
     tabId,
+    windowId,
     ...(signals ? { signals } : {}),
   });
 };
@@ -97,7 +100,8 @@ const handleVideoClick = async (
   srcUrl: string,
   pageUrl: string | null,
   frameId: number,
-  tabId: number
+  tabId: number,
+  windowId: number
 ): Promise<void> => {
   requestCounter += 1;
   const requestId = `${Date.now()}-${requestCounter}`;
@@ -111,6 +115,7 @@ const handleVideoClick = async (
       dataPending,
       pageUrl,
       tabId,
+      windowId,
       mediaType: 'video',
     },
   });
@@ -130,6 +135,7 @@ const handleVideoClick = async (
     dataPending,
     pageUrl,
     tabId,
+    windowId,
     ...(signals ? { signals } : {}),
     mediaType: 'video',
     frame,
@@ -140,7 +146,8 @@ const handleVideoClick = async (
 const handleScanClick = async (
   pageUrl: string | null,
   frameId: number,
-  tabId: number
+  tabId: number,
+  windowId: number
 ): Promise<void> => {
   requestCounter += 1;
   const requestId = `${Date.now()}-${requestCounter}`;
@@ -152,6 +159,7 @@ const handleScanClick = async (
       dataPending: false,
       pageUrl,
       tabId,
+      windowId,
       scanImages: [],
     },
   });
@@ -163,6 +171,7 @@ const handleScanClick = async (
     dataPending: false,
     pageUrl,
     tabId,
+    windowId,
     scanImages,
   });
 };
@@ -247,6 +256,7 @@ interface TerminalRecord {
   dataPending: boolean;
   pageUrl: string | null;
   tabId: number;
+  windowId: number;
   signals?: Record<string, unknown>;
   mediaType?: 'video';
   frame?: { dataUrl: string; time: number };

@@ -89,6 +89,7 @@ export const TRIP_REQUEST_SCHEMA = z.strictObject({
   dataPending: z.boolean(),
   pageUrl: z.nullable(z.string()),
   tabId: z.number(),
+  windowId: z.optional(z.number()),
   signals: z.optional(PAGE_SIGNALS_SCHEMA),
   mediaType: z.optional(z.enum(['image', 'video'])),
   frame: z.optional(
