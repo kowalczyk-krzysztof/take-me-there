@@ -152,6 +152,11 @@ const GUIDE_SSE_CACHED = [
   '\n',
 ].join('');
 
+const CHAT_GUIDE_SSE = [
+  'data: {"choices":[{"delta":{"content":"Hello world"}}]}\n\n',
+  'data: {"choices":[{"delta":{}}],"usage":{"prompt_tokens":10,"completion_tokens":5}}\n\ndata: [DONE]\n\n',
+];
+
 const fetchMock = vi.fn();
 
 const setup = async (
@@ -1374,6 +1379,70 @@ describe('sidepanel', () => {
     expect(structure.messages[1].content[0].type).toBe('text');
   });
 
+  it('narrates itineraries over plain chat in cheap mode', async () => {
+    const mock = await setup(async (seed) => {
+      await seed.local.set({ settings: { v: 1, settings: { skipWebSearch: true } } });
+    });
+    await plantKeyAndConsent();
+
+    const FIRA = { ...VALID_PLACE, placeName: 'Fira', city: 'Fira', oneLiner: 'Cliff views.' };
+
+    const VALID_PLAN = {
+      stops: ['Oia, Greece', 'Fira, Greece'],
+      days: [
+        {
+          dayTitle: 'Caldera day',
+          stopNames: ['Oia, Greece', 'Fira, Greece'],
+          summary: 'Walk the caldera path.',
+        },
+      ],
+      nightsEach: [
+        { stop: 'Oia, Greece', nights: 2 },
+        { stop: 'Fira, Greece', nights: 1 },
+      ],
+    };
+    fetchMock
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
+      .mockResolvedValueOnce(chatResponse(FIRA))
+      .mockResolvedValueOnce(chatResponse(VALID_PLAN))
+      .mockResolvedValueOnce(sseResponse(CHAT_GUIDE_SSE));
+    await mock.session.set({ [SLOT]: READY() });
+    await waitForHeading('Oia');
+
+    const card = document.querySelector('#result-slot') as HTMLElement;
+    (card.querySelector('.pin-button') as HTMLButtonElement).click();
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned(Oia | 1)');
+    });
+    await mock.session.set({
+      [SLOT]: READY({
+        requestId: '200-2',
+        srcUrl: 'https://cdn.example.com/fira.jpg',
+      }),
+    });
+    await waitFor(() => {
+      expect(card.querySelector('h2')?.textContent).toBe('Fira');
+    });
+    (card.querySelector('.pin-button') as HTMLButtonElement).click();
+    await waitFor(() => {
+      const board = document.querySelector('#board-slot') as HTMLElement;
+      expect(board.querySelectorAll('li')).toHaveLength(2);
+    });
+
+    const board = document.querySelector('#board-slot') as HTMLElement;
+    selectBoardTab();
+
+    const plan = board.querySelector('.plan-button') as HTMLButtonElement;
+    plan.click();
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('statusItineraryReady');
+    });
+
+    const [narrationUrl, narrationInit] = fetchMock.mock.calls[3] as [string, RequestInit];
+    expect(narrationUrl).toContain('/chat/completions');
+    expect(JSON.parse(narrationInit.body as string)).not.toHaveProperty('tools');
+  });
+
   it('renders the scan skeleton while the harvest is collecting', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
@@ -1694,6 +1763,52 @@ describe('sidepanel', () => {
       expect(document.querySelector('#guide-content')?.textContent).toContain('Hello world');
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('streams scan guides over plain chat in cheap mode', async () => {
+    const mock = await setup(async (seed) => {
+      await seed.local.set({ settings: { v: 1, settings: { skipWebSearch: true } } });
+    });
+    await plantKeyAndConsent();
+    fetchMock
+      .mockResolvedValueOnce(
+        chatResponse({
+          places: [
+            { placeName: 'Oia', city: 'Oia', country: 'Greece', confidence: 0.9, imageIndex: 0 },
+          ],
+        })
+      )
+      .mockResolvedValueOnce(sseResponse(CHAT_GUIDE_SSE));
+    await mock.session.set({
+      [SLOT]: READY({
+        srcUrl: '',
+        signals: undefined,
+        scanImages: [
+          {
+            url: 'https://img.example.com/a.jpg',
+            caption: '',
+            heading: '',
+            width: 800,
+            height: 600,
+          },
+        ],
+      }),
+    });
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot')?.querySelectorAll('.scan-card')).toHaveLength(
+        1
+      );
+    });
+
+    const list = document.querySelector('#result-slot') as HTMLElement;
+    (list.querySelector('.scan-card button') as HTMLButtonElement).click();
+    await waitFor(() => {
+      expect(document.querySelector('#guide-content')?.textContent).toContain('Hello world');
+    });
+
+    const [guideUrl, guideInit] = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(guideUrl).toContain('/chat/completions');
+    expect(JSON.parse(guideInit.body as string)).not.toHaveProperty('tools');
   });
 
   it('pins scan cards singly and in bulk', async () => {
@@ -2030,6 +2145,50 @@ describe('sidepanel', () => {
       "privacyNames(Meta's Muse API)"
     );
     expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('finds alternates and re-plans over plain chat in cheap mode', async () => {
+    const mock = await setup(async (seed) => {
+      await seed.local.set({ settings: { v: 1, settings: { skipWebSearch: true } } });
+    });
+    await plantKeyAndConsent();
+    fetchMock
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
+      .mockResolvedValueOnce(
+        chatResponse({
+          alternatives: [
+            {
+              placeName: 'Fira',
+              country: 'Greece',
+              why: 'Same caldera, lower prices.',
+              bestMonth: 'May',
+            },
+          ],
+        })
+      )
+      .mockResolvedValueOnce(sseResponse(CHAT_GUIDE_SSE));
+    await mock.session.set({ [SLOT]: READY() });
+    await waitForHeading('Oia');
+
+    const card = document.querySelector('#result-slot') as HTMLElement;
+    (card.querySelector('.chips-row .chip') as HTMLButtonElement).click();
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('alternatesReady(1)');
+    });
+
+    const fresh = document.querySelector('#result-slot') as HTMLElement;
+    (
+      fresh.querySelector('.alternate-actions button:not(.pin-button)') as HTMLButtonElement
+    ).click();
+    await waitFor(() => {
+      expect(document.querySelector('#guide-content')?.textContent).toContain('Hello world');
+    });
+
+    const [altUrl] = fetchMock.mock.calls[1] as [string, RequestInit];
+    const [guideUrl, guideInit] = fetchMock.mock.calls[2] as [string, RequestInit];
+    expect(altUrl).toContain('/chat/completions');
+    expect(guideUrl).toContain('/chat/completions');
+    expect(JSON.parse(guideInit.body as string)).not.toHaveProperty('tools');
   });
 
   it('pins alternates to the board with a monogram tile', async () => {
