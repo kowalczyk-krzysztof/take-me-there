@@ -1,6 +1,3 @@
-// Minimal service worker for the scaffold and gesture spike: menu wiring,
-// open-first panel gesture, request handoff through storage.session, and a
-// timeout-raced page-signal scrape with a compare-and-set terminal write.
 import { captureVideoFrame, type CaptureVideoFrameResult } from './injected/capture_video_frame';
 import { collectPageImages } from './injected/collect_page_images';
 import { collectSignals } from './injected/collect_signals';

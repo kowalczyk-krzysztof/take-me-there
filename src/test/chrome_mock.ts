@@ -6,7 +6,9 @@ export interface MockStorageChange {
   newValue?: unknown;
 }
 
-export type MockChangeListener = (
+export type MockChangeListener = (changes: Record<string, MockStorageChange>) => void;
+
+export type MockGlobalChangeListener = (
   changes: Record<string, MockStorageChange>,
   areaName: string
 ) => void;
@@ -31,12 +33,12 @@ export class MockStorageArea {
 
   async get(keys?: string | string[] | null): Promise<Record<string, unknown>> {
     if (keys === null || keys === undefined) {
-      return Object.fromEntries(this.data);
+      return structuredClone(Object.fromEntries(this.data));
     }
     const out: Record<string, unknown> = {};
     for (const key of Array.isArray(keys) ? keys : [keys]) {
       if (this.data.has(key)) {
-        out[key] = this.data.get(key);
+        out[key] = structuredClone(this.data.get(key));
       }
     }
     return out;
@@ -45,8 +47,11 @@ export class MockStorageArea {
   async set(items: Record<string, unknown>): Promise<void> {
     const changes: Record<string, MockStorageChange> = {};
     for (const [key, value] of Object.entries(items)) {
-      changes[key] = { oldValue: this.data.get(key), newValue: value };
-      this.data.set(key, value);
+      changes[key] = {
+        oldValue: structuredClone(this.data.get(key)),
+        newValue: structuredClone(value),
+      };
+      this.data.set(key, structuredClone(value));
     }
     this.dispatch(changes);
   }
@@ -55,7 +60,7 @@ export class MockStorageArea {
     const changes: Record<string, MockStorageChange> = {};
     for (const key of Array.isArray(keys) ? keys : [keys]) {
       if (this.data.has(key)) {
-        changes[key] = { oldValue: this.data.get(key), newValue: undefined };
+        changes[key] = { oldValue: structuredClone(this.data.get(key)), newValue: undefined };
         this.data.delete(key);
       }
     }
@@ -68,9 +73,26 @@ export class MockStorageArea {
   }
 
   private dispatch(changes: Record<string, MockStorageChange>): void {
-    for (const listener of this.listeners) {
-      listener(changes, this.areaName);
-    }
+    // Chrome delivers storage events asynchronously with just the changes
+    // on per-area listeners (the area is implicit).
+    queueMicrotask(() => {
+      for (const listener of this.listeners) {
+        listener(structuredClone(changes));
+      }
+      for (const listener of this.globalListeners) {
+        listener(structuredClone(changes), this.areaName);
+      }
+    });
+  }
+
+  private readonly globalListeners = new Set<MockGlobalChangeListener>();
+
+  addGlobalListener(fn: MockGlobalChangeListener): void {
+    this.globalListeners.add(fn);
+  }
+
+  removeGlobalListener(fn: MockGlobalChangeListener): void {
+    this.globalListeners.delete(fn);
   }
 }
 
@@ -88,7 +110,16 @@ export const installChromeMock = (): ChromeMock => {
     storage: {
       session,
       local,
-      onChanged: { addListener: (): void => {}, removeListener: (): void => {} },
+      onChanged: {
+        addListener: (fn: MockGlobalChangeListener): void => {
+          session.addGlobalListener(fn);
+          local.addGlobalListener(fn);
+        },
+        removeListener: (fn: MockGlobalChangeListener): void => {
+          session.removeGlobalListener(fn);
+          local.removeGlobalListener(fn);
+        },
+      },
     },
     i18n: {
       getMessage: (key: string): string => key,
