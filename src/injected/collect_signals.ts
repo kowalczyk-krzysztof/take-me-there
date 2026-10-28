@@ -121,9 +121,17 @@ export const collectSignals = (srcUrl: string): PageSignalData => {
     }
   }
 
+  const safeDecode = (value: string): string => {
+    try {
+      return decodeURIComponent(value);
+    } catch {
+      return value;
+    }
+  };
+
   const fileSlug = (u: string): string =>
     clean(
-      decodeURIComponent((u.split('/').pop() || '').split(/[?#]/)[0])
+      safeDecode((u.split('/').pop() || '').split(/[?#]/)[0])
         .replace(/\.\w+$/, '')
         .replace(/[-_+]+/g, ' ')
     );
@@ -149,7 +157,7 @@ export const collectSignals = (srcUrl: string): PageSignalData => {
     ),
     pageHost: location.host,
     urlSlug: clean(
-      decodeURIComponent(location.pathname)
+      safeDecode(location.pathname)
         .replace(/\.\w+$/, '')
         .replace(/[\/_-]+/g, ' ')
     ),

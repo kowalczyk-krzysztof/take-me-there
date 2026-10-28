@@ -132,6 +132,16 @@ describe('collectSignals', () => {
     expect(out.imgFound).toBe(true);
   });
 
+  it('survives malformed percent-escapes in paths', () => {
+    setPageUrl('https://example.com/travel/100%-guide');
+    document.body.innerHTML =
+      '<img src="https://cdn.example.com/100%-oia.jpg" alt="Oia">';
+    const out = collectSignals('https://cdn.example.com/100%-oia.jpg');
+    expect(out.imgFound).toBe(true);
+    expect(out.urlSlug).toContain('100% guide');
+    expect(out.imgFileSlug).toContain('100% oia');
+  });
+
   it('stays serializable for executeScript', () => {
     expect(collectSignals.length).toBe(1);
     const source = collectSignals.toString();
