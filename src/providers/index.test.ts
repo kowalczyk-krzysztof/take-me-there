@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   CONSENT_STORAGE_KEY,
   CONSENT_VERSION,
@@ -22,10 +22,14 @@ import {
   parseItineraryPlan,
   parseScanBatch,
   customHostOf,
+  emptyUsage,
+  fetchChatCompletion,
+  readStall,
   responseError,
   saveSettings,
   sanitizePromptHint,
   setConsented,
+  testModelsEndpoint,
   tryParsePlaceJson,
   type ExtensionSettings,
 } from './index';
@@ -511,6 +515,76 @@ describe('customHostOf', () => {
     expect(
       customHostOf({ activeProviderId: 'openai_compat', openaiCompat: { baseURL: 'bogus' } })
     ).toBeNull();
+  });
+});
+
+describe('transport timeouts', () => {
+  const localFetch = vi.fn();
+
+  beforeEach(() => {
+    localFetch.mockReset();
+    vi.stubGlobal('fetch', localFetch);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('combines the caller signal with a timeout on chat calls', async () => {
+    localFetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { content: '{}' } }],
+          usage: { prompt_tokens: 1, completion_tokens: 1 },
+        }),
+        { status: 200 }
+      )
+    );
+    const controller = new AbortController();
+    await fetchChatCompletion('https://x.test/chat', 'k', {}, controller.signal, emptyUsage());
+    const sent = localFetch.mock.calls[0][1].signal as AbortSignal;
+    expect(sent).not.toBe(controller.signal);
+    controller.abort();
+    expect(sent.aborted).toBe(true);
+  });
+
+  it('maps caller aborts through the combined signal', async () => {
+    localFetch.mockRejectedValueOnce(new DOMException('aborted', 'AbortError'));
+    await expect(
+      fetchChatCompletion(
+        'https://x.test/chat',
+        'k',
+        {},
+        new AbortController().signal,
+        emptyUsage()
+      )
+    ).rejects.toMatchObject({ code: 'aborted' });
+  });
+
+  it('sends the key probe with a timeout signal', async () => {
+    localFetch.mockResolvedValue(new Response('{}', { status: 200 }));
+    await testModelsEndpoint('https://x.test', 'k');
+    const sent = localFetch.mock.calls[0][1].signal as AbortSignal;
+    expect(sent).toBeInstanceOf(AbortSignal);
+    expect(sent.aborted).toBe(false);
+  });
+
+  it('fails stalled stream reads instead of hanging', async () => {
+    const cancel = vi.fn().mockResolvedValue(undefined);
+    const hanging = {
+      read: () => new Promise<never>(() => {}),
+      cancel,
+    } as unknown as ReadableStreamDefaultReader<unknown>;
+    await expect(readStall(hanging, 5)).rejects.toMatchObject({ code: 'stream_error' });
+    expect(cancel).toHaveBeenCalledTimes(1);
+  });
+
+  it('passes fast stream reads through', async () => {
+    const reader = {
+      read: async () => ({ done: true, value: undefined }),
+      cancel: vi.fn(),
+    } as unknown as ReadableStreamDefaultReader<unknown>;
+    await expect(readStall(reader, 1000)).resolves.toEqual({ done: true, value: undefined });
   });
 });
 

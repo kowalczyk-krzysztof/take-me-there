@@ -31,6 +31,8 @@ import {
   parseItineraryPlan,
   parseScanBatch,
   postChatStream,
+  readStall,
+  fetchTimeout,
   readChatUsage,
   requireKey,
   responseError,
@@ -148,7 +150,7 @@ export class MuseProvider implements Provider {
           max_completion_tokens: 512,
           messages,
         }),
-        signal: input.signal,
+        signal: fetchTimeout(input.signal),
       });
     } catch (err) {
       throw toNetworkError(err, input.signal);
@@ -216,7 +218,7 @@ export class MuseProvider implements Provider {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
           body: JSON.stringify(request.body),
-          signal: input.signal,
+          signal: fetchTimeout(input.signal),
         });
       } catch (err) {
         throw toNetworkError(err, input.signal);
@@ -383,7 +385,7 @@ export class MuseProvider implements Provider {
           max_output_tokens: ITINERARY_MAX_TOKENS,
           stream: false,
         }),
-        signal,
+        signal: fetchTimeout(signal),
       });
     } catch (err) {
       throw toNetworkError(err, signal);
@@ -553,7 +555,7 @@ export class MuseProvider implements Provider {
           metadata: { include_confidence: 'true' },
           stream: false,
         }),
-        signal: input.signal,
+        signal: fetchTimeout(input.signal),
       });
     } catch (err) {
       throw toNetworkError(err, input.signal);
@@ -669,7 +671,7 @@ export class MuseProvider implements Provider {
         let result: ReadableStreamReadResult<EventSourceMessage>;
 
         try {
-          result = await reader.read();
+          result = await readStall(reader);
         } catch (err) {
           throw toStreamError(err, signal);
         }

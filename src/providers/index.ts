@@ -100,6 +100,38 @@ export const responseError = (res: Response): ProviderError => {
   return new ProviderError('server', `unexpected status ${res.status}`, false, res.status);
 };
 
+export const FETCH_TIMEOUT_MS = 30_000;
+export const STREAM_STALL_MS = 30_000;
+
+// Total-timeout for one request/response round trip. Streaming callers keep
+// the bare caller signal on the fetch and use readStall per chunk instead:
+// a total timeout would kill long guides mid-stream.
+export const fetchTimeout = (signal: AbortSignal): AbortSignal =>
+  AbortSignal.any([signal, AbortSignal.timeout(FETCH_TIMEOUT_MS)]);
+
+// One stream read that fails instead of hanging forever on a stalled
+// connection. Rejects with a retryable stream error and cancels the reader
+// so the fetch does not linger.
+export const readStall = async <T>(
+  reader: ReadableStreamDefaultReader<T>,
+  stallMs: number = STREAM_STALL_MS
+): Promise<ReadableStreamReadResult<T>> => {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      reader.read(),
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => {
+          void reader.cancel().catch(() => undefined);
+          reject(new ProviderError('stream_error', 'stream stalled', true));
+        }, stallMs);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
 export const toNetworkError = (err: unknown, signal?: AbortSignal): ProviderError => {
   if (signal?.aborted || (err as { name?: string })?.name === 'AbortError') {
     return new ProviderError('aborted', 'request aborted', false);
@@ -113,6 +145,7 @@ export const testModelsEndpoint = async (base: string, key: string): Promise<voi
   try {
     res = await fetch(`${base}/models`, {
       headers: { Authorization: `Bearer ${key}` },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
   } catch (err) {
     throw toNetworkError(err);
@@ -123,6 +156,9 @@ export const testModelsEndpoint = async (base: string, key: string): Promise<voi
 };
 
 export const toStreamError = (err: unknown, signal: AbortSignal): ProviderError => {
+  if (err instanceof ProviderError) {
+    return err;
+  }
   if (signal.aborted || (err as { name?: string })?.name === 'AbortError') {
     return new ProviderError('aborted', 'request aborted', false);
   }
@@ -866,7 +902,7 @@ const identifyAttempt = async (
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
       body: JSON.stringify(request.body),
-      signal: input.signal,
+      signal: fetchTimeout(input.signal),
     });
   } catch (err) {
     throw toNetworkError(err, input.signal);
@@ -1006,7 +1042,7 @@ export const fetchChatCompletion = async (
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
       body: JSON.stringify(body),
-      signal,
+      signal: fetchTimeout(signal),
     });
   } catch (err) {
     throw toNetworkError(err, signal);
@@ -1055,7 +1091,7 @@ export async function* iterateChatStream(
       }
       let result: ReadableStreamReadResult<EventSourceMessage>;
       try {
-        result = await reader.read();
+        result = await readStall(reader);
       } catch (err) {
         throw toStreamError(err, signal);
       }
