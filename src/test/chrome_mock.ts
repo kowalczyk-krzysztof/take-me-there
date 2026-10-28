@@ -23,7 +23,11 @@ export class MockStorageArea {
     },
   };
 
-  constructor(private readonly areaName: string) {}
+  private readonly areaName: string;
+
+  constructor(areaName: string) {
+    this.areaName = areaName;
+  }
 
   async get(keys?: string | string[] | null): Promise<Record<string, unknown>> {
     if (keys === null || keys === undefined) {

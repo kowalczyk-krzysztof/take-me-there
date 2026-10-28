@@ -54,7 +54,10 @@ export class OpenAiCompatProvider implements Provider {
   readonly id = 'openai_compat';
   readonly capabilities: ProviderCapabilities;
 
-  constructor(private readonly config: OpenAiCompatSettings) {
+  private readonly config: OpenAiCompatSettings;
+
+  constructor(config: OpenAiCompatSettings) {
+    this.config = config;
     this.capabilities = {
       video: false,
       webGrounding: false,
