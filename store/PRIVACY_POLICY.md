@@ -1,4 +1,4 @@
-# Privacy Policy - Plan a trip there
+# Privacy Policy - Take me there
 
 Effective for version 1.0.0. This policy describes exactly what the
 extension does today. If a future release adds features (video analysis,
@@ -7,7 +7,7 @@ before that release ships.
 
 ## Overview
 
-"Plan a trip there" identifies travel destinations in photos you
+"Take me there" identifies travel destinations in photos you
 right-click while browsing, then streams a trip guide into Chrome's side
 panel. It talks to exactly one outside service: the Meta Muse API at
 `https://api.meta.ai`, using an API key you provide. There is no

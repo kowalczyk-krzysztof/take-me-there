@@ -1,6 +1,6 @@
 {
   "appName": {
-    "message": "Plan a trip there",
+    "message": "Take me there",
     "description": "Extension name."
   },
   "appDesc": {
@@ -8,11 +8,11 @@
     "description": "Extension description."
   },
   "menuTitle": {
-    "message": "Plan a trip there",
+    "message": "Take me there",
     "description": "Image context menu item."
   },
   "panelIdle": {
-    "message": "Right-click an image on any page, then choose Plan a trip there.",
+    "message": "Right-click an image on any page, then choose Take me there.",
     "description": "Side panel idle hint."
   },
   "shortcutLine": {
@@ -300,11 +300,11 @@
     "description": "Canonical data-transmission disclosure."
   },
   "onboardingHowto": {
-    "message": "Right-click any image on any page and choose Plan a trip there. Muse AI identifies the place and the side panel plans your trip.",
+    "message": "Right-click any image on any page and choose Take me there. Muse AI identifies the place and the side panel plans your trip.",
     "description": "Onboarding how-it-works line."
   },
   "onboardingTryHint": {
-    "message": "Try it now: open a photo-rich page such as a Wikipedia landmark article, right-click a photo, and choose Plan a trip there.",
+    "message": "Try it now: open a photo-rich page such as a Wikipedia landmark article, right-click a photo, and choose Take me there.",
     "description": "Onboarding try-it hint."
   },
   "optionsKeyHeading": {
