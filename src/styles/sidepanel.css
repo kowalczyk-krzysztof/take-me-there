@@ -196,6 +196,12 @@ main {
   margin: 0 0 8px;
 }
 
+#key-saved-error {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--error);
+}
+
 #page-footer {
   border-top: 1px solid var(--border);
   padding-top: 8px;

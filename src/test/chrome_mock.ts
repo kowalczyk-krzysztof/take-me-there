@@ -159,9 +159,15 @@ export interface WorkerFakes {
 
 export type RuntimeMessageHandler = (message: unknown) => Promise<unknown> | unknown;
 
+export type RuntimeMessageListener = (
+  message: unknown,
+  sender: { id?: string; url?: string },
+  sendResponse: (response: unknown) => void
+) => unknown;
+
 export interface RuntimeFakes {
   sent: Array<unknown>;
-  listeners: Array<RuntimeMessageHandler>;
+  listeners: Array<RuntimeMessageListener>;
   impl: RuntimeMessageHandler;
 }
 
@@ -241,7 +247,7 @@ export const installChromeMock = (): ChromeMock => {
         return Promise.resolve().then(() => runtime.impl(message));
       },
       onMessage: {
-        addListener: (fn: RuntimeMessageHandler): void => {
+        addListener: (fn: RuntimeMessageListener): void => {
           runtime.listeners.push(fn);
         },
       },

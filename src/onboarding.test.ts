@@ -64,6 +64,32 @@ describe('onboarding', () => {
     expect(document.querySelector('#key-error')?.getAttribute('role')).toBe('alert');
   });
 
+  it('reports the verified mode when the session-only move fails', async () => {
+    const mock = await setup();
+
+    const { saveKey, loadKey } = await import('./key_vault');
+    await saveKey('muse', 'LLM_x', false);
+
+    mock.session.fault = (op) => {
+      if (op === 'set') {
+        throw new Error('quota');
+      }
+    };
+
+    const box = document.querySelector('#session-only') as HTMLInputElement;
+    box.checked = true;
+    box.dispatchEvent(new Event('change', { bubbles: true }));
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('settingsSaveFailed');
+    });
+    expect((document.querySelector('#session-only') as HTMLInputElement).checked).toBe(false);
+
+    mock.session.fault = () => undefined;
+
+    expect(await loadKey('muse')).toEqual({ state: 'ok', key: 'LLM_x' });
+    expect(mock.local.data.has('apiKey:muse')).toBe(true);
+  });
+
   it('saves keys through validation', async () => {
     const mock = await setup();
     fetchMock.mockResolvedValue(new Response('[]', { status: 200 }));

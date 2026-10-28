@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react';
 import { createRoot } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import { KeySetup } from './components/key_setup/key_setup';
-import { loadKey, saveKey } from './key_vault';
+import { saveKey, setKeyMode } from './key_vault';
 import {
   ProviderError,
   customHostOf,
@@ -107,16 +107,26 @@ const OnboardingApp = () => {
               store.set({ sessionOnly: checked });
               void (async () => {
                 const { provider, settings } = await getActiveProvider();
-                await saveSettings({ ...settings, sessionOnly: checked });
 
-                const loaded = await loadKey(provider.id);
+                let result;
 
-                if (loaded.state === 'ok') {
-                  await saveKey(provider.id, loaded.key, checked);
+                try {
+                  result = await setKeyMode(provider.id, checked);
+                } catch {
+                  store.set({
+                    sessionOnly: settings.sessionOnly,
+                    status: msg('settingsSaveFailed'),
+                  });
+
+                  return;
                 }
-              })().catch(() => {
-                // Best effort; the checkbox state stays as the user set it.
-              });
+
+                store.set({ sessionOnly: result.sessionOnly });
+
+                if (result.error) {
+                  store.set({ status: msg('settingsSaveFailed') });
+                }
+              })();
             },
             onConsentDecision: () => {},
           }}

@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react';
 import { createRoot } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import { KeySetup } from './components/key_setup/key_setup';
-import { clearKey, loadKey, saveKey } from './key_vault';
+import { clearAllKeys, clearKey, loadKey, saveKey, setKeyMode } from './key_vault';
 import { formatUsd, readMonthSpend, resetMonthSpend } from './pricing';
 import {
   ProviderError,
@@ -150,18 +150,42 @@ const onTestKey = (): void => {
   })();
 };
 
+const showKeyCleared = (): void => {
+  store.set({
+    keyReset: store.get().keyReset + 1,
+    keyError: null,
+    keyPending: false,
+    status: msg('statusKeyCleared'),
+  });
+};
+
 const onClearKey = (): void => {
   void (async () => {
     const { provider } = await getActiveProvider();
 
-    await clearKey(provider.id);
+    try {
+      await clearKey(provider.id);
+    } catch {
+      store.set({ status: msg('settingsSaveFailed') });
 
-    store.set({
-      keyReset: store.get().keyReset + 1,
-      keyError: null,
-      keyPending: false,
-      status: msg('statusKeyCleared'),
-    });
+      return;
+    }
+
+    showKeyCleared();
+  })();
+};
+
+const onClearAllKeys = (): void => {
+  void (async () => {
+    try {
+      await clearAllKeys();
+    } catch {
+      store.set({ status: msg('settingsSaveFailed') });
+
+      return;
+    }
+
+    showKeyCleared();
   })();
 };
 
@@ -350,15 +374,27 @@ const OptionsApp = () => {
             onSessionOnlyChange: (checked) => {
               store.set({ sessionOnly: checked });
               void (async () => {
-                const { provider, settings: current } = await getActiveProvider();
-                await saveSettings({ ...current, sessionOnly: checked });
-                const loaded = await loadKey(provider.id);
-                if (loaded.state === 'ok') {
-                  await saveKey(provider.id, loaded.key, checked);
+                const { provider, settings } = await getActiveProvider();
+
+                let result;
+
+                try {
+                  result = await setKeyMode(provider.id, checked);
+                } catch {
+                  store.set({
+                    sessionOnly: settings.sessionOnly,
+                    status: msg('settingsSaveFailed'),
+                  });
+
+                  return;
                 }
-              })().catch(() => {
-                // Best effort; the checkbox state stays as the user set it.
-              });
+
+                store.set({ sessionOnly: result.sessionOnly });
+
+                if (result.error) {
+                  store.set({ status: msg('settingsSaveFailed') });
+                }
+              })();
             },
             onConsentDecision: () => {},
           }}
@@ -370,6 +406,9 @@ const OptionsApp = () => {
         </button>
         <button id="clear-key" type="button" onClick={onClearKey}>
           {msg('clearKeyButton')}
+        </button>
+        <button id="clear-all-keys" type="button" onClick={onClearAllKeys}>
+          {msg('clearAllKeysButton')}
         </button>
       </div>
       <div key={settings === null ? 'loading' : 'ready'}>

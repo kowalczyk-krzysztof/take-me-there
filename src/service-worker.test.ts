@@ -234,6 +234,36 @@ describe('service-worker', () => {
     expect(record['dataPending']).toBe(true);
   });
 
+  it('routes storage commands from extension pages and ignores foreign messages', async () => {
+    const mock = await setup();
+
+    expect(mock.runtime.listeners).toHaveLength(1);
+
+    const listener = mock.runtime.listeners[0];
+
+    const responses: Array<unknown> = [];
+
+    const handled = listener(
+      { scope: 'take-me-there/storage-v1', command: { kind: 'spend.record', amountUsd: 2, at: 1 } },
+      { id: 'test', url: 'chrome-extension://test/sidepanel.html' },
+      (response: unknown) => {
+        responses.push(response);
+      }
+    );
+    expect(handled).toBe(true);
+    await flush();
+    expect(responses).toEqual([{ ok: true, value: 2 }]);
+
+    const totals = (await mock.local.get('costTotals')) as {
+      costTotals: { v: number; months: Record<string, number> };
+    };
+    expect(totals.costTotals.v).toBe(1);
+
+    const foreign = listener({ scope: 'elsewhere' }, { id: 'test' }, () => undefined);
+    expect(foreign).toBe(false);
+    expect(mock.runtime.sent).toEqual([]);
+  });
+
   it('ignores clicks without a tab and unknown menu items', async () => {
     const mock = await setup();
     fireClick(mock, { ...IMAGE_INFO }, {});

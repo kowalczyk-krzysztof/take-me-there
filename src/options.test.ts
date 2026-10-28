@@ -142,6 +142,72 @@ describe('options', () => {
     expect(mock.local.data.has('apiKey:muse')).toBe(false);
   });
 
+  it('reports the verified mode when the session-only move fails', async () => {
+    const mock = await setup();
+
+    const { saveKey, loadKey } = await import('./key_vault');
+    await saveKey('muse', 'LLM_x', false);
+
+    mock.session.fault = (op) => {
+      if (op === 'set') {
+        throw new Error('quota');
+      }
+    };
+
+    const box = document.querySelector('#session-only') as HTMLInputElement;
+    box.checked = true;
+    box.dispatchEvent(new Event('change', { bubbles: true }));
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('settingsSaveFailed');
+    });
+    expect((document.querySelector('#session-only') as HTMLInputElement).checked).toBe(false);
+
+    mock.session.fault = () => undefined;
+
+    expect(await loadKey('muse')).toEqual({ state: 'ok', key: 'LLM_x' });
+    expect(mock.local.data.has('apiKey:muse')).toBe(true);
+    expect(mock.session.data.has('apiKey:muse')).toBe(false);
+  });
+
+  it('clears all saved keys', async () => {
+    await setup();
+
+    const { saveKey, loadKey } = await import('./key_vault');
+    await saveKey('muse', 'LLM_x', false);
+    await saveKey('openai_compat', 'LLM_y', true);
+
+    (document.querySelector('#clear-all-keys') as HTMLButtonElement).click();
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('statusKeyCleared');
+    });
+
+    expect((await loadKey('muse')).state).toBe('missing');
+    expect((await loadKey('openai_compat')).state).toBe('missing');
+  });
+
+  it('shows clear failures instead of claiming success', async () => {
+    const mock = await setup();
+
+    const { saveKey, loadKey } = await import('./key_vault');
+    await saveKey('muse', 'LLM_x', false);
+
+    const fail = (): void => {
+      throw new Error('quota');
+    };
+    mock.session.fault = fail;
+    mock.local.fault = fail;
+
+    (document.querySelector('#clear-key') as HTMLButtonElement).click();
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('settingsSaveFailed');
+    });
+
+    mock.session.fault = () => undefined;
+    mock.local.fault = () => undefined;
+
+    expect(await loadKey('muse')).toEqual({ state: 'ok', key: 'LLM_x' });
+  });
+
   it('labels the provider radio group and the server fieldset', async () => {
     await setup();
     expect(document.querySelector('#provider-group')?.getAttribute('aria-labelledby')).toBe(

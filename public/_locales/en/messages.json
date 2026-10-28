@@ -341,6 +341,10 @@
     "message": "Skip web search - cheaper but less current",
     "description": "Cheap-mode toggle label."
   },
+  "clearAllKeysButton": {
+    "message": "Clear all saved API keys",
+    "description": "Clear-all-keys button label."
+  },
   "optionsPrivacyHeading": {
     "message": "Storage and privacy",
     "description": "Options privacy section heading."

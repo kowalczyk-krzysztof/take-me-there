@@ -31,7 +31,7 @@ import {
 } from './board_store';
 import { buildDestination, buildLinks, mapsDirUrl } from './deep_links';
 import { downscaleToJpegDataUrl, fetchImageBytes } from './image_fetch';
-import { clearKey, isVaultKey, loadKey, saveKey } from './key_vault';
+import { clearAllKeys, clearKey, isVaultKey, loadKey, saveKey, setKeyMode } from './key_vault';
 import { cropToSamBox, dataUrlToBytes, parseSamBoxes, selectSamBox, type SamPixelBox } from './sam';
 import { estimateCachedSavingUsd, estimateCostUsd, formatUsd, recordMonthSpend } from './pricing';
 import { createGuideRenderer, findGuideStart } from './render_markdown';
@@ -523,8 +523,6 @@ const clearCost = (): void => {
 };
 
 const priceMutex = createMutex();
-
-const keyWriteMutex = createMutex();
 
 const priceAndRecord = async (provider: Provider): Promise<void> =>
   priceMutex(async () => {
@@ -2790,11 +2788,9 @@ const onKeySave = async (key: string): Promise<void> => {
     return;
   }
   try {
-    await keyWriteMutex(async () => {
-      await saveKey(provider.id, key, sessionOnly);
-      runSettings = { ...settings, sessionOnly };
-      await saveSettings(runSettings);
-    });
+    await saveKey(provider.id, key, sessionOnly);
+    runSettings = { ...settings, sessionOnly };
+    await saveSettings(runSettings);
   } catch {
     setKeyForm({ pending: false, error: msg('keyErrorRetry') });
     announceStatus('keyErrorRetry');
@@ -2811,19 +2807,47 @@ const onKeySave = async (key: string): Promise<void> => {
   await resumePending();
 };
 
+const showKeyCleared = (): void => {
+  store.set({
+    keySaved: false,
+    replacing: false,
+    unlocked: false,
+    showOrphaned: false,
+  });
+  setKeyForm({ pending: false, error: null, resetKey: store.get().keyForm.resetKey + 1 });
+  selectTab('settings');
+  announceStatus('statusKeyCleared');
+};
+
 const onRemoveKey = (): void => {
   void (async () => {
     const { provider } = await getActiveProvider();
-    await clearKey(provider.id);
-    store.set({
-      keySaved: false,
-      replacing: false,
-      unlocked: false,
-      showOrphaned: false,
-    });
-    setKeyForm({ pending: false, error: null, resetKey: store.get().keyForm.resetKey + 1 });
-    selectTab('settings');
-    announceStatus('statusKeyCleared');
+
+    try {
+      await clearKey(provider.id);
+    } catch {
+      setKeyForm({ pending: false, error: msg('settingsSaveFailed') });
+      announceAlert('settingsSaveFailed');
+
+      return;
+    }
+
+    showKeyCleared();
+  })();
+};
+
+const onRemoveAllKeys = (): void => {
+  void (async () => {
+    try {
+      await clearAllKeys();
+    } catch {
+      setKeyForm({ pending: false, error: msg('settingsSaveFailed') });
+      announceAlert('settingsSaveFailed');
+
+      return;
+    }
+
+    showKeyCleared();
   })();
 };
 
@@ -2846,25 +2870,34 @@ const onConsentDecision = async (agreed: boolean): Promise<void> => {
 };
 
 const onSessionOnlyChange = async (checked: boolean): Promise<void> => {
-  const previous = store.get().keyForm.sessionOnly;
-  const prevSettings = runSettings;
+  const { provider, settings } = await getActiveProvider();
+
+  // Optimistic for the remount; the settled state below always comes from
+  // verified storage, never from the previous checkbox value.
   setKeyForm({ sessionOnly: checked });
+
+  let result;
+
   try {
-    await keyWriteMutex(async () => {
-      const { provider, settings } = await getActiveProvider();
-      const loaded = await loadKey(provider.id);
-      if (loaded.state === 'ok') {
-        await saveKey(provider.id, loaded.key, checked);
-      }
-      runSettings = { ...settings, sessionOnly: checked };
-      await saveSettings(runSettings);
-    });
+    result = await setKeyMode(provider.id, checked);
   } catch {
-    runSettings = prevSettings;
-    setKeyForm({ sessionOnly: previous, error: msg('settingsSaveFailed') });
+    runSettings = { ...settings };
+    setKeyForm({ sessionOnly: settings.sessionOnly, error: msg('settingsSaveFailed') });
+    announceStatus('settingsSaveFailed');
+
     return;
   }
-  setKeyForm({ error: null });
+
+  runSettings = { ...settings, sessionOnly: result.sessionOnly };
+
+  if (result.error) {
+    setKeyForm({ sessionOnly: result.sessionOnly, error: msg('settingsSaveFailed') });
+    announceStatus('settingsSaveFailed');
+
+    return;
+  }
+
+  setKeyForm({ sessionOnly: result.sessionOnly, error: null });
 };
 
 const loadShortcutLine = async (): Promise<void> => {
@@ -3173,12 +3206,16 @@ const SidepanelApp = () => {
         ) : (
           <>
             <p id="key-saved-status">{msg('keySavedStatus')}</p>
+            {keyForm.error === null ? null : <p id="key-saved-error">{keyForm.error}</p>}
             <div className="confirm-actions">
               <button type="button" onClick={() => store.set({ replacing: true })}>
                 {msg('keyReplaceButton')}
               </button>
               <button type="button" onClick={() => onRemoveKey()}>
                 {msg('clearKeyButton')}
+              </button>
+              <button type="button" onClick={() => onRemoveAllKeys()}>
+                {msg('clearAllKeysButton')}
               </button>
             </div>
           </>

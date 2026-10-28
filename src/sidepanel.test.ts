@@ -256,6 +256,7 @@ describe('sidepanel', () => {
     expect(actions.map((button) => button.textContent)).toEqual([
       'keyReplaceButton',
       'clearKeyButton',
+      'clearAllKeysButton',
     ]);
     (actions[0] as HTMLButtonElement).click();
     await waitFor(() => {
@@ -346,6 +347,104 @@ describe('sidepanel', () => {
       (document.querySelector('#settings-panel #session-only') as HTMLInputElement).checked
     ).toBe(true);
     expect(document.querySelector('#settings-panel #key-error')?.hasAttribute('hidden')).toBe(true);
+  });
+
+  it('keeps a usable key when the mode move fails mid-write', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+
+    (document.querySelector('#tab-settings') as HTMLButtonElement).click();
+    await waitFor(() => {
+      expect(document.querySelector('#key-saved-status')).not.toBeNull();
+    });
+
+    const actions = [...document.querySelectorAll('#settings-panel .confirm-actions button')];
+    (actions[0] as HTMLButtonElement).click();
+    await waitFor(() => {
+      expect(document.querySelector('#settings-panel #session-only')).not.toBeNull();
+    });
+
+    mock.session.fault = (op) => {
+      if (op === 'set') {
+        throw new Error('quota');
+      }
+    };
+
+    const box = document.querySelector('#settings-panel #session-only') as HTMLInputElement;
+    box.checked = true;
+    box.dispatchEvent(new Event('change', { bubbles: true }));
+    await waitFor(() => {
+      expect(document.querySelector('#settings-panel #key-error')?.textContent).toBe(
+        'settingsSaveFailed'
+      );
+    });
+    expect(
+      (document.querySelector('#settings-panel #session-only') as HTMLInputElement).checked
+    ).toBe(false);
+
+    mock.session.fault = () => undefined;
+
+    const { loadKey } = await import('./key_vault');
+    expect(await loadKey('muse')).toEqual({ state: 'ok', key: 'LLM_x' });
+    expect(mock.local.data.has('apiKey:muse')).toBe(true);
+    expect(mock.session.data.has('apiKey:muse')).toBe(false);
+
+    const { loadSettings } = await import('./providers/index');
+    expect((await loadSettings()).sessionOnly).toBe(false);
+  });
+
+  it('clears every provider key from settings', async () => {
+    await setup();
+    await plantKeyAndConsent();
+
+    const { saveKey, loadKey } = await import('./key_vault');
+    await saveKey('openai_compat', 'LLM_y', false);
+
+    (document.querySelector('#tab-settings') as HTMLButtonElement).click();
+    await waitFor(() => {
+      expect(document.querySelector('#key-saved-status')).not.toBeNull();
+    });
+
+    const actions = [...document.querySelectorAll('#settings-panel .confirm-actions button')];
+    const clearAll = actions.find((button) => button.textContent === 'clearAllKeysButton');
+    (clearAll as HTMLButtonElement).click();
+    await waitFor(() => {
+      expect(document.querySelector('#settings-panel #key-input')).not.toBeNull();
+    });
+
+    expect((await loadKey('muse')).state).toBe('missing');
+    expect((await loadKey('openai_compat')).state).toBe('missing');
+  });
+
+  it('shows a visible error when key clear fails', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+
+    (document.querySelector('#tab-settings') as HTMLButtonElement).click();
+    await waitFor(() => {
+      expect(document.querySelector('#key-saved-status')).not.toBeNull();
+    });
+
+    const fail = (): void => {
+      throw new Error('quota');
+    };
+    mock.session.fault = fail;
+    mock.local.fault = fail;
+
+    const actions = [...document.querySelectorAll('#settings-panel .confirm-actions button')];
+    (actions[1] as HTMLButtonElement).click();
+    await waitFor(() => {
+      expect(document.querySelector('#settings-panel #key-saved-error')?.textContent).toBe(
+        'settingsSaveFailed'
+      );
+    });
+
+    mock.session.fault = () => undefined;
+    mock.local.fault = () => undefined;
+
+    const { loadKey } = await import('./key_vault');
+    expect(await loadKey('muse')).toEqual({ state: 'ok', key: 'LLM_x' });
+    expect(document.querySelector('#key-saved-status')).not.toBeNull();
   });
 
   it('keeps live regions outside tabpanels and announces key failures', async () => {
