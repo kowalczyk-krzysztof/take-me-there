@@ -36,6 +36,7 @@ import { cropToSamBox, dataUrlToBytes, parseSamBoxes, selectSamBox, type SamPixe
 import { estimateCachedSavingUsd, estimateCostUsd, formatUsd } from './pricing';
 import { createGuideRenderer, findGuideStart } from './render_markdown';
 import {
+  GUIDE_MAX_TEXT_CHARS,
   TRIP_REQUEST_SCHEMA,
   type ItineraryPlan,
   type PageSignals,
@@ -1151,7 +1152,9 @@ const runGuide = async (args: GuideArgs): Promise<RunOutcome> => {
     });
     for await (const event of events) {
       if (event.type === 'delta') {
-        guideSource += event.text;
+        if (guideSource.length < GUIDE_MAX_TEXT_CHARS) {
+          guideSource += event.text.slice(0, GUIDE_MAX_TEXT_CHARS - guideSource.length);
+        }
       } else if (event.type === 'searching') {
         searchedWeb = true;
 

@@ -17,6 +17,36 @@ export const PLACE_SCHEMA = z.strictObject({
 
 export type PlaceResult = z.infer<typeof PLACE_SCHEMA>;
 
+// Transport/cache bound for total guide text. The renderer caps display
+// separately; this caps memory and stored bytes.
+export const GUIDE_MAX_TEXT_CHARS = 256 * 1024;
+
+// Bounded cache entry: validates stored results on read and outbound
+// writes through the storage commands. Guide text and citations match
+// the transport bounds so a conforming run can never fail validation.
+export const CACHE_ENTRY_SCHEMA = z.strictObject({
+  place: PLACE_SCHEMA,
+  guide: z.string().check(z.maxLength(GUIDE_MAX_TEXT_CHARS)),
+  sources: z
+    .array(
+      z.strictObject({
+        title: z.string().check(z.maxLength(300)),
+        url: z.string().check(z.maxLength(4000)),
+      })
+    )
+    .check(z.maxLength(32)),
+  usage: z.strictObject({
+    inputTokens: z.number(),
+    outputTokens: z.number(),
+    searchCount: z.number(),
+    flatFeesUsd: z.number(),
+    cachedInputTokens: z.optional(z.number()),
+  }),
+  searchedWeb: z.boolean(),
+});
+
+export type CacheEntryData = z.infer<typeof CACHE_ENTRY_SCHEMA>;
+
 // Payload for the Muse response_format json_schema. toJSONSchema always adds
 // a top-level $schema key, which the strict subset forbids, so drop it here.
 // $ref/$defs must never appear: the unit test fails the build if a later

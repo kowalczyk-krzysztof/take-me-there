@@ -645,6 +645,35 @@ describe('sidepanel', () => {
     expect(text).not.toContain('research Oia');
   });
 
+  it('caps stored guide text at 256 KiB', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+
+    const big = 'G'.repeat(300 * 1024);
+    fetchMock
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
+      .mockResolvedValueOnce(
+        sseResponse([
+          'event: response.output_text.delta\n',
+          `data: {"delta":"## Oia\\n\\n${big}"}\n`,
+          '\n',
+          'event: response.completed\n',
+          'data: {"response":{"usage":{"input_tokens":100,"output_tokens":200}}}\n',
+          '\n',
+        ])
+      );
+    await mock.session.set({ [SLOT]: READY() });
+    await waitForHeading('Oia');
+    await clickPlanTrip();
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('statusGuideReady');
+    });
+
+    const cached = [...mock.local.data.entries()].filter(([key]) => key.startsWith('cache:'));
+    expect(cached).toHaveLength(1);
+    expect((cached[0][1] as { entry: { guide: string } }).entry.guide).toHaveLength(256 * 1024);
+  });
+
   it('retries a failed guide without re-running identify', async () => {
     const mock = await setup();
     await plantKeyAndConsent();

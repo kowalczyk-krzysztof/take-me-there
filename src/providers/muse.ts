@@ -36,6 +36,7 @@ import {
   parseScanBatch,
   postChatStream,
   postStreamHeaders,
+  readBoundedJson,
   readStall,
   fetchTimeout,
   absorbUsage,
@@ -206,13 +207,7 @@ export class MuseProvider implements Provider {
       throw responseError(res);
     }
 
-    let data: unknown;
-
-    try {
-      data = await res.json();
-    } catch {
-      throw invalidResponse(usage, 'video description is not JSON');
-    }
+    const data = await readBoundedJson(res, usage, 'video description');
 
     const tokens = readChatUsage(data);
 
@@ -278,13 +273,7 @@ export class MuseProvider implements Provider {
         throw responseError(res);
       }
 
-      let data: unknown;
-
-      try {
-        data = await res.json();
-      } catch {
-        throw invalidResponse(usage, 'normalize response is not JSON');
-      }
+      const data = await readBoundedJson(res, usage, 'normalize response');
 
       const tokens = readChatUsage(data);
 
@@ -398,7 +387,7 @@ export class MuseProvider implements Provider {
         usage
       );
 
-      const places = parseScanBatch(data);
+      const places = parseScanBatch(data, input.images.length);
 
       if (places) {
         return { places, usage: { ...usage } };
@@ -458,7 +447,7 @@ export class MuseProvider implements Provider {
     let data: unknown;
 
     try {
-      data = (await res.json()) as unknown;
+      data = await readBoundedJson(res, usage, 'grounded response');
     } catch {
       return null;
     }
@@ -643,13 +632,7 @@ export class MuseProvider implements Provider {
       throw responseError(res);
     }
 
-    let data: unknown;
-
-    try {
-      data = (await res.json()) as unknown;
-    } catch {
-      throw invalidResponse(usage, 'segmentation response is not JSON');
-    }
+    const data = await readBoundedJson(res, usage, 'segmentation response');
 
     const extracted = extractResponsesText(data);
 

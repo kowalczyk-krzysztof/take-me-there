@@ -3,7 +3,7 @@
 // as the single writer. Schemas bound shape and size; semantic checks
 // (non-empty, finite) live with the handlers so error text stays stable.
 import * as z from 'zod/mini';
-import { PLACE_SCHEMA } from './types';
+import { CACHE_ENTRY_SCHEMA, PLACE_SCHEMA } from './types';
 
 export const STORAGE_MESSAGE_SCOPE = 'take-me-there/storage-v1';
 
@@ -39,26 +39,7 @@ const spendResetSchema = z.strictObject({
   at: z.number(),
 });
 
-const cacheEntrySchema = z.strictObject({
-  place: PLACE_SCHEMA,
-  guide: z.string().check(z.maxLength(300000)),
-  sources: z
-    .array(
-      z.strictObject({
-        title: z.string().check(z.maxLength(300)),
-        url: z.string().check(z.maxLength(4000)),
-      })
-    )
-    .check(z.maxLength(64)),
-  usage: z.strictObject({
-    inputTokens: z.number(),
-    outputTokens: z.number(),
-    searchCount: z.number(),
-    flatFeesUsd: z.number(),
-    cachedInputTokens: z.optional(z.number()),
-  }),
-  searchedWeb: z.boolean(),
-});
+const cacheEntrySchema = CACHE_ENTRY_SCHEMA;
 
 const cacheKeySchema = z.strictObject({
   hash: z.string().check(z.maxLength(128)),

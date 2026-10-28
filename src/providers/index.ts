@@ -196,6 +196,60 @@ export const readStall = async <T>(
   }
 };
 
+export const JSON_MAX_BYTES = 2 * 1024 * 1024;
+
+// Bounded JSON body read: responses stream through a byte cap instead of
+// materializing unboundedly, and oversized or malformed bodies map to
+// typed errors carrying the accrued usage.
+export const readBoundedJson = async (
+  res: Response,
+  usage: Usage,
+  label: string
+): Promise<unknown> => {
+  if (!res.body) {
+    throw invalidResponse(usage, `${label} is not JSON`);
+  }
+
+  const reader = res.body.getReader();
+
+  const chunks: Uint8Array[] = [];
+
+  let total = 0;
+
+  for (;;) {
+    const { done, value } = await reader.read();
+
+    if (done) {
+      break;
+    }
+    total += value.byteLength;
+
+    if (total > JSON_MAX_BYTES) {
+      await reader.cancel().catch(() => undefined);
+
+      throw invalidResponse(usage, `${label} exceeds the size cap`);
+    }
+    chunks.push(value);
+  }
+
+  reader.releaseLock();
+
+  const bytes = new Uint8Array(total);
+
+  let offset = 0;
+
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
+  try {
+    return JSON.parse(new TextDecoder().decode(bytes)) as unknown;
+  } catch {
+    throw invalidResponse(usage, `${label} is not JSON`);
+  }
+};
+
 export const toNetworkError = (err: unknown, signal?: AbortSignal): ProviderError => {
   if (signal?.aborted || (err as { name?: string })?.name === 'AbortError') {
     return new ProviderError('aborted', 'request aborted', false);
@@ -557,10 +611,10 @@ export const buildScanMessages = (
 // Client-side batch validation: shape-parse, drop malformed entries,
 // truncate strings, keep the best guess per place. Index pairing happens in
 // the panel (invalid index → placeholder, never a wrong image).
-export const parseScanBatch = (data: unknown): ScannedPlace[] | undefined =>
-  parseScanContent(extractChatJson(data));
+export const parseScanBatch = (data: unknown, maxPlaces: number): ScannedPlace[] | undefined =>
+  parseScanContent(extractChatJson(data), maxPlaces);
 
-export const parseScanContent = (json: unknown): ScannedPlace[] | undefined => {
+export const parseScanContent = (json: unknown, maxPlaces: number): ScannedPlace[] | undefined => {
   const places = (json as { places?: unknown } | null)?.places;
 
   if (!Array.isArray(places)) {
@@ -588,6 +642,12 @@ export const parseScanContent = (json: unknown): ScannedPlace[] | undefined => {
     const current = best.get(key);
 
     if (current && current.confidence >= candidate.confidence) {
+      continue;
+    }
+
+    // Scan output never exceeds the harvested-image limit: later
+    // distinct guesses are dropped, never accumulated unboundedly.
+    if (!current && best.size >= Math.max(0, maxPlaces)) {
       continue;
     }
     best.set(key, {
@@ -1031,7 +1091,10 @@ export const parseItineraryContent = (
 
   const allowed = new Set(stopNames);
 
-  const stops = parsed.data.stops.filter((stop) => allowed.has(stop)).slice(0, MAX_ITINERARY_STOPS);
+  const stops = [...new Set(parsed.data.stops.filter((stop) => allowed.has(stop)))].slice(
+    0,
+    MAX_ITINERARY_STOPS
+  );
 
   if (stops.length === 0) {
     return undefined;
@@ -1148,13 +1211,7 @@ const identifyAttempt = async (
     throw responseError(res);
   }
 
-  let data: unknown;
-
-  try {
-    data = await res.json();
-  } catch {
-    throw invalidResponse(usage, 'identify response is not JSON');
-  }
+  const data = await readBoundedJson(res, usage, 'identify response');
 
   const tokens = readChatUsage(data);
 
@@ -1269,13 +1326,7 @@ export const fetchChatCompletion = async (
     throw responseError(res);
   }
 
-  let data: unknown;
-
-  try {
-    data = await res.json();
-  } catch {
-    throw invalidResponse(usage, 'response is not JSON');
-  }
+  const data = await readBoundedJson(res, usage, 'response');
 
   const tokens = readChatUsage(data);
 

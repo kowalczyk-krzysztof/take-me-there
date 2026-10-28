@@ -342,4 +342,22 @@ describe('storage service cache commands', () => {
 
     expect(await getCacheEntry('missing')).toBeUndefined();
   });
+
+  it('rejects oversized entries without storing them', async () => {
+    await setCacheEntry('big', { ...entry('Oia'), guide: 'x'.repeat(300000) });
+
+    expect(await getCacheEntry('big')).toBeUndefined();
+    expect(mock.local.data.has('cache:big')).toBe(false);
+  });
+
+  it('rejects corrupt stored records without replacing them', async () => {
+    const corrupt = {
+      v: 1,
+      entry: { ...entry('Oia'), guide: 42 },
+    };
+    await mock.local.set({ 'cache:bad': corrupt });
+
+    expect(await getCacheEntry('bad')).toBeUndefined();
+    expect(mock.local.data.get('cache:bad')).toEqual(corrupt);
+  });
 });

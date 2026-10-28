@@ -202,7 +202,7 @@ export class OpenAiCompatProvider implements Provider {
         usage
       );
 
-      const places = parseScanBatch(data);
+      const places = parseScanBatch(data, input.images.length);
 
       if (places) {
         return { places, usage: { ...usage } };

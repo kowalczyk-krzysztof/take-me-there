@@ -26,6 +26,7 @@ import {
   customHostOf,
   emptyUsage,
   postChatStream,
+  readBoundedJson,
   readChatUsage,
   fetchChatCompletion,
   readStall,
@@ -293,13 +294,63 @@ describe('prompt builders', () => {
         },
       ],
     };
-    expect(parseScanBatch(data)).toEqual([
+    expect(parseScanBatch(data, 3)).toEqual([
       { placeName: 'Oia', city: 'Oia', country: 'Greece', confidence: 0.9, imageIndex: 1 },
     ]);
-    expect(parseScanBatch({ choices: [] })).toBeUndefined();
+    expect(parseScanBatch({ choices: [] }, 3)).toBeUndefined();
     expect(
-      parseScanBatch({ choices: [{ message: { content: '{"places":{}}' } }] })
+      parseScanBatch({ choices: [{ message: { content: '{"places":{}}' } }] }, 3)
     ).toBeUndefined();
+  });
+
+  it('caps scan output at the harvested-image limit', () => {
+    const places = Array.from({ length: 5 }, (_, index) => ({
+      placeName: `Place ${index}`,
+      city: 'City',
+      country: 'Country',
+      confidence: 0.9 - index * 0.1,
+      imageIndex: index,
+    }));
+    const data = { choices: [{ message: { content: JSON.stringify({ places }) } }] };
+
+    const capped = parseScanBatch(data, 2);
+    expect(capped).toHaveLength(2);
+    expect(capped?.map((place) => place.placeName)).toEqual(['Place 0', 'Place 1']);
+
+    // A better duplicate of a kept place still wins within the cap.
+    const dupe = {
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({
+              places: [
+                ...places.slice(0, 2),
+                {
+                  placeName: 'Place 0',
+                  city: 'City',
+                  country: 'Country',
+                  confidence: 0.99,
+                  imageIndex: 4,
+                },
+              ],
+            }),
+          },
+        },
+      ],
+    };
+    expect(parseScanBatch(dupe, 2)?.[0]).toMatchObject({ confidence: 0.99, imageIndex: 4 });
+  });
+
+  it('rejects oversized JSON bodies before parsing', async () => {
+    const big = new Response(`{"pad":"${'x'.repeat(2 * 1024 * 1024)}"}`, { status: 200 });
+
+    await expect(readBoundedJson(big, emptyUsage(), 'response')).rejects.toMatchObject({
+      code: 'invalid_response',
+    });
+
+    const small = new Response('{"a":1}', { status: 200 });
+
+    await expect(readBoundedJson(small, emptyUsage(), 'response')).resolves.toEqual({ a: 1 });
   });
 
   it('carries the HTTP status on mapped errors', () => {
@@ -419,6 +470,24 @@ describe('prompt builders', () => {
       { stop: 'Oia', nights: 2 },
       { stop: 'Fira', nights: 30 },
     ]);
+  });
+
+  it('deduplicates repeated itinerary stops', () => {
+    const data = {
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({
+              stops: ['Oia', 'Fira', 'Oia', 'Fira', 'Oia'],
+              days: [],
+              nightsEach: [],
+            }),
+          },
+        },
+      ],
+    };
+
+    expect(parseItineraryPlan(data, ['Oia', 'Fira'])?.stops).toEqual(['Oia', 'Fira']);
   });
 
   it('rejects itineraries with no usable stops or malformed payloads', () => {

@@ -1,5 +1,5 @@
-import type { PlaceResult } from './types';
-import type { GuideSource, Usage } from './providers/index';
+import * as z from 'zod/mini';
+import { CACHE_ENTRY_SCHEMA } from './types';
 import { sendCommand } from './storage_client';
 
 const MAX_PREVIEW_DATA_URL = 2000000;
@@ -10,13 +10,7 @@ export const CACHE_INDEX_KEY = 'cacheKeys';
 
 export const CACHE_ENTRY_VERSION = 1;
 
-export interface CacheEntry {
-  place: PlaceResult;
-  guide: string;
-  sources: GuideSource[];
-  usage: Usage;
-  searchedWeb: boolean;
-}
+export type CacheEntry = z.infer<typeof CACHE_ENTRY_SCHEMA>;
 
 export const isAllowedPreviewUrl = (srcUrl: string): boolean => {
   if (srcUrl.startsWith('data:')) {
@@ -61,22 +55,10 @@ export const hashCacheKey = async (parts: CacheKeyParts): Promise<string> => {
 
 export const cacheKeyFor = (hash: string): string => `cache:${hash}`;
 
-const isBareEntry = (value: unknown): value is CacheEntry => {
-  if (!value || typeof value !== 'object') {
-    return false;
-  }
+const parseEntry = (value: unknown): CacheEntry | undefined => {
+  const parsed = CACHE_ENTRY_SCHEMA.safeParse(value);
 
-  const entry = value as Partial<CacheEntry>;
-
-  return (
-    typeof entry.guide === 'string' &&
-    Array.isArray(entry.sources) &&
-    !!entry.place &&
-    typeof entry.place === 'object' &&
-    typeof (entry.place as PlaceResult).placeName === 'string' &&
-    !!entry.usage &&
-    typeof entry.usage === 'object'
-  );
+  return parsed.success ? parsed.data : undefined;
 };
 
 export const unwrapEntry = (value: unknown): CacheEntry | undefined => {
@@ -87,12 +69,10 @@ export const unwrapEntry = (value: unknown): CacheEntry | undefined => {
   if ('entry' in value) {
     const record = value as { v?: unknown; entry?: unknown };
 
-    return record.v === CACHE_ENTRY_VERSION && isBareEntry(record.entry)
-      ? (record.entry as CacheEntry)
-      : undefined;
+    return record.v === CACHE_ENTRY_VERSION ? parseEntry(record.entry) : undefined;
   }
 
-  return isBareEntry(value) ? (value as CacheEntry) : undefined;
+  return parseEntry(value);
 };
 
 export const readCacheIndex = async (): Promise<string[]> => {
