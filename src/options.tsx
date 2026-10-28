@@ -409,7 +409,12 @@ const OptionsApp = () => {
           type="button"
           onClick={() => {
             void (async () => {
-              await resetMonthSpend();
+              try {
+                await resetMonthSpend();
+              } catch {
+                store.set({ status: msg('settingsSaveFailed') });
+                return;
+              }
               await refreshCost();
               store.set({ status: msg('statusMonthlyReset') });
             })();

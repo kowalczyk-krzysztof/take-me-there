@@ -1,5 +1,6 @@
 import type { PlaceResult } from './types';
 import type { GuideSource, Usage } from './providers/index';
+import { createMutex } from './utils/mutex';
 
 const MAX_PREVIEW_DATA_URL = 2000000;
 const CACHE_SLOTS = 10;
@@ -67,8 +68,11 @@ const readCacheIndex = async (): Promise<string[]> => {
   }
 };
 
-export const getCacheEntry = async (hash: string): Promise<CacheEntry | undefined> => {
-  try {
+const cacheMutex = createMutex();
+
+export const getCacheEntry = async (hash: string): Promise<CacheEntry | undefined> =>
+  cacheMutex(async () => {
+    try {
     const stored = (await chrome.storage.session.get(cacheKeyFor(hash))) as Record<string, unknown>;
     const entry = stored[cacheKeyFor(hash)];
 
@@ -79,29 +83,30 @@ export const getCacheEntry = async (hash: string): Promise<CacheEntry | undefine
     const index = (await readCacheIndex()).filter((key) => key !== hash);
     index.unshift(hash);
 
-    await chrome.storage.session.set({ [CACHE_INDEX_KEY]: index.slice(0, CACHE_SLOTS) });
-    return entry;
-  } catch {
-    return undefined;
-  }
-};
-
-export const setCacheEntry = async (hash: string, entry: CacheEntry): Promise<void> => {
-  try {
-    await chrome.storage.session.set({ [cacheKeyFor(hash)]: entry });
-
-    const index = (await readCacheIndex()).filter((key) => key !== hash);
-
-    index.unshift(hash);
-
-    const evicted = index.slice(CACHE_SLOTS);
-
-    await chrome.storage.session.set({ [CACHE_INDEX_KEY]: index.slice(0, CACHE_SLOTS) });
-
-    for (const key of evicted) {
-      await chrome.storage.session.remove(cacheKeyFor(key));
+      await chrome.storage.session.set({ [CACHE_INDEX_KEY]: index.slice(0, CACHE_SLOTS) });
+      return entry;
+    } catch {
+      return undefined;
     }
-  } catch {
-    // Cache writes are best-effort; a failure never breaks the analysis.
-  }
-};
+  });
+
+export const setCacheEntry = async (hash: string, entry: CacheEntry): Promise<void> =>
+  cacheMutex(async () => {
+    try {
+      await chrome.storage.session.set({ [cacheKeyFor(hash)]: entry });
+
+      const index = (await readCacheIndex()).filter((key) => key !== hash);
+
+      index.unshift(hash);
+
+      const evicted = index.slice(CACHE_SLOTS);
+
+      await chrome.storage.session.set({ [CACHE_INDEX_KEY]: index.slice(0, CACHE_SLOTS) });
+
+      for (const key of evicted) {
+        await chrome.storage.session.remove(cacheKeyFor(key));
+      }
+    } catch {
+      // Cache writes are best-effort; a failure never breaks the analysis.
+    }
+  });

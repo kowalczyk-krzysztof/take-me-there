@@ -8,7 +8,10 @@ const WRAPPING_KEY_ID = 'wrapping-key-v1';
 
 const vaultStore = createStore('trip-vault', 'keys');
 
+const VAULT_VERSION = 1;
+
 export interface KeyRecord {
+  v: number;
   iv: string;
   ciphertext: string;
 }
@@ -69,7 +72,11 @@ export const saveKey = async (
     new TextEncoder().encode(key)
   );
 
-  const record: KeyRecord = { iv: toBase64(iv), ciphertext: toBase64(new Uint8Array(encrypted)) };
+  const record: KeyRecord = {
+    v: VAULT_VERSION,
+    iv: toBase64(iv),
+    ciphertext: toBase64(new Uint8Array(encrypted)),
+  };
   const name = storageKey(providerId);
 
   if (sessionOnly) {
@@ -95,10 +102,13 @@ export const loadKey = async (providerId: string): Promise<KeyStatus> => {
     return { state: 'missing', orphaned: false };
   }
 
+  if (typeof record.v === 'number' && record.v !== VAULT_VERSION) {
+    return { state: 'missing', orphaned: true };
+  }
+
   const wrap = (await get(WRAPPING_KEY_ID, vaultStore)) as CryptoKey | undefined;
 
   if (!wrap) {
-    await clearKey(providerId);
     return { state: 'missing', orphaned: true };
   }
 
@@ -110,7 +120,9 @@ export const loadKey = async (providerId: string): Promise<KeyStatus> => {
     );
     return { state: 'ok', key: new TextDecoder().decode(decrypted) };
   } catch {
-    await clearKey(providerId);
+    // Never delete here: the ciphertext may belong to a rotated wrapping
+    // key or a newer record version. The orphan notice asks the user to
+    // re-enter the key, which overwrites the record on save.
     return { state: 'missing', orphaned: true };
   }
 };

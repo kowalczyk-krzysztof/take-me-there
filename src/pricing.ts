@@ -2,6 +2,7 @@
 // usage; this module prices it. Providers without a rate table (custom
 // endpoints) yield null, and the UI shows token counts instead of dollars.
 import type { Usage } from './providers/index';
+import { createMutex } from './utils/mutex';
 
 export interface ModelRates {
   inputUsdPerMTok: number;
@@ -30,6 +31,14 @@ export const estimateCostUsd = (usage: Usage, rates?: ModelRates): number | null
 
 const COST_TOTALS_KEY = 'costTotals';
 const MAX_MONTHS_KEPT = 24;
+const SPEND_VERSION = 1;
+
+interface SpendRecord {
+  v: number;
+  months: Record<string, number>;
+}
+
+const spendMutex = createMutex();
 
 export const formatUsd = (amount: number): string => {
   if (!(amount > 0)) {
@@ -39,41 +48,72 @@ export const formatUsd = (amount: number): string => {
   return amount < 0.1 ? `$${amount.toFixed(3)}` : `$${amount.toFixed(2)}`;
 };
 
-export const monthKey = (date: Date = new Date()): string => date.toISOString().slice(0, 7);
+export const monthKey = (date: Date = new Date()): string =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 
+// Strict read: storage failures throw so writers abort instead of
+// persisting totals rebuilt from an empty read. Absent totals read as
+// empty; legacy flat maps migrate in memory and persist on next write.
 const readTotals = async (): Promise<Record<string, number>> => {
-  try {
-    const stored = (await chrome.storage.local.get(COST_TOTALS_KEY)) as {
-      costTotals?: Record<string, number>;
-    };
+  const stored = (await chrome.storage.local.get(COST_TOTALS_KEY)) as {
+    costTotals?: unknown;
+  };
+  const record = stored.costTotals;
 
-    if (stored.costTotals && typeof stored.costTotals === 'object') {
-      return stored.costTotals;
-    }
-  } catch {
-    // Corrupt totals reset to empty below.
+  if (record === undefined) {
+    return {};
   }
-  return {};
+
+  if (typeof record !== 'object' || record === null) {
+    return {};
+  }
+
+  if (
+    'v' in record &&
+    (record as SpendRecord).v === SPEND_VERSION &&
+    typeof (record as SpendRecord).months === 'object' &&
+    (record as SpendRecord).months !== null
+  ) {
+    return { ...(record as SpendRecord).months };
+  }
+
+  if ('v' in record) {
+    throw new Error(`unsupported spend record v${String((record as { v: unknown }).v)}`);
+  }
+
+  const months: Record<string, number> = {};
+  for (const [month, total] of Object.entries(record as Record<string, unknown>)) {
+    if (typeof total === 'number') {
+      months[month] = total;
+    }
+  }
+  return months;
 };
 
-export const recordMonthSpend = async (
-  amountUsd: number,
-  date: Date = new Date()
-): Promise<number> => {
-  const totals = await readTotals();
-  const key = monthKey(date);
-  const next = (typeof totals[key] === 'number' ? totals[key] : 0) + amountUsd;
-  totals[key] = next;
+const writeTotals = async (totals: Record<string, number>): Promise<void> => {
   const keys = Object.keys(totals).sort().reverse();
 
   for (const old of keys.slice(MAX_MONTHS_KEPT)) {
     delete totals[old];
   }
 
-  await chrome.storage.local.set({ [COST_TOTALS_KEY]: totals });
-
-  return next;
+  const record: SpendRecord = { v: SPEND_VERSION, months: totals };
+  await chrome.storage.local.set({ [COST_TOTALS_KEY]: record });
 };
+
+export const recordMonthSpend = async (
+  amountUsd: number,
+  date: Date = new Date()
+): Promise<number> =>
+  spendMutex(async () => {
+    const totals = await readTotals();
+    const key = monthKey(date);
+    const next = (typeof totals[key] === 'number' ? totals[key] : 0) + amountUsd;
+    totals[key] = next;
+    await writeTotals(totals);
+
+    return next;
+  });
 
 export const readMonthSpend = async (date: Date = new Date()): Promise<number> => {
   const totals = await readTotals();
@@ -82,9 +122,10 @@ export const readMonthSpend = async (date: Date = new Date()): Promise<number> =
   return typeof value === 'number' ? value : 0;
 };
 
-export const resetMonthSpend = async (date: Date = new Date()): Promise<void> => {
-  const totals = await readTotals();
+export const resetMonthSpend = async (date: Date = new Date()): Promise<void> =>
+  spendMutex(async () => {
+    const totals = await readTotals();
 
-  delete totals[monthKey(date)];
-  await chrome.storage.local.set({ [COST_TOTALS_KEY]: totals });
-};
+    delete totals[monthKey(date)];
+    await writeTotals(totals);
+  });

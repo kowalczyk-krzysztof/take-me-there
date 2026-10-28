@@ -69,20 +69,36 @@ describe('key_vault', () => {
     expect(await loadKey('muse')).toEqual({ state: 'ok', key: 'LLM_second' });
   });
 
-  it('treats a lost wrapping key as an orphan and clears the ciphertext', async () => {
+  it('treats a lost wrapping key as an orphan and keeps the ciphertext', async () => {
     await saveKey('muse', 'LLM_secret-value', false);
     resetIdb();
     expect(await loadKey('muse')).toEqual({ state: 'missing', orphaned: true });
-    expect(mock.local.data.has('apiKey:muse')).toBe(false);
+    expect(mock.local.data.has('apiKey:muse')).toBe(true);
   });
 
-  it('treats tampered ciphertext as an orphan and clears it', async () => {
+  it('treats tampered ciphertext as an orphan and keeps it', async () => {
     await saveKey('muse', 'LLM_secret-value', false);
     const record = { ...(mock.local.data.get('apiKey:muse') as KeyRecord) };
     record.ciphertext = `${record.ciphertext.slice(0, -1)}A`;
     mock.local.data.set('apiKey:muse', record);
     expect(await loadKey('muse')).toEqual({ state: 'missing', orphaned: true });
-    expect(mock.local.data.has('apiKey:muse')).toBe(false);
+    expect(mock.local.data.has('apiKey:muse')).toBe(true);
+  });
+
+  it('reads legacy records without a version', async () => {
+    await saveKey('muse', 'LLM_secret-value', false);
+    const record = { ...(mock.local.data.get('apiKey:muse') as KeyRecord) } as Record<string, unknown>;
+    delete record.v;
+    mock.local.data.set('apiKey:muse', record);
+    expect(await loadKey('muse')).toEqual({ state: 'ok', key: 'LLM_secret-value' });
+  });
+
+  it('orphans records from a newer version instead of deleting them', async () => {
+    await saveKey('muse', 'LLM_secret-value', false);
+    const record = { ...(mock.local.data.get('apiKey:muse') as KeyRecord), v: 99 };
+    mock.local.data.set('apiKey:muse', record);
+    expect(await loadKey('muse')).toEqual({ state: 'missing', orphaned: true });
+    expect(mock.local.data.get('apiKey:muse')).toEqual(record);
   });
 
   it('clears keys from both areas', async () => {

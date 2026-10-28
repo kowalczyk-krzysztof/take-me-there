@@ -148,6 +148,31 @@ describe('board_store', () => {
     expect(await listPins()).toEqual([]);
   });
 
+  it('migrates a legacy bare-array board to the versioned record', async () => {
+    await mock.local.set({ [BOARD_STORAGE_KEY]: [{ ...PIN(), addedAt: 1 }] });
+    expect(await listPins()).toHaveLength(1);
+    const out = await pinPlace(PIN({ place: PLACE({ placeName: 'Fira' }) }));
+    expect(out.status).toBe('pinned');
+    const record = mock.local.data.get(BOARD_STORAGE_KEY) as { v: number; pins: unknown[] };
+    expect(record.v).toBe(1);
+    expect(record.pins).toHaveLength(2);
+  });
+
+  it('aborts the pin when the board cannot be read', async () => {
+    await pinPlace(PIN());
+    const before = mock.local.data.get(BOARD_STORAGE_KEY);
+    vi.spyOn(mock.local, 'get').mockRejectedValueOnce(new Error('io'));
+    await expect(pinPlace(PIN({ place: PLACE({ placeName: 'Fira' }) }))).rejects.toThrow('io');
+    expect(mock.local.data.get(BOARD_STORAGE_KEY)).toBe(before);
+    expect(await listPins()).toHaveLength(1);
+  });
+
+  it('refuses to overwrite a record it does not understand', async () => {
+    await mock.local.set({ [BOARD_STORAGE_KEY]: { v: 99, pins: [] } });
+    await expect(pinPlace(PIN())).rejects.toThrow('unwritable');
+    expect(mock.local.data.get(BOARD_STORAGE_KEY)).toEqual({ v: 99, pins: [] });
+  });
+
   it('drops corrupt entries instead of crashing', async () => {
     await mock.local.set({
       [BOARD_STORAGE_KEY]: [

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   MUSE_SPARK_RATES,
   estimateCostUsd,
@@ -47,7 +47,7 @@ describe('pricing', () => {
     expect(await recordMonthSpend(0.5, day)).toBeCloseTo(0.5, 10);
     expect(await recordMonthSpend(0.25, day)).toBeCloseTo(0.75, 10);
     expect(await readMonthSpend(day)).toBeCloseTo(0.75, 10);
-    expect(await readMonthSpend(new Date('2026-04-01T00:00:00Z'))).toBe(0);
+    expect(await readMonthSpend(new Date('2026-04-15T12:00:00Z'))).toBe(0);
     await resetMonthSpend(day);
     expect(await readMonthSpend(day)).toBe(0);
   });
@@ -56,10 +56,35 @@ describe('pricing', () => {
     for (let n = 0; n < 25; n += 1) {
       await recordMonthSpend(0.01, new Date(Date.UTC(2024, n, 2)));
     }
-    const totals = mock.local.data.get('costTotals') as Record<string, number>;
-    expect(Object.keys(totals)).toHaveLength(24);
-    expect(totals['2024-01']).toBeUndefined();
-    expect(totals['2026-01']).toBe(0.01);
+    const record = mock.local.data.get('costTotals') as { v: number; months: Record<string, number> };
+    expect(record.v).toBe(1);
+    expect(Object.keys(record.months)).toHaveLength(24);
+    expect(record.months['2024-01']).toBeUndefined();
+    expect(record.months['2026-01']).toBe(0.01);
+  });
+
+  it('migrates legacy flat totals to the versioned record', async () => {
+    await mock.local.set({ costTotals: { '2026-03': 1.5 } });
+    expect(await readMonthSpend(new Date('2026-03-15T12:00:00Z'))).toBeCloseTo(1.5, 10);
+    expect(await recordMonthSpend(0.5, new Date('2026-03-15T12:00:00Z'))).toBeCloseTo(2, 10);
+    expect(mock.local.data.get('costTotals')).toEqual({ v: 1, months: { '2026-03': 2 } });
+  });
+
+  it('fails closed on a read error instead of erasing history', async () => {
+    await mock.local.set({ costTotals: { v: 1, months: { '2026-03': 1.5 } } });
+    vi.spyOn(mock.local, 'get').mockRejectedValueOnce(new Error('io'));
+    await expect(recordMonthSpend(0.5, new Date('2026-03-15T12:00:00Z'))).rejects.toThrow('io');
+    expect(mock.local.data.get('costTotals')).toEqual({ v: 1, months: { '2026-03': 1.5 } });
+  });
+
+  it('serializes concurrent records without losing updates', async () => {
+    const day = new Date('2026-03-15T12:00:00Z');
+    const [first, second] = await Promise.all([
+      recordMonthSpend(0.5, day),
+      recordMonthSpend(0.25, day),
+    ]);
+    expect(first + second).toBeCloseTo(1.25, 10);
+    expect(await readMonthSpend(day)).toBeCloseTo(0.75, 10);
   });
 
   it('formats small and large amounts', () => {

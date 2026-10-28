@@ -1,4 +1,5 @@
 import type { PlaceResult } from './types';
+import { createMutex } from './utils/mutex';
 
 export interface BoardPin {
   place: PlaceResult;
@@ -10,6 +11,14 @@ export interface BoardPin {
 
 export const BOARD_STORAGE_KEY = 'tripBoard';
 export const BOARD_CAP = 24;
+const BOARD_VERSION = 1;
+
+interface BoardRecord {
+  v: number;
+  pins: unknown;
+}
+
+const boardMutex = createMutex();
 export const THUMB_MAX_SIDE = 512;
 export const THUMB_MAX_BYTES = 64000;
 export const THUMB_MAX_SOURCE_BYTES = 4000000;
@@ -45,19 +54,46 @@ const isPin = (value: unknown): value is BoardPin => {
   );
 };
 
+const validPins = (pins: unknown): BoardPin[] => {
+  if (!Array.isArray(pins)) {
+    return [];
+  }
+  return pins.filter(isPin).sort((a, b) => a.addedAt - b.addedAt);
+};
+
+// Strict read for writers: storage failures throw so callers abort instead
+// of persisting a board derived from an empty read. Legacy bare arrays
+// migrate on the next write; unknown versions refuse the write.
+const readBoard = async (): Promise<{ pins: BoardPin[]; writable: boolean }> => {
+  const stored = (await chrome.storage.local.get(BOARD_STORAGE_KEY)) as Record<string, unknown>;
+  const record: unknown = stored[BOARD_STORAGE_KEY];
+
+  if (record === undefined) {
+    return { pins: [], writable: true };
+  }
+
+  if (Array.isArray(record)) {
+    return { pins: validPins(record), writable: true };
+  }
+
+  if (typeof record === 'object' && record !== null && (record as BoardRecord).v === BOARD_VERSION) {
+    return { pins: validPins((record as BoardRecord).pins), writable: true };
+  }
+
+  return { pins: [], writable: false };
+};
+
 export const listPins = async (): Promise<BoardPin[]> => {
   try {
-    const stored = (await chrome.storage.local.get(BOARD_STORAGE_KEY)) as Record<string, unknown>;
-    const pins = stored[BOARD_STORAGE_KEY];
-
-    if (!Array.isArray(pins)) {
-      return [];
-    }
-
-    return pins.filter(isPin).sort((a, b) => a.addedAt - b.addedAt);
+    return (await readBoard()).pins;
   } catch {
     return [];
   }
+};
+
+const writeBoard = async (pins: BoardPin[]): Promise<void> => {
+  const record: BoardRecord = { v: BOARD_VERSION, pins };
+  await chrome.storage.local.set({ [BOARD_STORAGE_KEY]: record });
 };
 
 export type PinOutcome =
@@ -66,42 +102,54 @@ export type PinOutcome =
 
 export const pinPlace = async (
   pin: Omit<BoardPin, 'addedAt'> & { addedAt?: number }
-): Promise<PinOutcome> => {
-  const pins = await listPins();
-  const key = await dedupeKeyFor(pin.place.placeName, pin.place.country);
-  const keys = await Promise.all(
-    pins.map((entry) => dedupeKeyFor(entry.place.placeName, entry.place.country))
-  );
+): Promise<PinOutcome> =>
+  boardMutex(async () => {
+    const { pins, writable } = await readBoard();
 
-  if (keys.includes(key)) {
-    return { status: 'duplicate', pins };
-  }
+    if (!writable) {
+      throw new Error('unwritable board record');
+    }
 
-  const entry: BoardPin = { ...pin, addedAt: pin.addedAt ?? Date.now() };
-  const next = [...pins, entry].sort((a, b) => a.addedAt - b.addedAt);
-  let evicted: BoardPin | null = null;
+    const key = await dedupeKeyFor(pin.place.placeName, pin.place.country);
+    const keys = await Promise.all(
+      pins.map((entry) => dedupeKeyFor(entry.place.placeName, entry.place.country))
+    );
 
-  if (next.length > BOARD_CAP) {
-    evicted = next.shift() ?? null;
-  }
+    if (keys.includes(key)) {
+      return { status: 'duplicate', pins };
+    }
 
-  await chrome.storage.local.set({ [BOARD_STORAGE_KEY]: next });
-  return { status: 'pinned', pins: next, evicted };
-};
+    const entry: BoardPin = { ...pin, addedAt: pin.addedAt ?? Date.now() };
+    const next = [...pins, entry].sort((a, b) => a.addedAt - b.addedAt);
+    let evicted: BoardPin | null = null;
 
-export const removePin = async (placeName: string, country: string): Promise<BoardPin[]> => {
-  const pins = await listPins();
-  const key = await dedupeKeyFor(placeName, country);
-  const keys = await Promise.all(
-    pins.map((entry) => dedupeKeyFor(entry.place.placeName, entry.place.country))
-  );
-  const next = pins.filter((_, index) => keys[index] !== key);
+    if (next.length > BOARD_CAP) {
+      evicted = next.shift() ?? null;
+    }
 
-  if (next.length !== pins.length) {
-    await chrome.storage.local.set({ [BOARD_STORAGE_KEY]: next });
-  }
-  return next;
-};
+    await writeBoard(next);
+    return { status: 'pinned', pins: next, evicted };
+  });
+
+export const removePin = async (placeName: string, country: string): Promise<BoardPin[]> =>
+  boardMutex(async () => {
+    const { pins, writable } = await readBoard();
+
+    if (!writable) {
+      throw new Error('unwritable board record');
+    }
+
+    const key = await dedupeKeyFor(placeName, country);
+    const keys = await Promise.all(
+      pins.map((entry) => dedupeKeyFor(entry.place.placeName, entry.place.country))
+    );
+    const next = pins.filter((_, index) => keys[index] !== key);
+
+    if (next.length !== pins.length) {
+      await writeBoard(next);
+    }
+    return next;
+  });
 
 export const clearBoard = async (): Promise<void> => {
   await chrome.storage.local.remove(BOARD_STORAGE_KEY);

@@ -62,7 +62,7 @@ describe('options', () => {
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusMonthlyReset');
     });
-    expect(mock.local.data.get('costTotals')).toEqual({});
+    expect(mock.local.data.get('costTotals')).toEqual({ v: 1, months: {} });
   });
 
   it('persists the image-only toggle', async () => {
