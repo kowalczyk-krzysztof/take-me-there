@@ -748,7 +748,33 @@ export class MuseProvider implements Provider {
             announcedSearching = true;
             yield { type: 'searching' };
           }
+        } else if (name === 'response.failed') {
+          const error = (payload as { response?: { error?: { message?: unknown } } })?.response
+            ?.error;
+          const detail = typeof error?.message === 'string' && error.message ? error.message : '';
+          throw new ProviderError(
+            'server',
+            detail ? `guide failed: ${detail}` : 'guide failed',
+            true
+          );
+        } else if (name === 'response.incomplete') {
+          const details = (payload as { response?: { incomplete_details?: { reason?: unknown } } })
+            ?.response?.incomplete_details;
+          const reason =
+            typeof details?.reason === 'string' && details.reason ? details.reason : 'unknown';
+          throw new ProviderError('invalid_response', `guide incomplete: ${reason}`, false);
         } else if (name === 'response.completed') {
+          const status = (payload as { response?: { status?: unknown }; status?: unknown })
+            ?.response;
+          const terminal =
+            (status as { status?: unknown } | undefined)?.status ??
+            (payload as { status?: unknown })?.status;
+          if (terminal === 'failed') {
+            throw new ProviderError('server', 'guide failed', true);
+          }
+          if (terminal === 'incomplete') {
+            throw new ProviderError('invalid_response', 'guide incomplete', false);
+          }
           const tokens = (payload as { response?: { usage?: unknown }; usage?: unknown })?.response;
           const usagePayload =
             (tokens as { usage?: { input_tokens?: unknown; output_tokens?: unknown } } | undefined)

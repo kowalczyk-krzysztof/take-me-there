@@ -478,6 +478,33 @@ describe('sidepanel', () => {
     expect(record.months[monthKey(new Date())]).toBeCloseTo(0.000675, 10);
   });
 
+  it('keeps the partial guide when the stream errors mid-way', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    fetchMock
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
+      .mockResolvedValueOnce(
+        sseResponse([
+          'event: response.output_text.delta\n',
+          'data: {"delta":"## Oia\\nHello"}\n',
+          '\n',
+          'data: this unnamed block kills the stream\n',
+          '\n',
+        ])
+      );
+    await mock.session.set({ tripRequest: READY() });
+    await clickPlanTrip();
+    await waitFor(() => {
+      expect(document.querySelector('.guide-interrupted')?.textContent).toBe('guideInterrupted');
+    });
+    expect(document.querySelector('#guide-content')?.textContent).toContain('Hello');
+    expect(document.querySelector('#result-slot')?.querySelector('h2')?.textContent).toBe('Oia');
+    expect(document.querySelector('#result-slot .plan-trip-button')?.textContent).toBe(
+      'planTripButton'
+    );
+    expect(document.querySelector('#alert-region')?.textContent).toBe('guideInterrupted');
+  });
+
   it('holds back guide preamble and renders from the heading', async () => {
     const mock = await setup();
     await plantKeyAndConsent();

@@ -320,6 +320,39 @@ describe('muse streamGuide', () => {
     ...overrides,
   });
 
+  it('rejects failed and incomplete responses instead of ending cleanly', async () => {
+    await consented();
+    fetchMock.mockResolvedValue(
+      sseResponse([
+        'event: response.failed\n',
+        'data: {"response":{"error":{"message":"boom"}}}\n',
+        '\n',
+      ])
+    );
+    await expect(collect(provider.streamGuide('LLM_key', input()))).rejects.toMatchObject({
+      code: 'server',
+    });
+    fetchMock.mockResolvedValue(
+      sseResponse([
+        'event: response.output_text.delta\n',
+        'data: {"delta":"partial"}\n',
+        '\n',
+        'event: response.incomplete\n',
+        'data: {"response":{"incomplete_details":{"reason":"max_output_tokens"}}}\n',
+        '\n',
+      ])
+    );
+    await expect(collect(provider.streamGuide('LLM_key', input()))).rejects.toMatchObject({
+      code: 'invalid_response',
+    });
+    fetchMock.mockResolvedValue(
+      sseResponse(['event: response.completed\n', 'data: {"response":{"status":"failed"}}\n', '\n'])
+    );
+    await expect(collect(provider.streamGuide('LLM_key', input()))).rejects.toMatchObject({
+      code: 'server',
+    });
+  });
+
   it('parses grounded responses split across chunk boundaries', async () => {
     await consented();
     const raw = RESPONSES_SSE;

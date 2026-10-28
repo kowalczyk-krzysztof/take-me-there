@@ -734,7 +734,7 @@ const fallbackFor = (signals: PageSignals): { label: string; href: string } | nu
   };
 };
 
-type RunOutcome = 'result' | 'no-place' | 'error' | 'aborted';
+type RunOutcome = 'result' | 'no-place' | 'error' | 'aborted' | 'partial';
 
 // Rung-2 media for a video request: only when no frame was captured, the URL
 // is server-fetchable, and the provider speaks video. Centralized so re-runs
@@ -1013,12 +1013,30 @@ const runGuide = async (args: GuideArgs): Promise<RunOutcome> => {
     if (err instanceof ProviderError && err.code === 'aborted') {
       return 'aborted';
     }
+    recordPartialUsage(err, provider);
+    await priceAndRecord(provider);
+    if (guideSource.trim()) {
+      // Keep what streamed: a partial guide with an interrupted notice
+      // beats an error card. It is never cached as complete, and the
+      // Plan button stays available for a full retry.
+      const start = findGuideStart(guideSource);
+      const finalText = start >= 0 ? guideSource.slice(start) : guideSource;
+      const renderer = createGuideRenderer(content, msg('truncatedNotice'));
+      renderer.push(finalText);
+      renderer.finish();
+      const notice = document.createElement('p');
+      notice.className = 'guide-interrupted';
+      notice.textContent = msg('guideInterrupted');
+      content.append(notice);
+      announceAlert('guideInterrupted');
+      analysisInFlight = false;
+      return 'partial';
+    }
     content.replaceChildren();
     const notice = document.createElement('p');
     notice.className = 'guide-interrupted';
     notice.textContent = msg('guideInterrupted');
     content.append(notice);
-    recordPartialUsage(err, provider);
     showProviderError(err, activeRequest, privacy);
     analysisInFlight = false;
     return 'error';
@@ -1193,6 +1211,9 @@ const runGuidePlan = async (): Promise<void> => {
   }
   if (outcome === 'result') {
     currentPlanState = 'ready';
+    await refreshResultCard();
+  } else if (outcome === 'partial') {
+    currentPlanState = 'idle';
     await refreshResultCard();
   } else if (outcome === 'error') {
     currentPlanState = 'idle';
