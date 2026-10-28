@@ -29,7 +29,9 @@ chrome.runtime.onInstalled.addListener((details) => {
   });
   chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => undefined);
   if (details.reason === 'install') {
-    void chrome.tabs.create({ url: chrome.runtime.getURL('onboarding.html') });
+    void chrome.tabs
+      .create({ url: chrome.runtime.getURL('onboarding.html') })
+      .catch(() => undefined);
   }
 });
 
@@ -40,7 +42,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   }
   if (info.menuItemId === SCAN_MENU_ID) {
     // GESTURE RULE: sidePanel.open must run before any await in this handler.
-    void chrome.sidePanel.open({ tabId: tab.id });
+    void chrome.sidePanel.open({ tabId: tab.id }).catch(() => undefined);
     void handleScanClick(info.pageUrl ?? null, info.frameId ?? 0, tab.id);
     return;
   }
@@ -49,7 +51,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   }
   // GESTURE RULE: sidePanel.open must run before any await in this handler.
   // Anything awaited first drops the user gesture and open() rejects.
-  void chrome.sidePanel.open({ tabId: tab.id });
+  void chrome.sidePanel.open({ tabId: tab.id }).catch(() => undefined);
   if (info.mediaType === 'video') {
     void handleVideoClick(info.srcUrl ?? '', info.pageUrl ?? null, info.frameId ?? 0, tab.id);
     return;

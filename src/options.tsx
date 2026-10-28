@@ -4,7 +4,13 @@ import { flushSync } from 'react-dom';
 import { KeySetup } from './components/key_setup/key_setup';
 import { clearKey, loadKey, saveKey } from './key_vault';
 import { formatUsd, readMonthSpend, resetMonthSpend } from './pricing';
-import { ProviderError, getActiveProvider, loadSettings, saveSettings } from './providers/index';
+import {
+  ProviderError,
+  getActiveProvider,
+  loadSettings,
+  saveSettings,
+  type ExtensionSettings,
+} from './providers/index';
 import { msg } from './utils/i18n';
 import { createStore } from './utils/store';
 import './styles/options.css';
@@ -199,7 +205,7 @@ const onCompatSave = (): void => {
     const structuredSelect = document.getElementById(
       'compat-structured'
     ) as HTMLSelectElement | null;
-    await saveSettings({
+    const next: ExtensionSettings = {
       ...settings,
       activeProviderId: 'openai_compat',
       openaiCompat: {
@@ -209,7 +215,13 @@ const onCompatSave = (): void => {
         ...(inputRatePerM === undefined ? {} : { inputRatePerM }),
         ...(outputRatePerM === undefined ? {} : { outputRatePerM }),
       },
-    });
+    };
+    try {
+      await saveSettings(next);
+    } catch {
+      store.set({ compatError: msg('settingsSaveFailed') });
+      return;
+    }
     store.set({ status: msg('statusProviderSaved') });
   })();
 };
@@ -231,13 +243,24 @@ const OptionsApp = () => {
       if (box.id === 'image-only') {
         const checked = box.checked;
         void (async () => {
-          const current = await loadSettings();
-          await saveSettings({ ...current, imageOnly: checked });
+          try {
+            const current = await loadSettings();
+            await saveSettings({ ...current, imageOnly: checked });
+          } catch {
+            box.checked = !checked;
+            store.set({ status: msg('settingsSaveFailed') });
+          }
         })();
       } else if (box.id === 'provider-muse' && box.checked) {
         void (async () => {
-          const current = await loadSettings();
-          await saveSettings({ ...current, activeProviderId: 'muse' });
+          try {
+            const current = await loadSettings();
+            await saveSettings({ ...current, activeProviderId: 'muse' });
+          } catch {
+            box.checked = false;
+            store.set({ status: msg('settingsSaveFailed') });
+            return;
+          }
           store.set({ compatOpen: false, compatError: null, status: msg('statusProviderSaved') });
         })();
       } else if (box.id === 'provider-compat' && box.checked) {
@@ -270,7 +293,9 @@ const OptionsApp = () => {
                 if (loaded.state === 'ok') {
                   await saveKey(provider.id, loaded.key, checked);
                 }
-              })().catch(() => {});
+              })().catch(() => {
+                // Best effort; the checkbox state stays as the user set it.
+              });
             },
             onConsentDecision: () => {},
           }}

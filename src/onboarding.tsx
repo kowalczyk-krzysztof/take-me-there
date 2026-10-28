@@ -91,7 +91,9 @@ const OnboardingApp = () => {
                 if (loaded.state === 'ok') {
                   await saveKey(provider.id, loaded.key, checked);
                 }
-              })().catch(() => {});
+              })().catch(() => {
+                // Best effort; the checkbox state stays as the user set it.
+              });
             },
             onConsentDecision: () => {},
           }}

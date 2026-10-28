@@ -1558,7 +1558,16 @@ const handle = async (value: unknown): Promise<void> => {
     }, STALE_COLLECTING_MS);
     return;
   }
-  await runAnalysis(request, 'gesture');
+  try {
+    await runAnalysis(request, 'gesture');
+  } catch (err) {
+    // Entry-point net: an unexpected throw surfaces the error card
+    // instead of stranding the panel on a skeleton.
+    store.set({ guideBusy: false, searching: false, resultBusy: false });
+    activeController = null;
+    analysisInFlight = false;
+    showProviderError(err, request);
+  }
 };
 
 // ---- SAM crop-to-landmark ----

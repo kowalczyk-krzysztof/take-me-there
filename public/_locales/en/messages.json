@@ -819,6 +819,10 @@
     "message": "Provider saved.",
     "description": "Provider switch announcement."
   },
+  "settingsSaveFailed": {
+    "message": "Could not save settings - try again.",
+    "description": "Settings write failure."
+  },
   "providerErrorUrl": {
     "message": "Enter a valid https server URL (http works for localhost only).",
     "description": "Custom server URL error."
