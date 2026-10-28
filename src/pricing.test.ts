@@ -56,7 +56,10 @@ describe('pricing', () => {
     for (let n = 0; n < 25; n += 1) {
       await recordMonthSpend(0.01, new Date(Date.UTC(2024, n, 2)));
     }
-    const record = mock.local.data.get('costTotals') as { v: number; months: Record<string, number> };
+    const record = mock.local.data.get('costTotals') as {
+      v: number;
+      months: Record<string, number>;
+    };
     expect(record.v).toBe(1);
     expect(Object.keys(record.months)).toHaveLength(24);
     expect(record.months['2024-01']).toBeUndefined();

@@ -470,7 +470,10 @@ describe('sidepanel', () => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusGuideReady');
     });
     const { monthKey } = await import('./pricing');
-    const record = mock.local.data.get('costTotals') as { v: number; months: Record<string, number> };
+    const record = mock.local.data.get('costTotals') as {
+      v: number;
+      months: Record<string, number>;
+    };
     expect(record.v).toBe(1);
     expect(record.months[monthKey(new Date())]).toBeCloseTo(0.000675, 10);
   });

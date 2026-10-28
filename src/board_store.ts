@@ -76,7 +76,11 @@ const readBoard = async (): Promise<{ pins: BoardPin[]; writable: boolean }> => 
     return { pins: validPins(record), writable: true };
   }
 
-  if (typeof record === 'object' && record !== null && (record as BoardRecord).v === BOARD_VERSION) {
+  if (
+    typeof record === 'object' &&
+    record !== null &&
+    (record as BoardRecord).v === BOARD_VERSION
+  ) {
     return { pins: validPins((record as BoardRecord).pins), writable: true };
   }
 

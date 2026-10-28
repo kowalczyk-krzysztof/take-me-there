@@ -87,7 +87,10 @@ describe('key_vault', () => {
 
   it('reads legacy records without a version', async () => {
     await saveKey('muse', 'LLM_secret-value', false);
-    const record = { ...(mock.local.data.get('apiKey:muse') as KeyRecord) } as Record<string, unknown>;
+    const record = { ...(mock.local.data.get('apiKey:muse') as KeyRecord) } as Record<
+      string,
+      unknown
+    >;
     delete record.v;
     mock.local.data.set('apiKey:muse', record);
     expect(await loadKey('muse')).toEqual({ state: 'ok', key: 'LLM_secret-value' });

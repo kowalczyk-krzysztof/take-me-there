@@ -73,15 +73,18 @@ const cacheMutex = createMutex();
 export const getCacheEntry = async (hash: string): Promise<CacheEntry | undefined> =>
   cacheMutex(async () => {
     try {
-    const stored = (await chrome.storage.session.get(cacheKeyFor(hash))) as Record<string, unknown>;
-    const entry = stored[cacheKeyFor(hash)];
+      const stored = (await chrome.storage.session.get(cacheKeyFor(hash))) as Record<
+        string,
+        unknown
+      >;
+      const entry = stored[cacheKeyFor(hash)];
 
-    if (!isCacheEntry(entry)) {
-      return undefined;
-    }
+      if (!isCacheEntry(entry)) {
+        return undefined;
+      }
 
-    const index = (await readCacheIndex()).filter((key) => key !== hash);
-    index.unshift(hash);
+      const index = (await readCacheIndex()).filter((key) => key !== hash);
+      index.unshift(hash);
 
       await chrome.storage.session.set({ [CACHE_INDEX_KEY]: index.slice(0, CACHE_SLOTS) });
       return entry;
