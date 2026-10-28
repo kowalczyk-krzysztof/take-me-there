@@ -7,9 +7,10 @@ interface Props {
   alternates: AlternatesState;
   onPinAlternate: (index: number) => void;
   onPlanInstead: (index: number) => void;
+  onCancel: () => void;
 }
 
-export const AlternatesView = ({ alternates, onPinAlternate, onPlanInstead }: Props) => {
+export const AlternatesView = ({ alternates, onPinAlternate, onPlanInstead, onCancel }: Props) => {
   if (alternates.state === 'idle') {
     return <div className={styles.alternates} hidden />;
   }
@@ -22,6 +23,9 @@ export const AlternatesView = ({ alternates, onPinAlternate, onPlanInstead }: Pr
             <div key={index} className={`skeleton-block ${styles['skeleton-card']}`} />
           ))}
         </div>
+        <button type="button" onClick={onCancel}>
+          {msg('cancelButton')}
+        </button>
       </div>
     );
   }

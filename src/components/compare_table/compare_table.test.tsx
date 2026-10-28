@@ -8,8 +8,11 @@ const ROWS: DuelRowView[] = [
   { criterion: 'Crowds', a: 'Packed.', b: 'Calm.' },
 ];
 
-const renderTable = (table: DuelTableState, onRetry: () => void = () => {}) =>
-  renderSync(<CompareTable table={table} onRetry={onRetry} />);
+const renderTable = (
+  table: DuelTableState,
+  onRetry: () => void = () => {},
+  onCancel: () => void = () => {}
+) => renderSync(<CompareTable table={table} onRetry={onRetry} onCancel={onCancel} />);
 
 beforeEach(() => {
   installChromeMock();
@@ -58,6 +61,7 @@ describe('compare-table', () => {
           verdict: 'Pick Oia for views.',
         }}
         onRetry={() => {}}
+        onCancel={() => {}}
       />
     );
     const table = rendered.container.querySelector('table');
@@ -74,6 +78,19 @@ describe('compare-table', () => {
     const verdictCell = verdict?.querySelector('td');
     expect(verdictCell?.getAttribute('colspan')).toBe('2');
     expect(verdictCell?.textContent).toBe('Pick Oia for views.');
+  });
+
+  it('offers cancel while loading', () => {
+    const onCancel = vi.fn();
+    const root = renderTable(
+      { mode: 'loading', a: 'Oia, Greece', b: 'Fira, Greece' },
+      () => {},
+      onCancel
+    ).container;
+    const button = root.querySelector('.root button, button') as HTMLButtonElement;
+    expect(button?.textContent).toBe('cancelButton');
+    button.click();
+    expect(onCancel).toHaveBeenCalledTimes(1);
   });
 
   it('collapses to an inline error with retry', () => {

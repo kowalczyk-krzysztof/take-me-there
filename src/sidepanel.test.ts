@@ -1109,6 +1109,57 @@ describe('sidepanel', () => {
     expect(duelUrl).toContain('/responses');
   });
 
+  it('cancels a hanging duel and clears the slot', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    const { pinPlace } = await import('./board_store');
+    await pinPlace({
+      place: { ...VALID_PLACE, placeName: 'Fira', city: 'Fira', confidence: 0.8 },
+      sourceHost: 'example.com',
+    });
+    fetchMock
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
+      .mockImplementationOnce(() => new Promise<Response>(() => {}));
+    await mock.session.set({ tripRequest: READY() });
+    await waitForHeading('Oia');
+    const card = document.querySelector('#result-slot') as HTMLElement;
+    await waitFor(() => {
+      expect(card.querySelectorAll('.compare-row option')).toHaveLength(1);
+    });
+    (card.querySelector('.compare-go') as HTMLButtonElement).click();
+    await waitFor(() => {
+      expect(document.querySelector('#duel-slot button')?.textContent).toBe('cancelButton');
+    });
+    (document.querySelector('#duel-slot button') as HTMLButtonElement).click();
+    await waitFor(() => {
+      expect(document.querySelector('#duel-slot')?.hasAttribute('hidden')).toBe(true);
+    });
+    expect(document.querySelector('#status-region')?.textContent).toBe('statusCanceled');
+  });
+
+  it('cancels hanging alternates and restores the chips', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    fetchMock
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
+      .mockImplementationOnce(() => new Promise<Response>(() => {}));
+    await mock.session.set({ tripRequest: READY() });
+    await waitForHeading('Oia');
+    const card = document.querySelector('#result-slot') as HTMLElement;
+    const chips = [...card.querySelectorAll('.chips-row .chip')] as HTMLButtonElement[];
+    expect(chips).toHaveLength(3);
+    chips[0].click();
+    await waitFor(() => {
+      expect(card.querySelector('.alternates button')?.textContent).toBe('cancelButton');
+    });
+    (card.querySelector('.alternates button') as HTMLButtonElement).click();
+    await waitFor(() => {
+      expect(card.querySelector('.alternates')?.hasAttribute('hidden')).toBe(true);
+    });
+    expect(document.querySelector('#status-region')?.textContent).toBe('statusCanceled');
+    expect(card.querySelectorAll('.chips-row .chip')).toHaveLength(chips.length);
+  });
+
   it('falls back to chat when duel grounding is rejected', async () => {
     const mock = await setup();
     await plantKeyAndConsent();

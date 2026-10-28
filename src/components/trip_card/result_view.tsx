@@ -72,6 +72,7 @@ export const ResultView = ({
         alternates={alternates}
         onPinAlternate={callbacks.onPinAlternate}
         onPlanInstead={callbacks.onPlanInstead}
+        onCancel={callbacks.onCancelAlternates}
       />
       <CompareRow options={compareOptions} onCompare={callbacks.onCompare} />
       <div className={styles['disagree-row']}>

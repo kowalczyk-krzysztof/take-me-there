@@ -62,6 +62,7 @@ export interface TripCardCallbacks {
   onCompare: (value: string) => void;
   onPinAlternate: (index: number) => void;
   onPlanInstead: (index: number) => void;
+  onCancelAlternates: () => void;
 }
 
 export type CardState =

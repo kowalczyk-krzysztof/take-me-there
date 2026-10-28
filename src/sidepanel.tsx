@@ -2120,6 +2120,15 @@ const onDuelRetry = async (): Promise<void> => {
   }
 };
 
+const onDuelCancel = (): void => {
+  duelRunId += 1;
+  duelController?.abort();
+  duelController = null;
+  lastDuel = null;
+  store.set({ duel: null });
+  announceStatus('statusCanceled');
+};
+
 const runAlternates = async (intent: AlternateIntent): Promise<void> => {
   const place = currentPlace;
   if (!place?.identified || currentView !== 'result') {
@@ -2189,6 +2198,15 @@ const runAlternates = async (intent: AlternateIntent): Promise<void> => {
 
 const onAlternates = async (intent: AlternateIntent): Promise<void> => {
   await runAlternates(intent);
+};
+
+const onAlternatesCancel = (): void => {
+  alternatesRunId += 1;
+  alternatesController?.abort();
+  alternatesController = null;
+  alternatesLoading = null;
+  void refreshResultCard();
+  announceStatus('statusCanceled');
 };
 
 const onPinAlternate = async (index: number): Promise<void> => {
@@ -2788,6 +2806,7 @@ const SidepanelApp = () => {
                 onCompare: (value) => void onCompare(value),
                 onPinAlternate: (index) => void onPinAlternate(index),
                 onPlanInstead: (index) => void onPlanInstead(index),
+                onCancelAlternates: onAlternatesCancel,
               }}
             />
           ) : null}
@@ -2849,7 +2868,11 @@ const SidepanelApp = () => {
         </div>
         <div id="duel-slot" hidden={state.duel === null || undefined}>
           {state.duel ? (
-            <CompareTable table={state.duel} onRetry={() => void onDuelRetry()} />
+            <CompareTable
+              table={state.duel}
+              onRetry={() => void onDuelRetry()}
+              onCancel={onDuelCancel}
+            />
           ) : null}
         </div>
         <div id="sources-slot" hidden={state.sources.length === 0 || undefined}>

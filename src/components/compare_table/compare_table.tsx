@@ -16,9 +16,10 @@ export type DuelTableState =
 interface Props {
   table: DuelTableState;
   onRetry: () => void;
+  onCancel: () => void;
 }
 
-export const CompareTable = ({ table, onRetry }: Props) => (
+export const CompareTable = ({ table, onRetry, onCancel }: Props) => (
   <div className={styles.root}>
     {table.mode === 'error' ? (
       <div className={styles['duel-error']}>
@@ -28,7 +29,14 @@ export const CompareTable = ({ table, onRetry }: Props) => (
         </button>
       </div>
     ) : (
-      <DuelTableView state={table} />
+      <>
+        <DuelTableView state={table} />
+        {table.mode === 'loading' ? (
+          <button type="button" onClick={onCancel}>
+            {msg('cancelButton')}
+          </button>
+        ) : null}
+      </>
     )}
   </div>
 );

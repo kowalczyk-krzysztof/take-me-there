@@ -26,6 +26,7 @@ const fullCallbacks = (overrides: Partial<TripCardCallbacks> = {}): TripCardCall
   onCompare: noop,
   onPinAlternate: noop,
   onPlanInstead: noop,
+  onCancelAlternates: noop,
   ...overrides,
 });
 

@@ -1048,5 +1048,13 @@
   "compatSaveAnyway": {
     "message": "Save anyway",
     "description": "Custom server save button while the host warning is armed."
+  },
+  "cancelButton": {
+    "message": "Cancel",
+    "description": "Cancel button for loading states."
+  },
+  "statusCanceled": {
+    "message": "Canceled.",
+    "description": "Status announcement after canceling a run."
   }
 }
