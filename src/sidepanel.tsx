@@ -31,7 +31,7 @@ import {
 } from './board_store';
 import { buildDestination, buildLinks, mapsDirUrl } from './deep_links';
 import { downscaleToJpegDataUrl, fetchImageBytes } from './image_fetch';
-import { clearKey, isVaultKey, loadKey, saveKey, type KeyStatus } from './key_vault';
+import { clearKey, isVaultKey, loadKey, saveKey } from './key_vault';
 import { cropToSamBox, dataUrlToBytes, parseSamBoxes, selectSamBox, type SamPixelBox } from './sam';
 import { estimateCostUsd, formatUsd, recordMonthSpend } from './pricing';
 import { createGuideRenderer, findGuideStart } from './render_markdown';
@@ -640,9 +640,37 @@ const onVideoConfirmCancel = (): void => {
   announceStatus('statusVideoConfirmDeclined');
 };
 
-// Callers check the vault first; a missing key surfaces as onboarding
-// before any run starts, so this only ever sees the ok state.
-const runKey = (keyStatus: KeyStatus): string => (keyStatus.state === 'ok' ? keyStatus.key : '');
+type GateResult =
+  | { ready: true; provider: Provider; settings: ExtensionSettings; key: string }
+  | { ready: false; reason: 'key' | 'consent' };
+
+// Every run starts here: resolve the provider, then require a stored key and
+// consent. A pending run routes to onboarding/consent so it can resume;
+// without one the caller only announces the blocker.
+const gateRun = async (pending: PendingRun | null): Promise<GateResult> => {
+  const { provider, settings } = await getActiveProvider();
+  runSettings = settings;
+  const keyStatus = await loadKey(provider.id);
+  if (keyStatus.state !== 'ok') {
+    if (pending) {
+      pendingRun = pending;
+      showOnboarding(keyStatus.orphaned);
+    }
+    return { ready: false, reason: 'key' };
+  }
+  if (!(await hasConsented())) {
+    if (pending) {
+      pendingRun = pending;
+      showConsent(false);
+    }
+    return { ready: false, reason: 'consent' };
+  }
+  return { ready: true, provider, settings, key: keyStatus.key };
+};
+
+const announceGate = (reason: 'key' | 'consent'): void => {
+  announceStatus(reason === 'key' ? 'statusKeyNeeded' : 'statusConsentNeeded');
+};
 
 const abortActive = (): void => {
   if (activeController) {
@@ -1116,21 +1144,12 @@ const runGuidePlan = async (): Promise<void> => {
   if (guidePlanning || !currentPlace) {
     return;
   }
-  const { provider, settings } = await getActiveProvider();
-  runSettings = settings;
-  const keyStatus = await loadKey(provider.id);
-  if (keyStatus.state !== 'ok') {
-    pendingRun = { kind: 'guide' };
-    showOnboarding(keyStatus.orphaned);
-    announceStatus('statusKeyNeeded');
+  const gate = await gateRun({ kind: 'guide' });
+  if (!gate.ready) {
+    announceGate(gate.reason);
     return;
   }
-  if (!(await hasConsented())) {
-    pendingRun = { kind: 'guide' };
-    showConsent(false);
-    announceStatus('statusConsentNeeded');
-    return;
-  }
+  const { provider, settings, key } = gate;
   guidePlanning = true;
   analysisInFlight = true;
   lastRun = { kind: 'guide' };
@@ -1150,7 +1169,7 @@ const runGuidePlan = async (): Promise<void> => {
   try {
     outcome = await runGuide({
       provider,
-      key: runKey(keyStatus),
+      key: key,
       destination: currentDestination,
       signal: controller.signal,
       cacheKey: currentCacheKey,
@@ -1440,23 +1459,13 @@ const runScanGuide = async (
   const thumb = scanThumbs[index] ?? null;
   updatePreview(thumb);
   clearCost();
-  const { provider, settings } = await getActiveProvider();
-  runSettings = settings;
-  const keyStatus = await loadKey(provider.id);
-  if (keyStatus.state !== 'ok') {
+  const gate = await gateRun({ kind: 'scan-guide', request, index });
+  if (!gate.ready) {
     analysisInFlight = false;
-    pendingRun = { kind: 'scan-guide', request, index };
-    showOnboarding(keyStatus.orphaned);
-    announceStatus('statusKeyNeeded');
+    announceGate(gate.reason);
     return;
   }
-  if (!(await hasConsented())) {
-    analysisInFlight = false;
-    pendingRun = { kind: 'scan-guide', request, index };
-    showConsent(false);
-    announceStatus('statusConsentNeeded');
-    return;
-  }
+  const { provider, settings, key } = gate;
   const privacy: PrivacyMode = settings.imageOnly ? 'image-only' : 'image';
   currentCacheKey = await hashCacheKey(
     thumb ?? `scan:${result.placeName},${result.country}`,
@@ -1487,7 +1496,7 @@ const runScanGuide = async (
   activeController = controller;
   const outcome = await runGuide({
     provider,
-    key: runKey(keyStatus),
+    key: key,
     destination,
     signal: controller.signal,
     cacheKey: currentCacheKey,
@@ -1566,30 +1575,20 @@ const runAnalysis = async (request: TripRequest, origin: 'gesture' | 'panel'): P
   pendingRun = null;
   updatePreview(request.srcUrl || null);
   clearCost();
-  const { provider, settings } = await getActiveProvider();
-  runSettings = settings;
-  const keyStatus = await loadKey(provider.id);
-  if (keyStatus.state !== 'ok') {
+  const gate = await gateRun({ kind: 'request', request });
+  if (!gate.ready) {
     analysisInFlight = false;
-    pendingRun = { kind: 'request', request };
-    showOnboarding(keyStatus.orphaned);
-    announceStatus('statusKeyNeeded');
+    announceGate(gate.reason);
     return;
   }
-  if (!(await hasConsented())) {
-    analysisInFlight = false;
-    pendingRun = { kind: 'request', request };
-    showConsent(false);
-    announceStatus('statusConsentNeeded');
-    return;
-  }
+  const { provider, settings, key } = gate;
   selectTab('main', true);
   if (request.mediaType === 'video') {
-    await runVideoAnalysis(request, provider, settings, runKey(keyStatus), origin, superseded);
+    await runVideoAnalysis(request, provider, settings, key, origin, superseded);
     return;
   }
   if (request.scanImages !== undefined) {
-    await runScan(request, provider, settings, runKey(keyStatus), origin);
+    await runScan(request, provider, settings, key, origin);
     return;
   }
   if (request.dataPending || !request.srcUrl) {
@@ -1613,7 +1612,7 @@ const runAnalysis = async (request: TripRequest, origin: 'gesture' | 'panel'): P
     request,
     provider,
     settings,
-    key: runKey(keyStatus),
+    key: key,
     origin,
   });
 };
@@ -1814,24 +1813,16 @@ const lookAgain = async (): Promise<void> => {
   store.set({ resultBusy: true });
   announceStatus('statusAnalyzing');
   try {
-    const { provider, settings } = await getActiveProvider();
-    runSettings = settings;
-    const keyStatus = await loadKey(provider.id);
-    if (keyStatus.state !== 'ok' || !(await hasConsented())) {
-      pendingRun = { kind: 'request', request };
-      if (keyStatus.state !== 'ok') {
-        showOnboarding(keyStatus.orphaned);
-        announceStatus('statusKeyNeeded');
-      } else {
-        showConsent(false);
-        announceStatus('statusConsentNeeded');
-      }
+    const gate = await gateRun({ kind: 'request', request });
+    if (!gate.ready) {
       analysisInFlight = false;
+      announceGate(gate.reason);
       return;
     }
+    const { provider, settings, key } = gate;
     let samCrop: SamCrop | null = null;
     if (provider.capabilities.segmentation) {
-      samCrop = await trySamCrop(request, provider, runKey(keyStatus));
+      samCrop = await trySamCrop(request, provider, key);
       if (activeRequest !== request || highestRequestId !== request.requestId) {
         return;
       }
@@ -1846,7 +1837,7 @@ const lookAgain = async (): Promise<void> => {
       request: identifyRequest,
       provider,
       settings,
-      key: runKey(keyStatus),
+      key: key,
       origin: 'panel',
       rejectedPlace: currentPlace?.placeName || undefined,
     });
@@ -1864,26 +1855,18 @@ const reanalyze = async (): Promise<void> => {
   store.set({ resultBusy: true });
   announceStatus('statusAnalyzing');
   try {
-    const { provider, settings } = await getActiveProvider();
-    runSettings = settings;
-    const keyStatus = await loadKey(provider.id);
-    if (keyStatus.state !== 'ok' || !(await hasConsented())) {
-      pendingRun = { kind: 'request', request };
-      if (keyStatus.state !== 'ok') {
-        showOnboarding(keyStatus.orphaned);
-        announceStatus('statusKeyNeeded');
-      } else {
-        showConsent(false);
-        announceStatus('statusConsentNeeded');
-      }
+    const gate = await gateRun({ kind: 'request', request });
+    if (!gate.ready) {
       analysisInFlight = false;
+      announceGate(gate.reason);
       return;
     }
+    const { provider, settings, key } = gate;
     await runIdentify({
       request,
       provider,
       settings,
-      key: runKey(keyStatus),
+      key: key,
       origin: 'panel',
       rejectedPlace: currentPlace.placeName,
     });
@@ -2069,22 +2052,17 @@ const runDuel = async (a: DuelSide, b: DuelSide, aTitle: string, bTitle: string)
   duelRunId += 1;
   const mine = duelRunId;
   lastDuel = { a, b, aTitle, bTitle };
-  const { provider, settings } = await getActiveProvider();
-  runSettings = settings;
-  const keyStatus = await loadKey(provider.id);
-  if (keyStatus.state !== 'ok') {
-    announceStatus('statusKeyNeeded');
+  const gate = await gateRun(null);
+  if (!gate.ready) {
+    announceGate(gate.reason);
     return;
   }
-  if (!(await hasConsented())) {
-    announceStatus('statusConsentNeeded');
-    return;
-  }
+  const { provider, key } = gate;
   store.set({ duel: { mode: 'loading', a: aTitle, b: bTitle } });
   announceStatus('duelStatus', [a.name, b.name]);
   let result;
   try {
-    result = await provider.duelPlaces(runKey(keyStatus), { a, b, signal: controller.signal });
+    result = await provider.duelPlaces(key, { a, b, signal: controller.signal });
   } catch (err) {
     if (duelController === controller) {
       duelController = null;
@@ -2177,30 +2155,20 @@ const runAlternates = async (intent: AlternateIntent): Promise<void> => {
   currentAlternates = null;
   await refreshResultCard();
   announceStatus(FINDING_KEYS[intent]);
-  const { provider, settings } = await getActiveProvider();
-  runSettings = settings;
-  const keyStatus = await loadKey(provider.id);
-  if (keyStatus.state !== 'ok') {
+  const gate = await gateRun(null);
+  if (!gate.ready) {
     if (mine !== alternatesRunId) {
       return;
     }
     alternatesLoading = null;
     await refreshResultCard();
-    announceStatus('statusKeyNeeded');
+    announceGate(gate.reason);
     return;
   }
-  if (!(await hasConsented())) {
-    if (mine !== alternatesRunId) {
-      return;
-    }
-    alternatesLoading = null;
-    await refreshResultCard();
-    announceStatus('statusConsentNeeded');
-    return;
-  }
+  const { provider, key } = gate;
   let result;
   try {
-    result = await provider.findAlternates(runKey(keyStatus), {
+    result = await provider.findAlternates(key, {
       placeName: place.placeName,
       city: place.city,
       country: place.country,
@@ -2265,17 +2233,12 @@ const onPlanInstead = async (index: number): Promise<void> => {
   if (!destination) {
     return;
   }
-  const { provider, settings } = await getActiveProvider();
-  runSettings = settings;
-  const keyStatus = await loadKey(provider.id);
-  if (keyStatus.state !== 'ok') {
-    announceStatus('statusKeyNeeded');
+  const gate = await gateRun(null);
+  if (!gate.ready) {
+    announceGate(gate.reason);
     return;
   }
-  if (!(await hasConsented())) {
-    announceStatus('statusConsentNeeded');
-    return;
-  }
+  const { provider, key } = gate;
   abortActive();
   clearStaleTimer();
   analysisInFlight = true;
@@ -2290,7 +2253,7 @@ const onPlanInstead = async (index: number): Promise<void> => {
   await refreshResultCard();
   const outcome = await runGuide({
     provider,
-    key: runKey(keyStatus),
+    key: key,
     destination,
     signal: controller.signal,
     cacheKey: null,
@@ -2503,23 +2466,13 @@ const planTrip = async (): Promise<void> => {
   lastRun = { kind: 'itinerary' };
   pendingRun = null;
   clearCost();
-  const { provider, settings } = await getActiveProvider();
-  runSettings = settings;
-  const keyStatus = await loadKey(provider.id);
-  if (keyStatus.state !== 'ok') {
+  const gate = await gateRun({ kind: 'itinerary' });
+  if (!gate.ready) {
     analysisInFlight = false;
-    pendingRun = { kind: 'itinerary' };
-    showOnboarding(keyStatus.orphaned);
-    announceStatus('statusKeyNeeded');
+    announceGate(gate.reason);
     return;
   }
-  if (!(await hasConsented())) {
-    analysisInFlight = false;
-    pendingRun = { kind: 'itinerary' };
-    showConsent(false);
-    announceStatus('statusConsentNeeded');
-    return;
-  }
+  const { provider, key } = gate;
   const pins = await listPins();
   if (pins.length < 2) {
     // The Plan button guards this, but the board may have changed underneath.
@@ -2535,7 +2488,7 @@ const planTrip = async (): Promise<void> => {
   activeController = controller;
   let result;
   try {
-    result = await provider.planItinerary(runKey(keyStatus), {
+    result = await provider.planItinerary(key, {
       pins: pins.map((pin) => ({
         name: pinDisplayName(pin),
         host: pin.sourceHost,
@@ -2562,7 +2515,7 @@ const planTrip = async (): Promise<void> => {
   focusResultHeading();
   await runGuide({
     provider,
-    key: runKey(keyStatus),
+    key: key,
     destination: result.plan.stops.join(', '),
     signal: controller.signal,
     cacheKey: null,
