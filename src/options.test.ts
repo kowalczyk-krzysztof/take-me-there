@@ -71,7 +71,10 @@ describe('options', () => {
     box.checked = true;
     box.dispatchEvent(new Event('change', { bubbles: true }));
     await waitFor(() => {
-      expect((mock.local.data.get('settings') as { imageOnly: boolean }).imageOnly).toBe(true);
+      const record = mock.local.data.get('settings') as {
+        settings: { imageOnly: boolean };
+      };
+      expect(record.settings.imageOnly).toBe(true);
     });
   });
 
@@ -154,15 +157,18 @@ describe('options', () => {
     });
     expect(permsRequest).toHaveBeenCalledWith({ origins: ['https://llm.example.com/*'] });
     expect(mock.local.data.get('settings')).toEqual({
-      activeProviderId: 'openai_compat',
-      openaiCompat: {
-        baseURL: 'https://llm.example.com/v1',
-        model: 'test-model',
-        structuredOutput: 'json_schema',
-        inputRatePerM: 1.5,
+      v: 1,
+      settings: {
+        activeProviderId: 'openai_compat',
+        openaiCompat: {
+          baseURL: 'https://llm.example.com/v1',
+          model: 'test-model',
+          structuredOutput: 'json_schema',
+          inputRatePerM: 1.5,
+        },
+        imageOnly: false,
+        sessionOnly: false,
       },
-      imageOnly: false,
-      sessionOnly: false,
     });
   });
 
@@ -241,8 +247,9 @@ describe('options', () => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusProviderSaved');
     });
     expect(document.querySelector('#compat-fields')?.hasAttribute('hidden')).toBe(true);
-    expect((mock.local.data.get('settings') as { activeProviderId: string }).activeProviderId).toBe(
-      'muse'
-    );
+    const stored = mock.local.data.get('settings') as {
+      settings: { activeProviderId: string };
+    };
+    expect(stored.settings.activeProviderId).toBe('muse');
   });
 });

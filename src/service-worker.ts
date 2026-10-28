@@ -1,4 +1,5 @@
 import { captureVideoFrame, type CaptureVideoFrameResult } from './injected/capture_video_frame';
+import { runUpdateMigrations } from './migrations';
 import { collectPageImages } from './injected/collect_page_images';
 import { collectSignals } from './injected/collect_signals';
 import type { ScannedImage } from './types';
@@ -30,6 +31,8 @@ chrome.runtime.onInstalled.addListener((details) => {
     void chrome.tabs
       .create({ url: chrome.runtime.getURL('onboarding.html') })
       .catch(() => undefined);
+  } else if (details.reason === 'update') {
+    void runUpdateMigrations().catch(() => undefined);
   }
 });
 

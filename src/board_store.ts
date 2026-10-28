@@ -87,6 +87,17 @@ const readBoard = async (): Promise<{ pins: BoardPin[]; writable: boolean }> => 
   return { pins: [], writable: false };
 };
 
+// idempotent: wraps a legacy bare array in the versioned record. Anything
+// else (versioned, absent, unwritable) is left for the normal read path.
+export const migrateBoard = async (): Promise<void> => {
+  const stored = (await chrome.storage.local.get(BOARD_STORAGE_KEY)) as Record<string, unknown>;
+  const record: unknown = stored[BOARD_STORAGE_KEY];
+  if (!Array.isArray(record)) {
+    return;
+  }
+  await writeBoard(validPins(record));
+};
+
 export const listPins = async (): Promise<BoardPin[]> => {
   try {
     return (await readBoard()).pins;

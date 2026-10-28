@@ -40,6 +40,26 @@ interface SpendRecord {
 
 const spendMutex = createMutex();
 
+// idempotent: wraps a legacy flat month map in the versioned record.
+// Versioned, absent, and unreadable records are left untouched.
+export const migrateSpend = async (): Promise<void> => {
+  const stored = (await chrome.storage.local.get(COST_TOTALS_KEY)) as {
+    costTotals?: unknown;
+  };
+  const record = stored.costTotals;
+  if (!record || typeof record !== 'object' || Array.isArray(record) || 'v' in record) {
+    return;
+  }
+  const months: Record<string, number> = {};
+  for (const [month, total] of Object.entries(record as Record<string, unknown>)) {
+    if (typeof total === 'number') {
+      months[month] = total;
+    }
+  }
+  const next: SpendRecord = { v: SPEND_VERSION, months };
+  await chrome.storage.local.set({ [COST_TOTALS_KEY]: next });
+};
+
 export const formatUsd = (amount: number): string => {
   if (!(amount > 0)) {
     return '$0.00';

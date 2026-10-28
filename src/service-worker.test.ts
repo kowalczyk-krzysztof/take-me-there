@@ -73,6 +73,38 @@ describe('service-worker', () => {
     expect(mock.worker.tabsCreated).toEqual([{ url: 'chrome-extension://test/onboarding.html' }]);
   });
 
+  it('migrates legacy stores on update', async () => {
+    const mock = await setup();
+    await mock.local.set({
+      settings: { activeProviderId: 'muse' },
+      tripBoard: [
+        {
+          place: {
+            identified: true,
+            placeName: 'Oia',
+            city: 'Oia',
+            country: 'Greece',
+            confidence: 0.9,
+            oneLiner: 'Blue domes.',
+          },
+          sourceHost: 'example.com',
+          addedAt: 42,
+        },
+      ],
+      costTotals: { '2026-03': 1.5 },
+    });
+    for (const fn of mock.worker.installed) {
+      fn({ reason: 'update' });
+    }
+    await flush();
+    expect(mock.local.data.get('settings')).toEqual({
+      v: 1,
+      settings: { activeProviderId: 'muse' },
+    });
+    expect(mock.local.data.get('tripBoard')).toMatchObject({ v: 1 });
+    expect(mock.local.data.get('costTotals')).toEqual({ v: 1, months: { '2026-03': 1.5 } });
+  });
+
   it('hands off image clicks as collecting then schema-valid ready', async () => {
     const mock = await setup();
     const statuses: unknown[] = [];
