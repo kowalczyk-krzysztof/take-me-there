@@ -99,18 +99,19 @@ export const ScanList = ({ loading, items, onGuide, onPin, onPinSelected }: Prop
           </div>
         ) : (
           <div ref={attach}>
-            <div className={styles['scan-results']} key={epoch}>
+            <ul className={styles['scan-results']} key={epoch}>
               {items.map((item, index) => (
-                <ScanCard
-                  key={index}
-                  item={item}
-                  index={index}
-                  initialChecked={checked.has(item.title)}
-                  onGuide={onGuide}
-                  onPin={onPin}
-                />
+                <li key={index}>
+                  <ScanCard
+                    item={item}
+                    index={index}
+                    initialChecked={checked.has(item.title)}
+                    onGuide={onGuide}
+                    onPin={onPin}
+                  />
+                </li>
               ))}
-            </div>
+            </ul>
             {items.length > 0 ? (
               <PinSelectedButton items={items} checked={checked} onPinSelected={onPinSelected} />
             ) : null}

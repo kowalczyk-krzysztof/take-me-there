@@ -833,6 +833,26 @@ describe('sidepanel', () => {
     ).toBe('false');
   });
 
+  it('labels the board retry for failed removals', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
+    await mock.session.set({ tripRequest: READY() });
+    await waitForHeading('Oia');
+    (document.querySelector('#result-slot .pin-button') as HTMLButtonElement).click();
+    await waitFor(() => {
+      expect(document.querySelector('#board-slot li')).not.toBeNull();
+    });
+    const fail = vi.spyOn(mock.local, 'set').mockRejectedValueOnce(new Error('quota'));
+    (document.querySelector('#board-slot li button') as HTMLButtonElement).click();
+    await waitFor(() => {
+      expect(document.querySelector('#board-slot .notice button')?.textContent).toBe(
+        'boardRetryRemove'
+      );
+    });
+    fail.mockRestore();
+  });
+
   it('retries failed pins without the thumbnail', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
@@ -1106,6 +1126,21 @@ describe('sidepanel', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(document.querySelector('#result-slot')?.textContent).toContain('Fira');
     expect(document.querySelector('#result-slot')?.textContent).not.toContain('Oia');
+  });
+
+  it('moves focus to the new heading when a swap removes the focused control', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
+    await mock.session.set({ tripRequest: READY({ requestId: '400-1' }) });
+    await waitForHeading('Oia');
+    (document.querySelector('#result-slot .pin-button') as HTMLButtonElement).focus();
+    await mock.session.set({
+      tripRequest: READY({ requestId: '400-2', dataPending: true, srcUrl: '' }),
+    });
+    await waitFor(() => {
+      expect(document.activeElement).toBe(document.querySelector('#result-slot h2'));
+    });
   });
 
   it('drops expired handoffs and wipes them', async () => {

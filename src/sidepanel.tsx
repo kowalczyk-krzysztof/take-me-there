@@ -177,7 +177,7 @@ interface PanelState {
   duel: DuelTableState | null;
   boardItems: BoardItemView[];
   boardCanPlan: boolean;
-  boardNotice: { text: string | null; retry: boolean };
+  boardNotice: { text: string | null; retryLabel: string | null };
   privacy: string;
   cost: string;
   customHost: string | null;
@@ -212,7 +212,7 @@ const store = createStore<PanelState>({
   duel: null,
   boardItems: [],
   boardCanPlan: false,
-  boardNotice: { text: null, retry: false },
+  boardNotice: { text: null, retryLabel: null },
   privacy: '',
   cost: '',
   customHost: null,
@@ -364,12 +364,18 @@ const focusResultHeading = (): void => {
 };
 
 // Every result-slot swap runs through here so a swap that removes the
-// focused subtree falls back to the persistent preview heading.
+// focused subtree falls back to the new visible heading, or to the
+// persistent preview heading when the new tree has none.
 const swapResultSlot = (build: () => void): void => {
   const before = composedActiveElement();
   build();
   if (before && !before.isConnected) {
-    document.getElementById('preview-heading')?.focus({ preventScroll: true });
+    const heading = document.querySelector('#result-slot h2') as HTMLElement | null;
+    if (heading) {
+      heading.focus({ preventScroll: true });
+    } else {
+      document.getElementById('preview-heading')?.focus({ preventScroll: true });
+    }
   }
 };
 
@@ -2430,13 +2436,16 @@ const attemptPin = async (pin: Omit<BoardPin, 'addedAt'>, withoutThumb = false):
   } catch {
     failedPin = pin;
     store.set({
-      boardNotice: { text: msg('boardNoticePinFail', pin.place.placeName), retry: true },
+      boardNotice: {
+        text: msg('boardNoticePinFail', pin.place.placeName),
+        retryLabel: msg('boardRetryNoThumb'),
+      },
     });
     announceAlert('alertPinFail', pin.place.placeName);
     return;
   }
   failedPin = null;
-  store.set({ boardNotice: { text: null, retry: false } });
+  store.set({ boardNotice: { text: null, retryLabel: null } });
   if (outcome.status === 'duplicate') {
     await syncPinButton();
     announceStatus('statusPinDuplicate', pin.place.placeName);
@@ -2479,7 +2488,10 @@ const onRemovePin = async (detail: TripRemovePinDetail): Promise<void> => {
   } catch {
     failedRemove = detail;
     store.set({
-      boardNotice: { text: msg('boardNoticeRemoveFail', detail.placeName), retry: true },
+      boardNotice: {
+        text: msg('boardNoticeRemoveFail', detail.placeName),
+        retryLabel: msg('boardRetryRemove'),
+      },
     });
     announceAlert('alertRemoveFail', detail.placeName);
     return;

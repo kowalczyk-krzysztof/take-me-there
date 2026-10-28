@@ -118,6 +118,14 @@ describe('options', () => {
     expect(mock.local.data.has('apiKey:muse')).toBe(false);
   });
 
+  it('labels the provider radio group and the server fieldset', async () => {
+    await setup();
+    expect(document.querySelector('#provider-group')?.getAttribute('aria-labelledby')).toBe(
+      'provider-heading'
+    );
+    expect(document.querySelector('#compat-fields legend')?.textContent).toBe('compatLegend');
+  });
+
   it('saves a custom server after the origin grant', async () => {
     const mock = await setup();
     const permsRequest = vi.fn().mockResolvedValue(true);

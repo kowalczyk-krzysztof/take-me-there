@@ -142,9 +142,11 @@ describe('key-setup', () => {
     const input = root.querySelector('#key-input') as HTMLInputElement;
     const show = root.querySelector('button.secondary') as HTMLButtonElement;
     expect(show.textContent).toBe('showKeyButton');
+    expect(show.hasAttribute('aria-pressed')).toBe(false);
+    expect(show.getAttribute('aria-controls')).toBe('key-input');
     show.click();
     expect(input.type).toBe('text');
-    expect(show.getAttribute('aria-pressed')).toBe('true');
+    expect(show.hasAttribute('aria-pressed')).toBe(false);
     expect(show.textContent).toBe('hideKeyButton');
   });
 

@@ -37,7 +37,7 @@ export const SourceChips = ({ sources }: Props) => (
 
       return (
         <ExternalLink key={`${href}-${index}`} href={href} className={styles.chip}>
-          {hostnameOf(href)}
+          {source.title || hostnameOf(href)}
         </ExternalLink>
       );
     })}

@@ -1,7 +1,7 @@
 :root {
   --focus-color: #0b64dd;
   --text: #1a1c21;
-  --muted: #69707d;
+  --muted: #606672;
   --background: #f5f7fa;
   --card: #ffffff;
   --surface: #eef1f6;
@@ -47,6 +47,11 @@ select,
 summary {
   min-height: 24px;
   min-width: 24px;
+}
+
+::placeholder {
+  color: var(--muted);
+  opacity: 1;
 }
 
 [hidden] {

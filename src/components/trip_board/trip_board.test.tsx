@@ -25,7 +25,7 @@ const ITEMS: BoardItemView[] = [
   },
 ];
 
-const NOTICE_OFF: BoardNoticeView = { text: null, retry: false };
+const NOTICE_OFF: BoardNoticeView = { text: null, retryLabel: null };
 
 const renderBoard = (
   items: BoardItemView[],
@@ -151,7 +151,7 @@ describe('trip-board', () => {
       <TripBoard
         items={ITEMS}
         canPlan={true}
-        notice={{ text: 'boardNoticePinFail', retry: true }}
+        notice={{ text: 'boardNoticePinFail', retryLabel: 'boardRetryNoThumb' }}
         onRemovePin={() => {}}
         onPlan={() => {}}
         onClearConfirm={() => {}}
@@ -161,8 +161,21 @@ describe('trip-board', () => {
     const notice = rendered.container.querySelector('.notice') as HTMLElement;
     expect(notice.hidden).toBe(false);
     expect(notice.textContent).toContain('boardNoticePinFail');
+    expect(notice.querySelector('button')?.textContent).toBe('boardRetryNoThumb');
     (notice.querySelector('button') as HTMLButtonElement).click();
     expect(onRetryPin).toHaveBeenCalledTimes(1);
+    rendered.rerender(
+      <TripBoard
+        items={ITEMS}
+        canPlan={true}
+        notice={{ text: 'boardNoticeRemoveFail', retryLabel: 'boardRetryRemove' }}
+        onRemovePin={() => {}}
+        onPlan={() => {}}
+        onClearConfirm={() => {}}
+        onRetryPin={onRetryPin}
+      />
+    );
+    expect(notice.querySelector('button')?.textContent).toBe('boardRetryRemove');
     rendered.rerender(
       <TripBoard
         items={ITEMS}

@@ -336,7 +336,7 @@ const OptionsApp = () => {
           <span id="image-only-label">{msg('imageOnlyLabel')}</span>
         </label>
         <h2 id="provider-heading">{msg('optionsProviderHeading')}</h2>
-        <div id="provider-group" role="radiogroup">
+        <div id="provider-group" role="radiogroup" aria-labelledby="provider-heading">
           <label className="radio-row">
             <input
               type="radio"
@@ -359,6 +359,7 @@ const OptionsApp = () => {
           </label>
         </div>
         <fieldset id="compat-fields" hidden={!state.compatOpen || undefined}>
+          <legend>{msg('compatLegend')}</legend>
           <label className="field-row">
             <span id="compat-base-url-label">{msg('compatBaseUrl')}</span>
             <input

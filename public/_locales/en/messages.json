@@ -801,6 +801,10 @@
     "message": "OpenAI-compatible server",
     "description": "Custom provider radio label."
   },
+  "compatLegend": {
+    "message": "Custom server details",
+    "description": "Custom server fieldset legend."
+  },
   "compatBaseUrl": {
     "message": "Server URL",
     "description": "Custom server URL label."
@@ -879,6 +883,10 @@
   "boardRetryNoThumb": {
     "message": "Retry without thumbnail",
     "description": "Pin retry action."
+  },
+  "boardRetryRemove": {
+    "message": "Try again",
+    "description": "Remove-pin retry action."
   },
   "boardClearTitle": {
     "message": "Remove all $1 pins?",

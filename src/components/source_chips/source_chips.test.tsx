@@ -29,13 +29,27 @@ describe('source-chips', () => {
     ).container;
     const chips = [...root.querySelectorAll('a.chip')] as HTMLAnchorElement[];
     expect(chips).toHaveLength(2);
-    expect(chips[0].textContent).toContain('example.com');
-    expect(chips[0].textContent).not.toContain('Model title');
+    expect(chips[0].textContent).toContain('Model title');
     expect(chips[0].href).toBe('https://example.com/article?x=1');
     expect(chips[0].target).toBe('_blank');
     expect(chips[0].rel).toBe('noopener noreferrer');
     expect(chips[0].querySelector('.visually-hidden')?.textContent).toBe('newTabSuffix');
     expect(chips[1].textContent).toContain('plain.example.org');
+  });
+
+  it('distinguishes same-host sources by title', () => {
+    const root = renderSync(
+      <SourceChips
+        sources={[
+          { title: 'Caldera views', url: 'https://example.com/a' },
+          { title: 'Blue domes', url: 'https://example.com/b' },
+        ]}
+      />
+    ).container;
+    const chips = [...root.querySelectorAll('a.chip')] as HTMLAnchorElement[];
+    expect(chips).toHaveLength(2);
+    expect(chips[0].textContent).toContain('Caldera views');
+    expect(chips[1].textContent).toContain('Blue domes');
   });
 
   it('renders nothing for empty or fully invalid sources', () => {

@@ -152,7 +152,7 @@ export const KeySetup = ({
             <button
               type="button"
               className={styles.secondary}
-              aria-pressed={revealed ? 'true' : 'false'}
+              aria-controls="key-input"
               onClick={() => flushSync(() => setRevealed((was) => !was))}
             >
               {msg(revealed ? 'hideKeyButton' : 'showKeyButton')}

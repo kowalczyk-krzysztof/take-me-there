@@ -19,7 +19,7 @@ export interface TripRemovePinDetail {
 
 export interface BoardNoticeView {
   text: string | null;
-  retry: boolean;
+  retryLabel: string | null;
 }
 
 export interface TripBoardCallbacks {
@@ -150,9 +150,9 @@ export const TripBoard = ({
               ) : null}
               <p className={styles.notice} hidden={notice.text === null || undefined}>
                 {notice.text !== null ? <span>{notice.text}</span> : null}
-                {notice.text !== null && notice.retry ? (
+                {notice.text !== null && notice.retryLabel !== null ? (
                   <button type="button" onClick={onRetryPin}>
-                    {msg('boardRetryNoThumb')}
+                    {notice.retryLabel}
                   </button>
                 ) : null}
               </p>

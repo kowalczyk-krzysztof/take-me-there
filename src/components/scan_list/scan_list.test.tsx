@@ -49,6 +49,9 @@ describe('scan-list', () => {
     expect(root.querySelector('.skeleton-grid')).toBeNull();
     expect(root.querySelector('section')?.getAttribute('aria-busy')).toBe('false');
     expect(root.querySelectorAll('.scan-card').length).toBe(2);
+    const list = root.querySelector('ul.scan-results') as HTMLElement;
+    expect(list.children).toHaveLength(2);
+    expect(list.children[0].tagName).toBe('LI');
   });
 
   it('renders cards with group labels and three sibling controls', () => {
