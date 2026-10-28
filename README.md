@@ -36,9 +36,10 @@ right in Chrome's side panel.
 3. Press "Plan a trip" to load the full guide, or pin the place to
    your trip board for later.
 
-Your key is stored encrypted on your own machine (see Privacy).
-A session-only mode keeps it in memory and forgets it when the
-browser closes.
+Your key is stored encrypted on your own machine (see Privacy),
+but anyone with full access to your computer account could still
+recover it, so only save it on a trusted device. A session-only
+mode keeps it in memory and forgets it when the browser closes.
 
 ## Privacy
 
@@ -51,7 +52,15 @@ browser closes.
   and the one-time permission is removed right after.
 - No analytics, no tracking, no ads.
 
-See `store/PRIVACY_POLICY.md` for the full data-flow table.
+Stored on your machine, never uploaded anywhere except the API
+calls above:
+
+- API key: AES-GCM encrypted in this browser profile (or memory
+  only, in session-only mode).
+- Trip board: pinned places with page addresses and thumbnails.
+- Cost totals: monthly spend per provider.
+- Result cache: recent results keyed by image and page.
+- Settings and consent flags: provider choice, toggles, Agree state.
 
 ## Architecture
 
