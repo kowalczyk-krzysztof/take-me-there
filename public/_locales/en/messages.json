@@ -19,7 +19,10 @@
     "message": "Keyboard shortcut: $1",
     "description": "Idle hint line showing the real panel shortcut.",
     "placeholders": {
-      "shortcut": { "content": "$1", "example": "Ctrl+Shift+Period" }
+      "shortcut": {
+        "content": "$1",
+        "example": "Ctrl+Shift+Period"
+      }
     }
   },
   "shortcutUnset": {
@@ -34,14 +37,20 @@
     "message": "Found $1 - writing trip guide…",
     "description": "Status announcement when the place is identified.",
     "placeholders": {
-      "place": { "content": "$1", "example": "Oia" }
+      "place": {
+        "content": "$1",
+        "example": "Oia"
+      }
     }
   },
   "statusFoundPlan": {
     "message": "Found $1 - plan your trip when ready.",
     "description": "Status announcement when the place is identified and the guide waits for the Plan button.",
     "placeholders": {
-      "place": { "content": "$1", "example": "Oia" }
+      "place": {
+        "content": "$1",
+        "example": "Oia"
+      }
     }
   },
   "statusPlanningTrip": {
@@ -60,14 +69,20 @@
     "message": "Trip guide ready - $1 sources",
     "description": "Status announcement when the guide completes with sources.",
     "placeholders": {
-      "count": { "content": "$1", "example": "3" }
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
     }
   },
   "statusCacheHit": {
     "message": "Showing saved result - $1",
     "description": "Single status announcement for cache hits.",
     "placeholders": {
-      "place": { "content": "$1", "example": "Oia" }
+      "place": {
+        "content": "$1",
+        "example": "Oia"
+      }
     }
   },
   "statusCanceledNew": {
@@ -338,7 +353,10 @@
     "message": "Estimated API cost this month: $1",
     "description": "Options monthly total label.",
     "placeholders": {
-      "amount": { "content": "$1", "example": "$1.23" }
+      "amount": {
+        "content": "$1",
+        "example": "$1.23"
+      }
     }
   },
   "imageOnlyLabel": {
@@ -437,25 +455,46 @@
     "message": "This analysis ≈ $1 · this month ≈ $2",
     "description": "Per-run and monthly cost readout.",
     "placeholders": {
-      "run": { "content": "$1", "example": "$0.01" },
-      "month": { "content": "$2", "example": "$1.23" }
+      "run": {
+        "content": "$1",
+        "example": "$0.01"
+      },
+      "month": {
+        "content": "$2",
+        "example": "$1.23"
+      }
     }
   },
   "costLineCached": {
     "message": "This analysis ≈ $1 · this month ≈ $2 · cache saved $3",
     "description": "Cost readout when prompt caching discounted the run.",
     "placeholders": {
-      "run": { "content": "$1", "example": "$0.01" },
-      "month": { "content": "$2", "example": "$1.23" },
-      "saved": { "content": "$3", "example": "$0.00" }
+      "run": {
+        "content": "$1",
+        "example": "$0.01"
+      },
+      "month": {
+        "content": "$2",
+        "example": "$1.23"
+      },
+      "saved": {
+        "content": "$3",
+        "example": "$0.00"
+      }
     }
   },
   "costLineTokens": {
     "message": "Tokens this run: $1 in, $2 out",
     "description": "Token readout without rates.",
     "placeholders": {
-      "in": { "content": "$1", "example": "1200" },
-      "out": { "content": "$2", "example": "300" }
+      "in": {
+        "content": "$1",
+        "example": "1200"
+      },
+      "out": {
+        "content": "$2",
+        "example": "300"
+      }
     }
   },
   "costLineCache": {
@@ -466,21 +505,30 @@
     "message": "Cost incomplete · this month ≈ $1",
     "description": "Cost line when a run's billed usage is unavailable.",
     "placeholders": {
-      "month": { "content": "$1", "example": "$1.23" }
+      "month": {
+        "content": "$1",
+        "example": "$1.23"
+      }
     }
   },
   "privacyImage": {
     "message": "Sent to $1 with your key: this image's address, nearby page text, and the page address",
     "description": "Privacy footer for image analyses.",
     "placeholders": {
-      "destination": { "content": "$1", "example": "Meta's Muse API" }
+      "destination": {
+        "content": "$1",
+        "example": "Meta's Muse API"
+      }
     }
   },
   "privacyImageOnly": {
     "message": "Sent to $1 with your key: this image's address only",
     "description": "Privacy footer for image-only analyses.",
     "placeholders": {
-      "destination": { "content": "$1", "example": "Meta's Muse API" }
+      "destination": {
+        "content": "$1",
+        "example": "Meta's Muse API"
+      }
     }
   },
   "privacyCache": {
@@ -491,7 +539,10 @@
     "message": "Analyzing sends image and page context to $1 - details appear with each analysis.",
     "description": "Privacy footer when idle.",
     "placeholders": {
-      "destination": { "content": "$1", "example": "Meta's Muse API" }
+      "destination": {
+        "content": "$1",
+        "example": "Meta's Muse API"
+      }
     }
   },
   "previewHeading": {
@@ -506,7 +557,10 @@
     "message": "Image identified as $1",
     "description": "Preview image alt text after identification.",
     "placeholders": {
-      "place": { "content": "$1", "example": "Oia" }
+      "place": {
+        "content": "$1",
+        "example": "Oia"
+      }
     }
   },
   "previewUnavailable": {
@@ -593,21 +647,30 @@
     "message": "Sent to $1 with your key: this captured video frame, nearby page text, and the page address.",
     "description": "Privacy footer for frame analysis.",
     "placeholders": {
-      "destination": { "content": "$1", "example": "Meta's Muse API" }
+      "destination": {
+        "content": "$1",
+        "example": "Meta's Muse API"
+      }
     }
   },
   "privacyVideoUrl": {
     "message": "Sent to $1 with your key: this video and its soundtrack, nearby page text, and the page address.",
     "description": "Privacy footer for full-video analysis.",
     "placeholders": {
-      "destination": { "content": "$1", "example": "Meta's Muse API" }
+      "destination": {
+        "content": "$1",
+        "example": "Meta's Muse API"
+      }
     }
   },
   "boardTitle": {
     "message": "Trip board ($1)",
     "description": "Board disclosure button label.",
     "placeholders": {
-      "count": { "content": "$1", "example": "3" }
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
     }
   },
   "boardEmpty": {
@@ -646,14 +709,20 @@
     "message": "Remove $1",
     "description": "Per-pin remove button.",
     "placeholders": {
-      "place": { "content": "$1", "example": "Oia" }
+      "place": {
+        "content": "$1",
+        "example": "Oia"
+      }
     }
   },
   "pinButton": {
     "message": "Pin $1 to trip",
     "description": "Result card pin toggle.",
     "placeholders": {
-      "place": { "content": "$1", "example": "Oia" }
+      "place": {
+        "content": "$1",
+        "example": "Oia"
+      }
     }
   },
   "scanTitle": {
@@ -668,14 +737,20 @@
     "message": "Guide for $1",
     "description": "Scan card Guide button.",
     "placeholders": {
-      "place": { "content": "$1", "example": "Oia" }
+      "place": {
+        "content": "$1",
+        "example": "Oia"
+      }
     }
   },
   "scanPinSelected": {
     "message": "Pin selected ($1)",
     "description": "Scan shortlist bulk-pin button.",
     "placeholders": {
-      "count": { "content": "$1", "example": "2" }
+      "count": {
+        "content": "$1",
+        "example": "2"
+      }
     }
   },
   "scanEmptyTitle": {
@@ -698,15 +773,24 @@
     "message": "Found $1 places on this page",
     "description": "Scan completion announcement.",
     "placeholders": {
-      "count": { "content": "$1", "example": "3" }
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
     }
   },
   "duelCaption": {
     "message": "Comparing $1 and $2",
     "description": "Duel table caption.",
     "placeholders": {
-      "a": { "content": "$1", "example": "Oia, Greece" },
-      "b": { "content": "$2", "example": "Fira, Greece" }
+      "a": {
+        "content": "$1",
+        "example": "Oia, Greece"
+      },
+      "b": {
+        "content": "$2",
+        "example": "Fira, Greece"
+      }
     }
   },
   "duelVerdict": {
@@ -717,8 +801,14 @@
     "message": "Could not compare $1 and $2.",
     "description": "Duel inline error.",
     "placeholders": {
-      "a": { "content": "$1", "example": "Oia, Greece" },
-      "b": { "content": "$2", "example": "Fira, Greece" }
+      "a": {
+        "content": "$1",
+        "example": "Oia, Greece"
+      },
+      "b": {
+        "content": "$2",
+        "example": "Fira, Greece"
+      }
     }
   },
   "duelRetry": {
@@ -729,8 +819,14 @@
     "message": "Comparing $1 and $2...",
     "description": "Duel start announcement.",
     "placeholders": {
-      "a": { "content": "$1", "example": "Oia" },
-      "b": { "content": "$2", "example": "Fira" }
+      "a": {
+        "content": "$1",
+        "example": "Oia"
+      },
+      "b": {
+        "content": "$2",
+        "example": "Fira"
+      }
     }
   },
   "duelReady": {
@@ -785,7 +881,10 @@
     "message": "$1 alternatives ready",
     "description": "Alternates arrival announcement.",
     "placeholders": {
-      "count": { "content": "$1", "example": "3" }
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
     }
   },
   "alternatesFail": {
@@ -796,21 +895,30 @@
     "message": "Best month: $1",
     "description": "Alternate card best month.",
     "placeholders": {
-      "month": { "content": "$1", "example": "May" }
+      "month": {
+        "content": "$1",
+        "example": "May"
+      }
     }
   },
   "alternatesInstead": {
     "message": "Plan trip to $1 instead",
     "description": "Alternate card re-plan action.",
     "placeholders": {
-      "place": { "content": "$1", "example": "Fira, Greece" }
+      "place": {
+        "content": "$1",
+        "example": "Fira, Greece"
+      }
     }
   },
   "privacyNames": {
     "message": "Sent to $1 with your key: place names only.",
     "description": "Privacy footer for duels and alternates.",
     "placeholders": {
-      "destination": { "content": "$1", "example": "Meta's Muse API" }
+      "destination": {
+        "content": "$1",
+        "example": "Meta's Muse API"
+      }
     }
   },
   "fetchRetryButton": {
@@ -917,7 +1025,10 @@
     "message": "Couldn't pin $1 - storage is unavailable.",
     "description": "Visible pin-failure notice.",
     "placeholders": {
-      "place": { "content": "$1", "example": "Oia" }
+      "place": {
+        "content": "$1",
+        "example": "Oia"
+      }
     }
   },
   "boardRetryNoThumb": {
@@ -932,7 +1043,10 @@
     "message": "Remove all $1 pins?",
     "description": "Clear-board confirm heading.",
     "placeholders": {
-      "count": { "content": "$1", "example": "3" }
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
     }
   },
   "boardCleared": {
@@ -943,44 +1057,68 @@
     "message": "Pinned $1 - $2 places on board",
     "description": "Status announcement for a successful pin.",
     "placeholders": {
-      "place": { "content": "$1", "example": "Oia" },
-      "count": { "content": "$2", "example": "3" }
+      "place": {
+        "content": "$1",
+        "example": "Oia"
+      },
+      "count": {
+        "content": "$2",
+        "example": "3"
+      }
     }
   },
   "statusPinnedEvicted": {
     "message": "Pinned $1 - board full, removed $2",
     "description": "Status announcement for a pin with eviction.",
     "placeholders": {
-      "place": { "content": "$1", "example": "Oia" },
-      "oldest": { "content": "$2", "example": "Fira" }
+      "place": {
+        "content": "$1",
+        "example": "Oia"
+      },
+      "oldest": {
+        "content": "$2",
+        "example": "Fira"
+      }
     }
   },
   "statusPinDuplicate": {
     "message": "$1 is already on the board",
     "description": "Status announcement for a dedupe hit.",
     "placeholders": {
-      "place": { "content": "$1", "example": "Oia" }
+      "place": {
+        "content": "$1",
+        "example": "Oia"
+      }
     }
   },
   "alertPinFail": {
     "message": "Couldn't pin $1",
     "description": "Alert announcement for a failed pin.",
     "placeholders": {
-      "place": { "content": "$1", "example": "Oia" }
+      "place": {
+        "content": "$1",
+        "example": "Oia"
+      }
     }
   },
   "boardNoticeRemoveFail": {
     "message": "Couldn't remove $1 - storage is unavailable.",
     "description": "Visible remove-failure notice.",
     "placeholders": {
-      "place": { "content": "$1", "example": "Oia" }
+      "place": {
+        "content": "$1",
+        "example": "Oia"
+      }
     }
   },
   "alertRemoveFail": {
     "message": "Couldn't remove $1",
     "description": "Alert announcement for a failed remove.",
     "placeholders": {
-      "place": { "content": "$1", "example": "Oia" }
+      "place": {
+        "content": "$1",
+        "example": "Oia"
+      }
     }
   },
   "alertBoardClearFail": {
@@ -991,7 +1129,10 @@
     "message": "Planning your trip - $1 places…",
     "description": "Status announcement when itinerary planning starts.",
     "placeholders": {
-      "count": { "content": "$1", "example": "3" }
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
     }
   },
   "statusItineraryReady": {
@@ -1002,28 +1143,40 @@
     "message": "Trip plan - $1 stops",
     "description": "Itinerary card heading.",
     "placeholders": {
-      "count": { "content": "$1", "example": "3" }
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
     }
   },
   "itineraryNights": {
     "message": "Nights: $1",
     "description": "Per-stop nights line.",
     "placeholders": {
-      "nights": { "content": "$1", "example": "2" }
+      "nights": {
+        "content": "$1",
+        "example": "2"
+      }
     }
   },
   "mapsLink": {
     "message": "Open route in Google Maps ($1 stops)",
     "description": "Maps route link label.",
     "placeholders": {
-      "count": { "content": "$1", "example": "3" }
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
     }
   },
   "privacyBoard": {
     "message": "Sent to $1 with your key: pinned thumbnails, place names, and source-site addresses.",
     "description": "Privacy footer for board planning.",
     "placeholders": {
-      "destination": { "content": "$1", "example": "Meta's Muse API" }
+      "destination": {
+        "content": "$1",
+        "example": "Meta's Muse API"
+      }
     }
   },
   "mainTab": {
@@ -1054,21 +1207,30 @@
     "message": "Sent to $1 with your key: this page's travel images with their captions and headings.",
     "description": "Privacy footer for page scans.",
     "placeholders": {
-      "destination": { "content": "$1", "example": "Meta's Muse API" }
+      "destination": {
+        "content": "$1",
+        "example": "Meta's Muse API"
+      }
     }
   },
   "privacyImagePixels": {
     "message": "Sent to $1 with your key: this image's pixels, nearby page text, and the page address.",
     "description": "Privacy footer when image bytes are uploaded.",
     "placeholders": {
-      "destination": { "content": "$1", "example": "Meta's Muse API" }
+      "destination": {
+        "content": "$1",
+        "example": "Meta's Muse API"
+      }
     }
   },
   "securityNoticeCustom": {
     "message": "Your API key is encrypted before it's saved (AES-GCM, with a non-extractable key kept in this browser profile) and never leaves this device except to authenticate requests to $1. Saving the key sends only the key itself to validate it. Someone with full access to your computer account could still recover it, so only save it on a trusted device - or enable session-only mode, which keeps the key in memory and forgets it when the browser closes.",
     "description": "Key security notice naming the custom server.",
     "placeholders": {
-      "host": { "content": "$1", "example": "my-server.example" }
+      "host": {
+        "content": "$1",
+        "example": "my-server.example"
+      }
     }
   },
   "keyHygieneCustom": {
@@ -1079,7 +1241,10 @@
     "message": "Analyzing sends the clicked image (its web address or, for inline images, captured frames, and on-demand retries, its pixels), nearby page text (title, captions, metadata), and the page's address to your custom server at $1 using your key. For private images, the image's address itself can grant access to it. Scanning a page sends that page's travel images and their captions the same way (even when the \"image only\" toggle is on), and planning a trip from your board sends the pinned thumbnails, their place names, and the addresses of the sites you pinned them from. Your provider's data terms apply to everything sent.",
     "description": "Consent body naming the custom server.",
     "placeholders": {
-      "host": { "content": "$1", "example": "my-server.example" }
+      "host": {
+        "content": "$1",
+        "example": "my-server.example"
+      }
     }
   },
   "keyHintCustom": {
@@ -1094,7 +1259,10 @@
     "message": "Keys, images, and page text will be sent to $1 instead of api.meta.ai. Click Save again to confirm.",
     "description": "One-time warning before saving a new custom server.",
     "placeholders": {
-      "host": { "content": "$1", "example": "my-server.example" }
+      "host": {
+        "content": "$1",
+        "example": "my-server.example"
+      }
     }
   },
   "compatSaveAnyway": {
@@ -1108,5 +1276,75 @@
   "statusCanceled": {
     "message": "Canceled.",
     "description": "Status announcement after canceling a run."
+  },
+  "compatAdvanced": {
+    "message": "Advanced",
+    "description": "Disclosure label for custom server advanced fields."
+  },
+  "optionsModesHeading": {
+    "message": "Search modes",
+    "description": "Options search-mode toggles heading."
+  },
+  "settingsModesHeading": {
+    "message": "Search modes",
+    "description": "Panel settings search-mode toggles heading."
+  },
+  "settingsProviderHeading": {
+    "message": "AI provider",
+    "description": "Panel settings provider heading."
+  },
+  "optionsDataHeading": {
+    "message": "Result cache",
+    "description": "Options result-cache section heading."
+  },
+  "settingsDataHeading": {
+    "message": "Result cache",
+    "description": "Panel settings result-cache section heading."
+  },
+  "settingsCostHeading": {
+    "message": "API cost",
+    "description": "Panel settings cost heading."
+  },
+  "retentionLabel": {
+    "message": "Keep cached results for",
+    "description": "Result-cache retention label."
+  },
+  "retentionDay": {
+    "message": "1 day",
+    "description": "Retention choice: one day."
+  },
+  "retentionWeek": {
+    "message": "7 days",
+    "description": "Retention choice: one week."
+  },
+  "retentionMonth": {
+    "message": "30 days",
+    "description": "Retention choice: one month."
+  },
+  "clearCacheButton": {
+    "message": "Clear cached results",
+    "description": "Result-cache clear button."
+  },
+  "cacheClearedNone": {
+    "message": "The result cache is already empty.",
+    "description": "Cache clear result when nothing was stored."
+  },
+  "cacheClearedOne": {
+    "message": "Cleared 1 cached result.",
+    "description": "Cache clear result for one entry."
+  },
+  "cacheClearedMany": {
+    "message": "Cleared $1 cached results.",
+    "description": "Cache clear result for several entries.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "4"
+      }
+    }
+  },
+  "cacheClearFailed": {
+    "message": "Could not clear the cache - try again.",
+    "description": "Cache clear failure."
   }
 }

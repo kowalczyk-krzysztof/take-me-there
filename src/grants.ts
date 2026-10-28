@@ -77,7 +77,7 @@ const containsGrant = async (origin: string): Promise<boolean> => {
   }
 };
 
-const removeGrant = async (origin: string): Promise<void> => {
+export const removeGrant = async (origin: string): Promise<void> => {
   try {
     await chrome.permissions.remove({ origins: [`${origin}/*`] });
   } catch {

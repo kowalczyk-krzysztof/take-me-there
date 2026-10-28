@@ -63,6 +63,7 @@ const settingsSchema = z.strictObject({
   imageOnly: z.boolean(),
   sessionOnly: z.boolean(),
   skipWebSearch: z.boolean(),
+  cacheTtlDays: z.number(),
 });
 
 const providerSchema = z.strictObject({

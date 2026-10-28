@@ -2,6 +2,20 @@ import { useSyncExternalStore } from 'react';
 import { createRoot } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import { KeySetup } from './components/key_setup/key_setup';
+import { ProviderSection } from './components/settings/provider_section';
+import { ModesSection } from './components/settings/modes_section';
+import { DataSection } from './components/settings/data_section';
+import { CostSection } from './components/settings/cost_section';
+import {
+  attachSettingsInputs,
+  compatErrorKey,
+  clearResultCache,
+  saveCompatProvider,
+  setCacheTtlDays,
+  setMode,
+  switchToClaude,
+  type CompatFormValues,
+} from './settings_ops';
 import { clearAllKeys, clearKey, loadKey, saveKey, setKeyMode } from './key_vault';
 import { formatUsd, readMonthSpend, resetMonthSpend } from './pricing';
 import {
@@ -9,24 +23,13 @@ import {
   customHostOf,
   getActiveProvider,
   loadSettings,
-  parseEndpointOrigin,
   saveSettings,
-  type ExtensionSettings,
 } from './providers/index';
 import { ErrorBoundary } from './components/error_boundary/error_boundary';
 import { msg } from './utils/i18n';
 import { createStore } from './utils/store';
 import './styles/options.css';
 import './components/shared_styles.css';
-
-interface CompatForm {
-  baseURL: string;
-  model: string;
-  structured: string;
-  inputRate: string;
-  outputRate: string;
-  cachedRate: string;
-}
 
 interface OptionsState {
   status: string;
@@ -39,11 +42,14 @@ interface OptionsState {
     imageOnly: boolean;
     skipWebSearch: boolean;
     providerMuse: boolean;
-    compat: CompatForm;
+    compat: CompatFormValues;
+    cacheTtlDays: number;
   } | null;
   compatOpen: boolean;
   compatError: string | null;
   compatConfirmHost: string | null;
+  cachePending: boolean;
+  cacheResult: string | null;
 }
 
 const store = createStore<OptionsState>({
@@ -57,6 +63,8 @@ const store = createStore<OptionsState>({
   compatOpen: false,
   compatError: null,
   compatConfirmHost: null,
+  cachePending: false,
+  cacheResult: null,
 });
 
 const inputValue = (id: string): string =>
@@ -191,145 +199,110 @@ const onClearAllKeys = (): void => {
   })();
 };
 
-// Previously configured custom origin, for obsolete-grant removal after a
-// provider change. Empty unless custom is active with a parseable URL.
-const customOriginOf = (settings: ExtensionSettings): string => {
-  if (settings.activeProviderId !== 'openai_compat' || !settings.openaiCompat.baseURL) {
-    return '';
-  }
-
-  try {
-    return new URL(settings.openaiCompat.baseURL).origin;
-  } catch {
-    return '';
-  }
-};
-
-const removeGrant = async (origin: string): Promise<void> => {
-  try {
-    await chrome.permissions.remove({ origins: [`${origin}/*`] });
-  } catch {
-    // The grant is already gone; nothing to clean up.
-  }
-};
-
 const onCompatSave = (): void => {
   void (async () => {
     store.set({ compatError: null });
 
-    const baseURL = inputValue('compat-base-url').trim().replace(/\/+$/, '');
-
-    let origin = '';
-
-    try {
-      origin = parseEndpointOrigin(baseURL);
-    } catch {
-      store.set({ compatError: msg('providerErrorUrl') });
-
-      return;
-    }
-
-    const model = inputValue('compat-model').trim();
-
-    if (!model) {
-      store.set({ compatError: msg('providerErrorModel') });
-
-      return;
-    }
-
-    const parseRate = (raw: string): number | undefined => {
-      const trimmed = raw.trim();
-
-      if (!trimmed) {
-        return undefined;
-      }
-
-      const value = Number(trimmed);
-
-      return Number.isFinite(value) && value >= 0 ? value : NaN;
-    };
-
-    const inputRatePerM = parseRate(inputValue('compat-input-rate'));
-
-    const outputRatePerM = parseRate(inputValue('compat-output-rate'));
-
-    const cachedRatePerM = parseRate(inputValue('compat-cached-rate'));
-
-    if (
-      Number.isNaN(inputRatePerM) ||
-      Number.isNaN(outputRatePerM) ||
-      Number.isNaN(cachedRatePerM)
-    ) {
-      store.set({ compatError: msg('providerErrorRates') });
-
-      return;
-    }
-
-    const host = new URL(origin).host;
-
-    const saved = await loadSettings();
-
-    if (customHostOf(saved) !== host && store.get().compatConfirmHost !== host) {
-      store.set({ compatError: msg('compatHostWarning', host), compatConfirmHost: host });
-
-      return;
-    }
-
-    let preexisting = false;
-
-    try {
-      preexisting = await chrome.permissions.contains({ origins: [`${origin}/*`] });
-    } catch {
-      preexisting = false;
-    }
-
-    let granted = preexisting;
-
-    if (!preexisting) {
-      try {
-        granted = await chrome.permissions.request({ origins: [`${origin}/*`] });
-      } catch {
-        granted = false;
-      }
-    }
-    if (!granted) {
-      store.set({ compatError: msg('providerErrorDenied') });
-      return;
-    }
-    const settings = await loadSettings();
-    const previousOrigin = customOriginOf(settings);
-    const structuredSelect = document.getElementById(
-      'compat-structured'
-    ) as HTMLSelectElement | null;
-    const next: ExtensionSettings = {
-      ...settings,
-      activeProviderId: 'openai_compat',
-      openaiCompat: {
-        baseURL,
-        model,
-        structuredOutput: structuredSelect?.value === 'json_schema' ? 'json_schema' : 'json_object',
-        ...(inputRatePerM === undefined ? {} : { inputRatePerM }),
-        ...(outputRatePerM === undefined ? {} : { outputRatePerM }),
-        ...(cachedRatePerM === undefined ? {} : { cachedRatePerM }),
+    const outcome = await saveCompatProvider(
+      {
+        baseURL: inputValue('compat-base-url'),
+        model: inputValue('compat-model'),
+        structured: inputValue('compat-structured'),
+        inputRate: inputValue('compat-input-rate'),
+        outputRate: inputValue('compat-output-rate'),
+        cachedRate: inputValue('compat-cached-rate'),
       },
-    };
-    try {
-      await saveSettings(next);
-    } catch {
-      // The grant we just created is orphaned by the failed save: remove
-      // it unless it predates us.
-      if (!preexisting) {
-        await removeGrant(origin);
-      }
-      store.set({ compatError: msg('settingsSaveFailed') });
+      store.get().compatConfirmHost
+    );
+
+    if (outcome.status === 'saved') {
+      store.set({
+        compatError: null,
+        compatConfirmHost: null,
+        status: msg('statusProviderSaved'),
+      });
+
       return;
     }
-    // The replaced origin is obsolete to us: remove its grant. The new
-    // origin keeps its (possibly pre-existing) grant.
-    if (previousOrigin && previousOrigin !== origin) {
-      await removeGrant(previousOrigin);
+
+    if (outcome.status === 'confirm') {
+      store.set({
+        compatError: msg('compatHostWarning', outcome.host),
+        compatConfirmHost: outcome.host,
+      });
+
+      return;
     }
-    store.set({ compatError: null, compatConfirmHost: null, status: msg('statusProviderSaved') });
+
+    store.set({ compatError: msg(compatErrorKey(outcome.error)) });
+  })();
+};
+
+const onRetention = (days: number, select: HTMLSelectElement): void => {
+  const settings = store.get().settings;
+
+  const current = settings?.cacheTtlDays ?? 7;
+
+  if (days !== 1 && days !== 7 && days !== 30) {
+    select.value = String(current);
+
+    return;
+  }
+
+  void (async () => {
+    try {
+      await setCacheTtlDays(days as 1 | 7 | 30);
+    } catch {
+      select.value = String(current);
+      store.set({ status: msg('settingsSaveFailed') });
+
+      return;
+    }
+
+    if (settings) {
+      store.set({ settings: { ...settings, cacheTtlDays: days } });
+    }
+  })();
+};
+
+const onClearCache = (): void => {
+  void (async () => {
+    store.set({ cachePending: true, cacheResult: null });
+
+    let cleared = 0;
+
+    try {
+      cleared = await clearResultCache();
+    } catch {
+      store.set({ cachePending: false, cacheResult: msg('cacheClearFailed') });
+
+      return;
+    }
+
+    const result =
+      cleared === 0
+        ? msg('cacheClearedNone')
+        : cleared === 1
+          ? msg('cacheClearedOne')
+          : msg('cacheClearedMany', String(cleared));
+
+    store.set({ cachePending: false, cacheResult: result });
+  })();
+};
+
+const onResetCost = (): void => {
+  void (async () => {
+    try {
+      await resetMonthSpend();
+    } catch {
+      store.set({ status: msg('settingsSaveFailed') });
+
+      return;
+    }
+
+    await refreshCost();
+
+    store.set({ status: msg('statusMonthlyReset') });
   })();
 };
 
@@ -342,62 +315,44 @@ const OptionsApp = () => {
     if (!el) {
       return;
     }
-    const onChange = (event: Event): void => {
-      const box = event.target;
-      if (!(box instanceof HTMLInputElement)) {
-        return;
-      }
-      if (box.id === 'image-only') {
+
+    return attachSettingsInputs(el, {
+      onMode: (mode, box) => {
         const checked = box.checked;
+
         void (async () => {
           try {
-            const current = await loadSettings();
-            await saveSettings({ ...current, imageOnly: checked });
+            await setMode(mode, checked);
           } catch {
             box.checked = !checked;
             store.set({ status: msg('settingsSaveFailed') });
           }
         })();
-      } else if (box.id === 'skip-search') {
-        const checked = box.checked;
+      },
+      onMuse: (box) => {
         void (async () => {
           try {
-            const current = await loadSettings();
-            await saveSettings({ ...current, skipWebSearch: checked });
-          } catch {
-            box.checked = !checked;
-            store.set({ status: msg('settingsSaveFailed') });
-          }
-        })();
-      } else if (box.id === 'provider-muse' && box.checked) {
-        void (async () => {
-          let current;
-          try {
-            current = await loadSettings();
+            await switchToClaude();
           } catch {
             box.checked = false;
             store.set({ status: msg('settingsSaveFailed') });
+
             return;
           }
-          const previousOrigin = customOriginOf(current);
-          try {
-            await saveSettings({ ...current, activeProviderId: 'muse' });
-          } catch {
-            box.checked = false;
-            store.set({ status: msg('settingsSaveFailed') });
-            return;
-          }
-          if (previousOrigin) {
-            await removeGrant(previousOrigin);
-          }
-          store.set({ compatOpen: false, compatError: null, status: msg('statusProviderSaved') });
+
+          store.set({
+            compatOpen: false,
+            compatError: null,
+            compatConfirmHost: null,
+            status: msg('statusProviderSaved'),
+          });
         })();
-      } else if (box.id === 'provider-compat' && box.checked) {
+      },
+      onCompat: () => {
         store.set({ compatOpen: true });
-      }
-    };
-    el.addEventListener('change', onChange);
-    return () => el.removeEventListener('change', onChange);
+      },
+      onRetention,
+    });
   };
   return (
     <main ref={attach}>
@@ -462,137 +417,37 @@ const OptionsApp = () => {
         </button>
       </div>
       <div key={settings === null ? 'loading' : 'ready'}>
-        <label className="checkbox-row" id="image-only-row">
-          <input type="checkbox" id="image-only" defaultChecked={settings?.imageOnly ?? false} />
-          <span id="image-only-label">{msg('imageOnlyLabel')}</span>
-        </label>
-        <label className="checkbox-row" id="skip-search-row">
-          <input
-            type="checkbox"
-            id="skip-search"
-            defaultChecked={settings?.skipWebSearch ?? false}
-          />
-          <span id="skip-search-label">{msg('skipSearchLabel')}</span>
-        </label>
-        <h2 id="provider-heading">{msg('optionsProviderHeading')}</h2>
-        <div id="provider-group" role="radiogroup" aria-labelledby="provider-heading">
-          <label className="radio-row">
-            <input
-              type="radio"
-              name="provider"
-              value="muse"
-              id="provider-muse"
-              defaultChecked={settings !== null && settings.providerMuse}
-            />
-            <span id="provider-muse-label">{msg('providerMuse')}</span>
-          </label>
-          <label className="radio-row">
-            <input
-              type="radio"
-              name="provider"
-              value="openai_compat"
-              id="provider-compat"
-              defaultChecked={settings !== null && !settings.providerMuse}
-            />
-            <span id="provider-compat-label">{msg('providerCompat')}</span>
-          </label>
-        </div>
-        <fieldset id="compat-fields" hidden={!state.compatOpen || undefined}>
-          <legend>{msg('compatLegend')}</legend>
-          <label className="field-row">
-            <span id="compat-base-url-label">{msg('compatBaseUrl')}</span>
-            <input
-              type="url"
-              id="compat-base-url"
-              autoComplete="url"
-              defaultValue={settings?.compat.baseURL ?? ''}
-            />
-          </label>
-          <label className="field-row">
-            <span id="compat-model-label">{msg('compatModel')}</span>
-            <input
-              type="text"
-              id="compat-model"
-              autoComplete="off"
-              defaultValue={settings?.compat.model ?? ''}
-            />
-          </label>
-          <label className="field-row">
-            <span id="compat-structured-label">{msg('compatStructured')}</span>
-            <select
-              id="compat-structured"
-              defaultValue={settings?.compat.structured ?? 'json_schema'}
-            >
-              <option value="json_schema" id="compat-structured-schema">
-                {msg('compatStructuredSchema')}
-              </option>
-              <option value="json_object" id="compat-structured-object">
-                {msg('compatStructuredObject')}
-              </option>
-            </select>
-          </label>
-          <label className="field-row">
-            <span id="compat-input-rate-label">{msg('compatInputRate')}</span>
-            <input
-              type="number"
-              id="compat-input-rate"
-              min="0"
-              step="any"
-              defaultValue={settings?.compat.inputRate ?? ''}
-            />
-          </label>
-          <label className="field-row">
-            <span id="compat-output-rate-label">{msg('compatOutputRate')}</span>
-            <input
-              type="number"
-              id="compat-output-rate"
-              min="0"
-              step="any"
-              defaultValue={settings?.compat.outputRate ?? ''}
-            />
-          </label>
-          <label className="field-row">
-            <span id="compat-cached-rate-label">{msg('compatCachedRate')}</span>
-            <input
-              type="number"
-              id="compat-cached-rate"
-              min="0"
-              step="any"
-              defaultValue={settings?.compat.cachedRate ?? ''}
-            />
-          </label>
-          <div className="button-row">
-            <button id="compat-save" type="button" onClick={onCompatSave}>
-              {msg(state.compatConfirmHost ? 'compatSaveAnyway' : 'compatSave')}
-            </button>
-          </div>
-          <p id="compat-error" role="alert" hidden={state.compatError === null || undefined}>
-            {state.compatError}
-          </p>
-        </fieldset>
+        <ModesSection
+          heading={msg('optionsModesHeading')}
+          imageOnly={settings?.imageOnly ?? false}
+          skipWebSearch={settings?.skipWebSearch ?? false}
+        />
+        <ProviderSection
+          heading={msg('optionsProviderHeading')}
+          ready={settings !== null}
+          providerMuse={settings?.providerMuse ?? false}
+          compatOpen={state.compatOpen}
+          compat={settings?.compat ?? null}
+          compatError={state.compatError}
+          confirmHost={state.compatConfirmHost}
+          onSave={onCompatSave}
+        />
+        <DataSection
+          heading={msg('optionsDataHeading')}
+          ttlDays={settings?.cacheTtlDays ?? 7}
+          cachePending={state.cachePending}
+          cacheResult={state.cacheResult}
+          onClearCache={onClearCache}
+        />
       </div>
-      <h2 id="cost-heading">{msg('optionsCostHeading')}</h2>
-      <p id="cost-line">{state.costText}</p>
-      <div className="button-row">
-        <button
-          id="reset-cost"
-          type="button"
-          onClick={() => {
-            void (async () => {
-              try {
-                await resetMonthSpend();
-              } catch {
-                store.set({ status: msg('settingsSaveFailed') });
-                return;
-              }
-              await refreshCost();
-              store.set({ status: msg('statusMonthlyReset') });
-            })();
-          }}
-        >
-          {msg('resetCostButton')}
-        </button>
-      </div>
+      <CostSection
+        heading={msg('optionsCostHeading')}
+        headingId="cost-heading"
+        lineId="cost-line"
+        buttonId="reset-cost"
+        costText={state.costText}
+        onReset={onResetCost}
+      />
       <h2 id="privacy-heading">{msg('optionsPrivacyHeading')}</h2>
       <p id="privacy-body">{msg('optionsPrivacyBody')}</p>
       <div id="status-region" role="status" className="visually-hidden">
@@ -657,6 +512,7 @@ export const initOptions = (): void => {
               ? ''
               : String(settings.openaiCompat.cachedRatePerM),
         },
+        cacheTtlDays: settings.cacheTtlDays,
       },
     });
   });

@@ -140,7 +140,16 @@ const spendReset = async (at: number): Promise<void> => {
   await writeTotals(totals);
 };
 
-const cacheExpired = (record: CacheRecord): boolean => Date.now() - record.createdAt > CACHE_TTL_MS;
+const cacheExpired = (record: CacheRecord, ttlMs: number): boolean =>
+  Date.now() - record.createdAt > ttlMs;
+
+const readCacheTtlMs = async (): Promise<number> => {
+  try {
+    return (await loadSettings()).cacheTtlDays * 24 * 60 * 60 * 1000;
+  } catch {
+    return CACHE_TTL_MS;
+  }
+};
 
 const cacheGet = async (hash: string): Promise<CacheEntry | undefined> => {
   const name = cacheKeyFor(hash);
@@ -153,7 +162,7 @@ const cacheGet = async (hash: string): Promise<CacheEntry | undefined> => {
     return undefined;
   }
 
-  if (cacheExpired(record)) {
+  if (cacheExpired(record, await readCacheTtlMs())) {
     await chrome.storage.session.remove(name);
 
     return undefined;
@@ -181,6 +190,8 @@ const cacheSet = async (hash: string, entry: CacheEntry): Promise<void> => {
 const enforceCachePolicy = async (fresh: string): Promise<void> => {
   const stored = await getAllSession();
 
+  const ttlMs = await readCacheTtlMs();
+
   const index = (await readCacheIndex()).filter((key) => key !== fresh);
   index.unshift(fresh);
 
@@ -193,7 +204,7 @@ const enforceCachePolicy = async (fresh: string): Promise<void> => {
 
     const record = unwrapRecord(stored[name]);
 
-    if (!record || cacheExpired(record)) {
+    if (!record || cacheExpired(record, ttlMs)) {
       if (name in stored) {
         await chrome.storage.session.remove(name);
       }

@@ -390,6 +390,37 @@ describe('storage service cache commands', () => {
     expect((await getCacheEntry('fresh'))?.place.placeName).toBe('Fresh');
   });
 
+  it('expires cached entries per the retention setting', async () => {
+    await mock.local.set({ settings: { v: 1, settings: { cacheTtlDays: 1 } } });
+    await mock.session.set({
+      'cache:old': {
+        v: 2,
+        createdAt: Date.now() - 2 * 24 * 60 * 60 * 1000,
+        entry: entry('Old'),
+      },
+      'cache:fresh': { v: 2, createdAt: Date.now(), entry: entry('Fresh') },
+      cacheKeys: ['old', 'fresh'],
+    });
+
+    expect(await getCacheEntry('old')).toBeUndefined();
+    expect(mock.session.data.has('cache:old')).toBe(false);
+    expect((await getCacheEntry('fresh'))?.place.placeName).toBe('Fresh');
+  });
+
+  it('keeps entries within a longer retention', async () => {
+    await mock.local.set({ settings: { v: 1, settings: { cacheTtlDays: 30 } } });
+    await mock.session.set({
+      'cache:aged': {
+        v: 2,
+        createdAt: Date.now() - 10 * 24 * 60 * 60 * 1000,
+        entry: entry('Aged'),
+      },
+      cacheKeys: ['aged'],
+    });
+
+    expect((await getCacheEntry('aged'))?.place.placeName).toBe('Aged');
+  });
+
   it('tolerates storage faults without breaking callers', async () => {
     mock.session.fault = (op) => {
       if (op === 'get' || op === 'set') {

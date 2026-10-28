@@ -260,6 +260,7 @@ describe('options', () => {
         imageOnly: false,
         sessionOnly: false,
         skipWebSearch: false,
+        cacheTtlDays: 7,
       },
     });
   });
@@ -490,5 +491,100 @@ describe('options', () => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusProviderSaved');
     });
     expect(permsRemove).toHaveBeenCalledWith({ origins: ['https://llm.example.com/*'] });
+  });
+
+  it('keeps advanced server fields in a disclosure', async () => {
+    await setup();
+
+    const advanced = document.querySelector('#compat-advanced');
+
+    expect(advanced?.tagName).toBe('DETAILS');
+    expect(advanced?.querySelector('#compat-structured')).not.toBeNull();
+    expect(advanced?.querySelector('#compat-input-rate')).not.toBeNull();
+    expect(advanced?.querySelector('#compat-output-rate')).not.toBeNull();
+    expect(advanced?.querySelector('#compat-cached-rate')).not.toBeNull();
+    expect(document.querySelector('#compat-advanced #compat-save')).toBeNull();
+    expect(document.querySelector('#compat-advanced #compat-error')).toBeNull();
+  });
+
+  it('changes retention and clears cached results', async () => {
+    const mock = await setup(async (inner) => {
+      await inner.session.set({
+        'cache:a': {
+          v: 2,
+          createdAt: Date.now(),
+          entry: { place: null, guide: '# A', sources: [], usage: null, searchedWeb: false },
+        },
+        cacheKeys: ['a'],
+      });
+    });
+
+    await waitFor(() => {
+      expect(document.querySelector('#cost-line')?.textContent).toContain('optionsCostMonth');
+    });
+
+    const retention = document.querySelector('#retention-select') as HTMLSelectElement;
+    expect(retention.value).toBe('7');
+    retention.value = '30';
+    retention.dispatchEvent(new Event('change', { bubbles: true }));
+
+    await waitFor(() => {
+      const record = mock.local.data.get('settings') as {
+        settings: { cacheTtlDays: number };
+      };
+
+      expect(record.settings.cacheTtlDays).toBe(30);
+    });
+
+    (document.querySelector('#clear-cache') as HTMLButtonElement).click();
+
+    await waitFor(() => {
+      expect(document.querySelector('#cache-result')?.textContent).toBe('cacheClearedOne');
+    });
+    expect(mock.session.data.has('cache:a')).toBe(false);
+
+    (document.querySelector('#clear-cache') as HTMLButtonElement).click();
+
+    await waitFor(() => {
+      expect(document.querySelector('#cache-result')?.textContent).toBe('cacheClearedNone');
+    });
+  });
+
+  it('reports retention and cache-clear failures', async () => {
+    const mock = await setup();
+
+    await waitFor(() => {
+      expect(document.querySelector('#cost-line')?.textContent).toContain('optionsCostMonth');
+    });
+
+    mock.local.fault = (op) => {
+      if (op === 'set') {
+        throw new Error('quota');
+      }
+    };
+
+    const retention = document.querySelector('#retention-select') as HTMLSelectElement;
+    retention.value = '1';
+    retention.dispatchEvent(new Event('change', { bubbles: true }));
+
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('settingsSaveFailed');
+    });
+    expect(retention.value).toBe('7');
+
+    mock.local.fault = () => undefined;
+    mock.session.fault = (op) => {
+      if (op === 'remove') {
+        throw new Error('locked');
+      }
+    };
+
+    (document.querySelector('#clear-cache') as HTMLButtonElement).click();
+
+    await waitFor(() => {
+      expect(document.querySelector('#cache-result')?.textContent).toBe('cacheClearFailed');
+    });
+
+    mock.session.fault = () => undefined;
   });
 });

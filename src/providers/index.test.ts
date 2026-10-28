@@ -74,6 +74,7 @@ const DEFAULTS: ExtensionSettings = {
   imageOnly: false,
   sessionOnly: false,
   skipWebSearch: false,
+  cacheTtlDays: 7,
 };
 
 beforeEach(() => {

@@ -62,7 +62,17 @@ export interface ExtensionSettings {
   imageOnly: boolean;
   sessionOnly: boolean;
   skipWebSearch: boolean;
+  cacheTtlDays: number;
 }
+
+export const CACHE_TTL_CHOICES = [1, 7, 30] as const;
+
+export type CacheTtlDays = (typeof CACHE_TTL_CHOICES)[number];
+
+export const DEFAULT_CACHE_TTL_DAYS: CacheTtlDays = 7;
+
+const normalizeTtlDays = (value: unknown): CacheTtlDays =>
+  value === 1 || value === 7 || value === 30 ? value : DEFAULT_CACHE_TTL_DAYS;
 
 const DEFAULT_SETTINGS: ExtensionSettings = {
   activeProviderId: 'muse',
@@ -70,6 +80,7 @@ const DEFAULT_SETTINGS: ExtensionSettings = {
   imageOnly: false,
   sessionOnly: false,
   skipWebSearch: false,
+  cacheTtlDays: DEFAULT_CACHE_TTL_DAYS,
 };
 
 const unwrapSettings = (raw: unknown): Partial<ExtensionSettings> => {
@@ -126,6 +137,7 @@ export const loadSettings = async (): Promise<ExtensionSettings> => {
       imageOnly: s.imageOnly === true,
       sessionOnly: s.sessionOnly === true,
       skipWebSearch: s.skipWebSearch === true,
+      cacheTtlDays: normalizeTtlDays(s.cacheTtlDays),
     };
   } catch {
     return structuredClone(DEFAULT_SETTINGS);

@@ -26,6 +26,7 @@ vi.mock('idb-keyval', () => {
   };
 });
 
+import { monthKey } from './pricing';
 import type { ChromeMock } from './test/chrome_mock';
 import {
   chatResponse,
@@ -42,6 +43,18 @@ const SHELL = readShell('sidepanel');
 
 const selectBoardTab = (): void => {
   (document.querySelector('#tab-board') as HTMLButtonElement).click();
+};
+
+const selectSettingsTab = (): void => {
+  (document.querySelector('#tab-settings') as HTMLButtonElement).click();
+};
+
+const waitForSettings = async (): Promise<void> => {
+  await waitFor(() => {
+    expect(document.querySelector('#settings-cost-line')?.textContent).toContain(
+      'optionsCostMonth'
+    );
+  });
 };
 
 const waitForHeading = async (text: string): Promise<void> => {
@@ -2900,5 +2913,170 @@ describe('sidepanel', () => {
       const retry = document.querySelector('#result-slot');
       expect(retry?.querySelector('h2')?.textContent).toBe('errorVideoMatchTitle');
     });
+  });
+
+  it('persists search modes from the settings tab', async () => {
+    const mock = await setup();
+    selectSettingsTab();
+    await waitForSettings();
+
+    const box = document.querySelector('#image-only') as HTMLInputElement;
+    expect(box.checked).toBe(false);
+    box.checked = true;
+    box.dispatchEvent(new Event('change', { bubbles: true }));
+
+    await waitFor(() => {
+      const record = mock.local.data.get('settings') as { settings: { imageOnly: boolean } };
+
+      expect(record.settings.imageOnly).toBe(true);
+    });
+
+    const skip = document.querySelector('#skip-search') as HTMLInputElement;
+    skip.checked = true;
+    skip.dispatchEvent(new Event('change', { bubbles: true }));
+
+    await waitFor(() => {
+      const record = mock.local.data.get('settings') as {
+        settings: { skipWebSearch: boolean };
+      };
+
+      expect(record.settings.skipWebSearch).toBe(true);
+    });
+  });
+
+  it('reports settings save failures from the settings tab', async () => {
+    const mock = await setup();
+    selectSettingsTab();
+    await waitForSettings();
+
+    mock.local.fault = (op) => {
+      if (op === 'set') {
+        throw new Error('quota');
+      }
+    };
+
+    const box = document.querySelector('#image-only') as HTMLInputElement;
+    box.checked = true;
+    box.dispatchEvent(new Event('change', { bubbles: true }));
+
+    await waitFor(() => {
+      expect(document.querySelector('#alert-region')?.textContent).toBe('settingsSaveFailed');
+    });
+    expect(box.checked).toBe(false);
+
+    mock.local.fault = () => undefined;
+  });
+
+  it('saves a custom server from the settings tab and switches back', async () => {
+    const mock = await setup();
+    selectSettingsTab();
+    await waitForSettings();
+
+    const permsRequest = vi.fn().mockResolvedValue(true);
+    const permsRemove = vi.fn().mockResolvedValue(undefined);
+    (chrome as unknown as { permissions: unknown }).permissions = {
+      request: permsRequest,
+      remove: permsRemove,
+    };
+
+    const compat = document.querySelector('#provider-compat') as HTMLInputElement;
+    compat.checked = true;
+    compat.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(document.querySelector('#compat-fields')?.hasAttribute('hidden')).toBe(false);
+
+    (document.querySelector('#compat-base-url') as HTMLInputElement).value =
+      'https://llm.example.com/v1';
+    (document.querySelector('#compat-model') as HTMLInputElement).value = 'test-model';
+    (document.querySelector('#compat-save') as HTMLButtonElement).click();
+
+    await waitFor(() => {
+      expect(document.querySelector('#compat-error')?.textContent).toBe(
+        'compatHostWarning(llm.example.com)'
+      );
+    });
+
+    (document.querySelector('#compat-save') as HTMLButtonElement).click();
+
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('statusProviderSaved');
+    });
+
+    const stored = mock.local.data.get('settings') as {
+      settings: { activeProviderId: string };
+    };
+    expect(stored.settings.activeProviderId).toBe('openai_compat');
+    expect(document.querySelector('#compat-error')?.hasAttribute('hidden')).toBe(true);
+
+    const muse = document.querySelector('#provider-muse') as HTMLInputElement;
+    muse.checked = true;
+    muse.dispatchEvent(new Event('change', { bubbles: true }));
+
+    await waitFor(() => {
+      const record = mock.local.data.get('settings') as {
+        settings: { activeProviderId: string };
+      };
+
+      expect(record.settings.activeProviderId).toBe('muse');
+    });
+    expect(permsRemove).toHaveBeenCalledWith({ origins: ['https://llm.example.com/*'] });
+    expect(document.querySelector('#compat-fields')?.hasAttribute('hidden')).toBe(true);
+  });
+
+  it('changes retention and clears cached results from the settings tab', async () => {
+    const mock = await setup(async (inner) => {
+      await inner.session.set({
+        'cache:a': {
+          v: 2,
+          createdAt: Date.now(),
+          entry: { place: null, guide: '# A', sources: [], usage: null, searchedWeb: false },
+        },
+        cacheKeys: ['a'],
+      });
+    });
+    selectSettingsTab();
+    await waitForSettings();
+
+    const retention = document.querySelector('#retention-select') as HTMLSelectElement;
+    expect(retention.value).toBe('7');
+    retention.value = '1';
+    retention.dispatchEvent(new Event('change', { bubbles: true }));
+
+    await waitFor(() => {
+      const record = mock.local.data.get('settings') as {
+        settings: { cacheTtlDays: number };
+      };
+
+      expect(record.settings.cacheTtlDays).toBe(1);
+    });
+
+    (document.querySelector('#settings-panel #clear-cache') as HTMLButtonElement).click();
+
+    await waitFor(() => {
+      expect(document.querySelector('#cache-result')?.textContent).toBe('cacheClearedOne');
+    });
+    expect(mock.session.data.has('cache:a')).toBe(false);
+  });
+
+  it('resets the monthly cost from the settings tab', async () => {
+    const mock = await setup(async (inner) => {
+      await inner.local.set({ costTotals: { [monthKey()]: 2.5 } });
+    });
+    selectSettingsTab();
+
+    await waitFor(() => {
+      expect(document.querySelector('#settings-cost-line')?.textContent).toBe(
+        'optionsCostMonth($2.50)'
+      );
+    });
+
+    (document.querySelector('#settings-reset-cost') as HTMLButtonElement).click();
+
+    await waitFor(() => {
+      expect(document.querySelector('#settings-cost-line')?.textContent).toBe(
+        'optionsCostMonth($0.00)'
+      );
+    });
+    expect(document.querySelector('#status-region')?.textContent).toBe('statusMonthlyReset');
+    expect(mock.local.data.get('costTotals')).toEqual({ v: 1, months: {} });
   });
 });

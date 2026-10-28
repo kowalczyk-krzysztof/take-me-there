@@ -19,6 +19,21 @@ import { KeySetup } from './components/key_setup/key_setup';
 import { SourceChips } from './components/source_chips/source_chips';
 import type { BoardItemView, TripRemovePinDetail } from './components/trip_board/trip_board';
 import { TripBoard } from './components/trip_board/trip_board';
+import { ProviderSection } from './components/settings/provider_section';
+import { ModesSection } from './components/settings/modes_section';
+import { DataSection } from './components/settings/data_section';
+import { CostSection } from './components/settings/cost_section';
+import {
+  EMPTY_COMPAT_FORM,
+  attachSettingsInputs,
+  clearResultCache,
+  compatErrorKey,
+  saveCompatProvider,
+  setCacheTtlDays,
+  setMode,
+  switchToClaude,
+  type CompatFormValues,
+} from './settings_ops';
 import { prefersReducedMotion } from './utils/dom';
 import {
   clearBoard,
@@ -38,7 +53,13 @@ import {
 } from './image_fetch';
 import { clearAllKeys, clearKey, isVaultKey, loadKey, saveKey, setKeyMode } from './key_vault';
 import { cropToSamBox, parseSamBoxes, selectSamBox, type SamPixelBox } from './sam';
-import { estimateCachedSavingUsd, estimateCostUsd, formatUsd, readMonthSpend } from './pricing';
+import {
+  estimateCachedSavingUsd,
+  estimateCostUsd,
+  formatUsd,
+  readMonthSpend,
+  resetMonthSpend,
+} from './pricing';
 import { createGuideRenderer, findGuideStart } from './render_markdown';
 import {
   GUIDE_MAX_TEXT_CHARS,
@@ -71,6 +92,7 @@ import {
   formatSignalsForPrompt,
   getActiveProvider,
   hasConsented,
+  loadSettings,
   saveSettings,
   setConsented,
   SETTINGS_STORAGE_KEY,
@@ -187,8 +209,24 @@ interface KeyFormState {
   resetKey: number;
 }
 
+interface PanelSettingsState {
+  loaded: boolean;
+  imageOnly: boolean;
+  skipWebSearch: boolean;
+  providerMuse: boolean;
+  compatOpen: boolean;
+  compat: CompatFormValues;
+  compatError: string | null;
+  compatConfirmHost: string | null;
+  cacheTtlDays: number;
+  cachePending: boolean;
+  cacheResult: string | null;
+  costText: string;
+}
+
 interface PanelState {
   tab: 'main' | 'board' | 'settings';
+  panelSettings: PanelSettingsState;
   keySaved: boolean;
   replacing: boolean;
   showOrphaned: boolean;
@@ -223,6 +261,20 @@ const blankResultSlot = (): ResultSlotState => ({
 
 const store = createStore<PanelState>({
   tab: 'main',
+  panelSettings: {
+    loaded: false,
+    imageOnly: false,
+    skipWebSearch: false,
+    providerMuse: true,
+    compatOpen: false,
+    compat: EMPTY_COMPAT_FORM,
+    compatError: null,
+    compatConfirmHost: null,
+    cacheTtlDays: 7,
+    cachePending: false,
+    cacheResult: null,
+    costText: '',
+  },
   keySaved: false,
   replacing: false,
   showOrphaned: false,
@@ -269,6 +321,10 @@ const selectTab = (tab: PanelTab): void => {
   }
   store.set({ tab });
 
+  if (tab === 'settings') {
+    void refreshPanelSettings();
+  }
+
   const active = document.activeElement as HTMLElement | null;
 
   const panel = active?.closest('#main-panel, #board-panel, #settings-panel');
@@ -311,6 +367,216 @@ const onLockAreaChanged = (changes: Record<string, unknown>): void => {
 
 const setKeyForm = (patch: Partial<KeyFormState>): void => {
   store.set({ keyForm: { ...store.get().keyForm, ...patch } });
+};
+
+const setPanelSettings = (patch: Partial<PanelSettingsState>): void => {
+  store.set({ panelSettings: { ...store.get().panelSettings, ...patch } });
+};
+
+const settingsInputValue = (id: string): string =>
+  (document.getElementById(id) as HTMLInputElement | null)?.value ?? '';
+
+let panelSettingsEpoch = 0;
+
+const refreshPanelSettings = async (): Promise<void> => {
+  const epoch = ++panelSettingsEpoch;
+
+  try {
+    const settings = await loadSettings();
+
+    const spend = await readMonthSpend();
+
+    if (epoch !== panelSettingsEpoch) {
+      return;
+    }
+
+    const prev = store.get().panelSettings;
+
+    store.set({
+      panelSettings: {
+        ...prev,
+        loaded: true,
+        imageOnly: settings.imageOnly,
+        skipWebSearch: settings.skipWebSearch,
+        providerMuse: settings.activeProviderId !== 'openai_compat',
+        compatOpen: prev.loaded ? prev.compatOpen : settings.activeProviderId === 'openai_compat',
+        compat: {
+          baseURL: settings.openaiCompat.baseURL,
+          model: settings.openaiCompat.model,
+          structured: settings.openaiCompat.structuredOutput,
+          inputRate:
+            settings.openaiCompat.inputRatePerM === undefined
+              ? ''
+              : String(settings.openaiCompat.inputRatePerM),
+          outputRate:
+            settings.openaiCompat.outputRatePerM === undefined
+              ? ''
+              : String(settings.openaiCompat.outputRatePerM),
+          cachedRate:
+            settings.openaiCompat.cachedRatePerM === undefined
+              ? ''
+              : String(settings.openaiCompat.cachedRatePerM),
+        },
+        cacheTtlDays: settings.cacheTtlDays,
+        costText: msg('optionsCostMonth', formatUsd(spend)),
+      },
+    });
+  } catch {
+    // Keep the previous settings form on storage failure.
+  }
+};
+
+const refreshPanelCost = async (): Promise<void> => {
+  try {
+    setPanelSettings({ costText: msg('optionsCostMonth', formatUsd(await readMonthSpend())) });
+  } catch {
+    setPanelSettings({ costText: msg('optionsCostMonth', formatUsd(0)) });
+  }
+};
+
+const onSettingsMode = (mode: 'imageOnly' | 'skipWebSearch', box: HTMLInputElement): void => {
+  const checked = box.checked;
+
+  void (async () => {
+    try {
+      await setMode(mode, checked);
+    } catch {
+      box.checked = !checked;
+      announceAlert('settingsSaveFailed');
+    }
+  })();
+};
+
+const onSettingsMuse = (box: HTMLInputElement): void => {
+  void (async () => {
+    try {
+      await switchToClaude();
+    } catch {
+      box.checked = false;
+      announceAlert('settingsSaveFailed');
+
+      return;
+    }
+
+    setPanelSettings({ compatOpen: false, compatError: null, compatConfirmHost: null });
+    announceStatus('statusProviderSaved');
+    await refreshLock();
+  })();
+};
+
+const onSettingsCompatSave = (): void => {
+  void (async () => {
+    setPanelSettings({ compatError: null });
+
+    const outcome = await saveCompatProvider(
+      {
+        baseURL: settingsInputValue('compat-base-url'),
+        model: settingsInputValue('compat-model'),
+        structured: settingsInputValue('compat-structured'),
+        inputRate: settingsInputValue('compat-input-rate'),
+        outputRate: settingsInputValue('compat-output-rate'),
+        cachedRate: settingsInputValue('compat-cached-rate'),
+      },
+      store.get().panelSettings.compatConfirmHost
+    );
+
+    if (outcome.status === 'saved') {
+      setPanelSettings({ compatError: null, compatConfirmHost: null });
+      announceStatus('statusProviderSaved');
+      await refreshLock();
+
+      return;
+    }
+
+    if (outcome.status === 'confirm') {
+      setPanelSettings({
+        compatError: msg('compatHostWarning', outcome.host),
+        compatConfirmHost: outcome.host,
+      });
+
+      return;
+    }
+
+    setPanelSettings({ compatError: msg(compatErrorKey(outcome.error)) });
+  })();
+};
+
+const onSettingsRetention = (days: number, select: HTMLSelectElement): void => {
+  const current = store.get().panelSettings.cacheTtlDays;
+
+  if (days !== 1 && days !== 7 && days !== 30) {
+    select.value = String(current);
+
+    return;
+  }
+
+  void (async () => {
+    try {
+      await setCacheTtlDays(days as 1 | 7 | 30);
+    } catch {
+      select.value = String(current);
+      announceAlert('settingsSaveFailed');
+
+      return;
+    }
+
+    setPanelSettings({ cacheTtlDays: days });
+  })();
+};
+
+const onSettingsClearCache = (): void => {
+  void (async () => {
+    setPanelSettings({ cachePending: true, cacheResult: null });
+
+    let cleared = 0;
+
+    try {
+      cleared = await clearResultCache();
+    } catch {
+      setPanelSettings({ cachePending: false, cacheResult: msg('cacheClearFailed') });
+
+      return;
+    }
+
+    const result =
+      cleared === 0
+        ? msg('cacheClearedNone')
+        : cleared === 1
+          ? msg('cacheClearedOne')
+          : msg('cacheClearedMany', String(cleared));
+
+    setPanelSettings({ cachePending: false, cacheResult: result });
+  })();
+};
+
+const onSettingsResetCost = (): void => {
+  void (async () => {
+    try {
+      await resetMonthSpend();
+    } catch {
+      announceAlert('settingsSaveFailed');
+
+      return;
+    }
+
+    await refreshPanelCost();
+    announceStatus('statusMonthlyReset');
+  })();
+};
+
+const attachPanelSettings = (el: HTMLElement | null): (() => void) | void => {
+  if (!el) {
+    return;
+  }
+
+  return attachSettingsInputs(el, {
+    onMode: onSettingsMode,
+    onMuse: onSettingsMuse,
+    onCompat: () => {
+      setPanelSettings({ compatOpen: true });
+    },
+    onRetention: onSettingsRetention,
+  });
 };
 
 const guideContentEl = (): HTMLElement | null => document.getElementById('guide-content');
@@ -3674,6 +3940,7 @@ const SidepanelApp = () => {
         role="tabpanel"
         aria-labelledby="tab-settings"
         hidden={selected('settings') ? undefined : true}
+        ref={attachPanelSettings}
       >
         <h2 id="settings-heading">{msg('settingsKeyHeading')}</h2>
         {state.showOrphaned ? <p className="key-notice">{msg('keyReenterNotice')}</p> : null}
@@ -3709,6 +3976,41 @@ const SidepanelApp = () => {
             </div>
           </>
         )}
+        <div
+          key={state.panelSettings.loaded ? 'settings-ready' : 'settings-loading'}
+          id="panel-settings-sections"
+        >
+          <ModesSection
+            heading={msg('settingsModesHeading')}
+            imageOnly={state.panelSettings.imageOnly}
+            skipWebSearch={state.panelSettings.skipWebSearch}
+          />
+          <ProviderSection
+            heading={msg('settingsProviderHeading')}
+            ready={state.panelSettings.loaded}
+            providerMuse={state.panelSettings.providerMuse}
+            compatOpen={state.panelSettings.compatOpen}
+            compat={state.panelSettings.compat}
+            compatError={state.panelSettings.compatError}
+            confirmHost={state.panelSettings.compatConfirmHost}
+            onSave={onSettingsCompatSave}
+          />
+          <DataSection
+            heading={msg('settingsDataHeading')}
+            ttlDays={state.panelSettings.cacheTtlDays}
+            cachePending={state.panelSettings.cachePending}
+            cacheResult={state.panelSettings.cacheResult}
+            onClearCache={onSettingsClearCache}
+          />
+          <CostSection
+            heading={msg('settingsCostHeading')}
+            headingId="settings-cost-heading"
+            lineId="settings-cost-line"
+            buttonId="settings-reset-cost"
+            costText={state.panelSettings.costText}
+            onReset={onSettingsResetCost}
+          />
+        </div>
       </section>
       <footer id="page-footer">
         <p id="privacy-line">{state.privacy}</p>
@@ -3772,6 +4074,7 @@ export const initPanel = (): void => {
   chrome.storage.local.onChanged.addListener(onLockAreaChanged);
   chrome.storage.session.onChanged.addListener(onLockAreaChanged);
 
+  void refreshPanelSettings();
   void watchOwnHandoffSlot();
 };
 

@@ -44,6 +44,7 @@ const settings = (): ExtensionSettings => ({
   imageOnly: false,
   sessionOnly: false,
   skipWebSearch: false,
+  cacheTtlDays: 7,
 });
 
 const request = (): TripRequest => ({
