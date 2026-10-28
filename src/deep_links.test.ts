@@ -32,6 +32,15 @@ describe('deep_links', () => {
     expect(airbnb?.href).toBe('https://www.airbnb.com/s/abcd%20e/homes');
   });
 
+  it('survives astral names cut at the character limit', () => {
+    const links = buildLinks(`${'x'.repeat(MAX_DESTINATION_CHARS - 1)}😀tail`);
+    for (const link of links) {
+      expect(() => new URL(link.href)).not.toThrow();
+    }
+    const dir = mapsDirUrl([`${'y'.repeat(MAX_DESTINATION_CHARS - 1)}😀`, 'Oia, Greece']);
+    expect(() => (dir ? new URL(dir) : null)).not.toThrow();
+  });
+
   it('caps destinations at the character limit', () => {
     const links = buildLinks(`${'sight '.repeat(50)}x&y`);
     const maps = links.find((link) => link.id === 'maps');

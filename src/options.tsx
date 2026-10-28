@@ -11,6 +11,7 @@ import {
   saveSettings,
   type ExtensionSettings,
 } from './providers/index';
+import { ErrorBoundary } from './components/error_boundary/error_boundary';
 import { msg } from './utils/i18n';
 import { createStore } from './utils/store';
 import './styles/options.css';
@@ -442,7 +443,21 @@ export const initOptions = (): void => {
   document.documentElement.lang = msg('@@ui_locale').replace('_', '-');
   document.documentElement.dir = msg('@@bidi_dir');
   flushSync(() => {
-    createRoot(host).render(<OptionsApp />);
+    createRoot(host).render(
+      <ErrorBoundary
+        fallback={() => (
+          <main>
+            <h2 tabIndex={-1}>{msg('errorServerTitle')}</h2>
+            <p>{msg('errorServerBody')}</p>
+            <button type="button" onClick={() => window.location.reload()}>
+              {msg('retryButton')}
+            </button>
+          </main>
+        )}
+      >
+        <OptionsApp />
+      </ErrorBoundary>
+    );
   });
   void loadSettings().then((settings) => {
     store.set({

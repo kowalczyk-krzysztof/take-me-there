@@ -71,7 +71,9 @@ import {
   setCacheEntry,
   type CacheEntry,
 } from './result_cache';
+import { ErrorBoundary } from './components/error_boundary/error_boundary';
 import { msg } from './utils/i18n';
+import { truncateCodePoints } from './utils/text';
 import { createStore } from './utils/store';
 import './styles/sidepanel.css';
 import './components/shared_styles.css';
@@ -627,7 +629,7 @@ const fallbackFor = (signals: PageSignals): { label: string; href: string } | nu
   if (!best) {
     return null;
   }
-  const label = best.trim().slice(0, 80);
+  const label = truncateCodePoints(best.trim(), 80);
   return {
     label,
     href: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(label)}`,
@@ -2851,6 +2853,34 @@ const SidepanelApp = () => {
   );
 };
 
+const renderCrashFallback = (reset: () => void) => (
+  <main>
+    <h2
+      tabIndex={-1}
+      ref={(el) => {
+        el?.focus();
+      }}
+    >
+      {msg('errorServerTitle')}
+    </h2>
+    <p>{msg('errorServerBody')}</p>
+    <button
+      type="button"
+      onClick={() => {
+        reset();
+        void retry();
+      }}
+    >
+      {msg('retryButton')}
+    </button>
+  </main>
+);
+
+const onPanelCrash = (): void => {
+  activeController = null;
+  analysisInFlight = false;
+};
+
 export const initPanel = (): void => {
   if (initialized) {
     return;
@@ -2865,7 +2895,11 @@ export const initPanel = (): void => {
   document.documentElement.lang = msg('@@ui_locale').replace('_', '-');
   document.documentElement.dir = msg('@@bidi_dir');
   flushSync(() => {
-    createRoot(host).render(<SidepanelApp />);
+    createRoot(host).render(
+      <ErrorBoundary fallback={renderCrashFallback} onCatch={onPanelCrash}>
+        <SidepanelApp />
+      </ErrorBoundary>
+    );
   });
 
   updatePreview(null);

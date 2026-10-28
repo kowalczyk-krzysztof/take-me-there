@@ -4,6 +4,7 @@
 // provider names.
 import { EventSourceParserStream, type EventSourceMessage } from 'eventsource-parser/stream';
 import type { ModelRates } from '../pricing';
+import { truncateCodePoints } from '../utils/text';
 import {
   ALTERNATES_MAX_COUNT,
   DUEL_MAX_CRITERIA,
@@ -944,10 +945,10 @@ export const tryParsePlaceJson = (json: unknown): PlaceResult | undefined => {
   // Belt and braces: the schema already bounds these, truncate regardless.
   return {
     ...place,
-    placeName: place.placeName.slice(0, 100),
-    city: place.city.slice(0, 100),
-    country: place.country.slice(0, 100),
-    oneLiner: place.oneLiner.slice(0, 300),
+    placeName: truncateCodePoints(place.placeName, 100),
+    city: truncateCodePoints(place.city, 100),
+    country: truncateCodePoints(place.country, 100),
+    oneLiner: truncateCodePoints(place.oneLiner, 300),
   };
 };
 

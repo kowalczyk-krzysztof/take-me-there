@@ -23,6 +23,7 @@ import {
   saveSettings,
   sanitizePromptHint,
   setConsented,
+  tryParsePlaceJson,
   type ExtensionSettings,
 } from './index';
 import { installChromeMock, uninstallChromeMock } from '../test/chrome_mock';
@@ -477,6 +478,21 @@ describe('prompt builders', () => {
     });
     expect(extractResponsesText({})).toBeUndefined();
     expect(extractResponsesText({ output: [] })).toBeUndefined();
+  });
+});
+
+describe('tryParsePlaceJson', () => {
+  it('repairs lone surrogates inside schema bounds', () => {
+    const parsed = tryParsePlaceJson({
+      identified: true,
+      placeName: `${'x'.repeat(98)}\ud800`,
+      city: '',
+      country: 'Greece',
+      confidence: 0.9,
+      oneLiner: '',
+    });
+    expect(parsed).toBeDefined();
+    expect(() => encodeURIComponent(parsed?.placeName ?? '')).not.toThrow();
   });
 });
 

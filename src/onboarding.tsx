@@ -4,6 +4,7 @@ import { flushSync } from 'react-dom';
 import { KeySetup } from './components/key_setup/key_setup';
 import { loadKey, saveKey } from './key_vault';
 import { ProviderError, getActiveProvider, loadSettings, saveSettings } from './providers/index';
+import { ErrorBoundary } from './components/error_boundary/error_boundary';
 import { msg } from './utils/i18n';
 import { createStore } from './utils/store';
 import './styles/options.css';
@@ -127,7 +128,21 @@ export const initOnboarding = (): void => {
   document.documentElement.dir = msg('@@bidi_dir');
 
   flushSync(() => {
-    createRoot(host).render(<OnboardingApp />);
+    createRoot(host).render(
+      <ErrorBoundary
+        fallback={() => (
+          <main>
+            <h2 tabIndex={-1}>{msg('errorServerTitle')}</h2>
+            <p>{msg('errorServerBody')}</p>
+            <button type="button" onClick={() => window.location.reload()}>
+              {msg('retryButton')}
+            </button>
+          </main>
+        )}
+      >
+        <OnboardingApp />
+      </ErrorBoundary>
+    );
   });
 
   void loadSettings().then((settings) => {

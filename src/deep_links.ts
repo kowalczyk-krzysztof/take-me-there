@@ -1,3 +1,5 @@
+import { truncateCodePoints } from './utils/text';
+
 export interface BookingLink {
   id: string;
   href: string;
@@ -28,7 +30,7 @@ export const buildDestination = (placeName: string, city: string, country: strin
 };
 
 export const capDestination = (destination: string): string =>
-  destination.trim().replace(/\s+/g, ' ').slice(0, MAX_DESTINATION_CHARS);
+  truncateCodePoints(destination.trim().replace(/\s+/g, ' '), MAX_DESTINATION_CHARS);
 
 export const buildLinks = (destination: string): BookingLink[] => {
   const capped = capDestination(destination);
