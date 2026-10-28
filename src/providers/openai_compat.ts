@@ -52,6 +52,10 @@ const IDENTIFY_MAX_TOKENS = 2048;
 
 const GUIDE_MAX_TOKENS = 4096;
 
+// Multi-image batches share the muse output budget: 2048 truncates the
+// JSON mid-array, and the truncated half bills a strict retry for nothing.
+const ITINERARY_MAX_TOKENS = 4096;
+
 export class OpenAiCompatProvider implements Provider {
   readonly id = 'openai_compat';
   readonly capabilities: ProviderCapabilities;
@@ -140,7 +144,7 @@ export class OpenAiCompatProvider implements Provider {
         {
           model: this.config.model,
           prompt_cache_key: PROMPT_CACHE_KEY,
-          max_completion_tokens: IDENTIFY_MAX_TOKENS,
+          max_completion_tokens: ITINERARY_MAX_TOKENS,
           messages: buildItineraryMessages(input.pins, strictReminder),
           response_format:
             this.config.structuredOutput === 'json_schema'
@@ -184,7 +188,7 @@ export class OpenAiCompatProvider implements Provider {
         {
           model: this.config.model,
           prompt_cache_key: PROMPT_CACHE_KEY,
-          max_completion_tokens: IDENTIFY_MAX_TOKENS,
+          max_completion_tokens: ITINERARY_MAX_TOKENS,
           messages: buildScanMessages(input.images, strictReminder),
           response_format:
             this.config.structuredOutput === 'json_schema'

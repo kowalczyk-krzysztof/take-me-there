@@ -265,6 +265,7 @@ describe('compat planItinerary', () => {
     expect((body.response_format as Record<string, string>).type).toBe('json_schema');
     expect(body.prompt_cache_key).toBe('take-me-there');
     expect(body.prompt_cache_retention).toBeUndefined();
+    expect(body.max_completion_tokens).toBe(4096);
   });
 
   it('falls back to json_object with the same client validation', async () => {
@@ -344,6 +345,7 @@ describe('compat scanPlaces', () => {
     expect((body.response_format as Record<string, string>).type).toBe('json_object');
     expect(body.prompt_cache_key).toBe('take-me-there');
     expect(body.prompt_cache_retention).toBeUndefined();
+    expect(body.max_completion_tokens).toBe(4096);
   });
 });
 
