@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { truncateCodePoints, wellFormed } from './text';
+import { dirForLanguage, truncateCodePoints, wellFormed } from './text';
 
 describe('truncateCodePoints', () => {
   it('passes short strings through untouched', () => {
@@ -21,5 +21,19 @@ describe('truncateCodePoints', () => {
 
   it('counts code points, not UTF-16 units', () => {
     expect(truncateCodePoints('😀😀😀', 2)).toBe('😀😀');
+  });
+});
+
+describe('dirForLanguage', () => {
+  it('marks right-to-left languages', () => {
+    expect(dirForLanguage('ar-EG')).toBe('rtl');
+    expect(dirForLanguage('he')).toBe('rtl');
+    expect(dirForLanguage('fa-IR')).toBe('rtl');
+  });
+
+  it('defaults everything else to left-to-right', () => {
+    expect(dirForLanguage('en-US')).toBe('ltr');
+    expect(dirForLanguage('en')).toBe('ltr');
+    expect(dirForLanguage('')).toBe('ltr');
   });
 });

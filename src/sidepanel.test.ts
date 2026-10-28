@@ -348,6 +348,25 @@ describe('sidepanel', () => {
     expect(chips?.querySelectorAll('a.chip')).toHaveLength(1);
     expect(document.querySelector('#cost-line')?.textContent).toBe('costLine');
     expect(document.querySelector('#status-region')?.textContent).toBe('statusGuideReadySources');
+    const guide = document.querySelector('#guide-content') as HTMLElement;
+    expect(guide.getAttribute('lang')).toBe('en-US');
+    expect(guide.getAttribute('dir')).toBe('ltr');
+    expect(guide.getAttribute('role')).toBe('region');
+    expect(guide.tabIndex).toBe(0);
+    expect(guide.getAttribute('aria-labelledby')).toBe('guide-heading');
+  });
+
+  it('ships static shell titles and leaves document locale alone', async () => {
+    await setup();
+    expect(document.documentElement.lang).toBe('');
+    expect(document.documentElement.dir).toBe('');
+    const shells = ['sidepanel', 'options', 'onboarding'].map(readShell);
+    for (const shell of shells) {
+      expect(shell).toContain('<html lang="en">');
+    }
+    expect(shells[0]).toContain('<title>Take Me There</title>');
+    expect(shells[1]).toContain('<title>Take Me There - Options</title>');
+    expect(shells[2]).toContain('<title>Welcome to Take Me There</title>');
   });
 
   it('holds the guide until the plan button is pressed', async () => {

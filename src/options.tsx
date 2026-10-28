@@ -465,8 +465,6 @@ export const initOptions = (): void => {
   initialized = true;
 
   document.title = msg('appName');
-  document.documentElement.lang = msg('@@ui_locale').replace('_', '-');
-  document.documentElement.dir = msg('@@bidi_dir');
   flushSync(() => {
     createRoot(host).render(
       <ErrorBoundary

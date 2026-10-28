@@ -76,7 +76,7 @@ import {
 import { ErrorBoundary } from './components/error_boundary/error_boundary';
 import { msg } from './utils/i18n';
 import { createMutex } from './utils/mutex';
-import { truncateCodePoints } from './utils/text';
+import { dirForLanguage, truncateCodePoints } from './utils/text';
 import { createStore } from './utils/store';
 import './styles/sidepanel.css';
 import './components/shared_styles.css';
@@ -2997,7 +2997,15 @@ const SidepanelApp = () => {
           <p id="search-line" hidden={!state.searching || undefined}>
             {state.searching ? msg('statusSearchingWeb') : null}
           </p>
-          <div id="guide-content" aria-busy={state.guideBusy || undefined} />
+          <div
+            id="guide-content"
+            lang={chrome.i18n.getUILanguage()}
+            dir={dirForLanguage(chrome.i18n.getUILanguage())}
+            tabIndex={0}
+            role="region"
+            aria-labelledby="guide-heading"
+            aria-busy={state.guideBusy || undefined}
+          />
         </div>
         <div id="duel-slot" hidden={state.duel === null || undefined}>
           {state.duel ? (
@@ -3115,8 +3123,6 @@ export const initPanel = (): void => {
   initialized = true;
 
   document.title = msg('appName');
-  document.documentElement.lang = msg('@@ui_locale').replace('_', '-');
-  document.documentElement.dir = msg('@@bidi_dir');
   flushSync(() => {
     createRoot(host).render(
       <ErrorBoundary fallback={renderCrashFallback} onCatch={onPanelCrash}>

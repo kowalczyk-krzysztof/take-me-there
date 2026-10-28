@@ -1,3 +1,8 @@
+const RTL_LANGUAGE_PREFIXES = new Set(['ar', 'he', 'fa', 'ur', 'ps', 'sd', 'yi']);
+
+export const dirForLanguage = (language: string): 'rtl' | 'ltr' =>
+  RTL_LANGUAGE_PREFIXES.has((language.split('-')[0] ?? '').toLowerCase()) ? 'rtl' : 'ltr';
+
 export const wellFormed = (value: string): string => value.toWellFormed();
 
 // Truncates without splitting surrogate pairs, and repairs any lone
