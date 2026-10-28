@@ -2652,6 +2652,7 @@ const SidepanelApp = () => {
       </h1>
       <div id="tab-bar" role="tablist" aria-label={msg('tabsLabel')} onKeyDown={onTabKeyDown}>
         <button
+          type="button"
           id="tab-main"
           role="tab"
           aria-selected={selected('main')}
@@ -2663,6 +2664,7 @@ const SidepanelApp = () => {
           {msg('mainTab')}
         </button>
         <button
+          type="button"
           id="tab-board"
           role="tab"
           aria-selected={selected('board')}
@@ -2673,6 +2675,7 @@ const SidepanelApp = () => {
           {msg('boardTitle', String(state.boardItems.length))}
         </button>
         <button
+          type="button"
           id="tab-settings"
           role="tab"
           aria-selected={selected('settings')}
