@@ -3206,4 +3206,97 @@ describe('sidepanel', () => {
       "privacyVideoUrl(Meta's Muse API)"
     );
   });
+
+  it('swaps the whole result to the instead-place, then pins and compares', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    fetchMock
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
+      .mockResolvedValueOnce(
+        groundedResponse({
+          alternatives: [
+            {
+              placeName: 'Fira',
+              country: 'Greece',
+              why: 'Same caldera, lower prices.',
+              bestMonth: 'May',
+            },
+          ],
+        })
+      )
+      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]))
+      .mockResolvedValueOnce(
+        groundedResponse(
+          {
+            criteria: [{ criterion: 'Cost', a: 'Cheaper stays.', b: 'Pricey sunsets.' }],
+            verdict: 'Pick Fira for budget; pick Oia for views.',
+          },
+          []
+        )
+      );
+    await mock.session.set({ [SLOT]: READY() });
+    await waitForHeading('Oia');
+
+    const card = document.querySelector('#result-slot') as HTMLElement;
+    (card.querySelector('.pin-button') as HTMLButtonElement).click();
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned(Oia | 1)');
+    });
+
+    (card.querySelector('.chips-row .chip') as HTMLButtonElement).click();
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('alternatesReady(1)');
+    });
+
+    const fresh = document.querySelector('#result-slot') as HTMLElement;
+    (
+      fresh.querySelector('.alternate-actions button:not(.pin-button)') as HTMLButtonElement
+    ).click();
+    await waitForHeading('Fira');
+
+    const swapped = document.querySelector('#result-slot') as HTMLElement;
+    expect(swapped.querySelector('.disagree-row')).toBeNull();
+    expect(swapped.querySelector('.pin-button')?.textContent).toBe('pinButton(Fira)');
+    expect(swapped.querySelector('.alternate-card')).toBeNull();
+    expect(document.querySelector('#preview-frame img')).toBeNull();
+    expect(document.querySelector('#guide-content')?.textContent).toBe('Hello world');
+
+    const tiles = document.querySelector('#links-slot')?.querySelectorAll('a.tile');
+    expect(tiles?.length).toBeGreaterThan(0);
+    expect((tiles?.[0] as HTMLAnchorElement).href).toContain('Fira');
+
+    (swapped.querySelector('.pin-button') as HTMLButtonElement).click();
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned(Fira | 2)');
+    });
+
+    const board = document.querySelector('#board-slot') as HTMLElement;
+    const items = [...board.querySelectorAll('li')];
+    expect(items).toHaveLength(2);
+    expect(items[1].querySelector('.item-name')?.textContent).toBe('Fira, Greece');
+
+    const compared = document.querySelector('#result-slot') as HTMLElement;
+    await waitFor(() => {
+      expect(compared.querySelectorAll('.compare-row option')).toHaveLength(1);
+    });
+    expect(compared.querySelector('.compare-row option')?.textContent).toBe('Oia, Greece');
+    (compared.querySelector('.compare-go') as HTMLButtonElement).click();
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('duelReady');
+    });
+    expect(document.querySelector('#duel-slot caption')?.textContent).toBe(
+      'duelCaption(Fira, Greece | Oia, Greece)'
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+
+    const records = [...mock.session.data.values()] as Array<{
+      entry?: { guide?: string; place?: { placeName?: string } };
+    }>;
+    expect(
+      records.some(
+        (record) =>
+          record.entry?.guide === 'Hello world' && record.entry?.place?.placeName === 'Fira'
+      )
+    ).toBe(true);
+  });
 });

@@ -11,6 +11,7 @@ interface Props {
   lowConfidence: boolean;
   pinned: boolean;
   planState: PlanState;
+  canReanalyze: boolean;
   compareOptions: CompareOptionView[];
   alternates: AlternatesView;
   callbacks: TripCardCallbacks;
@@ -21,6 +22,7 @@ export const ResultView = ({
   lowConfidence,
   pinned,
   planState,
+  canReanalyze,
   compareOptions,
   alternates,
   callbacks,
@@ -86,12 +88,14 @@ export const ResultView = ({
         onCancel={callbacks.onCancelAlternates}
       />
       <CompareRow options={compareOptions} onCompare={callbacks.onCompare} />
-      <div className={styles['disagree-row']}>
-        <span>{msg('notThisPlace')}</span>
-        <button type="button" onClick={callbacks.onReanalyze}>
-          {msg('reanalyzeButton')}
-        </button>
-      </div>
+      {canReanalyze ? (
+        <div className={styles['disagree-row']}>
+          <span>{msg('notThisPlace')}</span>
+          <button type="button" onClick={callbacks.onReanalyze}>
+            {msg('reanalyzeButton')}
+          </button>
+        </div>
+      ) : null}
     </>
   );
 };

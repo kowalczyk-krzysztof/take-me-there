@@ -2915,6 +2915,7 @@ const resultCardProps = async (
   lowConfidence: boolean;
   pinned: boolean;
   planState: PlanState;
+  canReanalyze: boolean;
   compareOptions: CompareOptionView[];
   alternates: AlternatesView;
 }> => ({
@@ -2923,6 +2924,7 @@ const resultCardProps = async (
   lowConfidence: place.confidence < 0.6,
   pinned: await isPlacePinned(place),
   planState: currentPlanState,
+  canReanalyze: (displayedRequest?.srcUrl ?? '') !== '',
   compareOptions: await compareOptionViews(place),
   alternates: await alternatesView(),
 });
@@ -3182,9 +3184,18 @@ const onPlanInstead = async (index: number): Promise<void> => {
   }
   const { provider, settings, key } = gate;
   clearStaleTimer();
-  // A fresh cache key: the alternate-destination guide must never complete
-  // the displayed result's cache entry.
+  lastRun = { kind: 'guide' };
   const requestId = displayedRequestId ?? '';
+  // The selected place replaces the displayed one completely: B's card,
+  // guide, links, pin target, and comparison target, never A's.
+  const place: PlaceResult = {
+    identified: true,
+    placeName: target.placeName,
+    city: '',
+    country: target.country,
+    confidence: 1,
+    oneLiner: target.why,
+  };
   const run = startRun(
     {
       runId: nextRunId(`${requestId}-instead`),
@@ -3193,20 +3204,40 @@ const onPlanInstead = async (index: number): Promise<void> => {
       provider,
       settings,
       key,
-      request: displayedRequest,
+      request: null,
       destination,
+      place,
     },
     { inheritFrom: pickInherit(requestId, provider, key), abortSiblings }
   );
-  currentDestination = destination;
-  showSources([]);
-  guideContentEl()?.replaceChildren();
+  // B never completes A's cache entry: a synthetic identify key seeds a
+  // B-only guide entry, so a repeated Plan instead is served from cache.
+  run.cacheKey = await identifyKeyFor(run, `instead:${destination}`);
+  run.guideKey = await guideKeyFor(run.cacheKey, destination, settings.skipWebSearch !== true);
+  commitDisplayed(run, 'result');
+  currentAlternates = null;
+  scanPlaces = [];
+  scanThumbs = [];
+  updatePreview(null);
+  clearContentSlots();
   showLinks(destination);
   announceStatus('statusAnalyzing');
   currentPlanState = 'planning';
   await refreshResultCard();
 
   if (!ownsUi(run)) {
+    return;
+  }
+
+  const cached = await getCacheEntry(run.guideKey);
+
+  if (!ownsUi(run)) {
+    return;
+  }
+
+  if (cached?.guide) {
+    await renderSplitHit(run, place, cached, 'panel', 'guide');
+
     return;
   }
 

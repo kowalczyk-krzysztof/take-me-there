@@ -68,11 +68,31 @@ describe('trip-card', () => {
     expect(root.querySelector('.cosmetic')?.textContent).toBe('loadingReading');
   });
 
+  it('hides the correction row when there is nothing to reanalyze', () => {
+    const root = renderCard({
+      view: 'result',
+      place: PLACE,
+      lowConfidence: false,
+      pinned: false,
+      planState: 'ready',
+      canReanalyze: false,
+    }).container;
+    expect(root.querySelector('h2')?.textContent).toBe('Oia');
+    expect(root.querySelector('.disagree-row')).toBeNull();
+  });
+
   it('renders results with badges and disagree actions', () => {
     const onReanalyze = vi.fn();
 
     const rendered = renderCard(
-      { view: 'result', place: PLACE, lowConfidence: false, pinned: false, planState: 'ready' },
+      {
+        view: 'result',
+        place: PLACE,
+        lowConfidence: false,
+        pinned: false,
+        planState: 'ready',
+        canReanalyze: true,
+      },
       { onReanalyze }
     );
 
@@ -88,6 +108,7 @@ describe('trip-card', () => {
         lowConfidence: true,
         pinned: false,
         planState: 'ready',
+        canReanalyze: true,
       },
       { onReanalyze }
     );
@@ -111,6 +132,7 @@ describe('trip-card', () => {
       lowConfidence: false,
       pinned: false,
       planState: 'ready',
+      canReanalyze: true,
     }).container;
     expect(root.querySelector('.subtitle')).toBeNull();
     expect(root.querySelector('.oneliner')).toBeNull();
@@ -125,6 +147,7 @@ describe('trip-card', () => {
       lowConfidence: false,
       pinned: false,
       planState: 'ready',
+      canReanalyze: true,
     }).container;
 
     const oneliner = root.querySelector('.oneliner') as HTMLElement;
@@ -136,7 +159,14 @@ describe('trip-card', () => {
     const onAlternates = vi.fn();
 
     const root = renderCard(
-      { view: 'result', place: PLACE, lowConfidence: false, pinned: false, planState: 'ready' },
+      {
+        view: 'result',
+        place: PLACE,
+        lowConfidence: false,
+        pinned: false,
+        planState: 'ready',
+        canReanalyze: true,
+      },
       { onAlternates }
     ).container;
 
@@ -161,6 +191,7 @@ describe('trip-card', () => {
         lowConfidence: false,
         pinned: false,
         planState: 'ready',
+        canReanalyze: true,
         alternates: { state: 'loading', intent: 'cheaper' },
       },
       { onAlternates }
@@ -190,6 +221,7 @@ describe('trip-card', () => {
         lowConfidence: false,
         pinned: false,
         planState: 'ready',
+        canReanalyze: true,
         alternates: {
           state: 'ready',
           intent: 'cheaper',
@@ -227,6 +259,7 @@ describe('trip-card', () => {
         lowConfidence: false,
         pinned: false,
         planState: 'ready',
+        canReanalyze: true,
         alternates: {
           state: 'ready',
           intent: 'cheaper',
@@ -265,7 +298,14 @@ describe('trip-card', () => {
     const onCompare = vi.fn();
 
     const rendered = renderCard(
-      { view: 'result', place: PLACE, lowConfidence: false, pinned: false, planState: 'ready' },
+      {
+        view: 'result',
+        place: PLACE,
+        lowConfidence: false,
+        pinned: false,
+        planState: 'ready',
+        canReanalyze: true,
+      },
       { onCompare }
     );
 
@@ -287,6 +327,7 @@ describe('trip-card', () => {
         lowConfidence: false,
         pinned: false,
         planState: 'ready',
+        canReanalyze: true,
         compareOptions: [{ value: 'Fira|||Greece', label: 'Fira, Greece' }],
       },
       { onCompare }
@@ -386,6 +427,7 @@ describe('trip-card', () => {
       lowConfidence: false,
       pinned: false,
       planState: 'ready',
+      canReanalyze: true,
     }).container;
 
     const heading = root.querySelector('h2') as HTMLHeadingElement;
@@ -397,7 +439,14 @@ describe('trip-card', () => {
     const onPlanTrip = vi.fn();
 
     const rendered = renderCard(
-      { view: 'result', place: PLACE, lowConfidence: false, pinned: false, planState: 'idle' },
+      {
+        view: 'result',
+        place: PLACE,
+        lowConfidence: false,
+        pinned: false,
+        planState: 'idle',
+        canReanalyze: true,
+      },
       { onPlanTrip }
     );
 
@@ -412,7 +461,14 @@ describe('trip-card', () => {
     expect(onPlanTrip).toHaveBeenCalledTimes(1);
     rerenderCard(
       rendered,
-      { view: 'result', place: PLACE, lowConfidence: false, pinned: false, planState: 'planning' },
+      {
+        view: 'result',
+        place: PLACE,
+        lowConfidence: false,
+        pinned: false,
+        planState: 'planning',
+        canReanalyze: true,
+      },
       { onPlanTrip }
     );
 
@@ -425,7 +481,14 @@ describe('trip-card', () => {
     expect(onPlanTrip).toHaveBeenCalledTimes(1);
     rerenderCard(
       rendered,
-      { view: 'result', place: PLACE, lowConfidence: false, pinned: false, planState: 'ready' },
+      {
+        view: 'result',
+        place: PLACE,
+        lowConfidence: false,
+        pinned: false,
+        planState: 'ready',
+        canReanalyze: true,
+      },
       { onPlanTrip }
     );
     expect(root.querySelector('.plan-trip-button')).toBeNull();
@@ -441,6 +504,7 @@ describe('trip-card', () => {
         lowConfidence: false,
         pinned: false,
         planState: 'interrupted',
+        canReanalyze: true,
       },
       { onPlanTrip }
     ).container;
@@ -459,7 +523,14 @@ describe('trip-card', () => {
     const onPin = vi.fn();
 
     const rendered = renderCard(
-      { view: 'result', place: PLACE, lowConfidence: false, pinned: false, planState: 'ready' },
+      {
+        view: 'result',
+        place: PLACE,
+        lowConfidence: false,
+        pinned: false,
+        planState: 'ready',
+        canReanalyze: true,
+      },
       { onPin }
     );
 
@@ -474,7 +545,14 @@ describe('trip-card', () => {
     expect(onPin).toHaveBeenCalledTimes(1);
     rerenderCard(
       rendered,
-      { view: 'result', place: PLACE, lowConfidence: false, pinned: true, planState: 'ready' },
+      {
+        view: 'result',
+        place: PLACE,
+        lowConfidence: false,
+        pinned: true,
+        planState: 'ready',
+        canReanalyze: true,
+      },
       { onPin }
     );
     expect(root.querySelector('.pin-button')?.getAttribute('aria-pressed')).toBe('true');

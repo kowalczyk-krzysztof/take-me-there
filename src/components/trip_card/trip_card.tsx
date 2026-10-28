@@ -74,6 +74,7 @@ export type CardState =
       lowConfidence: boolean;
       pinned: boolean;
       planState: PlanState;
+      canReanalyze: boolean;
       compareOptions?: CompareOptionView[];
       alternates?: AlternatesView;
     }
@@ -127,6 +128,7 @@ export const TripCard = ({ card, callbacks }: Props) => {
           lowConfidence={card.lowConfidence}
           pinned={card.pinned}
           planState={card.planState}
+          canReanalyze={card.canReanalyze}
           compareOptions={card.compareOptions ?? []}
           alternates={card.alternates ?? { state: 'idle' }}
           callbacks={callbacks}
