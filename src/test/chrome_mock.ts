@@ -119,16 +119,50 @@ export class MockStorageArea {
   }
 }
 
+export interface ScriptingCall {
+  target: unknown;
+  func: (...args: never[]) => unknown;
+  args: unknown[];
+}
+
+export interface WorkerFakes {
+  installed: Array<(details: { reason: string }) => void>;
+  menuClicked: Array<(info: Record<string, unknown>, tab?: Record<string, unknown>) => void>;
+  menus: Array<Record<string, unknown>>;
+  sidePanelOpens: Array<Record<string, unknown>>;
+  panelBehaviors: Array<Record<string, unknown>>;
+  tabsCreated: Array<Record<string, unknown>>;
+  scriptingCalls: ScriptingCall[];
+  scriptingImpl: (call: ScriptingCall) => Promise<Array<{ result: unknown }>>;
+}
+
 export interface ChromeMock {
   session: MockStorageArea;
   local: MockStorageArea;
   panelWindow: { id: number };
+  worker: WorkerFakes;
 }
 
 export const installChromeMock = (): ChromeMock => {
   const session = new MockStorageArea('session');
   const local = new MockStorageArea('local');
   const panelWindow = { id: 1 };
+  const worker: WorkerFakes = {
+    installed: [],
+    menuClicked: [],
+    menus: [],
+    sidePanelOpens: [],
+    panelBehaviors: [],
+    tabsCreated: [],
+    scriptingCalls: [],
+    scriptingImpl: async (call: ScriptingCall) => {
+      const name = (call.func as { name?: string })?.name ?? '';
+      if (name === 'collectPageImages') {
+        return [{ result: [] }];
+      }
+      return [{ result: null }];
+    },
+  };
   (globalThis as unknown as { chrome: unknown }).chrome = {
     storage: {
       session,
@@ -150,9 +184,59 @@ export const installChromeMock = (): ChromeMock => {
     },
     commands: { getAll: async (): Promise<Array<{ name?: string }>> => [] },
     windows: { getCurrent: async (): Promise<{ id: number }> => ({ id: panelWindow.id }) },
-    runtime: { getURL: (path: string): string => `chrome-extension://test/${path}`, id: 'test' },
+    runtime: {
+      getURL: (path: string): string => `chrome-extension://test/${path}`,
+      id: 'test',
+      onInstalled: {
+        addListener: (fn: (details: { reason: string }) => void): void => {
+          worker.installed.push(fn);
+        },
+      },
+    },
+    contextMenus: {
+      create: (props: Record<string, unknown>): unknown => {
+        worker.menus.push(props);
+        return props['id'];
+      },
+      removeAll: (callback?: () => void): void => {
+        worker.menus.length = 0;
+        callback?.();
+      },
+      onClicked: {
+        addListener: (
+          fn: (info: Record<string, unknown>, tab?: Record<string, unknown>) => void
+        ): void => {
+          worker.menuClicked.push(fn);
+        },
+      },
+    },
+    sidePanel: {
+      open: async (opts: Record<string, unknown>): Promise<void> => {
+        worker.sidePanelOpens.push(opts);
+      },
+      setPanelBehavior: async (opts: Record<string, unknown>): Promise<void> => {
+        worker.panelBehaviors.push(opts);
+      },
+    },
+    tabs: {
+      create: async (props: Record<string, unknown>): Promise<Record<string, unknown>> => {
+        worker.tabsCreated.push(props);
+        return { id: 99, ...props };
+      },
+    },
+    scripting: {
+      executeScript: async (opts: {
+        target: unknown;
+        func: (...args: never[]) => unknown;
+        args: unknown[];
+      }): Promise<Array<{ result: unknown }>> => {
+        const call: ScriptingCall = { target: opts.target, func: opts.func, args: opts.args };
+        worker.scriptingCalls.push(call);
+        return worker.scriptingImpl(call);
+      },
+    },
   };
-  return { session, local, panelWindow };
+  return { session, local, panelWindow, worker };
 };
 
 export const uninstallChromeMock = (): void => {

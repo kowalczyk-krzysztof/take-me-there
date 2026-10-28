@@ -10,6 +10,7 @@ const INJECT_TIMEOUT_MS = 2000;
 const MAX_INLINE_DATA_URL = 100000;
 
 let requestCounter = 0;
+let latestRequestId = '';
 
 chrome.runtime.onInstalled.addListener((details) => {
   chrome.contextMenus.removeAll(() => {
@@ -77,6 +78,7 @@ const handleImageClick = async (
 ): Promise<void> => {
   requestCounter += 1;
   const requestId = `${Date.now()}-${requestCounter}`;
+  latestRequestId = requestId;
   // storage.session is small and shared: huge inline payloads stay out of it.
   // The panel treats a blank srcUrl with dataPending as an error state.
   const dataPending = srcUrl.startsWith('data:') && srcUrl.length > MAX_INLINE_DATA_URL;
@@ -116,6 +118,7 @@ const handleVideoClick = async (
 ): Promise<void> => {
   requestCounter += 1;
   const requestId = `${Date.now()}-${requestCounter}`;
+  latestRequestId = requestId;
   const dataPending = srcUrl.startsWith('data:') && srcUrl.length > MAX_INLINE_DATA_URL;
   const storedSrcUrl = dataPending ? '' : srcUrl;
   await chrome.storage.session.set({
@@ -164,6 +167,7 @@ const handleScanClick = async (
 ): Promise<void> => {
   requestCounter += 1;
   const requestId = `${Date.now()}-${requestCounter}`;
+  latestRequestId = requestId;
   await chrome.storage.session.set({
     tripRequest: {
       requestId,
@@ -282,7 +286,7 @@ interface TerminalRecord {
 
 const writeTerminalState = async (requestId: string, record: TerminalRecord): Promise<void> => {
   try {
-    if (await isCurrentRequest(requestId)) {
+    if (isCurrentRequest(requestId)) {
       await chrome.storage.session.set({ tripRequest: record });
     }
   } catch {
@@ -290,7 +294,7 @@ const writeTerminalState = async (requestId: string, record: TerminalRecord): Pr
     // stripped (a rejected frame surfaces as too-large) so the panel still
     // reaches a terminal state.
     try {
-      if (await isCurrentRequest(requestId)) {
+      if (isCurrentRequest(requestId)) {
         const slim: TerminalRecord = { ...record };
         delete slim.signals;
         if (slim.frame) {
@@ -308,9 +312,7 @@ const writeTerminalState = async (requestId: string, record: TerminalRecord): Pr
   }
 };
 
-const isCurrentRequest = async (requestId: string): Promise<boolean> => {
-  const stored = (await chrome.storage.session.get('tripRequest')) as {
-    tripRequest?: { requestId?: string };
-  };
-  return stored.tripRequest?.requestId === requestId;
-};
+// Synchronous by design: no await may sit between the freshness check and
+// the write, or a newer click's collecting record lands in the gap and the
+// stale terminal write buries it.
+const isCurrentRequest = (requestId: string): boolean => requestId === latestRequestId;
