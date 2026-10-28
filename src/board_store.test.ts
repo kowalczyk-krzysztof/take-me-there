@@ -13,7 +13,7 @@ import {
   type BoardPin,
 } from './board_store';
 import { installChromeMock, uninstallChromeMock, type ChromeMock } from './test/chrome_mock';
-import { routeStorageCommands } from './test/helpers';
+import { routeWorkerMessages } from './test/helpers';
 
 const PLACE = (overrides: Record<string, unknown> = {}) => ({
   identified: true,
@@ -41,7 +41,7 @@ const toDataURL = vi.fn((_type: string, _quality: number): string => 'data:image
 
 beforeEach(() => {
   mock = installChromeMock();
-  routeStorageCommands(mock);
+  routeWorkerMessages(mock);
   imageDims = { w: 1024, h: 768, fail: false };
   drawImage.mockClear();
   toDataURL.mockClear();

@@ -37,7 +37,6 @@ import { estimateCachedSavingUsd, estimateCostUsd, formatUsd, recordMonthSpend }
 import { createGuideRenderer, findGuideStart } from './render_markdown';
 import {
   TRIP_REQUEST_SCHEMA,
-  compareRequestIds,
   type ItineraryPlan,
   type PageSignals,
   type PlaceAlternate,
@@ -47,6 +46,7 @@ import {
   type TripRequest,
 } from './types';
 import { frameCacheSeed, hasVideoConsented, isMp4RungUsable, setVideoConsented } from './video';
+import { HANDOFF_TTL_MS, ackRequest, handoffSlotKey } from './handoff';
 import {
   ProviderError,
   addUsage,
@@ -311,9 +311,12 @@ const guideContentEl = (): HTMLElement | null => document.getElementById('guide-
 
 let highestRequestId = '';
 
-let highestStatusRank = -1;
+// Delivery cursor: the worker sequence orders records (timestamps only
+// expire them), with a rank so a terminal write supersedes the collecting
+// write of the same click without a panel reopen replaying either.
+let lastSeenSeq = 0;
 
-const HANDOFF_TTL_MS = 10 * 60 * 1000;
+let lastSeenRank = -1;
 
 let panelWindowPromise: Promise<number | undefined> | null = null;
 
@@ -800,19 +803,6 @@ const clearStaleTimer = (): void => {
   if (staleTimer !== undefined) {
     clearTimeout(staleTimer);
     staleTimer = undefined;
-  }
-};
-
-const wipeStoredRequest = async (requestId: string): Promise<void> => {
-  try {
-    const stored = (await chrome.storage.session.get('tripRequest')) as {
-      tripRequest?: { requestId?: string };
-    };
-    if (stored.tripRequest?.requestId === requestId) {
-      await chrome.storage.session.set({ tripRequest: { requestId, status: 'ready' } });
-    }
-  } catch {
-    // Best-effort minimization; the data ages out with the session.
   }
 };
 
@@ -1802,40 +1792,38 @@ const runAnalysis = async (request: TripRequest, origin: 'gesture' | 'panel'): P
 };
 
 const handle = async (value: unknown): Promise<void> => {
-  const probe = (value ?? {}) as { requestId?: unknown; srcUrl?: unknown };
-  if (typeof probe.requestId === 'string' && typeof probe.srcUrl !== 'string') {
-    return;
-  }
   const parsed = TRIP_REQUEST_SCHEMA.safeParse(value);
   if (!parsed.success) {
     return;
   }
   const request = parsed.data;
   const panelWindowId = await getPanelWindowId();
-  if (
-    request.windowId !== undefined &&
-    panelWindowId !== undefined &&
-    request.windowId !== panelWindowId
-  ) {
+  if (request.windowId !== panelWindowId) {
     return;
   }
-  if (request.at !== undefined && Date.now() - request.at > HANDOFF_TTL_MS) {
-    await wipeStoredRequest(request.requestId);
+  if (Date.now() - request.at > HANDOFF_TTL_MS) {
+    // Expired records never run; the ack clears the stale slot when it
+    // still holds this sequence.
+    await ackRequest(request.windowId, request.seq);
     return;
   }
-  const rank = request.status === 'ready' ? 1 : 0;
-  const order = compareRequestIds(request.requestId, highestRequestId);
-  if (order < 0) {
+  const rank = request.status === 'collecting' ? 0 : 1;
+  if (request.seq < lastSeenSeq) {
     return;
   }
-  if (order === 0 && rank <= highestStatusRank) {
+  if (request.seq === lastSeenSeq && rank <= lastSeenRank) {
     return;
   }
+  lastSeenSeq = request.seq;
+  lastSeenRank = rank;
   highestRequestId = request.requestId;
-  highestStatusRank = rank;
-  // Consume-on-read: tombstone the record the moment it is accepted so a
-  // panel reopen can never replay (and rebill) a finished run.
-  await wipeStoredRequest(request.requestId);
+  if (request.status === 'error') {
+    await ackRequest(request.windowId, request.seq);
+    renderErrorCard('handoffFailedTitle', 'handoffFailedBody', false, false);
+    announceAlert('handoffFailedBody');
+    updatePrivacy('idle');
+    return;
+  }
   updatePreview(request.srcUrl || null);
   if (request.status === 'collecting') {
     announceStatus('statusAnalyzing');
@@ -1845,16 +1833,20 @@ const handle = async (value: unknown): Promise<void> => {
       showSkeleton(request.requestId);
     }
     clearStaleTimer();
-    const id = request.requestId;
+    const seq = request.seq;
     staleTimer = setTimeout(() => {
-      if (highestRequestId === id && highestStatusRank === 0) {
-        highestStatusRank = -1;
+      if (lastSeenSeq === seq && lastSeenRank === 0) {
+        lastSeenRank = -1;
         updatePreview(null);
         showIdle();
       }
     }, STALE_COLLECTING_MS);
     return;
   }
+  // Consume-on-read: acknowledge the terminal record before running so a
+  // panel reopen can never replay (and rebill) a finished run. The worker
+  // clears the slot only if it still holds this sequence.
+  await ackRequest(request.windowId, request.seq);
   try {
     await runAnalysis(request, 'gesture');
   } catch (err) {
@@ -3288,19 +3280,33 @@ export const initPanel = (): void => {
   chrome.storage.local.onChanged.addListener(onLockAreaChanged);
   chrome.storage.session.onChanged.addListener(onLockAreaChanged);
 
+  void watchOwnHandoffSlot();
+};
+
+const watchOwnHandoffSlot = async (): Promise<void> => {
+  const windowId = await getPanelWindowId();
+
+  if (windowId === undefined) {
+    return;
+  }
+
+  const slot = handoffSlotKey(windowId);
   chrome.storage.session.onChanged.addListener((changes) => {
-    const change = changes['tripRequest'];
+    const change = changes[slot];
     if (change) {
       void handle(change.newValue);
     }
   });
-  void chrome.storage.session.get('tripRequest').then((stored) => {
-    const initial = (stored as { tripRequest?: unknown }).tripRequest;
-    if (initial === undefined) {
-      return;
+
+  try {
+    const stored = (await chrome.storage.session.get(slot)) as Record<string, unknown>;
+    const initial = stored[slot];
+    if (initial !== undefined) {
+      void handle(initial);
     }
-    void handle(initial);
-  });
+  } catch {
+    // Startup delivery is best-effort; the next click delivers live.
+  }
 };
 
 if (typeof document !== 'undefined') {

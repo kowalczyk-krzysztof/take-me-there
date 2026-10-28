@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { vi } from 'vitest';
 import { installChromeMock, uninstallChromeMock, type ChromeMock } from './chrome_mock';
+import { handleHandoffMessage } from '../handoff';
 import { handleStorageMessage } from '../storage_service';
 
 export const waitFor = async (fn: () => unknown, timeoutMs = 5000): Promise<void> => {
@@ -42,7 +43,7 @@ export const setupPage = async (
   vi.resetModules();
 
   const mock = installChromeMock();
-  routeStorageCommands(mock);
+  routeWorkerMessages(mock);
 
   if (beforeImport) {
     await beforeImport(mock);
@@ -55,11 +56,27 @@ export const setupPage = async (
   return mock;
 };
 
-// Routes page storage writes to the real worker service: every store test
-// below exercises the same validated, serialized path production uses.
-export const routeStorageCommands = (mock: ChromeMock): void => {
-  mock.runtime.impl = (message: unknown) =>
-    handleStorageMessage(message, { id: 'test', url: 'chrome-extension://test/sidepanel.html' });
+// Routes worker-bound messages to the real worker handlers: every store
+// test below exercises the same validated, serialized path production uses,
+// and handoff acks genuinely clear the mocked window slots.
+export const routeWorkerMessages = (mock: ChromeMock): void => {
+  const sender = { id: 'test', url: 'chrome-extension://test/sidepanel.html' };
+
+  mock.runtime.impl = async (message: unknown) => {
+    const stored = await handleStorageMessage(message, sender);
+
+    if (stored !== undefined) {
+      return stored;
+    }
+
+    const acked = await handleHandoffMessage(message, sender);
+
+    if (acked !== undefined) {
+      return acked;
+    }
+
+    throw new Error('message not routed');
+  };
 };
 
 export const teardownPage = (): void => {

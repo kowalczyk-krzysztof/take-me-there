@@ -32,7 +32,7 @@ vi.mock('idb-keyval', () => {
 import * as idbKeyval from 'idb-keyval';
 import { clearKey, loadKey, saveKey, type KeyRecord } from './key_vault';
 import { installChromeMock, uninstallChromeMock, type ChromeMock } from './test/chrome_mock';
-import { routeStorageCommands } from './test/helpers';
+import { routeWorkerMessages } from './test/helpers';
 
 const resetIdb = (): void => {
   (idbKeyval as unknown as { __reset: () => void }).__reset();
@@ -43,7 +43,7 @@ let mock: ChromeMock;
 beforeEach(() => {
   resetIdb();
   mock = installChromeMock();
-  routeStorageCommands(mock);
+  routeWorkerMessages(mock);
 });
 
 afterEach(() => {

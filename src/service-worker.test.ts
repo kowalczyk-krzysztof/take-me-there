@@ -58,8 +58,11 @@ const fireClick = (
   }
 };
 
-const storedRequest = async (mock: ChromeMock): Promise<Record<string, unknown>> =>
-  (await mock.session.get('tripRequest'))['tripRequest'] as Record<string, unknown>;
+const storedRequest = async (mock: ChromeMock, windowId = 3): Promise<Record<string, unknown>> =>
+  (await mock.session.get(`tripRequest:${windowId}`))[`tripRequest:${windowId}`] as Record<
+    string,
+    unknown
+  >;
 
 describe('service-worker', () => {
   it('wires menus, panel behavior, and onboarding on install', async () => {
@@ -114,7 +117,11 @@ describe('service-worker', () => {
 
     const statuses: unknown[] = [];
     mock.session.onChanged.addListener((changes) => {
-      statuses.push((changes['tripRequest']?.newValue as { status?: unknown } | undefined)?.status);
+      const change = changes['tripRequest:3']?.newValue as { status?: unknown } | undefined;
+
+      if (change) {
+        statuses.push(change.status);
+      }
     });
     fireClick(mock, { ...IMAGE_INFO }, { ...TAB });
     await flush();
@@ -129,6 +136,7 @@ describe('service-worker', () => {
     expect(record['tabId']).toBe(7);
     expect(record['windowId']).toBe(3);
     expect(typeof record['at']).toBe('number');
+    expect(record['seq']).toBe(1);
   });
 
   it('attaches page signals when the scrape succeeds', async () => {
@@ -237,7 +245,7 @@ describe('service-worker', () => {
   it('routes storage commands from extension pages and ignores foreign messages', async () => {
     const mock = await setup();
 
-    expect(mock.runtime.listeners).toHaveLength(1);
+    expect(mock.runtime.listeners).toHaveLength(2);
 
     const listener = mock.runtime.listeners[0];
 
@@ -269,7 +277,124 @@ describe('service-worker', () => {
     fireClick(mock, { ...IMAGE_INFO }, {});
     fireClick(mock, { ...IMAGE_INFO, menuItemId: 'nope' }, { ...TAB });
     await flush();
-    expect(await mock.session.get('tripRequest')).toEqual({});
+    expect(await mock.session.get('tripRequest:3')).toEqual({});
     expect(mock.worker.sidePanelOpens).toEqual([]);
+  });
+
+  it('delivers each window its own slot without cross-window suppression', async () => {
+    const mock = await setup();
+
+    const releases: Array<(value: Array<{ result: unknown }>) => void> = [];
+    mock.worker.scriptingImpl = () =>
+      new Promise<Array<{ result: unknown }>>((resolve) => {
+        releases.push(resolve);
+      });
+    fireClick(mock, { ...IMAGE_INFO }, { ...TAB });
+    await flush(0);
+    fireClick(
+      mock,
+      { ...IMAGE_INFO, srcUrl: 'https://cdn.example.com/fira.jpg' },
+      { id: 9, windowId: 5 }
+    );
+    await flush(0);
+    releases[0]([{ result: null }]);
+    releases[1]([{ result: null }]);
+    await flush();
+
+    const first = await storedRequest(mock, 3);
+    const second = await storedRequest(mock, 5);
+    expect(first['srcUrl']).toBe('https://cdn.example.com/oia.jpg');
+    expect(second['srcUrl']).toBe('https://cdn.example.com/fira.jpg');
+    expect(first['seq']).toBe(1);
+    expect(second['seq']).toBe(2);
+  });
+
+  it('continues the persisted sequence after a worker restart', async () => {
+    const mock = await setup();
+    await mock.session.set({ handoffSeq: 41 });
+
+    // Restart: drop all module state, keep the stored sequence. The fresh
+    // worker registers a second click listener; only the newest handles.
+    vi.resetModules();
+    await import('./service-worker');
+    mock.worker.menuClicked.splice(0, mock.worker.menuClicked.length - 1);
+
+    fireClick(mock, { ...IMAGE_INFO }, { ...TAB });
+    await flush();
+
+    const record = await storedRequest(mock);
+    expect(record['seq']).toBe(42);
+    expect(mock.session.data.get('handoffSeq')).toBe(42);
+  });
+
+  it('clears only the acknowledged sequence and ignores delayed acks', async () => {
+    const mock = await setup();
+
+    const { handleHandoffMessage } = await import('./handoff');
+    const sender = { id: 'test', url: 'chrome-extension://test/sidepanel.html' };
+
+    await mock.session.set({
+      'tripRequest:3': { requestId: '9-1', seq: 6, status: 'ready' },
+    });
+
+    await expect(
+      handleHandoffMessage({ scope: 'take-me-there/handoff-v1', windowId: 3, seq: 5 }, sender)
+    ).resolves.toEqual({ ok: true, cleared: false });
+    expect(mock.session.data.has('tripRequest:3')).toBe(true);
+
+    await expect(
+      handleHandoffMessage({ scope: 'take-me-there/handoff-v1', windowId: 3, seq: 6 }, sender)
+    ).resolves.toEqual({ ok: true, cleared: true });
+    expect(mock.session.data.has('tripRequest:3')).toBe(false);
+
+    await expect(handleHandoffMessage({ scope: 'elsewhere' }, sender)).resolves.toBeUndefined();
+    await expect(
+      handleHandoffMessage({ scope: 'take-me-there/handoff-v1', windowId: 3, seq: 'x' }, sender)
+    ).resolves.toEqual({ ok: false, error: 'invalid payload' });
+  });
+
+  it('routes handoff acks through the worker message listener', async () => {
+    const mock = await setup();
+    expect(mock.runtime.listeners).toHaveLength(2);
+
+    await mock.session.set({
+      'tripRequest:3': { requestId: '9-1', seq: 6, status: 'ready' },
+    });
+
+    const responses: Array<unknown> = [];
+    const handled = mock.runtime.listeners[1](
+      { scope: 'take-me-there/handoff-v1', windowId: 3, seq: 6 },
+      { id: 'test', url: 'chrome-extension://test/sidepanel.html' },
+      (response: unknown) => {
+        responses.push(response);
+      }
+    );
+    expect(handled).toBe(true);
+    await flush();
+    expect(responses).toEqual([{ ok: true, cleared: true }]);
+    expect(mock.session.data.has('tripRequest:3')).toBe(false);
+  });
+
+  it('surfaces a schema-valid error record when the collecting write fails', async () => {
+    const mock = await setup();
+
+    let sets = 0;
+    mock.session.fault = (op) => {
+      if (op === 'set') {
+        sets += 1;
+
+        if (sets === 2) {
+          throw new Error('transient');
+        }
+      }
+    };
+
+    fireClick(mock, { ...IMAGE_INFO }, { ...TAB });
+    await flush();
+
+    const record = await storedRequest(mock);
+    expect(TRIP_REQUEST_SCHEMA.safeParse(record).success).toBe(true);
+    expect(record['status']).toBe('error');
+    expect(record['seq']).toBe(1);
   });
 });

@@ -7,6 +7,16 @@ import { PLACE_SCHEMA } from './types';
 
 export const STORAGE_MESSAGE_SCOPE = 'take-me-there/storage-v1';
 
+export const isExtensionPageSender = (sender: chrome.runtime.MessageSender): boolean => {
+  if (sender.id !== undefined && sender.id !== chrome.runtime.id) {
+    return false;
+  }
+
+  const url = sender.url ?? '';
+
+  return url.startsWith(chrome.runtime.getURL(''));
+};
+
 const pinSchema = z.strictObject({
   place: PLACE_SCHEMA,
   sourceHost: z.string().check(z.maxLength(256)),

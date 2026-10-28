@@ -6,7 +6,6 @@ import {
   TRIP_REQUEST_SCHEMA,
   alternatesJsonSchema,
   alternatesSchema,
-  compareRequestIds,
   duelJsonSchema,
   duelSchema,
   itineraryJsonSchema,
@@ -169,11 +168,14 @@ describe('handoff schemas', () => {
   it('validates the worker-to-panel handoff shape', () => {
     const collecting = {
       requestId: '1-2',
+      seq: 2,
       status: 'collecting',
       srcUrl: 'https://cdn.example.com/oia.jpg',
       dataPending: false,
       pageUrl: 'https://example.com/guide',
       tabId: 7,
+      windowId: 1,
+      at: Date.now(),
     };
     expect(TRIP_REQUEST_SCHEMA.safeParse(collecting).success).toBe(true);
     expect(
@@ -198,6 +200,12 @@ describe('handoff schemas', () => {
         ],
       }).success
     ).toBe(true);
+    expect(
+      TRIP_REQUEST_SCHEMA.safeParse({ ...collecting, status: 'error', reason: 'collecting-failed' })
+        .success
+    ).toBe(true);
+    const { seq: _dropped, ...unsequenced } = collecting;
+    expect(TRIP_REQUEST_SCHEMA.safeParse(unsequenced).success).toBe(false);
     expect(TRIP_REQUEST_SCHEMA.safeParse({ ...collecting, status: 'bogus' }).success).toBe(false);
     expect(TRIP_REQUEST_SCHEMA.safeParse({ ...collecting, signals: {} }).success).toBe(false);
     expect(
@@ -313,24 +321,5 @@ describe('alternates pipeline', () => {
         alternatives: [{ ...valid.alternatives[0], bestMonth: 'x'.repeat(21) }],
       }).success
     ).toBe(false);
-  });
-});
-
-describe('compareRequestIds', () => {
-  it('orders timestamps numerically instead of lexicographically', () => {
-    expect(compareRequestIds('9-1', '10-1')).toBeLessThan(0);
-    expect(compareRequestIds('10-1', '9-1')).toBeGreaterThan(0);
-  });
-
-  it('breaks timestamp ties on the counter', () => {
-    expect(compareRequestIds('10-2', '10-10')).toBeLessThan(0);
-    expect(compareRequestIds('10-10', '10-2')).toBeGreaterThan(0);
-    expect(compareRequestIds('10-2', '10-2')).toBe(0);
-  });
-
-  it('sorts malformed ids below well-formed ones', () => {
-    expect(compareRequestIds('10-1', '')).toBeGreaterThan(0);
-    expect(compareRequestIds('', '10-1')).toBeLessThan(0);
-    expect(compareRequestIds('b', 'a')).toBeGreaterThan(0);
   });
 });

@@ -30,22 +30,13 @@ import {
   COMMAND_SCHEMAS,
   STORAGE_MESSAGE_SCOPE,
   commandPayload,
+  isExtensionPageSender,
   type CommandResult,
   type StorageCommand,
   type StorageMessage,
 } from './storage_commands';
 
 const invalid = (error: string): CommandResult => ({ ok: false, error });
-
-export const isExtensionPageSender = (sender: chrome.runtime.MessageSender): boolean => {
-  if (sender.id !== undefined && sender.id !== chrome.runtime.id) {
-    return false;
-  }
-
-  const url = sender.url ?? '';
-
-  return url.startsWith(chrome.runtime.getURL(''));
-};
 
 const boardAdd = async (
   pin: Omit<BoardPin, 'addedAt'> & { addedAt?: number }

@@ -5,6 +5,12 @@ import type { ScannedImage } from './types';
 import { msg } from './utils/i18n';
 import { STORAGE_MESSAGE_SCOPE } from './storage_commands';
 import { enqueueLocalCommand, handleStorageMessage } from './storage_service';
+import {
+  HANDOFF_ACK_SCOPE,
+  allocateHandoffSeq,
+  handleHandoffMessage,
+  handoffSlotKey,
+} from './handoff';
 
 const MENU_ID = 'plan-trip';
 
@@ -16,7 +22,11 @@ const MAX_INLINE_DATA_URL = 100000;
 
 let requestCounter = 0;
 
-let latestRequestId = '';
+// Freshness per window, checked synchronously before terminal writes so a
+// superseded click can never bury a newer collecting record. In-memory is
+// correct here: a worker restart kills the in-flight handlers the map
+// guards, and ordering across restarts comes from the persisted sequence.
+const latestSeqByWindow = new Map<number, number>();
 
 chrome.runtime.onInstalled.addListener((details) => {
   chrome.contextMenus.removeAll(() => {
@@ -54,6 +64,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   void handleStorageMessage(message, sender).then(sendResponse);
+
+  return true;
+});
+
+// Handoff acknowledgements from panels: the worker clears a window slot
+// only when the acknowledged sequence still matches.
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (
+    !message ||
+    typeof message !== 'object' ||
+    (message as { scope?: unknown }).scope !== HANDOFF_ACK_SCOPE
+  ) {
+    return false;
+  }
+
+  void handleHandoffMessage(message, sender).then(sendResponse);
 
   return true;
 });
@@ -99,6 +125,36 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   );
 });
 
+const nextRequestId = (): string => {
+  requestCounter += 1;
+
+  return `${Date.now()}-${requestCounter}`;
+};
+
+// The collecting write is the click's only visible trace: if it fails, the
+// panel gets an error record instead of silence. When even that fails the
+// worker has no channel left; the opened panel stays idle.
+const writeCollectingState = async (
+  slot: string,
+  record: Record<string, unknown>
+): Promise<boolean> => {
+  try {
+    await chrome.storage.session.set({ [slot]: record });
+
+    return true;
+  } catch {
+    try {
+      await chrome.storage.session.set({
+        [slot]: { ...record, status: 'error', reason: 'collecting-failed' },
+      });
+    } catch {
+      // No channel left; the opened panel stays idle.
+    }
+
+    return false;
+  }
+};
+
 const handleImageClick = async (
   srcUrl: string,
   pageUrl: string | null,
@@ -106,31 +162,36 @@ const handleImageClick = async (
   tabId: number,
   windowId: number
 ): Promise<void> => {
-  requestCounter += 1;
+  const seq = await allocateHandoffSeq();
+  latestSeqByWindow.set(windowId, seq);
 
-  const requestId = `${Date.now()}-${requestCounter}`;
-  latestRequestId = requestId;
+  const requestId = nextRequestId();
   // storage.session is small and shared: huge inline payloads stay out of it.
   // The panel treats a blank srcUrl with dataPending as an error state.
   const dataPending = srcUrl.startsWith('data:') && srcUrl.length > MAX_INLINE_DATA_URL;
 
   const storedSrcUrl = dataPending ? '' : srcUrl;
-  await chrome.storage.session.set({
-    tripRequest: {
-      requestId,
-      status: 'collecting',
-      srcUrl: storedSrcUrl,
-      dataPending,
-      pageUrl,
-      tabId,
-      windowId,
-      at: Date.now(),
-    },
+  const slot = handoffSlotKey(windowId);
+  const collecting = await writeCollectingState(slot, {
+    requestId,
+    seq,
+    status: 'collecting',
+    srcUrl: storedSrcUrl,
+    dataPending,
+    pageUrl,
+    tabId,
+    windowId,
+    at: Date.now(),
   });
 
+  if (!collecting) {
+    return;
+  }
+
   const signals = await scrapeWithTimeout(tabId, frameId, srcUrl);
-  await writeTerminalState(requestId, {
+  await writeTerminalState(windowId, seq, {
     requestId,
+    seq,
     status: 'ready',
     srcUrl: storedSrcUrl,
     dataPending,
@@ -151,25 +212,31 @@ const handleVideoClick = async (
 ): Promise<void> => {
   requestCounter += 1;
 
-  const requestId = `${Date.now()}-${requestCounter}`;
-  latestRequestId = requestId;
+  const seq = await allocateHandoffSeq();
+  latestSeqByWindow.set(windowId, seq);
+
+  const requestId = nextRequestId();
 
   const dataPending = srcUrl.startsWith('data:') && srcUrl.length > MAX_INLINE_DATA_URL;
 
   const storedSrcUrl = dataPending ? '' : srcUrl;
-  await chrome.storage.session.set({
-    tripRequest: {
-      requestId,
-      status: 'collecting',
-      srcUrl: storedSrcUrl,
-      dataPending,
-      pageUrl,
-      tabId,
-      windowId,
-      at: Date.now(),
-      mediaType: 'video',
-    },
+  const slot = handoffSlotKey(windowId);
+  const collecting = await writeCollectingState(slot, {
+    requestId,
+    seq,
+    status: 'collecting',
+    srcUrl: storedSrcUrl,
+    dataPending,
+    pageUrl,
+    tabId,
+    windowId,
+    at: Date.now(),
+    mediaType: 'video',
   });
+
+  if (!collecting) {
+    return;
+  }
   // Page signals and the frame capture race side by side: the panel wants
   // both, and sequential injections would double the worst case.
   const [signals, captured] = await Promise.all([
@@ -181,8 +248,9 @@ const handleVideoClick = async (
     captured && captured.ok ? { dataUrl: captured.dataUrl, time: captured.time } : undefined;
 
   const frameError = captured && !captured.ok ? captured.reason : captured ? undefined : 'no-match';
-  await writeTerminalState(requestId, {
+  await writeTerminalState(windowId, seq, {
     requestId,
+    seq,
     status: 'ready',
     srcUrl: storedSrcUrl,
     dataPending,
@@ -203,27 +271,32 @@ const handleScanClick = async (
   tabId: number,
   windowId: number
 ): Promise<void> => {
-  requestCounter += 1;
+  const seq = await allocateHandoffSeq();
+  latestSeqByWindow.set(windowId, seq);
 
-  const requestId = `${Date.now()}-${requestCounter}`;
-  latestRequestId = requestId;
-  await chrome.storage.session.set({
-    tripRequest: {
-      requestId,
-      status: 'collecting',
-      srcUrl: '',
-      dataPending: false,
-      pageUrl,
-      tabId,
-      windowId,
-      at: Date.now(),
-      scanImages: [],
-    },
+  const requestId = nextRequestId();
+  const slot = handoffSlotKey(windowId);
+  const collecting = await writeCollectingState(slot, {
+    requestId,
+    seq,
+    status: 'collecting',
+    srcUrl: '',
+    dataPending: false,
+    pageUrl,
+    tabId,
+    windowId,
+    at: Date.now(),
+    scanImages: [],
   });
 
+  if (!collecting) {
+    return;
+  }
+
   const scanImages = await harvestWithTimeout(tabId, frameId);
-  await writeTerminalState(requestId, {
+  await writeTerminalState(windowId, seq, {
     requestId,
+    seq,
     status: 'ready',
     srcUrl: '',
     dataPending: false,
@@ -317,6 +390,7 @@ const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> => {
 
 interface TerminalRecord {
   requestId: string;
+  seq: number;
   status: 'ready';
   srcUrl: string;
   dataPending: boolean;
@@ -331,17 +405,23 @@ interface TerminalRecord {
   scanImages?: ScannedImage[];
 }
 
-const writeTerminalState = async (requestId: string, record: TerminalRecord): Promise<void> => {
+const writeTerminalState = async (
+  windowId: number,
+  seq: number,
+  record: TerminalRecord
+): Promise<void> => {
+  const slot = handoffSlotKey(windowId);
+
   try {
-    if (isCurrentRequest(requestId)) {
-      await chrome.storage.session.set({ tripRequest: record });
+    if (isCurrentSeq(windowId, seq)) {
+      await chrome.storage.session.set({ [slot]: record });
     }
   } catch {
     // Quota or transient failure: retry once with the heavy payloads
     // stripped (a rejected frame surfaces as too-large) so the panel still
     // reaches a terminal state.
     try {
-      if (isCurrentRequest(requestId)) {
+      if (isCurrentSeq(windowId, seq)) {
         const slim: TerminalRecord = { ...record };
         delete slim.signals;
 
@@ -353,7 +433,7 @@ const writeTerminalState = async (requestId: string, record: TerminalRecord): Pr
         if (slim.scanImages) {
           delete slim.scanImages;
         }
-        await chrome.storage.session.set({ tripRequest: slim });
+        await chrome.storage.session.set({ [slot]: slim });
       }
     } catch {
       // Last resort: keep the collecting record; the next click recovers.
@@ -364,4 +444,5 @@ const writeTerminalState = async (requestId: string, record: TerminalRecord): Pr
 // Synchronous by design: no await may sit between the freshness check and
 // the write, or a newer click's collecting record lands in the gap and the
 // stale terminal write buries it.
-const isCurrentRequest = (requestId: string): boolean => requestId === latestRequestId;
+const isCurrentSeq = (windowId: number, seq: number): boolean =>
+  latestSeqByWindow.get(windowId) === seq;

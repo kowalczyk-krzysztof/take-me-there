@@ -39,7 +39,7 @@ import { loadSettings } from './settings_store';
 import { enqueueLocalCommand, handleStorageMessage } from './storage_service';
 import { STORAGE_MESSAGE_SCOPE } from './storage_commands';
 import { installChromeMock, uninstallChromeMock, type ChromeMock } from './test/chrome_mock';
-import { routeStorageCommands } from './test/helpers';
+import { routeWorkerMessages } from './test/helpers';
 import type { PlaceResult } from './types';
 
 const resetIdb = (): void => {
@@ -73,7 +73,7 @@ let mock: ChromeMock;
 beforeEach(() => {
   resetIdb();
   mock = installChromeMock();
-  routeStorageCommands(mock);
+  routeWorkerMessages(mock);
 });
 
 afterEach(() => {

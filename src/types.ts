@@ -90,13 +90,15 @@ export type ScannedImage = z.infer<typeof SCANNED_IMAGE_SCHEMA>;
 // add the harvested image list.
 export const TRIP_REQUEST_SCHEMA = z.strictObject({
   requestId: z.string(),
-  status: z.enum(['collecting', 'ready']),
+  seq: z.number(),
+  status: z.enum(['collecting', 'ready', 'error']),
   srcUrl: z.string(),
   dataPending: z.boolean(),
   pageUrl: z.nullable(z.string()),
   tabId: z.number(),
-  windowId: z.optional(z.number()),
-  at: z.optional(z.number()),
+  windowId: z.number(),
+  at: z.number(),
+  reason: z.optional(z.string()),
   signals: z.optional(PAGE_SIGNALS_SCHEMA),
   mediaType: z.optional(z.enum(['image', 'video'])),
   frame: z.optional(
@@ -288,29 +290,3 @@ export const PROVIDER_CAPABILITIES_SCHEMA = z.strictObject({
 });
 
 export type ProviderCapabilities = z.infer<typeof PROVIDER_CAPABILITIES_SCHEMA>;
-
-const REQUEST_ID_RE = /^(\d+)-(\d+)$/;
-
-export const compareRequestIds = (a: string, b: string): number => {
-  const pa = REQUEST_ID_RE.exec(a);
-
-  const pb = REQUEST_ID_RE.exec(b);
-
-  if (pa && pb) {
-    return Number(pa[1]) - Number(pb[1]) || Number(pa[2]) - Number(pb[2]);
-  }
-
-  if (pa) {
-    return 1;
-  }
-
-  if (pb) {
-    return -1;
-  }
-
-  if (a === b) {
-    return 0;
-  }
-
-  return a < b ? -1 : 1;
-};

@@ -194,6 +194,14 @@
     "message": "This inline image is too large to pass along - try a smaller one.",
     "description": "Error card body for oversized inline images."
   },
+  "handoffFailedTitle": {
+    "message": "Could not start the analysis",
+    "description": "Error card title when the click handoff fails."
+  },
+  "handoffFailedBody": {
+    "message": "The request never reached the panel - right-click the image again to retry.",
+    "description": "Error card body when the click handoff fails."
+  },
   "retryButton": {
     "message": "Retry",
     "description": "Error card retry button."
