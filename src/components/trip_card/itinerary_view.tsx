@@ -1,5 +1,6 @@
 import styles from './trip_card.module.css';
 import { msg } from '../../utils/i18n';
+import { ExternalLink } from '../external_link/external_link';
 import type { ItineraryStopView } from './trip_card';
 
 interface Props {
@@ -24,10 +25,7 @@ export const ItineraryView = ({ title, stops, mapsUrl, mapsLabel }: Props) => (
               {stop.links.map((link, index) => (
                 <span key={link.id}>
                   {index > 0 ? ' · ' : null}
-                  <a href={link.href} target="_blank" rel="noopener">
-                    {msg(`bookingLink_${link.id}`)}
-                    <span className="visually-hidden">{msg('newTabSuffix')}</span>
-                  </a>
+                  <ExternalLink href={link.href}>{msg(`bookingLink_${link.id}`)}</ExternalLink>
                 </span>
               ))}
             </p>
@@ -36,10 +34,9 @@ export const ItineraryView = ({ title, stops, mapsUrl, mapsLabel }: Props) => (
       ))}
     </ol>
     {mapsUrl ? (
-      <a className={styles['maps-link']} href={mapsUrl} target="_blank" rel="noopener">
+      <ExternalLink className={styles['maps-link']} href={mapsUrl}>
         {mapsLabel}
-        <span className="visually-hidden">{msg('newTabSuffix')}</span>
-      </a>
+      </ExternalLink>
     ) : null}
   </>
 );

@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import styles from './key_setup.module.css';
 import { msg } from '../../utils/i18n';
+import { ExternalLink } from '../external_link/external_link';
 
 const DASHBOARD_URL = 'https://dev.meta.ai';
 
@@ -122,10 +123,7 @@ export const KeySetup = ({ mode, pending, error, sessionOnly, resetKey, callback
             {msg('keyHint')}
           </p>
           <p className={styles.dashboard}>
-            <a href={DASHBOARD_URL} target="_blank" rel="noopener noreferrer">
-              {msg('dashboardLink')}
-              <span className="visually-hidden">{msg('newTabSuffix')}</span>
-            </a>
+            <ExternalLink href={DASHBOARD_URL}>{msg('dashboardLink')}</ExternalLink>
           </p>
           <p className={styles.error} id="key-error" hidden={error === null || undefined}>
             {error}

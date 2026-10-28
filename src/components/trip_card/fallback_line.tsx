@@ -1,5 +1,6 @@
 import styles from './trip_card.module.css';
 import { msg } from '../../utils/i18n';
+import { ExternalLink } from '../external_link/external_link';
 
 interface Props {
   fallback: { label: string; href: string };
@@ -8,9 +9,6 @@ interface Props {
 export const FallbackLine = ({ fallback }: Props) => (
   <p className={styles.fallback}>
     <span>{`${msg('fallbackPrefix')} `}</span>
-    <a href={fallback.href} target="_blank" rel="noopener">
-      {fallback.label}
-      <span className="visually-hidden">{msg('newTabSuffix')}</span>
-    </a>
+    <ExternalLink href={fallback.href}>{fallback.label}</ExternalLink>
   </p>
 );

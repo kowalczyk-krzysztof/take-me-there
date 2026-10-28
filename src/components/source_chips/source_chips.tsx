@@ -1,6 +1,6 @@
 import type { GuideSource } from '../../providers/index';
 import styles from './source_chips.module.css';
-import { msg } from '../../utils/i18n';
+import { ExternalLink } from '../external_link/external_link';
 
 const safeHttpUrl = (raw: string): string | null => {
   try {
@@ -36,16 +36,9 @@ export const SourceChips = ({ sources }: Props) => (
       }
 
       return (
-        <a
-          key={`${href}-${index}`}
-          href={href}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={styles.chip}
-        >
+        <ExternalLink key={`${href}-${index}`} href={href} className={styles.chip}>
           {hostnameOf(href)}
-          <span className="visually-hidden">{msg('newTabSuffix')}</span>
-        </a>
+        </ExternalLink>
       );
     })}
   </div>

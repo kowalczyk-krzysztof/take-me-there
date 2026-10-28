@@ -28,7 +28,7 @@ describe('booking-grid', () => {
     expect(tiles[0].href).toContain(encodeURIComponent('Oia, Greece'));
     for (const tile of tiles) {
       expect(tile.target).toBe('_blank');
-      expect(tile.rel).toBe('noopener');
+      expect(tile.rel).toBe('noopener noreferrer');
       expect(tile.querySelector('.visually-hidden')?.textContent).toBe('newTabSuffix');
     }
   });
