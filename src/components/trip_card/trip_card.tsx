@@ -50,8 +50,11 @@ export interface TripPlanInsteadDetail {
   index: number;
 }
 
+export type PlanState = 'idle' | 'planning' | 'ready';
+
 export interface TripCardCallbacks {
   onPin: () => void;
+  onPlanTrip: () => void;
   onReanalyze: () => void;
   onRetry: () => void;
   onFetchRetry: () => void;
@@ -71,6 +74,7 @@ export type CardState =
     place: PlaceResult;
     lowConfidence: boolean;
     pinned: boolean;
+    planState: PlanState;
     onDevice?: boolean;
     compareOptions?: CompareOptionView[];
     alternates?: AlternatesView;
@@ -121,6 +125,7 @@ export const TripCard = ({ card, callbacks }: Props) => {
           place={card.place}
           lowConfidence={card.lowConfidence}
           pinned={card.pinned}
+          planState={card.planState}
           onDevice={card.onDevice ?? false}
           compareOptions={card.compareOptions ?? []}
           alternates={card.alternates ?? { state: 'idle' }}

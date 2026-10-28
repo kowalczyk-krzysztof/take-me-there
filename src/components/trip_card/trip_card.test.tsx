@@ -18,6 +18,7 @@ const noop = () => {};
 
 const fullCallbacks = (overrides: Partial<TripCardCallbacks> = {}): TripCardCallbacks => ({
   onPin: noop,
+  onPlanTrip: noop,
   onReanalyze: noop,
   onRetry: noop,
   onFetchRetry: noop,
@@ -69,7 +70,7 @@ describe('trip-card', () => {
   it('renders results with badges and disagree actions', () => {
     const onReanalyze = vi.fn();
     const rendered = renderCard(
-      { view: 'result', place: PLACE, lowConfidence: false, pinned: false },
+      { view: 'result', place: PLACE, lowConfidence: false, pinned: false, planState: 'ready' },
       { onReanalyze },
     );
     const root = rendered.container;
@@ -78,7 +79,7 @@ describe('trip-card', () => {
     expect(root.querySelector('.badge')).toBeNull();
     rerenderCard(
       rendered,
-      { view: 'result', place: { ...PLACE, confidence: 0.2 }, lowConfidence: true, pinned: false },
+      { view: 'result', place: { ...PLACE, confidence: 0.2 }, lowConfidence: true, pinned: false, planState: 'ready' },
       { onReanalyze },
     );
     expect(root.querySelector('.badge')?.textContent).toBe('bestGuessBadge');
@@ -96,6 +97,7 @@ describe('trip-card', () => {
       place: { ...PLACE, city: '', country: '', oneLiner: '' },
       lowConfidence: false,
       pinned: false,
+      planState: 'ready',
     }).container;
     expect(root.querySelector('.subtitle')).toBeNull();
     expect(root.querySelector('.oneliner')).toBeNull();
@@ -108,6 +110,7 @@ describe('trip-card', () => {
       place: { ...PLACE, oneLiner },
       lowConfidence: false,
       pinned: false,
+      planState: 'ready',
     }).container;
     const oneliner = root.querySelector('.oneliner') as HTMLElement;
     expect(oneliner.textContent).toBe(oneLiner);
@@ -117,7 +120,7 @@ describe('trip-card', () => {
   it('renders intent chips that emit one-shot alternates events', () => {
     const onAlternates = vi.fn();
     const root = renderCard(
-      { view: 'result', place: PLACE, lowConfidence: false, pinned: false },
+      { view: 'result', place: PLACE, lowConfidence: false, pinned: false, planState: 'ready' },
       { onAlternates },
     ).container;
     const chips = root.querySelectorAll('.chips-row .chip');
@@ -136,6 +139,7 @@ describe('trip-card', () => {
         place: PLACE,
         lowConfidence: false,
         pinned: false,
+        planState: 'ready',
         alternates: { state: 'loading', intent: 'cheaper' },
       },
       { onAlternates },
@@ -159,6 +163,7 @@ describe('trip-card', () => {
         place: PLACE,
         lowConfidence: false,
         pinned: false,
+        planState: 'ready',
         alternates: {
           state: 'ready',
           intent: 'cheaper',
@@ -183,6 +188,7 @@ describe('trip-card', () => {
         place: PLACE,
         lowConfidence: false,
         pinned: false,
+        planState: 'ready',
         alternates: {
           state: 'ready',
           intent: 'cheaper',
@@ -209,7 +215,7 @@ describe('trip-card', () => {
   it('renders the compare picker only with options', () => {
     const onCompare = vi.fn();
     const rendered = renderCard(
-      { view: 'result', place: PLACE, lowConfidence: false, pinned: false },
+      { view: 'result', place: PLACE, lowConfidence: false, pinned: false, planState: 'ready' },
       { onCompare },
     );
     const root = rendered.container;
@@ -221,6 +227,7 @@ describe('trip-card', () => {
         place: PLACE,
         lowConfidence: false,
         pinned: false,
+        planState: 'ready',
         compareOptions: [{ value: 'Fira|||Greece', label: 'Fira, Greece' }],
       },
       { onCompare },
@@ -292,14 +299,14 @@ describe('trip-card', () => {
   it('labels on-device results and offers the on-device escape hatch', () => {
     const onNanoInstead = vi.fn();
     const rendered = renderCard(
-      { view: 'result', place: PLACE, lowConfidence: false, pinned: false },
+      { view: 'result', place: PLACE, lowConfidence: false, pinned: false, planState: 'ready' },
       { onNanoInstead },
     );
     const root = rendered.container;
     expect(root.querySelector('.nano-badge')).toBeNull();
     rerenderCard(
       rendered,
-      { view: 'result', place: PLACE, lowConfidence: false, pinned: false, onDevice: true },
+      { view: 'result', place: PLACE, lowConfidence: false, pinned: false, planState: 'ready', onDevice: true },
       { onNanoInstead },
     );
     expect(root.querySelector('.nano-badge')?.textContent).toBe('nanoBadge');
@@ -317,17 +324,47 @@ describe('trip-card', () => {
 
   it('renders a focusable result heading', () => {
     const root = renderCard(
-      { view: 'result', place: PLACE, lowConfidence: false, pinned: false },
+      { view: 'result', place: PLACE, lowConfidence: false, pinned: false, planState: 'ready' },
     ).container;
     const heading = root.querySelector('h2') as HTMLHeadingElement;
     heading.focus();
     expect(document.activeElement?.tagName).toBe('H2');
   });
 
+  it('gates the guide behind the plan button', () => {
+    const onPlanTrip = vi.fn();
+    const rendered = renderCard(
+      { view: 'result', place: PLACE, lowConfidence: false, pinned: false, planState: 'idle' },
+      { onPlanTrip },
+    );
+    const root = rendered.container;
+    const button = root.querySelector('.plan-trip-button') as HTMLButtonElement;
+    expect(button.textContent).toBe('planTripButton');
+    expect(button.hasAttribute('aria-disabled')).toBe(false);
+    button.click();
+    expect(onPlanTrip).toHaveBeenCalledTimes(1);
+    rerenderCard(
+      rendered,
+      { view: 'result', place: PLACE, lowConfidence: false, pinned: false, planState: 'planning' },
+      { onPlanTrip },
+    );
+    const busy = root.querySelector('.plan-trip-button') as HTMLButtonElement;
+    expect(busy.textContent).toBe('planningButton');
+    expect(busy.getAttribute('aria-disabled')).toBe('true');
+    busy.click();
+    expect(onPlanTrip).toHaveBeenCalledTimes(1);
+    rerenderCard(
+      rendered,
+      { view: 'result', place: PLACE, lowConfidence: false, pinned: false, planState: 'ready' },
+      { onPlanTrip },
+    );
+    expect(root.querySelector('.plan-trip-button')).toBeNull();
+  });
+
   it('renders the pin toggle with pressed state and event', () => {
     const onPin = vi.fn();
     const rendered = renderCard(
-      { view: 'result', place: PLACE, lowConfidence: false, pinned: false },
+      { view: 'result', place: PLACE, lowConfidence: false, pinned: false, planState: 'ready' },
       { onPin },
     );
     const root = rendered.container;
@@ -338,7 +375,7 @@ describe('trip-card', () => {
     expect(onPin).toHaveBeenCalledTimes(1);
     rerenderCard(
       rendered,
-      { view: 'result', place: PLACE, lowConfidence: false, pinned: true },
+      { view: 'result', place: PLACE, lowConfidence: false, pinned: true, planState: 'ready' },
       { onPin },
     );
     expect(root.querySelector('.pin-button')?.getAttribute('aria-pressed')).toBe('true');

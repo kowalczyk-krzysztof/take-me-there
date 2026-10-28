@@ -106,6 +106,25 @@ main {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  height: 320px;
+  overflow-y: auto;
+  overflow-wrap: break-word;
+  scrollbar-gutter: stable;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px 12px;
+}
+
+.guide-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.guide-loading {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 8px 0 0;
 }
 
 #guide-content h3,

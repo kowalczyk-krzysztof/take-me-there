@@ -37,6 +37,17 @@
       "place": { "content": "$1", "example": "Oia" }
     }
   },
+  "statusFoundPlan": {
+    "message": "Found $1 - plan your trip when ready.",
+    "description": "Status announcement when the place is identified and the guide waits for the Plan button.",
+    "placeholders": {
+      "place": { "content": "$1", "example": "Oia" }
+    }
+  },
+  "statusPlanningTrip": {
+    "message": "Planning your trip…",
+    "description": "Status announcement when the guide starts loading."
+  },
   "statusSearchingWeb": {
     "message": "Searching the web…",
     "description": "Status announcement when grounding starts."
@@ -551,6 +562,14 @@
   "boardPlan": {
     "message": "Plan this trip",
     "description": "Itinerary action button."
+  },
+  "planTripButton": {
+    "message": "Plan a trip",
+    "description": "Result card button that loads the trip guide."
+  },
+  "planningButton": {
+    "message": "Planning trip…",
+    "description": "Result card button label while the guide loads."
   },
   "boardPlanNote": {
     "message": "Pin at least 2 places to plan a trip.",

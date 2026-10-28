@@ -1,3 +1,5 @@
 node_modules/
 dist/
 plan-a-trip-extension.zip
+
+.DS_Store

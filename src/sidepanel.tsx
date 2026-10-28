@@ -12,6 +12,7 @@ import type {
   AlternatesView,
   CardState,
   CompareOptionView,
+  PlanState,
 } from './components/trip_card/trip_card';
 import { TripCard } from './components/trip_card/trip_card';
 import { KeySetup, type NanoSectionState } from './components/key_setup/key_setup';
@@ -88,7 +89,6 @@ const STALE_COLLECTING_MS = 5000;
 const MAX_PREVIEW_DATA_URL = 2000000;
 const CACHE_SLOTS = 10;
 const CACHE_INDEX_KEY = 'cacheKeys';
-const SCROLL_NEAR_BOTTOM_PX = 80;
 
 export interface CacheEntry {
   place: PlaceResult;
@@ -203,6 +203,7 @@ const EMPTY_SIGNALS: PageSignals = {
 type PendingRun =
   | { kind: 'request'; request: TripRequest }
   | { kind: 'scan-guide'; request: TripRequest; index: number }
+  | { kind: 'guide' }
   | { kind: 'itinerary' };
 
 let initialized = false;
@@ -399,7 +400,8 @@ let skeletonTimer: ReturnType<typeof setTimeout> | undefined;
 let skeletonFor = '';
 let skeletonShownAt = 0;
 let staleTimer: ReturnType<typeof setTimeout> | undefined;
-let userScrolled = false;
+let guidePlanning = false;
+let currentPlanState: PlanState = 'idle';
 const lookAgainUsed = new Set<string>();
 
 const announceStatus = (key: string, subs?: string | string[]): void => {
@@ -751,20 +753,6 @@ const onVideoConfirmCancel = (): void => {
   announceStatus('statusVideoConfirmDeclined');
 };
 
-const autoScrollGuide = (): void => {
-  if (userScrolled || prefersReducedMotion()) {
-    return;
-  }
-  if (typeof window.scrollTo === 'function') {
-    window.scrollTo(0, document.body.scrollHeight);
-  }
-};
-
-const onWindowScroll = (): void => {
-  userScrolled =
-    window.innerHeight + window.scrollY < document.body.scrollHeight - SCROLL_NEAR_BOTTOM_PX;
-};
-
 // On-device runs carry no key: the provider ignores it, and neither the
 // vault nor the Meta consent gate applies (nothing leaves the browser).
 const runKey = (keyStatus: KeyStatus): string =>
@@ -877,7 +865,11 @@ const isPlacePinned = async (place: PlaceResult): Promise<boolean> => {
   return false;
 };
 
-const renderResultHeader = async (place: PlaceResult, announce: boolean): Promise<void> => {
+const renderResultHeader = async (
+  place: PlaceResult,
+  announce: boolean,
+  foundKey = 'statusFoundWriting',
+): Promise<void> => {
   await settleSkeleton();
   cancelSkeleton();
   currentView = 'result';
@@ -890,7 +882,7 @@ const renderResultHeader = async (place: PlaceResult, announce: boolean): Promis
   showLinks(currentDestination);
   setPreviewIdentified(place.placeName);
   if (announce) {
-    announceStatus('statusFoundWriting', place.placeName);
+    announceStatus(foundKey, place.placeName);
   }
 };
 
@@ -1052,7 +1044,7 @@ const recordPartialUsage = (err: unknown, provider: Provider): void => {
   }
 };
 
-interface StreamArgs {
+interface GuideArgs {
   provider: Provider;
   key: string;
   destination: string;
@@ -1064,19 +1056,38 @@ interface StreamArgs {
   completeKey?: string;
 }
 
-const streamGuideRun = async (args: StreamArgs): Promise<RunOutcome> => {
+const showGuideSkeleton = (content: HTMLElement): void => {
+  content.replaceChildren();
+  const wrap = document.createElement('div');
+  wrap.className = 'guide-skeleton';
+  wrap.setAttribute('aria-hidden', 'true');
+  for (const width of ['90%', '100%', '70%']) {
+    const block = document.createElement('div');
+    block.className = 'skeleton-block';
+    block.style.width = width;
+    wrap.append(block);
+  }
+  const line = document.createElement('p');
+  line.className = 'guide-loading';
+  line.textContent = msg('statusPlanningTrip');
+  wrap.append(line);
+  content.append(wrap);
+};
+
+// The network stream is consumed but never rendered live: deltas buffer
+// until completion, then the guide renders once into its fixed box. The
+// searching line and sources still arrive live; they own fixed slots.
+const runGuide = async (args: GuideArgs): Promise<RunOutcome> => {
   const { provider, key, destination, signal, cacheKey, privacy, origin } = args;
   const content = guideContentEl();
   if (!content) {
     return 'error';
   }
-  const renderer = createGuideRenderer(content, msg('truncatedNotice'));
   store.set({ guideVisible: true, guideBusy: true });
-  userScrolled = false;
+  showGuideSkeleton(content);
   let guideSource = '';
   const sources: GuideSource[] = [];
   let searchedWeb = false;
-  let guideStarted = false;
   try {
     const events = provider.streamGuide(key, {
       destination,
@@ -1087,17 +1098,6 @@ const streamGuideRun = async (args: StreamArgs): Promise<RunOutcome> => {
     for await (const event of events) {
       if (event.type === 'delta') {
         guideSource += event.text;
-        if (!guideStarted) {
-          const start = findGuideStart(guideSource);
-          if (start >= 0) {
-            guideStarted = true;
-            renderer.push(guideSource.slice(start));
-            autoScrollGuide();
-          }
-        } else {
-          renderer.push(event.text);
-          autoScrollGuide();
-        }
       } else if (event.type === 'searching') {
         searchedWeb = true;
         store.set({ searching: true });
@@ -1115,6 +1115,7 @@ const streamGuideRun = async (args: StreamArgs): Promise<RunOutcome> => {
     if (err instanceof ProviderError && err.code === 'aborted') {
       return 'aborted';
     }
+    content.replaceChildren();
     const notice = document.createElement('p');
     notice.className = 'guide-interrupted';
     notice.textContent = msg('guideInterrupted');
@@ -1124,14 +1125,14 @@ const streamGuideRun = async (args: StreamArgs): Promise<RunOutcome> => {
     analysisInFlight = false;
     return 'error';
   }
-  if (!guideStarted) {
-    // Degenerate stream with no heading: render everything rather than
-    // dropping content the hold-back rule cannot place.
-    renderer.push(guideSource);
-  } else {
-    guideSource = guideSource.slice(findGuideStart(guideSource));
-  }
+  const start = findGuideStart(guideSource);
+  // Degenerate stream with no heading: render everything rather than
+  // dropping content the hold-back rule cannot place.
+  const finalText = start >= 0 ? guideSource.slice(start) : guideSource;
+  const renderer = createGuideRenderer(content, msg('truncatedNotice'));
+  renderer.push(finalText);
   renderer.finish();
+  guideSource = finalText;
   store.set({ guideBusy: false, searching: false, resultBusy: false });
   if (cacheKey && currentPlace) {
     await setCacheEntry(cacheKey, {
@@ -1175,7 +1176,7 @@ interface IdentifyArgs {
 // the refusal line. Tune against live traffic.
 const NO_PLACE_MIN_CONFIDENCE = 0.35;
 
-const identifyAndGuide = async (args: IdentifyArgs): Promise<RunOutcome> => {
+const runIdentify = async (args: IdentifyArgs): Promise<RunOutcome> => {
   const { request, provider, settings, key, origin, rejectedPlace } = args;
   activeProvider = provider;
   const controller = new AbortController();
@@ -1240,18 +1241,81 @@ const identifyAndGuide = async (args: IdentifyArgs): Promise<RunOutcome> => {
   );
   currentDestination = destination;
   currentSources = [];
-  await renderResultHeader(identify.place, true);
-  const outcome = await streamGuideRun({
-    provider,
-    key,
-    destination,
-    signal,
-    cacheKey: currentCacheKey,
-    privacy,
-    origin,
-  });
+  currentPlanState = 'idle';
+  await renderResultHeader(identify.place, true, 'statusFoundPlan');
+  await priceAndRecord(provider);
+  updatePrivacy(privacy);
+  store.set({ resultBusy: false });
+  if (origin === 'panel') {
+    focusResultHeading();
+  }
+  analysisInFlight = false;
   finishController();
-  return outcome;
+  return 'result';
+};
+
+// The "Plan a trip" button (and its retries): the guide never runs until
+// the user asks. On retry the error card yields to a fresh result header.
+const runGuidePlan = async (): Promise<void> => {
+  if (guidePlanning || !currentPlace) {
+    return;
+  }
+  const { provider, settings } = await getActiveProvider();
+  activeProvider = provider;
+  runSettings = settings;
+  const keyStatus = await loadKey(provider.id);
+  if (!provider.capabilities.onDevice && keyStatus.state !== 'ok') {
+    pendingRun = { kind: 'guide' };
+    showOnboarding(keyStatus.orphaned);
+    announceStatus('statusKeyNeeded');
+    return;
+  }
+  if (!provider.capabilities.onDevice && !(await hasConsented())) {
+    pendingRun = { kind: 'guide' };
+    showConsent(false);
+    announceStatus('statusConsentNeeded');
+    return;
+  }
+  guidePlanning = true;
+  analysisInFlight = true;
+  lastRun = { kind: 'guide' };
+  currentPlanState = 'planning';
+  if (currentView !== 'result') {
+    await renderResultHeader(currentPlace, false);
+  } else {
+    await refreshResultCard();
+  }
+  selectTab('main', true);
+  showSources([]);
+  announceStatus('statusPlanningTrip');
+  const controller = new AbortController();
+  activeController = controller;
+  const privacy = activeRequest
+    ? privacyForRequest(activeRequest, settings, provider)
+    : auxPrivacy(provider, 'image');
+  let outcome: RunOutcome = 'error';
+  try {
+    outcome = await runGuide({
+      provider,
+      key: runKey(keyStatus),
+      destination: currentDestination,
+      signal: controller.signal,
+      cacheKey: currentCacheKey,
+      privacy,
+      origin: 'panel',
+    });
+  } finally {
+    guidePlanning = false;
+    if (activeController === controller) {
+      activeController = null;
+    }
+  }
+  if (outcome === 'result') {
+    currentPlanState = 'ready';
+    await refreshResultCard();
+  } else if (outcome === 'error') {
+    currentPlanState = 'idle';
+  }
 };
 
 const renderCached = async (entry: CacheEntry, origin: 'gesture' | 'panel'): Promise<void> => {
@@ -1289,18 +1353,21 @@ const renderCached = async (entry: CacheEntry, origin: 'gesture' | 'panel'): Pro
   currentView = 'result';
   currentAlternates = null;
   currentOnDevice = entry.onDevice === true;
+  currentPlanState = entry.guide ? 'ready' : 'idle';
   const props = await resultCardProps(entry.place);
   swapResultSlot(() => {
     store.set({ result: { ...blankResultSlot(), card: props } });
   });
   showLinks(currentDestination);
   const content = guideContentEl();
-  if (content) {
+  if (content && entry.guide) {
     const renderer = createGuideRenderer(content, msg('truncatedNotice'));
     renderer.push(entry.guide);
     renderer.finish();
+    store.set({ guideVisible: true });
+  } else {
+    store.set({ guideVisible: false });
   }
-  store.set({ guideVisible: true });
   if (entry.sources.length > 0) {
     showSources(entry.sources);
   } else {
@@ -1391,7 +1458,7 @@ const runVideoAnalysis = async (
     superseded ? 'statusCanceledNew' : route.kind === 'frame' ? 'statusAnalyzingFrame' : 'statusAnalyzingVideo',
   );
   showSkeleton(request.requestId);
-  await identifyAndGuide({
+  await runIdentify({
     request,
     provider,
     settings,
@@ -1563,10 +1630,11 @@ const runScanGuide = async (
     usage: { ...runUsage },
     searchedWeb: false,
   });
+  currentPlanState = 'planning';
   await renderResultHeader(result, true);
   const controller = new AbortController();
   activeController = controller;
-  await streamGuideRun({
+  const outcome = await runGuide({
     provider,
     key: runKey(keyStatus),
     destination,
@@ -1577,6 +1645,10 @@ const runScanGuide = async (
   });
   if (activeController === controller) {
     activeController = null;
+  }
+  currentPlanState = outcome === 'result' ? 'ready' : 'idle';
+  if (outcome === 'result') {
+    await refreshResultCard();
   }
 };
 
@@ -1687,7 +1759,7 @@ const runAnalysis = async (request: TripRequest, origin: 'gesture' | 'panel'): P
   }
   announceStatus(superseded ? 'statusCanceledNew' : 'statusAnalyzing');
   showSkeleton(request.requestId);
-  await identifyAndGuide({
+  await runIdentify({
     request,
     provider,
     settings,
@@ -1926,7 +1998,7 @@ const lookAgain = async (): Promise<void> => {
         : samCrop
           ? { ...request, srcUrl: samCrop.dataUrl }
           : request;
-    await identifyAndGuide({
+    await runIdentify({
       request: identifyRequest,
       provider,
       settings,
@@ -1964,7 +2036,7 @@ const reanalyze = async (): Promise<void> => {
       analysisInFlight = false;
       return;
     }
-    await identifyAndGuide({
+    await runIdentify({
       request,
       provider,
       settings,
@@ -1987,6 +2059,8 @@ const retry = async (): Promise<void> => {
     await planTrip();
   } else if (target.kind === 'scan-guide') {
     await runScanGuide(target.request, target.index, 'panel');
+  } else if (target.kind === 'guide') {
+    await runGuidePlan();
   } else {
     await runAnalysis(target.request, 'panel');
   }
@@ -2123,6 +2197,7 @@ const resultCardProps = async (
   place: PlaceResult;
   lowConfidence: boolean;
   pinned: boolean;
+  planState: PlanState;
   onDevice: boolean;
   compareOptions: CompareOptionView[];
   alternates: AlternatesView;
@@ -2131,6 +2206,7 @@ const resultCardProps = async (
   place,
   lowConfidence: place.confidence < 0.6,
   pinned: await isPlacePinned(place),
+  planState: currentPlanState,
   onDevice: currentOnDevice,
   compareOptions: await compareOptionViews(place),
   alternates: await alternatesView(),
@@ -2378,7 +2454,9 @@ const onPlanInstead = async (index: number): Promise<void> => {
   announceStatus('statusAnalyzing');
   const controller = new AbortController();
   activeController = controller;
-  await streamGuideRun({
+  currentPlanState = 'planning';
+  await refreshResultCard();
+  const outcome = await runGuide({
     provider,
     key: runKey(keyStatus),
     destination,
@@ -2389,6 +2467,10 @@ const onPlanInstead = async (index: number): Promise<void> => {
   });
   if (activeController === controller) {
     activeController = null;
+  }
+  currentPlanState = outcome === 'result' ? 'ready' : 'idle';
+  if (outcome === 'result') {
+    await refreshResultCard();
   }
 };
 
@@ -2646,7 +2728,7 @@ const planTrip = async (): Promise<void> => {
   renderItineraryCard(pins, result.plan);
   updatePrivacy(auxPrivacy(provider, 'board'));
   focusResultHeading();
-  await streamGuideRun({
+  await runGuide({
     provider,
     key: runKey(keyStatus),
     destination: result.plan.stops.join(', '),
@@ -2673,6 +2755,8 @@ const resumePending = async (): Promise<void> => {
     await planTrip();
   } else if (pending.kind === 'scan-guide') {
     await runScanGuide(pending.request, pending.index, 'panel');
+  } else if (pending.kind === 'guide') {
+    await runGuidePlan();
   } else {
     await runAnalysis(pending.request, 'panel');
   }
@@ -2916,6 +3000,7 @@ const SidepanelApp = () => {
             card={state.result.card}
             callbacks={{
               onPin: () => void onPinToggle(),
+              onPlanTrip: () => void runGuidePlan(),
               onReanalyze: () => void reanalyze(),
               onRetry: () => void retry(),
               onFetchRetry: () => void fetchRetry(),
@@ -3061,7 +3146,6 @@ export const initPanel = (): void => {
   flushSync(() => {
     createRoot(host).render(<SidepanelApp />);
   });
-  window.addEventListener('scroll', onWindowScroll, { passive: true });
 
   updatePreview(null);
   showIdle();

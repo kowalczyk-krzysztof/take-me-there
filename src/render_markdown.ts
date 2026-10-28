@@ -1,11 +1,11 @@
-// Markdown-lite renderer for streamed model output: real semantic elements
-// built with createElement, model strings inserted ONLY as text nodes. The
-// renderer re-renders the whole buffer on each push: guides are small, and a
-// full re-render can never strand half-open structures mid-stream.
+// Markdown-lite renderer for model output: real semantic elements built
+// with createElement, model strings inserted ONLY as text nodes. The whole
+// buffer renders at once into the fixed guide box: guides are small, and a
+// single render can never strand half-open structures.
 export const MAX_GUIDE_CHARS = 20000;
 
 // Offset of the first rendered heading, or -1 when the source holds none
-// yet. The streamer holds back everything before it, so model
+// yet. The run holds back everything before it, so model
 // throat-clearing ("I'll research X for you…") never reaches the reader;
 // only the final result renders. Glued markers ("…guide.## Place", which
 // models emit without a newline) count, single hashes do not (C# prose).

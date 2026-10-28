@@ -1,7 +1,7 @@
 import type { PlaceResult } from '../../types';
 import styles from './trip_card.module.css';
 import { msg } from '../../utils/i18n';
-import type { AlternatesView, CompareOptionView, TripCardCallbacks } from './trip_card';
+import type { AlternatesView, CompareOptionView, PlanState, TripCardCallbacks } from './trip_card';
 import { ChipsRow } from './chips_row';
 import { AlternatesView as AlternatesList } from './alternates_view';
 import { CompareRow } from './compare_row';
@@ -10,6 +10,7 @@ interface Props {
   place: PlaceResult;
   lowConfidence: boolean;
   pinned: boolean;
+  planState: PlanState;
   onDevice: boolean;
   compareOptions: CompareOptionView[];
   alternates: AlternatesView;
@@ -17,7 +18,7 @@ interface Props {
 }
 
 export const ResultView = ({
-  place, lowConfidence, pinned, onDevice, compareOptions, alternates, callbacks,
+  place, lowConfidence, pinned, planState, onDevice, compareOptions, alternates, callbacks,
 }: Props) => {
   const subtitle = [place.city, place.country].filter((part) => part).join(', ');
   return (
@@ -47,6 +48,21 @@ export const ResultView = ({
       >
         {msg('pinButton', place.placeName)}
       </button>
+      {planState === 'ready' ? null : (
+        <button
+          type="button"
+          className={styles['plan-trip-button']}
+          aria-disabled={planState === 'planning' || undefined}
+          onClick={() => {
+            if (planState === 'planning') {
+              return;
+            }
+            callbacks.onPlanTrip();
+          }}
+        >
+          {msg(planState === 'planning' ? 'planningButton' : 'planTripButton')}
+        </button>
+      )}
       <ChipsRow alternates={alternates} onAlternates={callbacks.onAlternates} />
       <AlternatesList alternates={alternates} onPinAlternate={callbacks.onPinAlternate} onPlanInstead={callbacks.onPlanInstead} />
       {compareOptions.length > 0 ? <CompareRow options={compareOptions} onCompare={callbacks.onCompare} /> : null}

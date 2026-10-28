@@ -60,7 +60,12 @@
 }.root .fallback {
   font-size: 13px;
   color: var(--muted);
-}.root a { color: var(--link); }.root .pin-button { margin: 4px 0 0; }.root .pin-button[aria-pressed="true"] {
+}.root a { color: var(--link); }.root .pin-button { margin: 4px 0 0; }.root .plan-trip-button {
+  margin: 8px 0 0;
+  background: var(--link);
+  color: var(--background);
+  border-color: transparent;
+}.root .pin-button[aria-pressed="true"] {
   border-color: var(--link);
   color: var(--link);
 }.root .stop-list {
