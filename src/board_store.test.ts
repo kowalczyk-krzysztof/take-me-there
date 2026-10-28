@@ -9,6 +9,7 @@ import {
   makeThumbnail,
   pinPlace,
   removePin,
+  stripUrlEphemera,
   type BoardPin,
 } from './board_store';
 import { installChromeMock, uninstallChromeMock, type ChromeMock } from './test/chrome_mock';
@@ -85,6 +86,17 @@ describe('board_store', () => {
     await pinPlace({ ...PIN({ place: PLACE({ placeName: 'Fira' }) }), addedAt: 1 });
     const pins = await listPins();
     expect(pins.map((pin) => pin.place.placeName)).toEqual(['Fira', 'Oia']);
+  });
+
+  it('strips query and fragment from stored image URLs', async () => {
+    expect(stripUrlEphemera('https://cdn.example.com/a.jpg?sig=abc#frag')).toBe(
+      'https://cdn.example.com/a.jpg'
+    );
+    expect(stripUrlEphemera('data:image/jpeg,AAA')).toBe('data:image/jpeg,AAA');
+    await pinPlace({ ...PIN({ imageUrl: 'https://cdn.example.com/a.jpg?sig=abc#frag' }) });
+    const pins = await listPins();
+    expect(pins).toHaveLength(1);
+    expect(pins[0].imageUrl).toBe('https://cdn.example.com/a.jpg');
   });
 
   it('keeps the existing pin on a dedupe hit', async () => {

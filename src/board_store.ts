@@ -104,6 +104,20 @@ export type PinOutcome =
   | { status: 'pinned'; pins: BoardPin[]; evicted: BoardPin | null }
   | { status: 'duplicate'; pins: BoardPin[] };
 
+export const stripUrlEphemera = (url: string): string => {
+  if (url.startsWith('data:')) {
+    return url;
+  }
+  try {
+    const parsed = new URL(url);
+    parsed.search = '';
+    parsed.hash = '';
+    return parsed.toString();
+  } catch {
+    return url;
+  }
+};
+
 export const pinPlace = async (
   pin: Omit<BoardPin, 'addedAt'> & { addedAt?: number }
 ): Promise<PinOutcome> =>
@@ -123,7 +137,11 @@ export const pinPlace = async (
       return { status: 'duplicate', pins };
     }
 
-    const entry: BoardPin = { ...pin, addedAt: pin.addedAt ?? Date.now() };
+    const entry: BoardPin = {
+      ...pin,
+      ...(pin.imageUrl ? { imageUrl: stripUrlEphemera(pin.imageUrl) } : {}),
+      addedAt: pin.addedAt ?? Date.now(),
+    };
     const next = [...pins, entry].sort((a, b) => a.addedAt - b.addedAt);
     let evicted: BoardPin | null = null;
 

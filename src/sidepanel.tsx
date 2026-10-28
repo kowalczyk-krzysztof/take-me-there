@@ -464,6 +464,7 @@ const clearCost = (): void => {
 };
 
 const priceMutex = createMutex();
+const keyWriteMutex = createMutex();
 
 const priceAndRecord = async (provider: Provider): Promise<void> =>
   priceMutex(async () => {
@@ -589,7 +590,12 @@ const showVideoConfirm = (rung2: boolean, focusGate: boolean): void => {
 };
 
 const onVideoConfirmAgree = async (): Promise<void> => {
-  await setVideoConsented();
+  try {
+    await setVideoConsented();
+  } catch {
+    announceAlert('settingsSaveFailed');
+    return;
+  }
   await resumePending();
 };
 
@@ -2676,9 +2682,11 @@ const onKeySave = async (key: string): Promise<void> => {
     return;
   }
   try {
-    await saveKey(provider.id, key, sessionOnly);
-    runSettings = { ...settings, sessionOnly };
-    await saveSettings(runSettings);
+    await keyWriteMutex(async () => {
+      await saveKey(provider.id, key, sessionOnly);
+      runSettings = { ...settings, sessionOnly };
+      await saveSettings(runSettings);
+    });
   } catch {
     setKeyForm({ pending: false, error: msg('keyErrorRetry') });
     return;
@@ -2719,23 +2727,35 @@ const onConsentDecision = async (agreed: boolean): Promise<void> => {
     announceStatus('statusConsentDeclined');
     return;
   }
-  await setConsented();
+  try {
+    await setConsented();
+  } catch {
+    announceAlert('settingsSaveFailed');
+    return;
+  }
   await resumePending();
 };
 
 const onSessionOnlyChange = async (checked: boolean): Promise<void> => {
+  const previous = store.get().keyForm.sessionOnly;
+  const prevSettings = runSettings;
   setKeyForm({ sessionOnly: checked });
   try {
-    const { provider, settings } = await getActiveProvider();
-    runSettings = { ...settings, sessionOnly: checked };
-    await saveSettings(runSettings);
-    const loaded = await loadKey(provider.id);
-    if (loaded.state === 'ok') {
-      await saveKey(provider.id, loaded.key, checked);
-    }
+    await keyWriteMutex(async () => {
+      const { provider, settings } = await getActiveProvider();
+      const loaded = await loadKey(provider.id);
+      if (loaded.state === 'ok') {
+        await saveKey(provider.id, loaded.key, checked);
+      }
+      runSettings = { ...settings, sessionOnly: checked };
+      await saveSettings(runSettings);
+    });
   } catch {
-    // Best effort; the checkbox state stays as the user set it.
+    runSettings = prevSettings;
+    setKeyForm({ sessionOnly: previous, error: msg('settingsSaveFailed') });
+    return;
   }
+  setKeyForm({ error: null });
 };
 
 const loadShortcutLine = async (): Promise<void> => {

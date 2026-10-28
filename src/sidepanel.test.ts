@@ -278,6 +278,38 @@ describe('sidepanel', () => {
     expect(img?.src).toContain('oia.jpg');
   });
 
+  it('reverts the session-only toggle when migration fails', async () => {
+    const mock = await setup();
+    await waitFor(() => {
+      expect(document.querySelector('#settings-panel #session-only')).not.toBeNull();
+    });
+    const fail = vi.spyOn(mock.local, 'set').mockRejectedValueOnce(new Error('quota'));
+    const box = document.querySelector('#settings-panel #session-only') as HTMLInputElement;
+    box.checked = true;
+    box.dispatchEvent(new Event('change', { bubbles: true }));
+    await waitFor(() => {
+      expect(document.querySelector('#settings-panel #key-error')?.textContent).toBe(
+        'settingsSaveFailed'
+      );
+    });
+    expect(
+      (document.querySelector('#settings-panel #session-only') as HTMLInputElement).checked
+    ).toBe(false);
+    const { loadSettings } = await import('./providers/index');
+    expect((await loadSettings()).sessionOnly).toBe(false);
+    fail.mockRestore();
+    const retry = document.querySelector('#settings-panel #session-only') as HTMLInputElement;
+    retry.checked = true;
+    retry.dispatchEvent(new Event('change', { bubbles: true }));
+    await waitFor(async () => {
+      expect((await loadSettings()).sessionOnly).toBe(true);
+    });
+    expect(
+      (document.querySelector('#settings-panel #session-only') as HTMLInputElement).checked
+    ).toBe(true);
+    expect(document.querySelector('#settings-panel #key-error')?.hasAttribute('hidden')).toBe(true);
+  });
+
   it('runs identify plus a grounded guide end to end', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
@@ -549,6 +581,34 @@ describe('sidepanel', () => {
     expect(content?.querySelector('h3')?.textContent).toBe('Oia');
   });
 
+  it('keeps the consent gate for re-click when the flag write fails', async () => {
+    const mock = await setup();
+    const { saveKey } = await import('./key_vault');
+    await saveKey('muse', 'LLM_x', false);
+    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
+    await mock.session.set({ tripRequest: READY() });
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot h2')?.textContent).toBe('consentTitle');
+    });
+    const fail = vi.spyOn(mock.local, 'set').mockRejectedValueOnce(new Error('quota'));
+    const agree = [...document.querySelectorAll('#result-slot button')].find(
+      (button) => button.textContent === 'agreeButton'
+    ) as HTMLButtonElement;
+    agree.click();
+    await waitFor(() => {
+      expect(document.querySelector('#alert-region')?.textContent).toBe('settingsSaveFailed');
+    });
+    expect(document.querySelector('#result-slot h2')?.textContent).toBe('consentTitle');
+    expect(fetchMock).not.toHaveBeenCalled();
+    fail.mockRestore();
+    const retry = [...document.querySelectorAll('#result-slot button')].find(
+      (button) => button.textContent === 'agreeButton'
+    ) as HTMLButtonElement;
+    retry.click();
+    await waitForHeading('Oia');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('gates the first video analysis behind the frame confirm', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
@@ -598,6 +658,33 @@ describe('sidepanel', () => {
     };
     expect(body.messages[1].content[1].image_url?.url).toBe('data:image/jpeg,frame');
     expect(document.querySelector('#privacy-line')?.textContent).toBe('privacyVideoFrame');
+  });
+
+  it('keeps the video confirm for re-click when the flag write fails', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
+    await mock.session.set({
+      tripRequest: READY({
+        srcUrl: 'blob:https://example.com/aaa',
+        mediaType: 'video',
+        frame: { dataUrl: 'data:image/jpeg,frame', time: 12.5 },
+      }),
+    });
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot .confirm-actions .primary')).not.toBeNull();
+    });
+    const fail = vi.spyOn(mock.local, 'set').mockRejectedValueOnce(new Error('quota'));
+    (document.querySelector('#result-slot .confirm-actions .primary') as HTMLButtonElement).click();
+    await waitFor(() => {
+      expect(document.querySelector('#alert-region')?.textContent).toBe('settingsSaveFailed');
+    });
+    expect(document.querySelector('#result-slot h2')?.textContent).toBe('videoConfirmTitle');
+    expect(fetchMock).not.toHaveBeenCalled();
+    fail.mockRestore();
+    (document.querySelector('#result-slot .confirm-actions .primary') as HTMLButtonElement).click();
+    await waitForHeading('Oia');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
     // The gate is one-time: the next video analyzes without asking.
     fetchMock.mockClear();
     fetchMock
