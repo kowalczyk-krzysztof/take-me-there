@@ -31,6 +31,7 @@ export interface Usage {
   outputTokens: number;
   searchCount: number;
   flatFeesUsd: number;
+  cachedInputTokens?: number;
 }
 
 export const emptyUsage = (): Usage => ({
@@ -40,12 +41,27 @@ export const emptyUsage = (): Usage => ({
   flatFeesUsd: 0,
 });
 
-export const addUsage = (a: Usage, b: Usage): Usage => ({
-  inputTokens: a.inputTokens + b.inputTokens,
-  outputTokens: a.outputTokens + b.outputTokens,
-  searchCount: a.searchCount + b.searchCount,
-  flatFeesUsd: a.flatFeesUsd + b.flatFeesUsd,
-});
+export const addUsage = (a: Usage, b: Usage): Usage => {
+  const cached = (a.cachedInputTokens ?? 0) + (b.cachedInputTokens ?? 0);
+  return {
+    inputTokens: a.inputTokens + b.inputTokens,
+    outputTokens: a.outputTokens + b.outputTokens,
+    searchCount: a.searchCount + b.searchCount,
+    flatFeesUsd: a.flatFeesUsd + b.flatFeesUsd,
+    ...(cached > 0 ? { cachedInputTokens: cached } : {}),
+  };
+};
+
+export const absorbUsage = (
+  usage: Usage,
+  tokens: { inputTokens: number; outputTokens: number; cachedInputTokens?: number }
+): void => {
+  usage.inputTokens += tokens.inputTokens;
+  usage.outputTokens += tokens.outputTokens;
+  if (tokens.cachedInputTokens) {
+    usage.cachedInputTokens = (usage.cachedInputTokens ?? 0) + tokens.cachedInputTokens;
+  }
+};
 
 export type ProviderErrorCode =
   | 'auth'
@@ -167,15 +183,24 @@ export const toStreamError = (err: unknown, signal: AbortSignal): ProviderError 
 
 export const readChatUsage = (
   data: unknown
-): { inputTokens: number; outputTokens: number } | undefined => {
-  const usage = (data as { usage?: { prompt_tokens?: unknown; completion_tokens?: unknown } })
-    ?.usage;
+): { inputTokens: number; outputTokens: number; cachedInputTokens?: number } | undefined => {
+  const usage = (
+    data as {
+      usage?: {
+        prompt_tokens?: unknown;
+        completion_tokens?: unknown;
+        prompt_tokens_details?: { cached_tokens?: unknown };
+      };
+    }
+  )?.usage;
   if (!usage || typeof usage.prompt_tokens !== 'number') {
     return undefined;
   }
+  const cached = (usage.prompt_tokens_details ?? {}).cached_tokens;
   return {
     inputTokens: usage.prompt_tokens,
     outputTokens: typeof usage.completion_tokens === 'number' ? usage.completion_tokens : 0,
+    ...(typeof cached === 'number' && cached > 0 ? { cachedInputTokens: cached } : {}),
   };
 };
 
@@ -668,6 +693,7 @@ export interface ResponsesStructured {
   searchCount: number;
   inputTokens: number;
   outputTokens: number;
+  cachedInputTokens: number;
 }
 
 export interface ResponsesText {
@@ -714,7 +740,11 @@ export const extractResponsesText = (data: unknown): ResponsesText | undefined =
 export const extractResponsesStructured = (data: unknown): ResponsesStructured | undefined => {
   const root = (data ?? {}) as {
     output?: unknown;
-    usage?: { input_tokens?: unknown; output_tokens?: unknown };
+    usage?: {
+      input_tokens?: unknown;
+      output_tokens?: unknown;
+      input_tokens_details?: { cached_tokens?: unknown };
+    };
   };
   if (!Array.isArray(root.output)) {
     return undefined;
@@ -779,12 +809,14 @@ export const extractResponsesStructured = (data: unknown): ResponsesStructured |
   } catch {
     return undefined;
   }
+  const cached = root.usage?.input_tokens_details?.cached_tokens;
   return {
     json,
     sources,
     searchCount,
     inputTokens: typeof root.usage?.input_tokens === 'number' ? root.usage.input_tokens : 0,
     outputTokens: typeof root.usage?.output_tokens === 'number' ? root.usage.output_tokens : 0,
+    cachedInputTokens: typeof cached === 'number' && cached > 0 ? cached : 0,
   };
 };
 
@@ -957,8 +989,7 @@ const identifyAttempt = async (
   }
   const tokens = readChatUsage(data);
   if (tokens) {
-    usage.inputTokens += tokens.inputTokens;
-    usage.outputTokens += tokens.outputTokens;
+    absorbUsage(usage, tokens);
   }
   const place = tryParsePlace(data);
   if (place) {
@@ -1059,8 +1090,7 @@ export const fetchChatCompletion = async (
   }
   const tokens = readChatUsage(data);
   if (tokens) {
-    usage.inputTokens += tokens.inputTokens;
-    usage.outputTokens += tokens.outputTokens;
+    absorbUsage(usage, tokens);
   }
   return data;
 };
@@ -1085,6 +1115,9 @@ export async function* iterateChatStream(
     new EventSourceParserStream({ maxBufferSize: SSE_MAX_BUFFER, onError: 'terminate' })
   );
   const reader = parser.getReader();
+  // Usage blocks carry running totals, not deltas: compatible servers may
+  // repeat them per chunk, so only the last one is reported, once.
+  let latestUsage: Usage | null = null;
   try {
     for (;;) {
       if (signal.aborted) {
@@ -1119,9 +1152,17 @@ export async function* iterateChatStream(
       }
       const tokens = readChatUsage(payload);
       if (tokens) {
-        yield { type: 'usage', usage: { ...emptyUsage(), ...tokens } };
+        latestUsage = { ...emptyUsage(), ...tokens };
       }
     }
+    if (latestUsage) {
+      yield { type: 'usage', usage: latestUsage };
+    }
+  } catch (err) {
+    if (err instanceof ProviderError && err.usage === undefined && latestUsage) {
+      err.usage = { ...latestUsage };
+    }
+    throw err;
   } finally {
     reader.releaseLock();
   }

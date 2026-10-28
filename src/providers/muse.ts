@@ -33,6 +33,7 @@ import {
   postChatStream,
   readStall,
   fetchTimeout,
+  absorbUsage,
   readChatUsage,
   requireKey,
   responseError,
@@ -171,8 +172,7 @@ export class MuseProvider implements Provider {
     const tokens = readChatUsage(data);
 
     if (tokens) {
-      usage.inputTokens += tokens.inputTokens;
-      usage.outputTokens += tokens.outputTokens;
+      absorbUsage(usage, tokens);
     }
 
     const content = (data as { choices?: Array<{ message?: { content?: unknown } }> })?.choices?.[0]
@@ -240,8 +240,7 @@ export class MuseProvider implements Provider {
       const tokens = readChatUsage(data);
 
       if (tokens) {
-        usage.inputTokens += tokens.inputTokens;
-        usage.outputTokens += tokens.outputTokens;
+        absorbUsage(usage, tokens);
       }
 
       const place = tryParsePlace(data);
@@ -409,8 +408,7 @@ export class MuseProvider implements Provider {
     if (!extracted) {
       return null;
     }
-    usage.inputTokens += extracted.inputTokens;
-    usage.outputTokens += extracted.outputTokens;
+    absorbUsage(usage, extracted);
     usage.searchCount += extracted.searchCount;
     const value = parse(extracted.json);
 
@@ -778,19 +776,45 @@ export class MuseProvider implements Provider {
           }
           const tokens = (payload as { response?: { usage?: unknown }; usage?: unknown })?.response;
           const usagePayload =
-            (tokens as { usage?: { input_tokens?: unknown; output_tokens?: unknown } } | undefined)
-              ?.usage ??
-            (payload as { usage?: { input_tokens?: unknown; output_tokens?: unknown } })?.usage;
+            (
+              tokens as
+                | {
+                    usage?: {
+                      input_tokens?: unknown;
+                      output_tokens?: unknown;
+                      input_tokens_details?: { cached_tokens?: unknown };
+                    };
+                  }
+                | undefined
+            )?.usage ??
+            (
+              payload as {
+                usage?: {
+                  input_tokens?: unknown;
+                  output_tokens?: unknown;
+                  input_tokens_details?: { cached_tokens?: unknown };
+                };
+              }
+            )?.usage;
 
           if (usagePayload && typeof usagePayload.input_tokens === 'number') {
             usage.inputTokens += usagePayload.input_tokens;
             usage.outputTokens +=
               typeof usagePayload.output_tokens === 'number' ? usagePayload.output_tokens : 0;
+            const cached = usagePayload.input_tokens_details?.cached_tokens;
+            if (typeof cached === 'number' && cached > 0) {
+              usage.cachedInputTokens = (usage.cachedInputTokens ?? 0) + cached;
+            }
           }
           break;
         }
         // Every other event is ignored by design.
       }
+    } catch (err) {
+      if (err instanceof ProviderError && err.usage === undefined) {
+        err.usage = { ...usage };
+      }
+      throw err;
     } finally {
       reader.releaseLock();
     }

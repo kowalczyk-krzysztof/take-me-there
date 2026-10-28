@@ -18,16 +18,27 @@ export const MUSE_SPARK_RATES: Record<string, ModelRates> = {
 export const WEB_SEARCH_COST_USD = 0.0025;
 // Flat fee per sam-3.1 image call.
 export const SAM_IMAGE_COST_USD = 0.0025;
+// Prompt-cache reads bill below full input price.
+export const CACHED_INPUT_USD_PER_MTOK = 0.15;
+
+export const cachedInputTokensOf = (usage: Usage): number =>
+  Math.min(Math.max(0, usage.cachedInputTokens ?? 0), Math.max(0, usage.inputTokens));
 
 export const estimateCostUsd = (usage: Usage, rates?: ModelRates): number | null => {
   if (!rates) {
     return null;
   }
+  const cached = cachedInputTokensOf(usage);
   const tokens =
-    (usage.inputTokens * rates.inputUsdPerMTok + usage.outputTokens * rates.outputUsdPerMTok) /
+    ((usage.inputTokens - cached) * rates.inputUsdPerMTok +
+      cached * CACHED_INPUT_USD_PER_MTOK +
+      usage.outputTokens * rates.outputUsdPerMTok) /
     1_000_000;
   return tokens + usage.searchCount * WEB_SEARCH_COST_USD + usage.flatFeesUsd;
 };
+
+export const estimateCachedSavingUsd = (usage: Usage, rates: ModelRates): number =>
+  (cachedInputTokensOf(usage) * (rates.inputUsdPerMTok - CACHED_INPUT_USD_PER_MTOK)) / 1_000_000;
 
 const COST_TOTALS_KEY = 'costTotals';
 const MAX_MONTHS_KEPT = 24;

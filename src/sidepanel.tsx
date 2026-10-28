@@ -33,7 +33,7 @@ import { buildDestination, buildLinks, mapsDirUrl } from './deep_links';
 import { downscaleToJpegDataUrl, fetchImageBytes } from './image_fetch';
 import { clearKey, isVaultKey, loadKey, saveKey } from './key_vault';
 import { cropToSamBox, dataUrlToBytes, parseSamBoxes, selectSamBox, type SamPixelBox } from './sam';
-import { estimateCostUsd, formatUsd, recordMonthSpend } from './pricing';
+import { estimateCachedSavingUsd, estimateCostUsd, formatUsd, recordMonthSpend } from './pricing';
 import { createGuideRenderer, findGuideStart } from './render_markdown';
 import {
   TRIP_REQUEST_SCHEMA,
@@ -475,7 +475,8 @@ const keyWriteMutex = createMutex();
 
 const priceAndRecord = async (provider: Provider): Promise<void> =>
   priceMutex(async () => {
-    const usd = estimateCostUsd(runUsage, provider.getRates());
+    const rates = provider.getRates();
+    const usd = estimateCostUsd(runUsage, rates);
     if (usd === null) {
       store.set({
         cost: msg('costLineTokens', [String(runUsage.inputTokens), String(runUsage.outputTokens)]),
@@ -493,7 +494,13 @@ const priceAndRecord = async (provider: Provider): Promise<void> =>
     } catch {
       // The run figure still renders; only the monthly total is stale.
     }
-    store.set({ cost: msg('costLine', [formatUsd(usd), formatUsd(monthTotal)]) });
+    const saved = rates ? estimateCachedSavingUsd(runUsage, rates) : 0;
+    store.set({
+      cost:
+        saved > 0
+          ? msg('costLineCached', [formatUsd(usd), formatUsd(monthTotal), formatUsd(saved)])
+          : msg('costLine', [formatUsd(usd), formatUsd(monthTotal)]),
+    });
   });
 
 const cancelSkeleton = (): void => {
@@ -1032,6 +1039,8 @@ const runGuide = async (args: GuideArgs): Promise<RunOutcome> => {
   } catch (err) {
     store.set({ guideBusy: false, searching: false, resultBusy: false });
     if (err instanceof ProviderError && err.code === 'aborted') {
+      // Streamed tokens were billed even though the run was cancelled.
+      recordPartialUsage(err, provider);
       return 'aborted';
     }
     recordPartialUsage(err, provider);

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   MUSE_SPARK_RATES,
+  estimateCachedSavingUsd,
   estimateCostUsd,
   formatUsd,
   readMonthSpend,
@@ -59,6 +60,47 @@ describe('pricing', () => {
     await recordMonthSpend(0.5, instant);
     const record = mock.local.data.get('costTotals') as { months: Record<string, number> };
     expect(Object.keys(record.months)).toEqual(['2026-02']);
+  });
+
+  it('bills cached input below the full input rate', () => {
+    const rates = MUSE_SPARK_RATES['muse-spark-1.3'];
+    expect(
+      estimateCostUsd(
+        {
+          inputTokens: 1_000_000,
+          outputTokens: 1_000_000,
+          searchCount: 0,
+          flatFeesUsd: 0,
+          cachedInputTokens: 1_000_000,
+        },
+        rates
+      )
+    ).toBeCloseTo(0.15 + 4.25, 10);
+    expect(
+      estimateCachedSavingUsd(
+        {
+          inputTokens: 1_000_000,
+          outputTokens: 0,
+          searchCount: 0,
+          flatFeesUsd: 0,
+          cachedInputTokens: 1_000_000,
+        },
+        rates
+      )
+    ).toBeCloseTo(1.1, 10);
+  });
+
+  it('clamps cached tokens to the reported input', () => {
+    const rates = MUSE_SPARK_RATES['muse-spark-1.3'];
+    const usage = {
+      inputTokens: 100,
+      outputTokens: 0,
+      searchCount: 0,
+      flatFeesUsd: 0,
+      cachedInputTokens: 999,
+    };
+    expect(estimateCostUsd(usage, rates)).toBeCloseTo((100 * 0.15) / 1_000_000, 12);
+    expect(estimateCachedSavingUsd(usage, rates)).toBeCloseTo((100 * 1.1) / 1_000_000, 12);
   });
 
   it('returns null without a rate table so the UI shows tokens', () => {

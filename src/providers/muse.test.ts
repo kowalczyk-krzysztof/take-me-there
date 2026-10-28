@@ -320,6 +320,29 @@ describe('muse streamGuide', () => {
     ...overrides,
   });
 
+  it('attaches partial usage when the stream aborts', async () => {
+    await consented();
+    fetchMock.mockResolvedValue(
+      sseResponse([
+        'event: response.web_search_call.completed\n',
+        'data: {}\n',
+        '\n',
+        'event: response.output_text.delta\n',
+        'data: {"delta":"Hello"}\n',
+        '\n',
+      ])
+    );
+    const controller = new AbortController();
+    const gen = provider.streamGuide('LLM_key', input({ signal: controller.signal }));
+    const first = await gen.next();
+    expect(first.value).toEqual({ type: 'searching' });
+    controller.abort();
+    await expect(gen.next()).rejects.toMatchObject({
+      code: 'aborted',
+      usage: { searchCount: 1 },
+    });
+  });
+
   it('rejects failed and incomplete responses instead of ending cleanly', async () => {
     await consented();
     fetchMock.mockResolvedValue(

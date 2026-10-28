@@ -23,6 +23,7 @@ import {
   parseScanBatch,
   customHostOf,
   emptyUsage,
+  readChatUsage,
   fetchChatCompletion,
   readStall,
   responseError,
@@ -70,6 +71,32 @@ beforeEach(() => {
 
 afterEach(() => {
   uninstallChromeMock();
+});
+
+describe('readChatUsage', () => {
+  it('extracts cached input tokens when reported', () => {
+    expect(
+      readChatUsage({
+        usage: {
+          prompt_tokens: 1000,
+          completion_tokens: 50,
+          prompt_tokens_details: { cached_tokens: 800 },
+        },
+      })
+    ).toEqual({ inputTokens: 1000, outputTokens: 50, cachedInputTokens: 800 });
+  });
+
+  it('omits the cached field when zero or malformed', () => {
+    expect(readChatUsage({ usage: { prompt_tokens: 10, completion_tokens: 1 } })).toEqual({
+      inputTokens: 10,
+      outputTokens: 1,
+    });
+    expect(
+      readChatUsage({
+        usage: { prompt_tokens: 10, prompt_tokens_details: { cached_tokens: 'many' } },
+      })
+    ).toEqual({ inputTokens: 10, outputTokens: 0 });
+  });
 });
 
 describe('sanitizePromptHint', () => {

@@ -122,6 +122,21 @@ const GUIDE_SSE = [
   '\n',
 ].join('');
 
+const GUIDE_SSE_CACHED = [
+  'event: response.web_search_call.searching\n',
+  'data: {}\n',
+  '\n',
+  'event: response.output_text.delta\n',
+  'data: {"delta":"Hello world"}\n',
+  '\n',
+  'event: response.web_search_call.completed\n',
+  'data: {}\n',
+  '\n',
+  'event: response.completed\n',
+  'data: {"response":{"usage":{"input_tokens":1000,"output_tokens":120,"input_tokens_details":{"cached_tokens":800}}}}\n',
+  '\n',
+].join('');
+
 const fetchMock = vi.fn();
 
 const setup = async (
@@ -370,6 +385,22 @@ describe('sidepanel', () => {
     expect(shells[0]).toContain('<title>Take Me There</title>');
     expect(shells[1]).toContain('<title>Take Me There - Options</title>');
     expect(shells[2]).toContain('<title>Welcome to Take Me There</title>');
+  });
+
+  it('shows cache savings on the cost line', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    fetchMock
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
+      .mockResolvedValueOnce(sseResponse([GUIDE_SSE_CACHED]));
+    await mock.session.set({ tripRequest: READY() });
+    await waitForHeading('Oia');
+    await clickPlanTrip();
+    await waitFor(() => {
+      expect(document.querySelector('#cost-line')?.textContent).toBe(
+        'costLineCached($0.004 | $0.004 | $0.001)'
+      );
+    });
   });
 
   it('holds the guide until the plan button is pressed', async () => {

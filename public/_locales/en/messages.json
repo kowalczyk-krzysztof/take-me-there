@@ -425,6 +425,15 @@
       "month": { "content": "$2", "example": "$1.23" }
     }
   },
+  "costLineCached": {
+    "message": "This analysis ≈ $1 · this month ≈ $2 · cache saved $3",
+    "description": "Cost readout when prompt caching discounted the run.",
+    "placeholders": {
+      "run": { "content": "$1", "example": "$0.01" },
+      "month": { "content": "$2", "example": "$1.23" },
+      "saved": { "content": "$3", "example": "$0.00" }
+    }
+  },
   "costLineTokens": {
     "message": "Tokens this run: $1 in, $2 out",
     "description": "Token readout without rates.",

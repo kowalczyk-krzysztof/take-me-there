@@ -148,6 +148,54 @@ describe('openai_compat', () => {
     ]);
   });
 
+  it('reports repeated cumulative usage blocks once', async () => {
+    await setConsented();
+    fetchMock.mockResolvedValue(
+      sseResponse([
+        'data: {"choices":[{"delta":{"content":"Hi"}}],"usage":{"prompt_tokens":7,"completion_tokens":3}}\n\n',
+        'data: {"choices":[{"delta":{"content":" there"}}],"usage":{"prompt_tokens":9,"completion_tokens":5}}\n\ndata: [DONE]\n\n',
+      ])
+    );
+    const provider = new OpenAiCompatProvider(config());
+    const events = await collect(
+      provider.streamGuide('sk_key', {
+        destination: 'Oia, Greece',
+        signal: new AbortController().signal,
+      })
+    );
+    expect(events).toEqual([
+      { type: 'delta', text: 'Hi' },
+      { type: 'delta', text: ' there' },
+      {
+        type: 'usage',
+        usage: { inputTokens: 9, outputTokens: 5, searchCount: 0, flatFeesUsd: 0 },
+      },
+    ]);
+  });
+
+  it('attaches the latest usage when the stream aborts', async () => {
+    await setConsented();
+    fetchMock.mockResolvedValue(
+      sseResponse([
+        'data: {"choices":[{"delta":{"content":"Hi"}}],"usage":{"prompt_tokens":7,"completion_tokens":3}}\n\n',
+        'data: {"choices":[{"delta":{"content":" there"}}]}\n\n',
+      ])
+    );
+    const provider = new OpenAiCompatProvider(config());
+    const controller = new AbortController();
+    const gen = provider.streamGuide('sk_key', {
+      destination: 'Oia, Greece',
+      signal: controller.signal,
+    });
+    const first = await gen.next();
+    expect(first.value).toEqual({ type: 'delta', text: 'Hi' });
+    controller.abort();
+    await expect(gen.next()).rejects.toMatchObject({
+      code: 'aborted',
+      usage: { inputTokens: 7, outputTokens: 3 },
+    });
+  });
+
   it('enforces consent on every remote call', async () => {
     const provider = new OpenAiCompatProvider(config());
     await expect(provider.identifyPlace('sk_key', input())).rejects.toMatchObject({
