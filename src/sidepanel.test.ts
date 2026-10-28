@@ -650,6 +650,57 @@ describe('sidepanel', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it('shows the consent gate without any network call', async () => {
+    const mock = await setup();
+    const { saveKey } = await import('./key_vault');
+    await saveKey('muse', 'LLM_x', false);
+    await mock.session.set({ tripRequest: READY() });
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot h2')?.textContent).toBe('consentTitle');
+    });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('runs exactly once after consent is granted', async () => {
+    const mock = await setup();
+    const { saveKey } = await import('./key_vault');
+    const { hasConsented } = await import('./providers/index');
+    await saveKey('muse', 'LLM_x', false);
+    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
+    await mock.session.set({ tripRequest: READY() });
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot h2')?.textContent).toBe('consentTitle');
+    });
+    const agree = [...document.querySelectorAll('#result-slot button')].find(
+      (button) => button.textContent === 'agreeButton'
+    ) as HTMLButtonElement;
+    agree.click();
+    await waitForHeading('Oia');
+    expect(await hasConsented()).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves consent unset when declined', async () => {
+    const mock = await setup();
+    const { saveKey } = await import('./key_vault');
+    const { hasConsented } = await import('./providers/index');
+    await saveKey('muse', 'LLM_x', false);
+    await mock.session.set({ tripRequest: READY() });
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot h2')?.textContent).toBe('consentTitle');
+    });
+    const decline = [...document.querySelectorAll('#result-slot button')].find(
+      (button) => button.textContent === 'declineButton'
+    ) as HTMLButtonElement;
+    decline.click();
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('statusConsentDeclined');
+    });
+    expect(await hasConsented()).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('gates the first video analysis behind the frame confirm', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
