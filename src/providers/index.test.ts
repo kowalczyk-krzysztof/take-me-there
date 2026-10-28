@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  CONSENT_STORAGE_KEY,
+  CONSENT_VERSION,
   assertConsent,
   buildAlternatesMessages,
   buildDuelMessages,
@@ -503,6 +505,16 @@ describe('consent gate', () => {
     await setConsented();
     expect(await hasConsented()).toBe(true);
     await expect(assertConsent()).resolves.toBeUndefined();
+  });
+
+  it('rejects legacy and foreign-version grants', async () => {
+    const { local } = installChromeMock();
+    await local.set({ [CONSENT_STORAGE_KEY]: true });
+    expect(await hasConsented()).toBe(CONSENT_VERSION === 1);
+    await local.set({ [CONSENT_STORAGE_KEY]: { v: CONSENT_VERSION + 1, at: 'x' } });
+    expect(await hasConsented()).toBe(false);
+    await local.set({ [CONSENT_STORAGE_KEY]: { v: CONSENT_VERSION, at: 'x' } });
+    expect(await hasConsented()).toBe(true);
   });
 });
 

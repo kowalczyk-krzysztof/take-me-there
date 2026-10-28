@@ -1118,6 +1118,9 @@ export async function* postChatStream(
 
 export const SETTINGS_STORAGE_KEY = 'settings';
 export const CONSENT_STORAGE_KEY = 'consentGiven';
+// Bump when the consent copy or the consented data flows change: stored
+// grants below this version stop counting and the gate re-appears.
+export const CONSENT_VERSION: number = 2;
 
 export interface OpenAiCompatSettings {
   baseURL: string;
@@ -1184,14 +1187,24 @@ export const hasConsented = async (): Promise<boolean> => {
     const stored = (await chrome.storage.local.get(CONSENT_STORAGE_KEY)) as {
       consentGiven?: unknown;
     };
-    return stored.consentGiven === true;
+    const value = stored.consentGiven;
+    // Legacy boolean grants predate versioning and count as v1.
+    if (value === true) {
+      return CONSENT_VERSION === 1;
+    }
+    if (typeof value === 'object' && value !== null) {
+      return (value as { v?: unknown }).v === CONSENT_VERSION;
+    }
+    return false;
   } catch {
     return false;
   }
 };
 
 export const setConsented = async (): Promise<void> => {
-  await chrome.storage.local.set({ [CONSENT_STORAGE_KEY]: true });
+  await chrome.storage.local.set({
+    [CONSENT_STORAGE_KEY]: { v: CONSENT_VERSION, at: new Date().toISOString() },
+  });
 };
 
 // Single chokepoint: every model call passes through here. Test-key
