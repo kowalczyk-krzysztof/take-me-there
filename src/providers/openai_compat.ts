@@ -6,6 +6,7 @@ import {
   scanBatchJsonSchema,
 } from '../types';
 import {
+  PROMPT_CACHE_KEY,
   ProviderError,
   assertConsent,
   buildAlternatesMessages,
@@ -107,6 +108,7 @@ export class OpenAiCompatProvider implements Provider {
       url: `${this.baseURL()}/chat/completions`,
       body: {
         model: this.config.model,
+        prompt_cache_key: PROMPT_CACHE_KEY,
         max_completion_tokens: IDENTIFY_MAX_TOKENS,
         messages,
         response_format:
@@ -137,6 +139,7 @@ export class OpenAiCompatProvider implements Provider {
         key,
         {
           model: this.config.model,
+          prompt_cache_key: PROMPT_CACHE_KEY,
           max_completion_tokens: IDENTIFY_MAX_TOKENS,
           messages: buildItineraryMessages(input.pins, strictReminder),
           response_format:
@@ -180,6 +183,7 @@ export class OpenAiCompatProvider implements Provider {
         key,
         {
           model: this.config.model,
+          prompt_cache_key: PROMPT_CACHE_KEY,
           max_completion_tokens: IDENTIFY_MAX_TOKENS,
           messages: buildScanMessages(input.images, strictReminder),
           response_format:
@@ -224,6 +228,7 @@ export class OpenAiCompatProvider implements Provider {
         key,
         {
           model: this.config.model,
+          prompt_cache_key: PROMPT_CACHE_KEY,
           max_completion_tokens: IDENTIFY_MAX_TOKENS,
           messages: messages(strictReminder),
           response_format:
@@ -315,6 +320,7 @@ export class OpenAiCompatProvider implements Provider {
       key,
       {
         model: this.config.model,
+        prompt_cache_key: PROMPT_CACHE_KEY,
         messages: [{ role: 'user', content: prompt }],
         max_completion_tokens: GUIDE_MAX_TOKENS,
         stream: true,

@@ -90,6 +90,8 @@ describe('muse identify', () => {
 
     const body = requestBody();
     expect(body.model).toBe('muse-spark-1.3');
+    expect(body.prompt_cache_key).toBe('take-me-there');
+    expect(body.prompt_cache_retention).toBeUndefined();
     expect(body.reasoning_effort).toBe('medium');
     expect(body.max_completion_tokens).toBe(2048);
     expect(body.response_format.type).toBe('json_schema');
@@ -269,6 +271,8 @@ describe('muse video identify (rung 2)', () => {
 
     const describe = requestBody(1);
     expect(describe.response_format).toBeUndefined();
+    expect(describe.prompt_cache_key).toBe('take-me-there');
+    expect(describe.prompt_cache_retention).toBeUndefined();
     expect(describe.messages[1].content[1]).toEqual({
       type: 'video_url',
       video_url: { url: 'https://cdn.example.com/trip.mp4' },
@@ -276,6 +280,8 @@ describe('muse video identify (rung 2)', () => {
 
     const normalize = requestBody(2);
     expect(normalize.response_format.type).toBe('json_schema');
+    expect(normalize.prompt_cache_key).toBe('take-me-there');
+    expect(normalize.prompt_cache_retention).toBeUndefined();
     expect(normalize.messages[1].content).toContain('VIDEO DESCRIPTION');
     expect(normalize.messages[1].content).toContain('blue domes of Oia');
   });
@@ -482,6 +488,8 @@ describe('muse streamGuide', () => {
 
     const body = requestBody();
     expect(body.stream_options).toEqual({ include_usage: true });
+    expect(body.prompt_cache_key).toBe('take-me-there');
+    expect(body.prompt_cache_retention).toBeUndefined();
   });
 
   it('treats malformed payloads and buffer overflow as stream errors', async () => {
@@ -548,6 +556,8 @@ describe('muse planItinerary', () => {
 
     const body = requestBody();
     expect(body.response_format.type).toBe('json_schema');
+    expect(body.prompt_cache_key).toBe('take-me-there');
+    expect(body.prompt_cache_retention).toBeUndefined();
     expect(body.response_format.json_schema.schema.properties.stops.items.enum).toEqual([
       'Oia',
       'Fira',
@@ -606,6 +616,8 @@ describe('muse planItinerary', () => {
 
     const body = requestBody();
     expect(JSON.stringify(body)).toContain('Narrate this itinerary day by day.');
+    expect(body.prompt_cache_key).toBe('take-me-there');
+    expect(body.prompt_cache_retention).toBe('24h');
   });
 });
 
@@ -654,6 +666,8 @@ describe('muse scanPlaces', () => {
     const body = requestBody();
     expect(body.response_format.type).toBe('json_schema');
     expect(body.response_format.json_schema.schema.properties.places.type).toBe('array');
+    expect(body.prompt_cache_key).toBe('take-me-there');
+    expect(body.prompt_cache_retention).toBeUndefined();
 
     const parts = body.messages[1].content as Array<{ type: string }>;
     expect(parts.map((part) => part.type)).toEqual(['text', 'image_url', 'image_url']);
@@ -716,6 +730,8 @@ describe('muse duelPlaces', () => {
     expect(body.tools).toEqual([{ type: 'web_search', search_context_size: 'low' }]);
     expect(body.text.format.type).toBe('json_schema');
     expect(body.text.format.name).toBe('duel');
+    expect(body.prompt_cache_key).toBe('take-me-there');
+    expect(body.prompt_cache_retention).toBe('24h');
     expect(body.stream).toBe(false);
 
     const prompt = body.input[0].content[0].text as string;
@@ -737,6 +753,8 @@ describe('muse duelPlaces', () => {
     const chatBody = requestBody(1);
     expect(chatBody.response_format.type).toBe('json_schema');
     expect(chatBody.response_format.json_schema.strict).toBe(true);
+    expect(chatBody.prompt_cache_key).toBe('take-me-there');
+    expect(chatBody.prompt_cache_retention).toBeUndefined();
   });
 
   it('falls back when grounded output is unparseable, then gives up honestly', async () => {
@@ -800,6 +818,8 @@ describe('muse findAlternates', () => {
 
     const body = requestBody();
     expect(body.text.format.name).toBe('alternates');
+    expect(body.prompt_cache_key).toBe('take-me-there');
+    expect(body.prompt_cache_retention).toBe('24h');
 
     const prompt = body.input[0].content[0].text as string;
     expect(prompt).toContain('Oia, Greece');
@@ -856,11 +876,15 @@ describe('muse segmentLandmark', () => {
 
     const body = JSON.parse(init.body as string) as {
       model: string;
+      prompt_cache_key: string;
+      prompt_cache_retention: string;
       input: Array<{ content: Array<{ type: string; text?: string; image_url?: string }> }>;
       metadata: Record<string, string>;
       stream: boolean;
     };
     expect(body.model).toBe('sam-3.1');
+    expect(body.prompt_cache_key).toBe('take-me-there');
+    expect(body.prompt_cache_retention).toBe('24h');
     expect(body.input[0].content[0]).toEqual({ type: 'input_text', text: 'building' });
     expect(body.input[0].content[1]?.image_url).toBe('data:image/jpeg;base64,AAA');
     expect(body.metadata).toEqual({ include_confidence: 'true' });

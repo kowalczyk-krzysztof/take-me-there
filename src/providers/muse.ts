@@ -10,6 +10,8 @@ import {
 } from '../types';
 import {
   ProviderError,
+  PROMPT_CACHE_KEY,
+  PROMPT_CACHE_RETENTION,
   SSE_MAX_BUFFER,
   STRICT_REMINDER,
   assertConsent,
@@ -158,6 +160,7 @@ export class MuseProvider implements Provider {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
         body: JSON.stringify({
           model: MODEL,
+          prompt_cache_key: PROMPT_CACHE_KEY,
           reasoning_effort: 'low',
           max_completion_tokens: 512,
           messages,
@@ -278,6 +281,7 @@ export class MuseProvider implements Provider {
       url: `${API_BASE}/chat/completions`,
       body: {
         model: MODEL,
+        prompt_cache_key: PROMPT_CACHE_KEY,
         reasoning_effort: 'medium',
         max_completion_tokens: IDENTIFY_MAX_TOKENS,
         messages,
@@ -307,6 +311,7 @@ export class MuseProvider implements Provider {
         key,
         {
           model: MODEL,
+          prompt_cache_key: PROMPT_CACHE_KEY,
           reasoning_effort: 'low',
           max_completion_tokens: ITINERARY_MAX_TOKENS,
           messages: buildItineraryMessages(input.pins, strictReminder),
@@ -349,6 +354,7 @@ export class MuseProvider implements Provider {
         key,
         {
           model: MODEL,
+          prompt_cache_key: PROMPT_CACHE_KEY,
           reasoning_effort: 'low',
           max_completion_tokens: ITINERARY_MAX_TOKENS,
           messages: buildScanMessages(input.images, strictReminder),
@@ -392,6 +398,8 @@ export class MuseProvider implements Provider {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
         body: JSON.stringify({
           model: MODEL,
+          prompt_cache_key: PROMPT_CACHE_KEY,
+          prompt_cache_retention: PROMPT_CACHE_RETENTION,
           input: [
             {
               type: 'message',
@@ -452,6 +460,7 @@ export class MuseProvider implements Provider {
         key,
         {
           model: MODEL,
+          prompt_cache_key: PROMPT_CACHE_KEY,
           reasoning_effort: 'low',
           max_completion_tokens: ITINERARY_MAX_TOKENS,
           messages: messages(strictReminder),
@@ -574,6 +583,8 @@ export class MuseProvider implements Provider {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
         body: JSON.stringify({
           model: 'sam-3.1',
+          prompt_cache_key: PROMPT_CACHE_KEY,
+          prompt_cache_retention: PROMPT_CACHE_RETENTION,
           input: [
             {
               type: 'message',
@@ -641,6 +652,7 @@ export class MuseProvider implements Provider {
       key,
       {
         model: MODEL,
+        prompt_cache_key: PROMPT_CACHE_KEY,
         messages: [{ role: 'user', content: prompt }],
         max_completion_tokens: GUIDE_MAX_TOKENS,
         stream: true,
@@ -663,6 +675,8 @@ export class MuseProvider implements Provider {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
         body: JSON.stringify({
           model: MODEL,
+          prompt_cache_key: PROMPT_CACHE_KEY,
+          prompt_cache_retention: PROMPT_CACHE_RETENTION,
           input: [
             {
               type: 'message',

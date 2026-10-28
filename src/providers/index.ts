@@ -391,6 +391,14 @@ export const formatSignalsForPrompt = (signals: PageSignals, imageOnly: boolean)
 // the cached-input rate.
 export const STRICT_REMINDER = 'Return ONLY JSON matching this schema, with no other text.';
 
+// Stable cache identity sent on every chat and Responses request: retries
+// and repeat runs with identical prefixes bill cached input ($0.15/M)
+// instead of full price ($1.25/M).
+export const PROMPT_CACHE_KEY = 'take-me-there';
+
+// 24h retention is a Responses-only option; chat requests must not send it.
+export const PROMPT_CACHE_RETENTION = '24h';
+
 export interface IdentifyMessageOptions {
   signalsText: string;
   imageUrl: string | null;

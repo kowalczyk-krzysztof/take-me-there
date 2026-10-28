@@ -73,6 +73,8 @@ describe('openai_compat', () => {
 
     const body = JSON.parse(init.body as string) as Record<string, any>;
     expect(body.model).toBe('test-model');
+    expect(body.prompt_cache_key).toBe('take-me-there');
+    expect(body.prompt_cache_retention).toBeUndefined();
     expect(body.response_format).toEqual({ type: 'json_object' });
     expect(body.reasoning_effort).toBeUndefined();
   });
@@ -261,6 +263,8 @@ describe('compat planItinerary', () => {
 
     const body = JSON.parse(init.body as string) as Record<string, Record<string, unknown>>;
     expect((body.response_format as Record<string, string>).type).toBe('json_schema');
+    expect(body.prompt_cache_key).toBe('take-me-there');
+    expect(body.prompt_cache_retention).toBeUndefined();
   });
 
   it('falls back to json_object with the same client validation', async () => {
@@ -338,6 +342,8 @@ describe('compat scanPlaces', () => {
 
     const body = JSON.parse(init.body as string) as Record<string, Record<string, unknown>>;
     expect((body.response_format as Record<string, string>).type).toBe('json_object');
+    expect(body.prompt_cache_key).toBe('take-me-there');
+    expect(body.prompt_cache_retention).toBeUndefined();
   });
 });
 
@@ -368,9 +374,11 @@ describe('compat duelPlaces', () => {
 
     const body = JSON.parse(init.body as string) as {
       response_format: { type: string; json_schema: { name: string } };
+      prompt_cache_key: string;
     };
     expect(body.response_format.type).toBe('json_schema');
     expect(body.response_format.json_schema.name).toBe('duel');
+    expect(body.prompt_cache_key).toBe('take-me-there');
   });
 });
 
