@@ -4,6 +4,7 @@ html {
 
 body {
   font-family:
+    Inter,
     system-ui,
     -apple-system,
     'Segoe UI',
@@ -25,6 +26,7 @@ main {
 #tab-bar {
   display: flex;
   gap: 4px;
+  border-bottom: 1px solid var(--border);
 }
 
 #tab-bar [role='tab'] {
@@ -34,8 +36,14 @@ main {
   background: transparent;
   color: var(--muted);
   border: none;
-  border-bottom: 2px solid var(--border);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
   cursor: pointer;
+  transition: color 120ms ease;
+}
+
+#tab-bar [role='tab']:hover {
+  color: var(--text);
 }
 
 #tab-bar [role='tab'][aria-selected='true'] {
@@ -47,6 +55,10 @@ main {
 #tab-bar [role='tab'][aria-disabled='true'] {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+#tab-bar [role='tab'][aria-disabled='true']:hover {
+  color: var(--muted);
 }
 
 #main-panel,
@@ -63,7 +75,7 @@ main {
   z-index: 1;
   background: var(--background);
   padding-bottom: 8px;
-  border-bottom: 1px solid var(--surface);
+  border-bottom: 1px solid var(--border);
 }
 
 #preview-frame {
@@ -73,7 +85,7 @@ main {
   position: relative;
   min-height: 96px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 6px;
   overflow: hidden;
   background: var(--surface);
   color: var(--muted);
@@ -109,7 +121,8 @@ main {
 #booking-heading,
 #guide-heading,
 #sources-heading {
-  font-size: 15px;
+  font-size: 14px;
+  font-weight: 600;
   margin: 4px 0 8px;
 }
 
@@ -122,8 +135,10 @@ main {
   overflow-wrap: break-word;
   scrollbar-gutter: stable;
   border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 8px 12px;
+  border-radius: 6px;
+  box-shadow: var(--shadow);
+  padding: 12px;
+  background: var(--card);
 }
 
 /* A styled scrollbar opts out of macOS overlay auto-hide, so the fixed
@@ -139,7 +154,7 @@ main {
 #guide-content::-webkit-scrollbar-thumb {
   background: var(--border);
   border-radius: 8px;
-  border: 2px solid var(--background);
+  border: 2px solid var(--card);
 }
 
 .guide-skeleton {
@@ -182,7 +197,7 @@ main {
 }
 
 #page-footer {
-  border-top: 1px solid var(--surface);
+  border-top: 1px solid var(--border);
   padding-top: 8px;
   font-size: 13px;
   color: var(--muted);
@@ -200,16 +215,26 @@ main {
 
 .confirm-actions button {
   font: inherit;
-  padding: 8px 14px;
-  border-radius: 4px;
+  font-weight: 500;
+  padding: 8px 16px;
+  border-radius: 6px;
   cursor: pointer;
-  background: transparent;
+  background: var(--card);
   color: var(--text);
   border: 1px solid var(--border);
+  transition: background-color 120ms ease;
+}
+
+.confirm-actions button:hover {
+  background: var(--surface);
 }
 
 .confirm-actions button.primary {
   background: var(--link);
-  color: var(--background);
+  color: var(--on-primary);
   border-color: transparent;
+}
+
+.confirm-actions button.primary:hover {
+  background: var(--link-hover);
 }

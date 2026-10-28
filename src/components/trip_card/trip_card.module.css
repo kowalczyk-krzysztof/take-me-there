@@ -1,8 +1,14 @@
 .root {
   display: block;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: var(--shadow);
+  padding: 12px;
 }
 .root h2 {
   font-size: 18px;
+  font-weight: 700;
   margin: 0 0 4px;
 }
 .root .subtitle {
@@ -56,17 +62,25 @@
 }
 .root button {
   font: inherit;
-  padding: 8px 14px;
-  border-radius: 4px;
+  font-weight: 500;
+  padding: 8px 16px;
+  border-radius: 6px;
   cursor: pointer;
-  background: transparent;
+  background: var(--card);
   color: var(--text);
   border: 1px solid var(--border);
+  transition: background-color 120ms ease;
+}
+.root button:hover {
+  background: var(--surface);
 }
 .root button.primary {
   background: var(--link);
-  color: var(--background);
+  color: var(--on-primary);
   border-color: transparent;
+}
+.root button.primary:hover {
+  background: var(--link-hover);
 }
 .root button[aria-disabled='true'] {
   opacity: 0.55;
@@ -85,8 +99,11 @@
 .root .plan-trip-button {
   margin: 8px 0 0;
   background: var(--link);
-  color: var(--background);
+  color: var(--on-primary);
   border-color: transparent;
+}
+.root .plan-trip-button:hover {
+  background: var(--link-hover);
 }
 .root .pin-button[aria-pressed='true'] {
   border-color: var(--link);
@@ -152,8 +169,10 @@
 }
 .root .alternate-card {
   border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 8px;
+  border-radius: 6px;
+  box-shadow: var(--shadow);
+  background: var(--card);
+  padding: 12px;
 }
 .root .alternate-head {
   display: flex;
@@ -196,9 +215,9 @@
 }
 .root .compare-row select {
   font: inherit;
-  padding: 8px;
-  border-radius: 4px;
+  padding: 8px 12px;
+  border-radius: 6px;
   border: 1px solid var(--border);
-  background: transparent;
+  background: var(--card);
   color: var(--text);
 }

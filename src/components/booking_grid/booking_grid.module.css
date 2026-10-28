@@ -11,8 +11,21 @@
   min-height: 44px;
   padding: 8px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 6px;
+  box-shadow: var(--shadow);
+  background: var(--card);
   color: var(--text);
   text-decoration: none;
   text-align: center;
+  font-weight: 500;
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.root .tile:hover {
+  border-color: var(--link);
+  box-shadow:
+    var(--shadow),
+    0 0 0 1px var(--link);
 }

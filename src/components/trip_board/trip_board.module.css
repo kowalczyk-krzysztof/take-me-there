@@ -1,8 +1,9 @@
 .root section {
   border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 8px 12px;
-  background: var(--surface);
+  border-radius: 6px;
+  box-shadow: var(--shadow);
+  padding: 12px;
+  background: var(--card);
 }
 .root h2 {
   margin: 0;
@@ -68,18 +69,26 @@
 }
 .root button {
   font: inherit;
-  padding: 8px 14px;
-  border-radius: 4px;
+  font-weight: 500;
+  padding: 8px 16px;
+  border-radius: 6px;
   cursor: pointer;
-  background: transparent;
+  background: var(--card);
   color: var(--text);
   border: 1px solid var(--border);
   flex: none;
+  transition: background-color 120ms ease;
+}
+.root button:hover {
+  background: var(--surface);
 }
 .root button.primary {
   background: var(--link);
-  color: var(--background);
+  color: var(--on-primary);
   border-color: transparent;
+}
+.root button.primary:hover {
+  background: var(--link-hover);
 }
 .root button[aria-disabled='true'] {
   opacity: 0.55;

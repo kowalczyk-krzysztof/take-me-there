@@ -6,6 +6,10 @@
   width: 100%;
   border-collapse: collapse;
   font-size: 0.875rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  box-shadow: var(--shadow);
 }
 .root caption {
   text-align: left;
@@ -14,14 +18,20 @@
 }
 .root th,
 .root td {
-  border: 1px solid var(--border);
-  padding: 0.5rem;
+  border-bottom: 1px solid var(--border);
+  padding: 0.5rem 0.75rem;
   text-align: left;
   vertical-align: top;
 }
+.root tr:last-child th,
+.root tr:last-child td {
+  border-bottom: none;
+}
 .root thead th {
-  background: var(--background);
-  color: var(--text);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted);
+  background: transparent;
 }
 .root tbody th {
   font-weight: 600;
@@ -29,7 +39,7 @@
 }
 .root tr.verdict th,
 .root tr.verdict td {
-  background: var(--background);
+  background: var(--surface);
   font-weight: 600;
 }
 .root td:global(.skeleton-block) {
@@ -45,15 +55,24 @@
 }
 .root button {
   font: inherit;
+  font-weight: 500;
   padding: 0.5rem 0.75rem;
   border-radius: 0.375rem;
   border: 1px solid var(--border);
-  background: var(--background);
+  background: var(--card);
   color: var(--text);
   cursor: pointer;
+  transition: background-color 120ms ease;
+}
+.root button:hover {
+  background: var(--surface);
 }
 .root button.primary {
   background: var(--link);
   border-color: var(--link);
-  color: var(--background);
+  color: var(--on-primary);
+}
+.root button.primary:hover {
+  background: var(--link-hover);
+  border-color: var(--link-hover);
 }

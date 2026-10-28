@@ -1,5 +1,10 @@
 .root {
   display: block;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: var(--shadow);
+  padding: 12px;
 }
 .root form {
   display: flex;
@@ -14,21 +19,16 @@
 .root input[type='text'] {
   width: 100%;
   box-sizing: border-box;
-  padding: 8px;
+  padding: 8px 12px;
   border: 1px solid var(--border);
-  border-radius: 4px;
-  background: var(--background);
+  border-radius: 6px;
+  background: var(--card);
   color: var(--text);
   font: inherit;
 }
 .root input[aria-invalid='true'] {
-  border-color: #b00020;
+  border-color: var(--error);
   border-width: 2px;
-}
-@media (prefers-color-scheme: dark) {
-  .root input[aria-invalid='true'] {
-    border-color: #ff8a80;
-  }
 }
 .root .hint {
   margin: 0;
@@ -38,12 +38,7 @@
 .root .error {
   margin: 0;
   font-size: 13px;
-  color: #b00020;
-}
-@media (prefers-color-scheme: dark) {
-  .root .error {
-    color: #ff8a80;
-  }
+  color: var(--error);
 }
 .root .checkbox-row {
   display: flex;
@@ -61,19 +56,27 @@
 }
 .root button {
   font: inherit;
-  padding: 8px 14px;
-  border-radius: 4px;
+  font-weight: 500;
+  padding: 8px 16px;
+  border-radius: 6px;
   cursor: pointer;
+  transition: background-color 120ms ease;
 }
 .root button.primary {
   background: var(--link);
-  color: var(--background);
+  color: var(--on-primary);
   border: 1px solid transparent;
 }
+.root button.primary:hover {
+  background: var(--link-hover);
+}
 .root button.secondary {
-  background: transparent;
+  background: var(--card);
   color: var(--text);
   border: 1px solid var(--border);
+}
+.root button.secondary:hover {
+  background: var(--surface);
 }
 .root button[aria-disabled='true'] {
   opacity: 0.6;
