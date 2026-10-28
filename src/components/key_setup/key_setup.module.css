@@ -66,12 +66,4 @@
 }.root a { color: var(--link); }.root h2 {
   font-size: 16px;
   margin: 0 0 8px;
-}.root .consent-body { margin: 0 0 12px; }.root .nano-section {
-  border-top: 1px solid var(--border);
-  padding-top: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}.root .nano-section progress {
-  width: 100%;
-}
+}.root .consent-body { margin: 0 0 12px; }

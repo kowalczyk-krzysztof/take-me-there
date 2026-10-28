@@ -22,7 +22,6 @@ const fullCallbacks = (overrides: Partial<TripCardCallbacks> = {}): TripCardCall
   onReanalyze: noop,
   onRetry: noop,
   onFetchRetry: noop,
-  onNanoInstead: noop,
   onLookAgain: noop,
   onAlternates: noop,
   onCompare: noop,
@@ -294,32 +293,6 @@ describe('trip-card', () => {
     expect(onRetry).not.toHaveBeenCalled();
     (buttons[1] as HTMLButtonElement).click();
     expect(onFetchRetry).toHaveBeenCalledTimes(1);
-  });
-
-  it('labels on-device results and offers the on-device escape hatch', () => {
-    const onNanoInstead = vi.fn();
-    const rendered = renderCard(
-      { view: 'result', place: PLACE, lowConfidence: false, pinned: false, planState: 'ready' },
-      { onNanoInstead },
-    );
-    const root = rendered.container;
-    expect(root.querySelector('.nano-badge')).toBeNull();
-    rerenderCard(
-      rendered,
-      { view: 'result', place: PLACE, lowConfidence: false, pinned: false, planState: 'ready', onDevice: true },
-      { onNanoInstead },
-    );
-    expect(root.querySelector('.nano-badge')?.textContent).toBe('nanoBadge');
-    rerenderCard(
-      rendered,
-      { view: 'error', title: 'T', body: 'B', showRetry: true, showNanoInstead: true },
-      { onNanoInstead },
-    );
-    const buttons = root.querySelectorAll('button');
-    expect(buttons).toHaveLength(2);
-    expect(buttons[1]?.textContent).toBe('nanoTryInstead');
-    (buttons[1] as HTMLButtonElement).click();
-    expect(onNanoInstead).toHaveBeenCalledTimes(1);
   });
 
   it('renders a focusable result heading', () => {

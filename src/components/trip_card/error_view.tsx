@@ -9,12 +9,11 @@ interface Props {
   showRetry: boolean;
   fallback: { label: string; href: string } | null;
   showFetchRetry: boolean;
-  showNanoInstead: boolean;
-  callbacks: Pick<TripCardCallbacks, 'onRetry' | 'onFetchRetry' | 'onNanoInstead'>;
+  callbacks: Pick<TripCardCallbacks, 'onRetry' | 'onFetchRetry'>;
 }
 
 export const ErrorView = ({
-  title, body, showRetry, fallback, showFetchRetry, showNanoInstead, callbacks,
+  title, body, showRetry, fallback, showFetchRetry, callbacks,
 }: Props) => (
   <>
     <h2 tabIndex={-1}>{title}</h2>
@@ -31,13 +30,6 @@ export const ErrorView = ({
         label={msg('fetchRetryButton')}
         loadingLabel={msg('fetchRetryLoading')}
         onFire={callbacks.onFetchRetry}
-      />
-    ) : null}
-    {showNanoInstead ? (
-      <OneShotButton
-        label={msg('nanoTryInstead')}
-        loadingLabel={msg('nanoDownloading')}
-        onFire={callbacks.onNanoInstead}
       />
     ) : null}
     {fallback ? <FallbackLine fallback={fallback} /> : null}

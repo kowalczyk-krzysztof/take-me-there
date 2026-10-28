@@ -32,7 +32,6 @@ interface OptionsState {
   keyReset: number;
   settings: {
     imageOnly: boolean;
-    preferOnDevice: boolean;
     providerMuse: boolean;
     compat: CompatForm;
   } | null;
@@ -228,12 +227,6 @@ const OptionsApp = () => {
           const current = await loadSettings();
           await saveSettings({ ...current, imageOnly: checked });
         })();
-      } else if (box.id === 'prefer-on-device') {
-        const checked = box.checked;
-        void (async () => {
-          const current = await loadSettings();
-          await saveSettings({ ...current, preferOnDevice: checked });
-        })();
       } else if (box.id === 'provider-muse' && box.checked) {
         void (async () => {
           const current = await loadSettings();
@@ -257,9 +250,6 @@ const OptionsApp = () => {
           pending={state.keyPending}
           error={state.keyError}
           sessionOnly={state.sessionOnly}
-          nano="hidden"
-          nanoInstead={false}
-          nanoProgress={null}
           resetKey={state.keyReset}
           callbacks={{
             onSave: onSaveKey,
@@ -275,7 +265,6 @@ const OptionsApp = () => {
                 }
               })().catch(() => {});
             },
-            onNanoEnable: () => {},
             onConsentDecision: () => {},
           }}
         />
@@ -292,14 +281,6 @@ const OptionsApp = () => {
             defaultChecked={settings?.imageOnly ?? false}
           />
           <span id="image-only-label">{msg('imageOnlyLabel')}</span>
-        </label>
-        <label className="checkbox-row" id="prefer-on-device-row">
-          <input
-            type="checkbox"
-            id="prefer-on-device"
-            defaultChecked={settings?.preferOnDevice ?? false}
-          />
-          <span id="prefer-on-device-label">{msg('preferOnDeviceLabel')}</span>
         </label>
         <h2 id="provider-heading">{msg('optionsProviderHeading')}</h2>
         <div id="provider-group" role="radiogroup">
@@ -404,7 +385,6 @@ export const initOptions = (): void => {
       compatOpen: settings.activeProviderId === 'openai_compat',
       settings: {
         imageOnly: settings.imageOnly,
-        preferOnDevice: settings.preferOnDevice,
         providerMuse: settings.activeProviderId !== 'openai_compat',
         compat: {
           baseURL: settings.openaiCompat.baseURL,

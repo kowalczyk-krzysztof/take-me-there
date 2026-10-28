@@ -118,19 +118,6 @@ describe('options', () => {
     });
   });
 
-  it('persists the prefer-on-device toggle', async () => {
-    const mock = await setup();
-    const box = document.querySelector('#prefer-on-device') as HTMLInputElement;
-    expect(box.checked).toBe(false);
-    box.checked = true;
-    box.dispatchEvent(new Event('change', { bubbles: true }));
-    await waitFor(() => {
-      expect(
-        (mock.local.data.get('settings') as { preferOnDevice: boolean }).preferOnDevice,
-      ).toBe(true);
-    });
-  });
-
   it('saves keys through validation', async () => {
     const mock = await setup();
     fetchMock.mockResolvedValue(new Response('[]', { status: 200 }));
@@ -189,7 +176,6 @@ describe('options', () => {
       },
       imageOnly: false,
       sessionOnly: false,
-      preferOnDevice: false,
     });
   });
 

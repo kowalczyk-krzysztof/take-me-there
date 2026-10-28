@@ -11,14 +11,13 @@ interface Props {
   lowConfidence: boolean;
   pinned: boolean;
   planState: PlanState;
-  onDevice: boolean;
   compareOptions: CompareOptionView[];
   alternates: AlternatesView;
   callbacks: TripCardCallbacks;
 }
 
 export const ResultView = ({
-  place, lowConfidence, pinned, planState, onDevice, compareOptions, alternates, callbacks,
+  place, lowConfidence, pinned, planState, compareOptions, alternates, callbacks,
 }: Props) => {
   const subtitle = [place.city, place.country].filter((part) => part).join(', ');
   return (
@@ -29,12 +28,6 @@ export const ResultView = ({
           <>
             {' '}
             <span className={styles.badge}>{msg('bestGuessBadge')}</span>
-          </>
-        ) : null}
-        {onDevice ? (
-          <>
-            {' '}
-            <span className={`${styles.badge} nano-badge`}>{msg('nanoBadge')}</span>
           </>
         ) : null}
       </h2>

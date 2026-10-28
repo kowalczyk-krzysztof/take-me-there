@@ -143,32 +143,6 @@ const groundedResponse = (json: unknown, annotations: unknown[] = []) =>
     { status: 200 },
   );
 
-const nanoSession = (promptText: string, chunks: string[]) => {
-  const session = {
-    prompt: vi.fn().mockResolvedValue(promptText),
-    promptStreaming: vi.fn().mockImplementation(async function* () {
-      for (const chunk of chunks) {
-        yield chunk;
-      }
-    }),
-    clone: vi.fn(),
-    destroy: vi.fn(),
-  };
-  session.clone.mockResolvedValue(session);
-  return session;
-};
-
-const installNano = (states: string[], session: ReturnType<typeof nanoSession>) => {
-  const availability = vi.fn();
-  for (let i = 0; i < states.length - 1; i++) {
-    availability.mockResolvedValueOnce(states[i]);
-  }
-  availability.mockResolvedValue(states[states.length - 1]);
-  const create = vi.fn().mockResolvedValue(session);
-  vi.stubGlobal('LanguageModel', { availability, create });
-  return { availability, create, session };
-};
-
 const GUIDE_SSE = [
   'event: response.web_search_call.searching\n',
   'data: {}\n',
@@ -209,14 +183,10 @@ const plantKeyAndConsent = async (): Promise<void> => {
   await setConsented();
 };
 
-afterEach(async () => {
+afterEach(() => {
   document.body.innerHTML = '';
   uninstallChromeMock();
   vi.unstubAllGlobals();
-  // Dynamic import: the module graph is warm by teardown, so this cannot
-  // re-enter the provider registry cycle.
-  const { resetNanoSession } = await import('./providers/chrome_nano');
-  resetNanoSession();
 });
 
 describe('sidepanel', () => {
@@ -1605,124 +1575,6 @@ describe('sidepanel', () => {
     });
     expect(imageOf(7)).toBe('https://cdn.example.com/fira.jpg');
     expect(fetchMock).toHaveBeenCalledTimes(8);
-  });
-
-  it('runs fully on-device without a key or consent', async () => {
-    const mock = await setup();
-    await mock.local.set({
-      settings: {
-        activeProviderId: 'muse',
-        openaiCompat: { baseURL: '', model: '', structuredOutput: 'json_object' },
-        imageOnly: false,
-        sessionOnly: false,
-        preferOnDevice: true,
-      },
-    });
-    installNano(
-      ['readily'],
-      nanoSession(JSON.stringify(VALID_PLACE), ['## Oia\n\n', 'Hello world']),
-    );
-    await mock.session.set({ tripRequest: READY() });
-    await waitFor(() => {
-      const card = document.querySelector('#result-slot');
-      expect(card?.querySelector('h2')?.textContent).toContain('Oia');
-    });
-    await clickPlanTrip();
-    await waitFor(() => {
-      expect(document.querySelector('#guide-content')?.textContent).toContain('Hello world');
-    });
-    const card = document.querySelector('#result-slot');
-    expect(card?.querySelector('.nano-badge')?.textContent).toBe('nanoBadge');
-    expect(document.querySelector('#privacy-line')?.textContent).toBe('privacyLocal');
-    expect(document.querySelector('#cost-line')?.textContent).toBe('nanoFreeLine');
-    expect(document.querySelector('#status-region')?.textContent).toBe('nanoGuideReady');
-    // The only fetch is Nano's plain image probe; no remote API is touched.
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0][0]).toBe('https://cdn.example.com/oia.jpg');
-    expect(mock.local.data.has('consentGiven')).toBe(false);
-  });
-
-  it('retries a rate limit on-device instead', async () => {
-    const mock = await setup();
-    await plantKeyAndConsent();
-    fetchMock.mockResolvedValueOnce(new Response('slow down', { status: 429 }));
-    await mock.session.set({ tripRequest: READY() });
-    await waitFor(() => {
-      const card = document.querySelector('#result-slot');
-      expect(card?.querySelector('h2')?.textContent).toBe('errorRateTitle');
-    });
-    const card = document.querySelector('#result-slot') as HTMLElement;
-    const buttons = card.querySelectorAll('button');
-    expect(buttons).toHaveLength(2);
-    expect(buttons?.[1]?.textContent).toBe('nanoTryInstead');
-    installNano(
-      ['readily'],
-      nanoSession(JSON.stringify(VALID_PLACE), ['## Oia\n\n', 'Hello world']),
-    );
-    (buttons?.[1] as HTMLButtonElement).click();
-    await waitFor(() => {
-      const retried = document.querySelector('#result-slot');
-      expect(retried?.querySelector('h2')?.textContent).toContain('Oia');
-    });
-    expect(
-      document.querySelector('#result-slot')?.querySelector('.nano-badge'),
-    ).not.toBeNull();
-    // The 429 plus Nano's plain image probe; no further remote API traffic.
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(
-      (mock.local.data.get('settings') as { preferOnDevice: boolean }).preferOnDevice,
-    ).toBe(true);
-  });
-
-  it('downloads the on-device model from onboarding with sparse milestones', async () => {
-    const mock = await setup();
-    await mock.local.set({ consentGiven: true });
-    const session = nanoSession(JSON.stringify(VALID_PLACE), ['## Oia\n\n', 'Hello world']);
-    const availability = vi.fn();
-    availability
-      .mockResolvedValueOnce('downloadable')
-      .mockResolvedValueOnce('downloadable')
-      .mockResolvedValue('readily');
-    const create = vi.fn().mockImplementation(async (options: { monitor: (m: unknown) => void }) => {
-      options.monitor({
-        addEventListener: (name: string, fn: (event: { loaded: number }) => void) => {
-          fn({ loaded: 0.1 });
-          fn({ loaded: 0.6 });
-        },
-      });
-      return session;
-    });
-    vi.stubGlobal('LanguageModel', { availability, create });
-    const statusRegion = document.querySelector('#status-region') as HTMLElement;
-    const seen: string[] = [];
-    // The observer batches rapid announcements: removed nodes reconstruct
-    // the values a current-value read would collapse.
-    new MutationObserver((mutations) => {
-      for (const mutation of mutations) {
-        mutation.removedNodes.forEach((node) => seen.push(node.textContent ?? ''));
-        mutation.addedNodes.forEach((node) => seen.push(node.textContent ?? ''));
-      }
-    }).observe(statusRegion, { childList: true, characterData: true, subtree: true });
-    await mock.session.set({ tripRequest: READY() });
-    await waitFor(() => {
-      const setupEl = document.querySelector('#settings-panel');
-      expect(setupEl?.querySelector('.nano-section button')?.textContent).toBe(
-        'nanoTry',
-      );
-    });
-    const setupEl = document.querySelector('#settings-panel') as HTMLElement;
-    (setupEl.querySelector('.nano-section button') as HTMLButtonElement).click();
-    await waitFor(() => {
-      const card = document.querySelector('#result-slot');
-      expect(card?.querySelector('h2')?.textContent).toContain('Oia');
-    });
-    expect(create).toHaveBeenCalledTimes(1);
-    expect(seen).toContain('nanoDownloadStart');
-    expect(seen).toContain('nanoDownloadMid');
-    expect(seen).toContain('nanoDownloadReady');
-    // The only fetch is Nano's plain image probe; no remote API is touched.
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0][0]).toBe('https://cdn.example.com/oia.jpg');
   });
 
   it('renders honest cards with fallback links for unreadable video', async () => {

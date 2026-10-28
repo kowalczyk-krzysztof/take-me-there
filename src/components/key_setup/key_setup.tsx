@@ -2,7 +2,6 @@ import { useLayoutEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import styles from './key_setup.module.css';
 import { msg } from '../../utils/i18n';
-import { NanoSection } from './nano_section';
 
 const DASHBOARD_URL = 'https://dev.meta.ai';
 
@@ -19,13 +18,10 @@ export interface SessionOnlyChangeDetail {
   checked: boolean;
 }
 
-export type NanoSectionState = 'hidden' | 'ready' | 'downloadable' | 'downloading' | 'failed';
-
 export interface KeySetupCallbacks {
   onSave: (key: string) => void;
   onError: (text: string) => void;
   onSessionOnlyChange: (checked: boolean) => void;
-  onNanoEnable: () => void;
   onConsentDecision: (agreed: boolean) => void;
   onDraftChange?: (draft: string) => void;
 }
@@ -35,15 +31,12 @@ interface Props {
   pending: boolean;
   error: string | null;
   sessionOnly: boolean;
-  nano: NanoSectionState;
-  nanoInstead: boolean;
-  nanoProgress: number | null;
   resetKey: number;
   callbacks: KeySetupCallbacks;
 }
 
 export const KeySetup = ({
-  mode, pending, error, sessionOnly, nano, nanoInstead, nanoProgress, resetKey, callbacks,
+  mode, pending, error, sessionOnly, resetKey, callbacks,
 }: Props) => {
   const [revealed, setRevealed] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -160,12 +153,6 @@ export const KeySetup = ({
               {msg(revealed ? 'hideKeyButton' : 'showKeyButton')}
             </button>
           </div>
-          <NanoSection
-            nano={nano}
-            nanoInstead={nanoInstead}
-            nanoProgress={nanoProgress}
-            onNanoEnable={callbacks.onNanoEnable}
-          />
           <p className={styles.notice}>{msg('securityNotice')}</p>
           <p className={styles.hygiene}>{msg('keyHygiene')}</p>
         </form>

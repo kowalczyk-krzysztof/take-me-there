@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { KeySetup, type KeySetupCallbacks, type NanoSectionState } from './key_setup';
+import { KeySetup, type KeySetupCallbacks } from './key_setup';
 import { installChromeMock, uninstallChromeMock } from '../../test/chrome_mock';
 import { renderSync, type Rendered } from '../../test/render_sync';
 
@@ -9,9 +9,6 @@ interface SetupProps {
   pending?: boolean;
   error?: string | null;
   sessionOnly?: boolean;
-  nano?: NanoSectionState;
-  nanoInstead?: boolean;
-  nanoProgress?: number | null;
   resetKey?: number;
 }
 
@@ -27,15 +24,11 @@ const renderSetup = (
       pending={props.pending ?? false}
       error={props.error ?? null}
       sessionOnly={props.sessionOnly ?? false}
-      nano={props.nano ?? 'hidden'}
-      nanoInstead={props.nanoInstead ?? false}
-      nanoProgress={props.nanoProgress ?? null}
       resetKey={props.resetKey ?? 0}
       callbacks={{
         onSave: callbacks.onSave ?? noop,
         onError: callbacks.onError ?? noop,
         onSessionOnlyChange: callbacks.onSessionOnlyChange ?? noop,
-        onNanoEnable: callbacks.onNanoEnable ?? noop,
         onConsentDecision: callbacks.onConsentDecision ?? noop,
         onDraftChange: callbacks.onDraftChange,
       }}
@@ -53,15 +46,11 @@ const rerenderSetup = (
       pending={props.pending ?? false}
       error={props.error ?? null}
       sessionOnly={props.sessionOnly ?? false}
-      nano={props.nano ?? 'hidden'}
-      nanoInstead={props.nanoInstead ?? false}
-      nanoProgress={props.nanoProgress ?? null}
       resetKey={props.resetKey ?? 0}
       callbacks={{
         onSave: callbacks.onSave ?? noop,
         onError: callbacks.onError ?? noop,
         onSessionOnlyChange: callbacks.onSessionOnlyChange ?? noop,
-        onNanoEnable: callbacks.onNanoEnable ?? noop,
         onConsentDecision: callbacks.onConsentDecision ?? noop,
         onDraftChange: callbacks.onDraftChange,
       }}
@@ -191,42 +180,4 @@ describe('key-setup', () => {
     expect(document.activeElement?.tagName).toBe('H2');
   });
 
-  it('hides the Nano section by default', () => {
-    const root = renderSetup().container;
-    expect(root.querySelector('.nano-section')).toBeNull();
-  });
-
-  it('renders the Nano enable button with the download hint', () => {
-    const onNanoEnable = vi.fn();
-    const rendered = renderSetup({ nano: 'downloadable' }, { onNanoEnable });
-    const root = rendered.container;
-    (root.querySelector('#key-input') as HTMLInputElement).value = 'LLM_draft';
-    const section = root.querySelector('.nano-section');
-    expect(section?.querySelector('#nano-hint')?.textContent).toBe('nanoDownloadHint');
-    const button = section?.querySelector('button') as HTMLButtonElement;
-    expect(button.textContent).toBe('nanoTry');
-    expect(button.getAttribute('aria-describedby')).toBe('nano-hint');
-    button.click();
-    expect(onNanoEnable).toHaveBeenCalledTimes(1);
-    // The key draft survives the section rebuild.
-    rerenderSetup(rendered, { nano: 'ready', nanoInstead: true }, { onNanoEnable });
-    expect((root.querySelector('#key-input') as HTMLInputElement).value).toBe('LLM_draft');
-    expect(root.querySelector('.nano-section button')?.textContent).toBe('nanoTryInstead');
-  });
-
-  it('renders named progress while downloading and an error with retry', () => {
-    const onNanoEnable = vi.fn();
-    const rendered = renderSetup({ nano: 'downloading' }, { onNanoEnable });
-    const root = rendered.container;
-    const bar = root.querySelector('#nano-progress') as HTMLProgressElement;
-    expect(bar.getAttribute('aria-label')).toBe('nanoDownloading');
-    expect(bar.hasAttribute('value')).toBe(false);
-    rerenderSetup(rendered, { nano: 'downloading', nanoProgress: 0.5 }, { onNanoEnable });
-    expect(bar.value).toBe(50);
-    rerenderSetup(rendered, { nano: 'failed' }, { onNanoEnable });
-    expect(root.querySelector('#nano-progress')).toBeNull();
-    expect(root.querySelector('.nano-section .error')?.textContent).toBe('nanoDownloadFail');
-    (root.querySelector('.nano-section button') as HTMLButtonElement).click();
-    expect(onNanoEnable).toHaveBeenCalledTimes(1);
-  });
 });

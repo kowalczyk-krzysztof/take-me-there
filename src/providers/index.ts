@@ -22,10 +22,6 @@ import {
 } from '../types';
 import { MuseProvider } from './muse';
 import { OpenAiCompatProvider } from './openai_compat';
-import { ChromeNanoProvider, downloadNanoModel, nanoAvailability } from './chrome_nano';
-
-export { downloadNanoModel, nanoAvailability };
-export type { NanoAvailability } from './chrome_nano';
 
 export type { ProviderCapabilities } from '../types';
 
@@ -1106,7 +1102,6 @@ export interface ExtensionSettings {
   openaiCompat: OpenAiCompatSettings;
   imageOnly: boolean;
   sessionOnly: boolean;
-  preferOnDevice: boolean;
 }
 
 const DEFAULT_SETTINGS: ExtensionSettings = {
@@ -1114,7 +1109,6 @@ const DEFAULT_SETTINGS: ExtensionSettings = {
   openaiCompat: { baseURL: '', model: '', structuredOutput: 'json_object' },
   imageOnly: false,
   sessionOnly: false,
-  preferOnDevice: false,
 };
 
 export const loadSettings = async (): Promise<ExtensionSettings> => {
@@ -1145,7 +1139,6 @@ export const loadSettings = async (): Promise<ExtensionSettings> => {
       },
       imageOnly: s.imageOnly === true,
       sessionOnly: s.sessionOnly === true,
-      preferOnDevice: s.preferOnDevice === true,
     };
   } catch {
     return structuredClone(DEFAULT_SETTINGS);
@@ -1171,7 +1164,7 @@ export const setConsented = async (): Promise<void> => {
   await chrome.storage.local.set({ [CONSENT_STORAGE_KEY]: true });
 };
 
-// Single chokepoint: every remote model call passes through here. Test-key
+// Single chokepoint: every model call passes through here. Test-key
 // validation is exempt (it sends no image or page data).
 export const assertConsent = async (): Promise<void> => {
   if (!(await hasConsented())) {
@@ -1184,15 +1177,11 @@ export const assertConsent = async (): Promise<void> => {
 };
 
 const museProvider = new MuseProvider();
-const nanoProvider = new ChromeNanoProvider();
 
 export const getProvider = (settings: ExtensionSettings, id?: string): Provider => {
   const wanted = id ?? settings.activeProviderId;
   if (wanted === 'openai_compat') {
     return new OpenAiCompatProvider(settings.openaiCompat);
-  }
-  if (wanted === 'chrome_nano') {
-    return nanoProvider;
   }
   return museProvider;
 };
@@ -1202,10 +1191,5 @@ export const getActiveProvider = async (): Promise<{
   settings: ExtensionSettings;
 }> => {
   const settings = await loadSettings();
-  // Prefer-on-device is a soft routing wish: Nano serves only while readily
-  // available, otherwise the configured remote provider answers as usual.
-  if (settings.preferOnDevice && (await nanoAvailability()) === 'readily') {
-    return { provider: nanoProvider, settings };
-  }
   return { provider: getProvider(settings), settings };
 };

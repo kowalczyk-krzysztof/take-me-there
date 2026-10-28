@@ -58,7 +58,6 @@ export interface TripCardCallbacks {
   onReanalyze: () => void;
   onRetry: () => void;
   onFetchRetry: () => void;
-  onNanoInstead: () => void;
   onLookAgain: () => void;
   onAlternates: (intent: AlternateIntentView) => void;
   onCompare: (value: string) => void;
@@ -75,7 +74,6 @@ export type CardState =
     lowConfidence: boolean;
     pinned: boolean;
     planState: PlanState;
-    onDevice?: boolean;
     compareOptions?: CompareOptionView[];
     alternates?: AlternatesView;
   }
@@ -87,7 +85,6 @@ export type CardState =
     showRetry: boolean;
     fallback?: { label: string; href: string } | null;
     showFetchRetry?: boolean;
-    showNanoInstead?: boolean;
   }
   | {
     view: 'itinerary';
@@ -126,7 +123,6 @@ export const TripCard = ({ card, callbacks }: Props) => {
           lowConfidence={card.lowConfidence}
           pinned={card.pinned}
           planState={card.planState}
-          onDevice={card.onDevice ?? false}
           compareOptions={card.compareOptions ?? []}
           alternates={card.alternates ?? { state: 'idle' }}
           callbacks={callbacks}
@@ -150,7 +146,6 @@ export const TripCard = ({ card, callbacks }: Props) => {
           showRetry={card.showRetry}
           fallback={card.fallback ?? null}
           showFetchRetry={card.showFetchRetry ?? false}
-          showNanoInstead={card.showNanoInstead ?? false}
           callbacks={callbacks}
         />
       );

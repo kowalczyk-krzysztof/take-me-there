@@ -1,14 +1,12 @@
 import { useSyncExternalStore } from 'react';
 import { createRoot } from 'react-dom/client';
 import { flushSync } from 'react-dom';
-import { KeySetup, type NanoSectionState } from './components/key_setup/key_setup';
+import { KeySetup } from './components/key_setup/key_setup';
 import { loadKey, saveKey } from './key_vault';
 import {
   ProviderError,
-  downloadNanoModel,
   getActiveProvider,
   loadSettings,
-  nanoAvailability,
   saveSettings,
 } from './providers/index';
 import { msg } from './utils/i18n';
@@ -23,8 +21,6 @@ interface OnboardingState {
   keyError: string | null;
   sessionOnly: boolean;
   keyReset: number;
-  nano: NanoSectionState;
-  nanoProgress: number | null;
 }
 
 const store = createStore<OnboardingState>({
@@ -34,8 +30,6 @@ const store = createStore<OnboardingState>({
   keyError: null,
   sessionOnly: false,
   keyReset: 0,
-  nano: 'hidden',
-  nanoProgress: null,
 });
 
 const onSaveKey = (key: string): void => {
@@ -73,29 +67,6 @@ const onSaveKey = (key: string): void => {
   })();
 };
 
-const onNanoEnable = (): void => {
-  void (async () => {
-    const state = await nanoAvailability();
-    if (state === 'unavailable') {
-      store.set({ nano: 'hidden', status: msg('nanoUnavailable') });
-      return;
-    }
-    if (state !== 'readily') {
-      store.set({ nano: 'downloading', nanoProgress: null, status: msg('nanoDownloadStart') });
-      try {
-        await downloadNanoModel((frac) => store.set({ nanoProgress: frac }));
-      } catch {
-        store.set({ nano: 'failed', status: msg('nanoDownloadFail') });
-        return;
-      }
-      store.set({ status: msg('nanoDownloadReady') });
-    }
-    const settings = await loadSettings();
-    await saveSettings({ ...settings, preferOnDevice: true });
-    store.set({ nano: 'hidden', status: msg('nanoReady') });
-  })();
-};
-
 const OnboardingApp = () => {
   const state = useSyncExternalStore(store.subscribe, store.get);
   return (
@@ -109,9 +80,6 @@ const OnboardingApp = () => {
           pending={state.keyPending}
           error={state.keyError}
           sessionOnly={state.sessionOnly}
-          nano={state.nano}
-          nanoInstead={false}
-          nanoProgress={state.nanoProgress}
           resetKey={state.keyReset}
           callbacks={{
             onSave: onSaveKey,
@@ -127,7 +95,6 @@ const OnboardingApp = () => {
                 }
               })().catch(() => {});
             },
-            onNanoEnable,
             onConsentDecision: () => {},
           }}
         />
@@ -170,12 +137,6 @@ export const initOnboarding = (): void => {
     .catch(() => {
       store.set({ shortcut: msg('shortcutUnset') });
     });
-  void (async () => {
-    const state = await nanoAvailability();
-    if (state === 'readily' || state === 'downloadable' || state === 'downloading') {
-      store.set({ nano: state === 'readily' ? 'ready' : 'downloadable' });
-    }
-  })();
 };
 
 if (typeof document !== 'undefined') {
