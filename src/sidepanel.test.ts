@@ -34,11 +34,13 @@ import type { ChromeMock } from './test/chrome_mock';
 import {
   chatResponse,
   clickEl,
+  cover,
   dispatchEl,
   focusEl,
   groundedResponse,
   plantKeyAndConsent,
   readShell,
+  settleWrite,
   setupPage,
   sleep,
   sseResponse,
@@ -253,7 +255,7 @@ describe('sidepanel', () => {
     fetchMock
       .mockResolvedValueOnce(chatResponse(VALID_PLACE))
       .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitFor(() => {
       expect(document.querySelector('#result-slot h2')?.textContent).toBe('Oia');
     });
@@ -320,8 +322,8 @@ describe('sidepanel', () => {
       expect(tabMain.getAttribute('aria-selected')).toBe('true');
     });
 
-    const { loadKey } = await import('./key_vault');
-    expect(await loadKey('muse')).toEqual({ state: 'ok', key: 'LLM_new' });
+    const { loadKey } = await cover(import('./key_vault'));
+    expect(await cover(loadKey('muse'))).toEqual({ state: 'ok', key: 'LLM_new' });
   });
 
   it('clears the key from settings and keeps Explore available', async () => {
@@ -342,13 +344,13 @@ describe('sidepanel', () => {
     expect(tabMain.hasAttribute('aria-disabled')).toBe(false);
     expect(document.querySelector('#tab-settings')?.getAttribute('aria-selected')).toBe('true');
 
-    const { loadKey } = await import('./key_vault');
-    expect((await loadKey('muse')).state).toBe('missing');
+    const { loadKey } = await cover(import('./key_vault'));
+    expect((await cover(loadKey('muse'))).state).toBe('missing');
   });
 
   it('stages a keyless request and resumes it exactly once after connect', async () => {
     const mock = await setup();
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitFor(() => {
       expect(document.querySelector('#settings-panel #key-input')).not.toBeNull();
     });
@@ -375,7 +377,7 @@ describe('sidepanel', () => {
 
   it('shows inline key setup when no key is saved', async () => {
     const mock = await setup();
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusKeyNeeded');
     });
@@ -406,15 +408,15 @@ describe('sidepanel', () => {
       (document.querySelector('#settings-panel #session-only') as HTMLInputElement).checked
     ).toBe(false);
 
-    const { loadSettings } = await import('./providers/index');
-    expect((await loadSettings()).sessionOnly).toBe(false);
+    const { loadSettings } = await cover(import('./providers/index'));
+    expect((await cover(loadSettings())).sessionOnly).toBe(false);
     fail.mockRestore();
 
     const retry = document.querySelector('#settings-panel #session-only') as HTMLInputElement;
     retry.checked = true;
     dispatchEl(retry, new Event('change', { bubbles: true }));
     await waitFor(async () => {
-      expect((await loadSettings()).sessionOnly).toBe(true);
+      expect((await cover(loadSettings())).sessionOnly).toBe(true);
     });
     expect(
       (document.querySelector('#settings-panel #session-only') as HTMLInputElement).checked
@@ -457,21 +459,21 @@ describe('sidepanel', () => {
 
     mock.session.fault = () => undefined;
 
-    const { loadKey } = await import('./key_vault');
-    expect(await loadKey('muse')).toEqual({ state: 'ok', key: 'LLM_x' });
+    const { loadKey } = await cover(import('./key_vault'));
+    expect(await cover(loadKey('muse'))).toEqual({ state: 'ok', key: 'LLM_x' });
     expect(mock.local.data.has('apiKey:muse')).toBe(true);
     expect(mock.session.data.has('apiKey:muse')).toBe(false);
 
-    const { loadSettings } = await import('./providers/index');
-    expect((await loadSettings()).sessionOnly).toBe(false);
+    const { loadSettings } = await cover(import('./providers/index'));
+    expect((await cover(loadSettings())).sessionOnly).toBe(false);
   });
 
   it('clears every provider key from settings', async () => {
     await setup();
     await plantKeyAndConsent();
 
-    const { saveKey, loadKey } = await import('./key_vault');
-    await saveKey('openai_compat', 'LLM_y', false);
+    const { saveKey, loadKey } = await cover(import('./key_vault'));
+    await settleWrite(saveKey('openai_compat', 'LLM_y', false));
 
     clickEl(document.querySelector('#tab-settings') as HTMLButtonElement);
     await waitFor(() => {
@@ -485,8 +487,8 @@ describe('sidepanel', () => {
       expect(document.querySelector('#settings-panel #key-input')).not.toBeNull();
     });
 
-    expect((await loadKey('muse')).state).toBe('missing');
-    expect((await loadKey('openai_compat')).state).toBe('missing');
+    expect((await cover(loadKey('muse'))).state).toBe('missing');
+    expect((await cover(loadKey('openai_compat'))).state).toBe('missing');
   });
 
   it('shows a visible error when key clear fails', async () => {
@@ -515,8 +517,8 @@ describe('sidepanel', () => {
     mock.session.fault = () => undefined;
     mock.local.fault = () => undefined;
 
-    const { loadKey } = await import('./key_vault');
-    expect(await loadKey('muse')).toEqual({ state: 'ok', key: 'LLM_x' });
+    const { loadKey } = await cover(import('./key_vault'));
+    expect(await cover(loadKey('muse'))).toEqual({ state: 'ok', key: 'LLM_x' });
     expect(document.querySelector('#key-saved-status')).not.toBeNull();
   });
 
@@ -548,7 +550,7 @@ describe('sidepanel', () => {
     fetchMock
       .mockResolvedValueOnce(chatResponse(VALID_PLACE))
       .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
     await clickPlanTrip();
     await waitFor(() => {
@@ -575,7 +577,7 @@ describe('sidepanel', () => {
 
   it('streams guides over plain chat in cheap mode', async () => {
     const mock = await setup(async (seed) => {
-      await seed.local.set({ settings: { v: 1, settings: { skipWebSearch: true } } });
+      await settleWrite(seed.local.set({ settings: { v: 1, settings: { skipWebSearch: true } } }));
     });
     await plantKeyAndConsent();
     fetchMock
@@ -586,7 +588,7 @@ describe('sidepanel', () => {
           'data: {"choices":[{"delta":{}}],"usage":{"prompt_tokens":10,"completion_tokens":5}}\n\ndata: [DONE]\n\n',
         ])
       );
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
     await clickPlanTrip();
     await waitFor(() => {
@@ -620,7 +622,7 @@ describe('sidepanel', () => {
     fetchMock
       .mockResolvedValueOnce(chatResponse(VALID_PLACE))
       .mockResolvedValueOnce(sseResponse([GUIDE_SSE_CACHED]));
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
     await clickPlanTrip();
     await waitFor(() => {
@@ -634,7 +636,7 @@ describe('sidepanel', () => {
     const mock = await setup();
     await plantKeyAndConsent();
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusFoundPlan(Oia)');
@@ -653,9 +655,9 @@ describe('sidepanel', () => {
     const mock = await setup();
     await plantKeyAndConsent();
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
-    await mock.session.set({ [SLOT]: READY({ requestId: '200-2' }) });
+    await settleWrite(mock.session.set({ [SLOT]: READY({ requestId: '200-2' }) }));
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusCacheHit(Oia)');
     });
@@ -696,7 +698,7 @@ describe('sidepanel', () => {
     fetchMock
       .mockResolvedValueOnce(chatResponse(VALID_PLACE))
       .mockResolvedValueOnce(sseResponse(lines));
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
     await clickPlanTrip();
     await waitFor(() => {
@@ -721,7 +723,7 @@ describe('sidepanel', () => {
           'data: {"choices":[{"delta":{}}],"usage":{"prompt_tokens":10,"completion_tokens":5}}\n\ndata: [DONE]\n\n',
         ])
       );
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
     await clickPlanTrip();
     await waitFor(() => {
@@ -730,8 +732,8 @@ describe('sidepanel', () => {
       );
     });
 
-    await mock.local.set({ settings: { v: 1, settings: { skipWebSearch: true } } });
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.local.set({ settings: { v: 1, settings: { skipWebSearch: true } } }));
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     // Prove the second handoff took the cache-hit branch before Plan.
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toContain(
@@ -763,7 +765,7 @@ describe('sidepanel', () => {
       .mockResolvedValueOnce(sseResponse([GUIDE_SSE]))
       .mockResolvedValueOnce(chatResponse(VALID_PLACE))
       .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
     await clickPlanTrip();
     await waitFor(() => {
@@ -772,8 +774,8 @@ describe('sidepanel', () => {
       );
     });
 
-    await mock.local.set({ settings: { v: 1, settings: { imageOnly: true } } });
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.local.set({ settings: { v: 1, settings: { imageOnly: true } } }));
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     // Prove the second handoff re-ran identify before Plan.
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledTimes(3);
@@ -812,7 +814,7 @@ describe('sidepanel', () => {
           '\n',
         ])
       );
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
     await clickPlanTrip();
     await waitFor(() => {
@@ -833,7 +835,7 @@ describe('sidepanel', () => {
       .mockResolvedValueOnce(chatResponse(VALID_PLACE))
       .mockResolvedValueOnce(new Response('boom', { status: 500 }))
       .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
     await clickPlanTrip();
     await waitForHeading('errorServerTitle');
@@ -855,40 +857,49 @@ describe('sidepanel', () => {
     const mock = await setup();
     await plantKeyAndConsent();
 
-    const { hashGuideKey, hashIdentifyKey, normalizeEndpoint, setCacheEntry } =
-      await import('./result_cache');
-    const { buildDestination } = await import('./deep_links');
+    const { hashGuideKey, hashIdentifyKey, normalizeEndpoint, setCacheEntry } = await cover(
+      import('./result_cache')
+    );
+    const { buildDestination } = await cover(import('./deep_links'));
 
-    const identify = await hashIdentifyKey({
-      mediaSeed: 'https://cdn.example.com/oia.jpg',
-      pageUrl: 'https://example.com/guide',
-      providerId: 'muse',
-      endpoint: normalizeEndpoint('muse', ''),
-      model: 'muse-spark-1.3',
-      imageOnly: false,
-    });
-    const guide = await hashGuideKey(
-      identify,
-      buildDestination('Oia', 'Oia', 'Greece'),
-      chrome.i18n.getUILanguage(),
-      true
+    const identify = await cover(
+      hashIdentifyKey({
+        mediaSeed: 'https://cdn.example.com/oia.jpg',
+        pageUrl: 'https://example.com/guide',
+        providerId: 'muse',
+        endpoint: normalizeEndpoint('muse', ''),
+        model: 'muse-spark-1.3',
+        imageOnly: false,
+      })
+    );
+    const guide = await cover(
+      hashGuideKey(
+        identify,
+        buildDestination('Oia', 'Oia', 'Greece'),
+        chrome.i18n.getUILanguage(),
+        true
+      )
     );
     const emptyUsage = { inputTokens: 0, outputTokens: 0, searchCount: 0, flatFeesUsd: 0 };
-    await setCacheEntry(identify, {
-      place: VALID_PLACE,
-      guide: '',
-      sources: [],
-      usage: emptyUsage,
-      searchedWeb: false,
-    });
-    await setCacheEntry(guide, {
-      place: VALID_PLACE,
-      guide: 'Cached guide text.',
-      sources: [],
-      usage: emptyUsage,
-      searchedWeb: false,
-    });
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(
+      setCacheEntry(identify, {
+        place: VALID_PLACE,
+        guide: '',
+        sources: [],
+        usage: emptyUsage,
+        searchedWeb: false,
+      })
+    );
+    await settleWrite(
+      setCacheEntry(guide, {
+        place: VALID_PLACE,
+        guide: 'Cached guide text.',
+        sources: [],
+        usage: emptyUsage,
+        searchedWeb: false,
+      })
+    );
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitFor(() => {
       expect(document.querySelector('#cost-line')?.textContent).toBe('costLineCache');
     });
@@ -901,7 +912,7 @@ describe('sidepanel', () => {
     const mock = await setup();
     await plantKeyAndConsent();
     fetchMock.mockResolvedValueOnce(new Response('nope', { status: 401 }));
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('errorAuthTitle');
     expect(document.querySelector('#result-slot')).not.toBeNull();
     fetchMock
@@ -924,7 +935,7 @@ describe('sidepanel', () => {
     fetchMock
       .mockResolvedValueOnce(chatResponse(GUESS))
       .mockResolvedValueOnce(chatResponse(VALID_PLACE));
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('noPlaceTitle');
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
@@ -962,13 +973,13 @@ describe('sidepanel', () => {
           '\n',
         ])
       );
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await clickPlanTrip();
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusGuideReady');
     });
 
-    const { monthKey } = await import('./pricing');
+    const { monthKey } = await cover(import('./pricing'));
 
     const record = mock.local.data.get('costTotals') as {
       v: number;
@@ -992,7 +1003,7 @@ describe('sidepanel', () => {
           '\n',
         ])
       );
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await clickPlanTrip();
     await waitFor(() => {
       expect(document.querySelector('.guide-interrupted')?.textContent).toBe('guideInterrupted');
@@ -1033,7 +1044,7 @@ describe('sidepanel', () => {
         ])
       )
       .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await clickPlanTrip();
     await waitFor(() => {
       expect(document.querySelector('#result-slot .plan-trip-button')?.textContent).toBe(
@@ -1072,7 +1083,7 @@ describe('sidepanel', () => {
           '\n',
         ])
       );
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await clickPlanTrip();
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusGuideReady');
@@ -1087,10 +1098,10 @@ describe('sidepanel', () => {
   it('keeps the consent gate for re-click when the flag write fails', async () => {
     const mock = await setup();
 
-    const { saveKey } = await import('./key_vault');
-    await saveKey('muse', 'LLM_x', false);
+    const { saveKey } = await cover(import('./key_vault'));
+    await settleWrite(saveKey('muse', 'LLM_x', false));
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitFor(() => {
       expect(document.querySelector('#result-slot h2')?.textContent).toBe('consentTitle');
     });
@@ -1119,9 +1130,9 @@ describe('sidepanel', () => {
   it('shows the consent gate without any network call', async () => {
     const mock = await setup();
 
-    const { saveKey } = await import('./key_vault');
-    await saveKey('muse', 'LLM_x', false);
-    await mock.session.set({ [SLOT]: READY() });
+    const { saveKey } = await cover(import('./key_vault'));
+    await settleWrite(saveKey('muse', 'LLM_x', false));
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitFor(() => {
       expect(document.querySelector('#result-slot h2')?.textContent).toBe('consentTitle');
     });
@@ -1132,12 +1143,12 @@ describe('sidepanel', () => {
   it('runs exactly once after consent is granted', async () => {
     const mock = await setup();
 
-    const { saveKey } = await import('./key_vault');
+    const { saveKey } = await cover(import('./key_vault'));
 
-    const { hasConsented } = await import('./providers/index');
-    await saveKey('muse', 'LLM_x', false);
+    const { hasConsented } = await cover(import('./providers/index'));
+    await settleWrite(saveKey('muse', 'LLM_x', false));
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitFor(() => {
       expect(document.querySelector('#result-slot h2')?.textContent).toBe('consentTitle');
     });
@@ -1147,18 +1158,18 @@ describe('sidepanel', () => {
     ) as HTMLButtonElement;
     clickEl(agree);
     await waitForHeading('Oia');
-    expect(await hasConsented()).toBe(true);
+    expect(await cover(hasConsented())).toBe(true);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('leaves consent unset when declined', async () => {
     const mock = await setup();
 
-    const { saveKey } = await import('./key_vault');
+    const { saveKey } = await cover(import('./key_vault'));
 
-    const { hasConsented } = await import('./providers/index');
-    await saveKey('muse', 'LLM_x', false);
-    await mock.session.set({ [SLOT]: READY() });
+    const { hasConsented } = await cover(import('./providers/index'));
+    await settleWrite(saveKey('muse', 'LLM_x', false));
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitFor(() => {
       expect(document.querySelector('#result-slot h2')?.textContent).toBe('consentTitle');
     });
@@ -1170,7 +1181,7 @@ describe('sidepanel', () => {
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusConsentDeclined');
     });
-    expect(await hasConsented()).toBe(false);
+    expect(await cover(hasConsented())).toBe(false);
     expect(fetchMock).not.toHaveBeenCalled();
     expect(document.querySelector('#result-slot .hint')?.textContent).toBe('panelIdle');
     expect(document.querySelector('#result-slot button')).toBeNull();
@@ -1179,13 +1190,15 @@ describe('sidepanel', () => {
   it('gates the first video analysis behind the frame confirm', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
-    await mock.session.set({
-      [SLOT]: READY({
-        srcUrl: 'blob:https://example.com/aaa',
-        mediaType: 'video',
-        frame: { dataUrl: 'data:image/jpeg;base64,ZnJhbWU=', time: 12.5 },
-      }),
-    });
+    await settleWrite(
+      mock.session.set({
+        [SLOT]: READY({
+          srcUrl: 'blob:https://example.com/aaa',
+          mediaType: 'video',
+          frame: { dataUrl: 'data:image/jpeg;base64,ZnJhbWU=', time: 12.5 },
+        }),
+      })
+    );
     await waitFor(() => {
       expect(document.querySelector('#result-slot h2')?.textContent).toBe('videoConfirmTitle');
     });
@@ -1209,13 +1222,15 @@ describe('sidepanel', () => {
     fetchMock
       .mockResolvedValueOnce(chatResponse(VALID_PLACE))
       .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
-    await mock.session.set({
-      [SLOT]: READY({
-        srcUrl: 'blob:https://example.com/aaa',
-        mediaType: 'video',
-        frame: { dataUrl: 'data:image/jpeg;base64,ZnJhbWU=', time: 12.5 },
-      }),
-    });
+    await settleWrite(
+      mock.session.set({
+        [SLOT]: READY({
+          srcUrl: 'blob:https://example.com/aaa',
+          mediaType: 'video',
+          frame: { dataUrl: 'data:image/jpeg;base64,ZnJhbWU=', time: 12.5 },
+        }),
+      })
+    );
     await waitFor(() => {
       expect(document.querySelector('#result-slot .confirm-actions .primary')).not.toBeNull();
     });
@@ -1237,13 +1252,15 @@ describe('sidepanel', () => {
     const mock = await setup();
     await plantKeyAndConsent();
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
-    await mock.session.set({
-      [SLOT]: READY({
-        srcUrl: 'blob:https://example.com/aaa',
-        mediaType: 'video',
-        frame: { dataUrl: 'data:image/jpeg;base64,ZnJhbWU=', time: 12.5 },
-      }),
-    });
+    await settleWrite(
+      mock.session.set({
+        [SLOT]: READY({
+          srcUrl: 'blob:https://example.com/aaa',
+          mediaType: 'video',
+          frame: { dataUrl: 'data:image/jpeg;base64,ZnJhbWU=', time: 12.5 },
+        }),
+      })
+    );
     await waitFor(() => {
       expect(document.querySelector('#result-slot .confirm-actions .primary')).not.toBeNull();
     });
@@ -1264,14 +1281,16 @@ describe('sidepanel', () => {
     fetchMock
       .mockResolvedValueOnce(chatResponse(VALID_PLACE))
       .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
-    await mock.session.set({
-      [SLOT]: READY({
-        requestId: '200-2',
-        srcUrl: 'blob:https://example.com/bbb',
-        mediaType: 'video',
-        frame: { dataUrl: 'data:image/jpeg;base64,ZnJhbWUy', time: 3 },
-      }),
-    });
+    await settleWrite(
+      mock.session.set({
+        [SLOT]: READY({
+          requestId: '200-2',
+          srcUrl: 'blob:https://example.com/bbb',
+          mediaType: 'video',
+          frame: { dataUrl: 'data:image/jpeg;base64,ZnJhbWUy', time: 3 },
+        }),
+      })
+    );
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalled();
     });
@@ -1281,13 +1300,15 @@ describe('sidepanel', () => {
   it('discards the staged video when the confirm is declined', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
-    await mock.session.set({
-      [SLOT]: READY({
-        srcUrl: 'blob:https://example.com/aaa',
-        mediaType: 'video',
-        frame: { dataUrl: 'data:image/jpeg;base64,ZnJhbWU=', time: 12.5 },
-      }),
-    });
+    await settleWrite(
+      mock.session.set({
+        [SLOT]: READY({
+          srcUrl: 'blob:https://example.com/aaa',
+          mediaType: 'video',
+          frame: { dataUrl: 'data:image/jpeg;base64,ZnJhbWU=', time: 12.5 },
+        }),
+      })
+    );
     await waitFor(() => {
       expect(document.querySelectorAll('#result-slot .confirm-actions button')).toHaveLength(2);
     });
@@ -1308,18 +1329,20 @@ describe('sidepanel', () => {
     const mock = await setup();
     await plantKeyAndConsent();
 
-    const { setVideoConsented } = await import('./video');
-    await setVideoConsented();
+    const { setVideoConsented } = await cover(import('./video'));
+    await settleWrite(setVideoConsented());
     fetchMock
       .mockResolvedValueOnce(chatResponse(VALID_PLACE))
       .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
-    await mock.session.set({
-      [SLOT]: READY({
-        srcUrl: 'https://cdn.example.com/trip.mp4',
-        mediaType: 'video',
-        frameError: 'tainted',
-      }),
-    });
+    await settleWrite(
+      mock.session.set({
+        [SLOT]: READY({
+          srcUrl: 'https://cdn.example.com/trip.mp4',
+          mediaType: 'video',
+          frameError: 'tainted',
+        }),
+      })
+    );
     await waitForHeading('Oia');
 
     const init = fetchMock.mock.calls[0][1] as RequestInit;
@@ -1339,7 +1362,7 @@ describe('sidepanel', () => {
     fetchMock
       .mockResolvedValueOnce(chatResponse(VALID_PLACE))
       .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
 
     const card = document.querySelector('#result-slot') as HTMLElement;
@@ -1383,7 +1406,7 @@ describe('sidepanel', () => {
     const mock = await setup();
     await plantKeyAndConsent();
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
     clickEl(document.querySelector('#result-slot .pin-button') as HTMLButtonElement);
     await waitFor(() => {
@@ -1406,7 +1429,7 @@ describe('sidepanel', () => {
     fetchMock
       .mockResolvedValueOnce(chatResponse(VALID_PLACE))
       .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
 
     const fail = vi.spyOn(mock.local, 'set').mockRejectedValueOnce(new Error('quota'));
@@ -1426,9 +1449,9 @@ describe('sidepanel', () => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned(Oia | 1)');
     });
 
-    const { listPins } = await import('./board_store');
+    const { listPins } = await cover(import('./board_store'));
 
-    const pins = await listPins();
+    const pins = await cover(listPins());
     expect(pins).toHaveLength(1);
     expect(pins[0].thumbnail).toBeUndefined();
   });
@@ -1439,7 +1462,7 @@ describe('sidepanel', () => {
     fetchMock
       .mockResolvedValueOnce(chatResponse(VALID_PLACE))
       .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
 
     const card = document.querySelector('#result-slot') as HTMLElement;
@@ -1496,7 +1519,7 @@ describe('sidepanel', () => {
       .mockResolvedValueOnce(chatResponse(FIRA))
       .mockResolvedValueOnce(chatResponse(VALID_PLAN))
       .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
 
     const card = document.querySelector('#result-slot') as HTMLElement;
@@ -1504,12 +1527,14 @@ describe('sidepanel', () => {
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned(Oia | 1)');
     });
-    await mock.session.set({
-      [SLOT]: READY({
-        requestId: '200-2',
-        srcUrl: 'https://cdn.example.com/fira.jpg',
-      }),
-    });
+    await settleWrite(
+      mock.session.set({
+        [SLOT]: READY({
+          requestId: '200-2',
+          srcUrl: 'https://cdn.example.com/fira.jpg',
+        }),
+      })
+    );
     await waitFor(() => {
       expect(card.querySelector('h2')?.textContent).toBe('Fira');
     });
@@ -1557,7 +1582,7 @@ describe('sidepanel', () => {
 
   it('narrates itineraries over plain chat in cheap mode', async () => {
     const mock = await setup(async (seed) => {
-      await seed.local.set({ settings: { v: 1, settings: { skipWebSearch: true } } });
+      await settleWrite(seed.local.set({ settings: { v: 1, settings: { skipWebSearch: true } } }));
     });
     await plantKeyAndConsent();
 
@@ -1582,7 +1607,7 @@ describe('sidepanel', () => {
       .mockResolvedValueOnce(chatResponse(FIRA))
       .mockResolvedValueOnce(chatResponse(VALID_PLAN))
       .mockResolvedValueOnce(sseResponse(CHAT_GUIDE_SSE));
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
 
     const card = document.querySelector('#result-slot') as HTMLElement;
@@ -1590,12 +1615,14 @@ describe('sidepanel', () => {
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned(Oia | 1)');
     });
-    await mock.session.set({
-      [SLOT]: READY({
-        requestId: '200-2',
-        srcUrl: 'https://cdn.example.com/fira.jpg',
-      }),
-    });
+    await settleWrite(
+      mock.session.set({
+        [SLOT]: READY({
+          requestId: '200-2',
+          srcUrl: 'https://cdn.example.com/fira.jpg',
+        }),
+      })
+    );
     await waitFor(() => {
       expect(card.querySelector('h2')?.textContent).toBe('Fira');
     });
@@ -1622,14 +1649,16 @@ describe('sidepanel', () => {
   it('renders the scan skeleton while the harvest is collecting', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
-    await mock.session.set({
-      [SLOT]: READY({
-        status: 'collecting',
-        srcUrl: '',
-        signals: undefined,
-        scanImages: [],
-      }),
-    });
+    await settleWrite(
+      mock.session.set({
+        [SLOT]: READY({
+          status: 'collecting',
+          srcUrl: '',
+          signals: undefined,
+          scanImages: [],
+        }),
+      })
+    );
     await waitFor(() => {
       const list = document.querySelector('#result-slot');
       expect(list?.querySelector('h2')?.textContent).toBe('scanTitle');
@@ -1655,28 +1684,30 @@ describe('sidepanel', () => {
         ],
       })
     );
-    await mock.session.set({
-      [SLOT]: READY({
-        srcUrl: '',
-        signals: undefined,
-        scanImages: [
-          {
-            url: 'https://img.example.com/a.jpg',
-            caption: '',
-            heading: '',
-            width: 800,
-            height: 600,
-          },
-          {
-            url: 'https://img.example.com/b.jpg',
-            caption: '',
-            heading: '',
-            width: 800,
-            height: 600,
-          },
-        ],
-      }),
-    });
+    await settleWrite(
+      mock.session.set({
+        [SLOT]: READY({
+          srcUrl: '',
+          signals: undefined,
+          scanImages: [
+            {
+              url: 'https://img.example.com/a.jpg',
+              caption: '',
+              heading: '',
+              width: 800,
+              height: 600,
+            },
+            {
+              url: 'https://img.example.com/b.jpg',
+              caption: '',
+              heading: '',
+              width: 800,
+              height: 600,
+            },
+          ],
+        }),
+      })
+    );
     await waitFor(() => {
       const list = document.querySelector('#result-slot');
       expect(list?.querySelectorAll('.scan-card')).toHaveLength(2);
@@ -1700,7 +1731,7 @@ describe('sidepanel', () => {
   it('ignores handoff records stamped for another window', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
-    await mock.session.set({ [SLOT]: READY({ requestId: '200-2', windowId: 2 }) });
+    await settleWrite(mock.session.set({ [SLOT]: READY({ requestId: '200-2', windowId: 2 }) }));
     await sleep(50);
     expect(fetchMock).not.toHaveBeenCalled();
     expect(document.querySelector('#result-slot')?.textContent).toContain('panelIdle');
@@ -1708,9 +1739,11 @@ describe('sidepanel', () => {
     // A leaked run would have fetched and cached: the follow-up uses a
     // distinct image so only a true ignore keeps the total at one.
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
-    await mock.session.set({
-      [SLOT]: READY({ requestId: '200-3', srcUrl: 'https://cdn.example.com/other.jpg' }),
-    });
+    await settleWrite(
+      mock.session.set({
+        [SLOT]: READY({ requestId: '200-3', srcUrl: 'https://cdn.example.com/other.jpg' }),
+      })
+    );
     await waitForHeading('Oia');
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
@@ -1721,7 +1754,7 @@ describe('sidepanel', () => {
       // unmocked fetch.
       fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
       await plantKeyAndConsent();
-      await mock.session.set({ [SLOT]: READY({ requestId: '500-1' }) });
+      await settleWrite(mock.session.set({ [SLOT]: READY({ requestId: '500-1' }) }));
     });
     await waitForHeading('Oia');
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -1731,7 +1764,7 @@ describe('sidepanel', () => {
     const mock = await setup();
     await plantKeyAndConsent();
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
-    await mock.session.set({ [SLOT]: READY({ requestId: '200-2', windowId: 1 }) });
+    await settleWrite(mock.session.set({ [SLOT]: READY({ requestId: '200-2', windowId: 1 }) }));
     await waitForHeading('Oia');
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
@@ -1740,20 +1773,22 @@ describe('sidepanel', () => {
     const mock = await setup();
     await plantKeyAndConsent();
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
-    await mock.session.set({ [SLOT]: READY({ requestId: '10-1', seq: 50 }) });
+    await settleWrite(mock.session.set({ [SLOT]: READY({ requestId: '10-1', seq: 50 }) }));
     await waitForHeading('Oia');
     expect(fetchMock).toHaveBeenCalledTimes(1);
     // A distinct image with a newer timestamp: if the stale record leaked
     // through, it would miss the cache and fetch instead of being dropped
     // by the sequence guard. Clocks order nothing here.
-    await mock.session.set({
-      [SLOT]: READY({
-        requestId: '9-1',
-        seq: 49,
-        srcUrl: 'https://cdn.example.com/other.jpg',
-        at: Date.now(),
-      }),
-    });
+    await settleWrite(
+      mock.session.set({
+        [SLOT]: READY({
+          requestId: '9-1',
+          seq: 49,
+          srcUrl: 'https://cdn.example.com/other.jpg',
+          at: Date.now(),
+        }),
+      })
+    );
     await sleep(50);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
@@ -1762,7 +1797,7 @@ describe('sidepanel', () => {
     const mock = await setup();
     await plantKeyAndConsent();
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
-    await mock.session.set({ [SLOT]: READY({ requestId: '200-2' }) });
+    await settleWrite(mock.session.set({ [SLOT]: READY({ requestId: '200-2' }) }));
     await waitForHeading('Oia');
 
     await waitFor(() => {
@@ -1781,16 +1816,18 @@ describe('sidepanel', () => {
     });
     fetchMock.mockImplementationOnce(() => gate);
     fetchMock.mockResolvedValueOnce(chatResponse(PLACE_B));
-    await mock.session.set({ [SLOT]: READY({ requestId: '300-1' }) });
+    await settleWrite(mock.session.set({ [SLOT]: READY({ requestId: '300-1' }) }));
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledTimes(1);
     });
-    await mock.session.set({
-      [SLOT]: READY({
-        requestId: '300-2',
-        srcUrl: 'https://cdn.example.com/fira.jpg',
-      }),
-    });
+    await settleWrite(
+      mock.session.set({
+        [SLOT]: READY({
+          requestId: '300-2',
+          srcUrl: 'https://cdn.example.com/fira.jpg',
+        }),
+      })
+    );
     await waitForHeading('Fira');
     resolveFirst(chatResponse(VALID_PLACE));
     await sleep(50);
@@ -1803,12 +1840,14 @@ describe('sidepanel', () => {
     const mock = await setup();
     await plantKeyAndConsent();
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
-    await mock.session.set({ [SLOT]: READY({ requestId: '400-1' }) });
+    await settleWrite(mock.session.set({ [SLOT]: READY({ requestId: '400-1' }) }));
     await waitForHeading('Oia');
     focusEl(document.querySelector('#result-slot .pin-button') as HTMLButtonElement);
-    await mock.session.set({
-      [SLOT]: READY({ requestId: '400-2', dataPending: true, srcUrl: '' }),
-    });
+    await settleWrite(
+      mock.session.set({
+        [SLOT]: READY({ requestId: '400-2', dataPending: true, srcUrl: '' }),
+      })
+    );
     await waitFor(() => {
       expect(document.activeElement).toBe(document.querySelector('#result-slot h2'));
     });
@@ -1817,9 +1856,11 @@ describe('sidepanel', () => {
   it('drops expired handoffs and clears them', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
-    await mock.session.set({
-      [SLOT]: READY({ requestId: '200-2', at: Date.now() - 11 * 60 * 1000 }),
-    });
+    await settleWrite(
+      mock.session.set({
+        [SLOT]: READY({ requestId: '200-2', at: Date.now() - 11 * 60 * 1000 }),
+      })
+    );
     await sleep(50);
     expect(fetchMock).not.toHaveBeenCalled();
 
@@ -1827,9 +1868,11 @@ describe('sidepanel', () => {
       expect(mock.session.data.has(SLOT)).toBe(false);
     });
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
-    await mock.session.set({
-      [SLOT]: READY({ requestId: '200-3', srcUrl: 'https://cdn.example.com/other.jpg' }),
-    });
+    await settleWrite(
+      mock.session.set({
+        [SLOT]: READY({ requestId: '200-3', srcUrl: 'https://cdn.example.com/other.jpg' }),
+      })
+    );
     await waitForHeading('Oia');
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
@@ -1837,9 +1880,11 @@ describe('sidepanel', () => {
   it('shows a retryable error when the handoff fails', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
-    await mock.session.set({
-      [SLOT]: READY({ status: 'error', reason: 'collecting-failed' }),
-    });
+    await settleWrite(
+      mock.session.set({
+        [SLOT]: READY({ status: 'error', reason: 'collecting-failed' }),
+      })
+    );
     await waitFor(() => {
       expect(document.querySelector('#result-slot h2')?.textContent).toBe('handoffFailedTitle');
     });
@@ -1855,7 +1900,7 @@ describe('sidepanel', () => {
   it('never hears records written to another window slot', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
-    await mock.session.set({ 'tripRequest:2': READY({ windowId: 2 }) });
+    await settleWrite(mock.session.set({ 'tripRequest:2': READY({ windowId: 2 }) }));
     await sleep(50);
     expect(fetchMock).not.toHaveBeenCalled();
     expect(document.querySelector('#result-slot')?.textContent).toContain('panelIdle');
@@ -1869,7 +1914,7 @@ describe('sidepanel', () => {
 
     const record = READY({ requestId: '200-2' });
     delete (record as Record<string, unknown>).signals;
-    await mock.session.set({ [SLOT]: record });
+    await settleWrite(mock.session.set({ [SLOT]: record }));
     await waitForHeading('Oia');
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
@@ -1877,28 +1922,32 @@ describe('sidepanel', () => {
   it('shows honest cards for empty harvests and empty results', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
-    await mock.session.set({
-      [SLOT]: READY({ srcUrl: '', signals: undefined, scanImages: [] }),
-    });
+    await settleWrite(
+      mock.session.set({
+        [SLOT]: READY({ srcUrl: '', signals: undefined, scanImages: [] }),
+      })
+    );
     await waitForHeading('scanEmptyTitle');
     expect(fetchMock).not.toHaveBeenCalled();
     fetchMock.mockResolvedValueOnce(chatResponse({ places: [] }));
-    await mock.session.set({
-      [SLOT]: READY({
-        requestId: '200-2',
-        srcUrl: '',
-        signals: undefined,
-        scanImages: [
-          {
-            url: 'https://img.example.com/a.jpg',
-            caption: '',
-            heading: '',
-            width: 800,
-            height: 600,
-          },
-        ],
-      }),
-    });
+    await settleWrite(
+      mock.session.set({
+        [SLOT]: READY({
+          requestId: '200-2',
+          srcUrl: '',
+          signals: undefined,
+          scanImages: [
+            {
+              url: 'https://img.example.com/a.jpg',
+              caption: '',
+              heading: '',
+              width: 800,
+              height: 600,
+            },
+          ],
+        }),
+      })
+    );
     await waitForHeading('scanNoneTitle');
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
@@ -1915,21 +1964,23 @@ describe('sidepanel', () => {
         })
       )
       .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
-    await mock.session.set({
-      [SLOT]: READY({
-        srcUrl: '',
-        signals: undefined,
-        scanImages: [
-          {
-            url: 'https://img.example.com/a.jpg',
-            caption: '',
-            heading: '',
-            width: 800,
-            height: 600,
-          },
-        ],
-      }),
-    });
+    await settleWrite(
+      mock.session.set({
+        [SLOT]: READY({
+          srcUrl: '',
+          signals: undefined,
+          scanImages: [
+            {
+              url: 'https://img.example.com/a.jpg',
+              caption: '',
+              heading: '',
+              width: 800,
+              height: 600,
+            },
+          ],
+        }),
+      })
+    );
     await waitFor(() => {
       const list = document.querySelector('#result-slot');
       expect(list?.querySelectorAll('.scan-card')).toHaveLength(1);
@@ -1946,7 +1997,7 @@ describe('sidepanel', () => {
 
   it('streams scan guides over plain chat in cheap mode', async () => {
     const mock = await setup(async (seed) => {
-      await seed.local.set({ settings: { v: 1, settings: { skipWebSearch: true } } });
+      await settleWrite(seed.local.set({ settings: { v: 1, settings: { skipWebSearch: true } } }));
     });
     await plantKeyAndConsent();
     fetchMock
@@ -1958,21 +2009,23 @@ describe('sidepanel', () => {
         })
       )
       .mockResolvedValueOnce(sseResponse(CHAT_GUIDE_SSE));
-    await mock.session.set({
-      [SLOT]: READY({
-        srcUrl: '',
-        signals: undefined,
-        scanImages: [
-          {
-            url: 'https://img.example.com/a.jpg',
-            caption: '',
-            heading: '',
-            width: 800,
-            height: 600,
-          },
-        ],
-      }),
-    });
+    await settleWrite(
+      mock.session.set({
+        [SLOT]: READY({
+          srcUrl: '',
+          signals: undefined,
+          scanImages: [
+            {
+              url: 'https://img.example.com/a.jpg',
+              caption: '',
+              heading: '',
+              width: 800,
+              height: 600,
+            },
+          ],
+        }),
+      })
+    );
     await waitFor(() => {
       expect(document.querySelector('#result-slot')?.querySelectorAll('.scan-card')).toHaveLength(
         1
@@ -1994,7 +2047,7 @@ describe('sidepanel', () => {
     const mock = await setup();
     await plantKeyAndConsent();
 
-    const { listPins } = await import('./board_store');
+    const { listPins } = await cover(import('./board_store'));
     fetchMock.mockResolvedValueOnce(
       chatResponse({
         places: [
@@ -2003,28 +2056,30 @@ describe('sidepanel', () => {
         ],
       })
     );
-    await mock.session.set({
-      [SLOT]: READY({
-        srcUrl: '',
-        signals: undefined,
-        scanImages: [
-          {
-            url: 'https://img.example.com/a.jpg',
-            caption: '',
-            heading: '',
-            width: 800,
-            height: 600,
-          },
-          {
-            url: 'https://img.example.com/b.jpg',
-            caption: '',
-            heading: '',
-            width: 800,
-            height: 600,
-          },
-        ],
-      }),
-    });
+    await settleWrite(
+      mock.session.set({
+        [SLOT]: READY({
+          srcUrl: '',
+          signals: undefined,
+          scanImages: [
+            {
+              url: 'https://img.example.com/a.jpg',
+              caption: '',
+              heading: '',
+              width: 800,
+              height: 600,
+            },
+            {
+              url: 'https://img.example.com/b.jpg',
+              caption: '',
+              heading: '',
+              width: 800,
+              height: 600,
+            },
+          ],
+        }),
+      })
+    );
     await waitFor(() => {
       const list = document.querySelector('#result-slot');
       expect(list?.querySelectorAll('.scan-card')).toHaveLength(2);
@@ -2035,9 +2090,9 @@ describe('sidepanel', () => {
     const cards = list.querySelectorAll('.scan-card');
     clickEl(cards?.[0]?.querySelector('.pin-button') as HTMLButtonElement);
     await waitFor(async () => {
-      expect(await listPins()).toHaveLength(1);
+      expect(await cover(listPins())).toHaveLength(1);
     });
-    expect((await listPins())[0]?.imageUrl).toBe('https://img.example.com/a.jpg');
+    expect((await cover(listPins()))[0]?.imageUrl).toBe('https://img.example.com/a.jpg');
     await waitFor(() => {
       const pressed = document
         .querySelector('#result-slot')
@@ -2052,7 +2107,7 @@ describe('sidepanel', () => {
     }
     clickEl(list.querySelector('.pin-selected') as HTMLButtonElement);
     await waitFor(async () => {
-      expect(await listPins()).toHaveLength(2);
+      expect(await cover(listPins())).toHaveLength(2);
     });
   });
 
@@ -2066,21 +2121,23 @@ describe('sidepanel', () => {
         ],
       })
     );
-    await mock.session.set({
-      [SLOT]: READY({
-        srcUrl: '',
-        signals: undefined,
-        scanImages: [
-          {
-            url: 'https://img.example.com/a.jpg',
-            caption: '',
-            heading: '',
-            width: 800,
-            height: 600,
-          },
-        ],
-      }),
-    });
+    await settleWrite(
+      mock.session.set({
+        [SLOT]: READY({
+          srcUrl: '',
+          signals: undefined,
+          scanImages: [
+            {
+              url: 'https://img.example.com/a.jpg',
+              caption: '',
+              heading: '',
+              width: 800,
+              height: 600,
+            },
+          ],
+        }),
+      })
+    );
     await waitForHeading('errorServerTitle');
 
     const card = document.querySelector('#result-slot') as HTMLElement;
@@ -2096,11 +2153,13 @@ describe('sidepanel', () => {
     const mock = await setup();
     await plantKeyAndConsent();
 
-    const { pinPlace } = await import('./board_store');
-    await pinPlace({
-      place: { ...VALID_PLACE, placeName: 'Fira', city: 'Fira', confidence: 0.8 },
-      sourceHost: 'example.com',
-    });
+    const { pinPlace } = await cover(import('./board_store'));
+    await settleWrite(
+      pinPlace({
+        place: { ...VALID_PLACE, placeName: 'Fira', city: 'Fira', confidence: 0.8 },
+        sourceHost: 'example.com',
+      })
+    );
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE)).mockResolvedValueOnce(
       groundedResponse(
         {
@@ -2110,7 +2169,7 @@ describe('sidepanel', () => {
         [{ type: 'url_citation', url: 'https://example.com/cost', title: 'Costs' }]
       )
     );
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
 
     const card = document.querySelector('#result-slot') as HTMLElement;
@@ -2146,15 +2205,17 @@ describe('sidepanel', () => {
     const mock = await setup();
     await plantKeyAndConsent();
 
-    const { pinPlace } = await import('./board_store');
-    await pinPlace({
-      place: { ...VALID_PLACE, placeName: 'Fira', city: 'Fira', confidence: 0.8 },
-      sourceHost: 'example.com',
-    });
+    const { pinPlace } = await cover(import('./board_store'));
+    await settleWrite(
+      pinPlace({
+        place: { ...VALID_PLACE, placeName: 'Fira', city: 'Fira', confidence: 0.8 },
+        sourceHost: 'example.com',
+      })
+    );
     fetchMock
       .mockResolvedValueOnce(chatResponse(VALID_PLACE))
       .mockImplementationOnce(() => new Promise<Response>(() => {}));
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
 
     const card = document.querySelector('#result-slot') as HTMLElement;
@@ -2178,7 +2239,7 @@ describe('sidepanel', () => {
     fetchMock
       .mockResolvedValueOnce(chatResponse(VALID_PLACE))
       .mockImplementationOnce(() => new Promise<Response>(() => {}));
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
 
     const card = document.querySelector('#result-slot') as HTMLElement;
@@ -2201,11 +2262,13 @@ describe('sidepanel', () => {
     const mock = await setup();
     await plantKeyAndConsent();
 
-    const { pinPlace } = await import('./board_store');
-    await pinPlace({
-      place: { ...VALID_PLACE, placeName: 'Fira', city: 'Fira', confidence: 0.8 },
-      sourceHost: 'example.com',
-    });
+    const { pinPlace } = await cover(import('./board_store'));
+    await settleWrite(
+      pinPlace({
+        place: { ...VALID_PLACE, placeName: 'Fira', city: 'Fira', confidence: 0.8 },
+        sourceHost: 'example.com',
+      })
+    );
     fetchMock
       .mockResolvedValueOnce(chatResponse(VALID_PLACE))
       .mockResolvedValueOnce(new Response('unsupported', { status: 400 }))
@@ -2215,7 +2278,7 @@ describe('sidepanel', () => {
           verdict: 'Pick Oia for views.',
         })
       );
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitFor(() => {
       const card = document.querySelector('#result-slot');
       expect(card?.querySelector('.compare-go')).not.toBeNull();
@@ -2235,11 +2298,13 @@ describe('sidepanel', () => {
     const mock = await setup();
     await plantKeyAndConsent();
 
-    const { pinPlace } = await import('./board_store');
-    await pinPlace({
-      place: { ...VALID_PLACE, placeName: 'Fira', city: 'Fira', confidence: 0.8 },
-      sourceHost: 'example.com',
-    });
+    const { pinPlace } = await cover(import('./board_store'));
+    await settleWrite(
+      pinPlace({
+        place: { ...VALID_PLACE, placeName: 'Fira', city: 'Fira', confidence: 0.8 },
+        sourceHost: 'example.com',
+      })
+    );
     fetchMock
       .mockResolvedValueOnce(chatResponse(VALID_PLACE))
       .mockResolvedValueOnce(new Response('unsupported', { status: 400 }))
@@ -2251,7 +2316,7 @@ describe('sidepanel', () => {
           verdict: 'Pick Oia for views.',
         })
       );
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitFor(() => {
       const card = document.querySelector('#result-slot');
       expect(card?.querySelector('.compare-go')).not.toBeNull();
@@ -2295,7 +2360,7 @@ describe('sidepanel', () => {
         })
       )
       .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
 
     const card = document.querySelector('#result-slot') as HTMLElement;
@@ -2326,7 +2391,7 @@ describe('sidepanel', () => {
 
   it('finds alternates and re-plans over plain chat in cheap mode', async () => {
     const mock = await setup(async (seed) => {
-      await seed.local.set({ settings: { v: 1, settings: { skipWebSearch: true } } });
+      await settleWrite(seed.local.set({ settings: { v: 1, settings: { skipWebSearch: true } } }));
     });
     await plantKeyAndConsent();
     fetchMock
@@ -2344,7 +2409,7 @@ describe('sidepanel', () => {
         })
       )
       .mockResolvedValueOnce(sseResponse(CHAT_GUIDE_SSE));
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
 
     const card = document.querySelector('#result-slot') as HTMLElement;
@@ -2381,7 +2446,7 @@ describe('sidepanel', () => {
         ],
       })
     );
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
 
     const card = document.querySelector('#result-slot') as HTMLElement;
@@ -2420,7 +2485,7 @@ describe('sidepanel', () => {
       .mockResolvedValueOnce(chatResponse(VALID_PLACE))
       .mockResolvedValueOnce(new Response('unsupported', { status: 400 }))
       .mockResolvedValueOnce(new Response('boom', { status: 500 }));
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
 
     const card = document.querySelector('#result-slot') as HTMLElement;
@@ -2441,14 +2506,16 @@ describe('sidepanel', () => {
     const mock = await setup();
     await plantKeyAndConsent();
 
-    const { pinPlace, removePin } = await import('./board_store');
-    await pinPlace({ place: VALID_PLACE, sourceHost: 'example.com' });
-    await pinPlace({
-      place: { ...VALID_PLACE, placeName: 'Fira', city: 'Fira', confidence: 0.8 },
-      sourceHost: 'example.com',
-    });
+    const { pinPlace, removePin } = await cover(import('./board_store'));
+    await settleWrite(pinPlace({ place: VALID_PLACE, sourceHost: 'example.com' }));
+    await settleWrite(
+      pinPlace({
+        place: { ...VALID_PLACE, placeName: 'Fira', city: 'Fira', confidence: 0.8 },
+        sourceHost: 'example.com',
+      })
+    );
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitFor(() => {
       const card = document.querySelector('#result-slot');
       expect(card?.querySelectorAll('.compare-row option')).toHaveLength(1);
@@ -2456,7 +2523,7 @@ describe('sidepanel', () => {
 
     const card = document.querySelector('#result-slot') as HTMLElement;
     expect(card.querySelector('.compare-row option')?.textContent).toBe('Fira, Greece');
-    await removePin('Fira', 'Greece');
+    await settleWrite(removePin('Fira', 'Greece'));
     clickEl(card.querySelector('.compare-go') as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('compareStale');
@@ -2497,7 +2564,7 @@ describe('sidepanel', () => {
       )
       .mockResolvedValueOnce(chatResponse(VALID_PLACE))
       .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitFor(() => {
       const card = document.querySelector('#result-slot');
       expect(card?.querySelectorAll('button')).toHaveLength(2);
@@ -2533,56 +2600,60 @@ describe('sidepanel', () => {
 
   it('keeps zero-rate providers at zero cost', async () => {
     const mock = await setup(async (seed) => {
-      await seed.local.set({
-        settings: {
-          v: 1,
+      await settleWrite(
+        seed.local.set({
           settings: {
-            activeProviderId: 'openai_compat',
-            openaiCompat: {
-              baseURL: 'https://llm.example.com/v1',
-              model: 'test-model',
-              structuredOutput: 'json_object',
-              inputRatePerM: 0,
-              outputRatePerM: 0,
+            v: 1,
+            settings: {
+              activeProviderId: 'openai_compat',
+              openaiCompat: {
+                baseURL: 'https://llm.example.com/v1',
+                model: 'test-model',
+                structuredOutput: 'json_object',
+                inputRatePerM: 0,
+                outputRatePerM: 0,
+              },
+              imageOnly: false,
+              sessionOnly: false,
+              skipWebSearch: false,
             },
-            imageOnly: false,
-            sessionOnly: false,
-            skipWebSearch: false,
           },
-        },
-      });
+        })
+      );
     });
-    const { saveKey } = await import('./key_vault');
-    await saveKey('openai_compat', 'sk_x', false);
+    const { saveKey } = await cover(import('./key_vault'));
+    await settleWrite(saveKey('openai_compat', 'sk_x', false));
     await plantKeyAndConsent();
 
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
     expect(document.querySelector('#cost-line')?.textContent).toBe('costLine($0.00 | $0.00)');
   });
 
   it('keeps the provider grant when the image origin is the provider origin', async () => {
     const mock = await setup(async (seed) => {
-      await seed.local.set({
-        settings: {
-          v: 1,
+      await settleWrite(
+        seed.local.set({
           settings: {
-            activeProviderId: 'openai_compat',
-            openaiCompat: {
-              baseURL: 'https://cdn.example.com/v1',
-              model: 'test-model',
-              structuredOutput: 'json_object',
+            v: 1,
+            settings: {
+              activeProviderId: 'openai_compat',
+              openaiCompat: {
+                baseURL: 'https://cdn.example.com/v1',
+                model: 'test-model',
+                structuredOutput: 'json_object',
+              },
+              imageOnly: false,
+              sessionOnly: false,
+              skipWebSearch: false,
             },
-            imageOnly: false,
-            sessionOnly: false,
-            skipWebSearch: false,
           },
-        },
-      });
+        })
+      );
     });
-    const { saveKey } = await import('./key_vault');
-    await saveKey('openai_compat', 'sk_x', false);
+    const { saveKey } = await cover(import('./key_vault'));
+    await settleWrite(saveKey('openai_compat', 'sk_x', false));
     await plantKeyAndConsent();
 
     const permsRequest = vi.fn().mockResolvedValue(true);
@@ -2611,7 +2682,7 @@ describe('sidepanel', () => {
         new Response(new Uint8Array([1, 2, 3]), { headers: { 'content-type': 'image/jpeg' } })
       )
       .mockResolvedValueOnce(chatResponse(VALID_PLACE));
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitFor(() => {
       const card = document.querySelector('#result-slot');
       expect(card?.querySelectorAll('button')).toHaveLength(2);
@@ -2657,7 +2728,7 @@ describe('sidepanel', () => {
       .mockResolvedValueOnce(new Response('bad image', { status: 400 }))
       .mockResolvedValueOnce(new Response('boom', { status: 500 }))
       .mockResolvedValueOnce(chatResponse(VALID_PLACE));
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitFor(() => {
       const card = document.querySelector('#result-slot');
       expect(card?.querySelectorAll('button')).toHaveLength(2);
@@ -2688,7 +2759,7 @@ describe('sidepanel', () => {
       .mockResolvedValueOnce(new Response('bad image', { status: 400 }))
       .mockResolvedValueOnce(new Response('boom', { status: 500 }))
       .mockRejectedValueOnce(new Error('network down'));
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitFor(() => {
       const card = document.querySelector('#result-slot');
       expect(card?.querySelectorAll('button')).toHaveLength(2);
@@ -2730,9 +2801,11 @@ describe('sidepanel', () => {
         new Response(new Uint8Array([1, 2, 3]), { headers: { 'content-type': 'image/jpeg' } })
       )
       .mockResolvedValueOnce(chatResponse(VALID_PLACE));
-    await mock.session.set({
-      [SLOT]: READY({ srcUrl: 'http://localhost:8000/oia.jpg' }),
-    });
+    await settleWrite(
+      mock.session.set({
+        [SLOT]: READY({ srcUrl: 'http://localhost:8000/oia.jpg' }),
+      })
+    );
     await waitFor(() => {
       const card = document.querySelector('#result-slot');
       expect(card?.querySelectorAll('button')).toHaveLength(2);
@@ -2760,7 +2833,7 @@ describe('sidepanel', () => {
     fetchMock
       .mockResolvedValueOnce(new Response('bad image', { status: 400 }))
       .mockResolvedValueOnce(new Response('boom', { status: 500 }));
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitFor(() => {
       const card = document.querySelector('#result-slot');
       expect(card?.querySelectorAll('button')).toHaveLength(2);
@@ -2775,7 +2848,7 @@ describe('sidepanel', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     fetchMock.mockReset();
     fetchMock.mockResolvedValueOnce(new Response('boom', { status: 500 }));
-    await mock.session.set({ [SLOT]: READY({ requestId: '200-2' }) });
+    await settleWrite(mock.session.set({ [SLOT]: READY({ requestId: '200-2' }) }));
     await waitFor(() => {
       const retry = document.querySelector('#result-slot');
       expect(retry?.querySelector('h2')?.textContent).toBe('errorServerTitle');
@@ -2832,7 +2905,7 @@ describe('sidepanel', () => {
         )
       )
       .mockResolvedValueOnce(chatResponse(VALID_PLACE));
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('noPlaceTitle');
     const card = document.querySelector('#result-slot') as HTMLElement;
     clickEl(card.querySelector('.primary') as HTMLButtonElement);
@@ -2911,7 +2984,7 @@ describe('sidepanel', () => {
       };
       return body.messages[1].content.find((part) => part.type === 'image_url')?.image_url?.url;
     };
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('noPlaceTitle');
     let card = document.querySelector('#result-slot') as HTMLElement;
     clickEl(card.querySelector('.primary') as HTMLButtonElement);
@@ -2919,9 +2992,11 @@ describe('sidepanel', () => {
       expect(card.querySelector('h2')?.textContent).toBe('Oia');
     });
     expect(imageOf(3)).toBe('https://cdn.example.com/oia.jpg');
-    await mock.session.set({
-      [SLOT]: READY({ requestId: '200-2', srcUrl: 'https://cdn.example.com/fira.jpg' }),
-    });
+    await settleWrite(
+      mock.session.set({
+        [SLOT]: READY({ requestId: '200-2', srcUrl: 'https://cdn.example.com/fira.jpg' }),
+      })
+    );
     await waitFor(() => {
       const retry = document.querySelector('#result-slot');
       expect(retry?.querySelector('h2')?.textContent).toBe('noPlaceTitle');
@@ -2938,26 +3013,30 @@ describe('sidepanel', () => {
   it('renders honest cards with fallback links for unreadable video', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
-    await mock.session.set({
-      [SLOT]: READY({
-        srcUrl: 'blob:https://example.com/aaa',
-        mediaType: 'video',
-        frameError: 'drm',
-      }),
-    });
+    await settleWrite(
+      mock.session.set({
+        [SLOT]: READY({
+          srcUrl: 'blob:https://example.com/aaa',
+          mediaType: 'video',
+          frameError: 'drm',
+        }),
+      })
+    );
     await waitForHeading('errorVideoTitle');
     expect(document.querySelector('#alert-region')?.textContent).toBe('alertVideoUnreadable');
     expect(fetchMock).not.toHaveBeenCalled();
     const card = document.querySelector('#result-slot');
     expect(card?.querySelector('.fallback a')).not.toBeNull();
-    await mock.session.set({
-      [SLOT]: READY({
-        requestId: '300-3',
-        srcUrl: 'blob:https://example.com/bbb',
-        mediaType: 'video',
-        frameError: 'no-match',
-      }),
-    });
+    await settleWrite(
+      mock.session.set({
+        [SLOT]: READY({
+          requestId: '300-3',
+          srcUrl: 'blob:https://example.com/bbb',
+          mediaType: 'video',
+          frameError: 'no-match',
+        }),
+      })
+    );
     await waitFor(() => {
       const retry = document.querySelector('#result-slot');
       expect(retry?.querySelector('h2')?.textContent).toBe('errorVideoMatchTitle');
@@ -3073,14 +3152,16 @@ describe('sidepanel', () => {
 
   it('changes retention and clears cached results from the settings tab', async () => {
     const mock = await setup(async (inner) => {
-      await inner.session.set({
-        'cache:a': {
-          v: 2,
-          createdAt: Date.now(),
-          entry: { place: null, guide: '# A', sources: [], usage: null, searchedWeb: false },
-        },
-        cacheKeys: ['a'],
-      });
+      await settleWrite(
+        inner.session.set({
+          'cache:a': {
+            v: 2,
+            createdAt: Date.now(),
+            entry: { place: null, guide: '# A', sources: [], usage: null, searchedWeb: false },
+          },
+          cacheKeys: ['a'],
+        })
+      );
     });
     selectSettingsTab();
     await waitForSettings();
@@ -3108,7 +3189,7 @@ describe('sidepanel', () => {
 
   it('resets the monthly cost from the settings tab', async () => {
     const mock = await setup(async (inner) => {
-      await inner.local.set({ costTotals: { [monthKey()]: 2.5 } });
+      await settleWrite(inner.local.set({ costTotals: { [monthKey()]: 2.5 } }));
     });
     selectSettingsTab();
 
@@ -3152,31 +3233,35 @@ describe('sidepanel', () => {
 
   it('names the custom server in the video confirm', async () => {
     const mock = await setup();
-    const { saveSettings } = await import('./providers/index');
-    const { saveKey } = await import('./key_vault');
-    const { setConsented } = await import('./providers/index');
-    await saveSettings({
-      activeProviderId: 'openai_compat',
-      openaiCompat: {
-        baseURL: 'https://llm.example.com/v1',
-        model: 'm',
-        structuredOutput: 'json_object',
-      },
-      imageOnly: false,
-      sessionOnly: false,
-      skipWebSearch: false,
-      cacheTtlDays: 7,
-    });
-    await saveKey('openai_compat', 'LLM_x', false);
-    await setConsented();
+    const { saveSettings } = await cover(import('./providers/index'));
+    const { saveKey } = await cover(import('./key_vault'));
+    const { setConsented } = await cover(import('./providers/index'));
+    await settleWrite(
+      saveSettings({
+        activeProviderId: 'openai_compat',
+        openaiCompat: {
+          baseURL: 'https://llm.example.com/v1',
+          model: 'm',
+          structuredOutput: 'json_object',
+        },
+        imageOnly: false,
+        sessionOnly: false,
+        skipWebSearch: false,
+        cacheTtlDays: 7,
+      })
+    );
+    await settleWrite(saveKey('openai_compat', 'LLM_x', false));
+    await settleWrite(setConsented());
 
-    await mock.session.set({
-      [SLOT]: READY({
-        srcUrl: 'blob:https://example.com/aaa',
-        mediaType: 'video',
-        frame: { dataUrl: 'data:image/jpeg;base64,ZnJhbWU=', time: 12.5 },
-      }),
-    });
+    await settleWrite(
+      mock.session.set({
+        [SLOT]: READY({
+          srcUrl: 'blob:https://example.com/aaa',
+          mediaType: 'video',
+          frame: { dataUrl: 'data:image/jpeg;base64,ZnJhbWU=', time: 12.5 },
+        }),
+      })
+    );
 
     await waitFor(() => {
       expect(document.querySelector('#result-slot h2')?.textContent).toBe('videoConfirmTitle');
@@ -3189,27 +3274,31 @@ describe('sidepanel', () => {
 
   it('explains image-only implications in the video confirm', async () => {
     const mock = await setup();
-    const { saveSettings } = await import('./providers/index');
-    await saveSettings({
-      activeProviderId: 'muse',
-      openaiCompat: { baseURL: '', model: '', structuredOutput: 'json_object' },
-      imageOnly: true,
-      sessionOnly: false,
-      skipWebSearch: false,
-      cacheTtlDays: 7,
-    });
+    const { saveSettings } = await cover(import('./providers/index'));
+    await settleWrite(
+      saveSettings({
+        activeProviderId: 'muse',
+        openaiCompat: { baseURL: '', model: '', structuredOutput: 'json_object' },
+        imageOnly: true,
+        sessionOnly: false,
+        skipWebSearch: false,
+        cacheTtlDays: 7,
+      })
+    );
     await plantKeyAndConsent();
 
     fetchMock
       .mockResolvedValueOnce(chatResponse(VALID_PLACE))
       .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
-    await mock.session.set({
-      [SLOT]: READY({
-        srcUrl: 'blob:https://example.com/aaa',
-        mediaType: 'video',
-        frame: { dataUrl: 'data:image/jpeg;base64,ZnJhbWU=', time: 12.5 },
-      }),
-    });
+    await settleWrite(
+      mock.session.set({
+        [SLOT]: READY({
+          srcUrl: 'blob:https://example.com/aaa',
+          mediaType: 'video',
+          frame: { dataUrl: 'data:image/jpeg;base64,ZnJhbWU=', time: 12.5 },
+        }),
+      })
+    );
 
     await waitFor(() => {
       expect(document.querySelector('#result-slot h2')?.textContent).toBe('videoConfirmTitle');
@@ -3232,12 +3321,14 @@ describe('sidepanel', () => {
     fetchMock
       .mockResolvedValueOnce(chatResponse(VALID_PLACE))
       .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
-    await mock.session.set({
-      [SLOT]: READY({
-        srcUrl: 'https://cdn.example.com/v.mp4',
-        mediaType: 'video',
-      }),
-    });
+    await settleWrite(
+      mock.session.set({
+        [SLOT]: READY({
+          srcUrl: 'https://cdn.example.com/v.mp4',
+          mediaType: 'video',
+        }),
+      })
+    );
 
     await waitFor(() => {
       expect(document.querySelector('#result-slot h2')?.textContent).toBe('videoConfirmTitle');
@@ -3281,7 +3372,7 @@ describe('sidepanel', () => {
           []
         )
       );
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
 
     const card = document.querySelector('#result-slot') as HTMLElement;
@@ -3351,7 +3442,7 @@ describe('sidepanel', () => {
     const mock = await setup();
     await plantKeyAndConsent();
     hangUntilAbort();
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
 
     await waitFor(() => {
       expect(document.querySelector('#result-slot .cancel-button')?.textContent).toBe(
@@ -3375,7 +3466,7 @@ describe('sidepanel', () => {
     await plantKeyAndConsent();
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
     hangUntilAbort();
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
     await clickPlanTrip();
 
@@ -3408,7 +3499,7 @@ describe('sidepanel', () => {
     fetchMock
       .mockResolvedValueOnce(chatResponse(VALID_PLACE))
       .mockResolvedValueOnce(chatResponse(FIRA));
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
 
     const card = document.querySelector('#result-slot') as HTMLElement;
@@ -3416,12 +3507,14 @@ describe('sidepanel', () => {
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned(Oia | 1)');
     });
-    await mock.session.set({
-      [SLOT]: READY({
-        requestId: '200-2',
-        srcUrl: 'https://cdn.example.com/fira.jpg',
-      }),
-    });
+    await settleWrite(
+      mock.session.set({
+        [SLOT]: READY({
+          requestId: '200-2',
+          srcUrl: 'https://cdn.example.com/fira.jpg',
+        }),
+      })
+    );
     await waitFor(() => {
       expect(card.querySelector('h2')?.textContent).toBe('Fira');
     });
@@ -3455,21 +3548,23 @@ describe('sidepanel', () => {
     const mock = await setup();
     await plantKeyAndConsent();
     hangUntilAbort();
-    await mock.session.set({
-      [SLOT]: READY({
-        srcUrl: '',
-        signals: undefined,
-        scanImages: [
-          {
-            url: 'https://img.example.com/a.jpg',
-            caption: '',
-            heading: '',
-            width: 800,
-            height: 600,
-          },
-        ],
-      }),
-    });
+    await settleWrite(
+      mock.session.set({
+        [SLOT]: READY({
+          srcUrl: '',
+          signals: undefined,
+          scanImages: [
+            {
+              url: 'https://img.example.com/a.jpg',
+              caption: '',
+              heading: '',
+              width: 800,
+              height: 600,
+            },
+          ],
+        }),
+      })
+    );
 
     await waitFor(() => {
       expect(document.querySelector('#result-slot section > button')?.textContent).toBe(
@@ -3489,7 +3584,7 @@ describe('sidepanel', () => {
     const mock = await setup();
     await plantKeyAndConsent();
     fetchMock.mockResolvedValueOnce(chatResponse({ ...VALID_PLACE, confidence: 0.1 }));
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
 
     await waitFor(() => {
       expect(document.querySelector('#result-slot h2')?.textContent).toBe('noPlaceTitle');
@@ -3509,7 +3604,7 @@ describe('sidepanel', () => {
     const mock = await setup();
     await plantKeyAndConsent();
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
 
     const card = document.querySelector('#result-slot') as HTMLElement;
@@ -3541,21 +3636,23 @@ describe('sidepanel', () => {
         ],
       })
     );
-    await mock.session.set({
-      [SLOT]: READY({
-        srcUrl: '',
-        signals: undefined,
-        scanImages: [
-          {
-            url: 'https://img.example.com/a.jpg',
-            caption: '',
-            heading: '',
-            width: 800,
-            height: 600,
-          },
-        ],
-      }),
-    });
+    await settleWrite(
+      mock.session.set({
+        [SLOT]: READY({
+          srcUrl: '',
+          signals: undefined,
+          scanImages: [
+            {
+              url: 'https://img.example.com/a.jpg',
+              caption: '',
+              heading: '',
+              width: 800,
+              height: 600,
+            },
+          ],
+        }),
+      })
+    );
     await waitFor(() => {
       expect(document.querySelectorAll('#result-slot .scan-card')).toHaveLength(1);
     });
@@ -3599,7 +3696,7 @@ describe('sidepanel', () => {
         },
       ],
     };
-    await mock.session.set({ [SLOT]: READY(record) });
+    await settleWrite(mock.session.set({ [SLOT]: READY(record) }));
     await waitFor(() => {
       expect(document.querySelector('#result-slot h2')?.textContent).toBe('scanNoneTitle');
     });
@@ -3614,9 +3711,11 @@ describe('sidepanel', () => {
   it('dismisses dead-end errors back to idle', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
-    await mock.session.set({
-      [SLOT]: READY({ status: 'error', reason: 'collecting-failed' }),
-    });
+    await settleWrite(
+      mock.session.set({
+        [SLOT]: READY({ status: 'error', reason: 'collecting-failed' }),
+      })
+    );
     await waitFor(() => {
       expect(document.querySelector('#result-slot h2')?.textContent).toBe('handoffFailedTitle');
     });
@@ -3634,19 +3733,21 @@ describe('sidepanel', () => {
     const mock = await setup();
     await plantKeyAndConsent();
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
 
     focusEl(document.querySelector('#result-slot .pin-button') as HTMLButtonElement);
     expect(document.activeElement?.className).toContain('pin-button');
 
     hangUntilAbort();
-    await mock.session.set({
-      [SLOT]: READY({
-        requestId: '200-2',
-        srcUrl: 'https://cdn.example.com/fira.jpg',
-      }),
-    });
+    await settleWrite(
+      mock.session.set({
+        [SLOT]: READY({
+          requestId: '200-2',
+          srcUrl: 'https://cdn.example.com/fira.jpg',
+        }),
+      })
+    );
 
     await waitFor(() => {
       expect(document.activeElement?.id).toBe('preview-heading');
@@ -3662,11 +3763,13 @@ describe('sidepanel', () => {
     const mock = await setup();
     await plantKeyAndConsent();
 
-    const { pinPlace } = await import('./board_store');
-    await pinPlace({
-      place: { ...VALID_PLACE, placeName: 'Fira', city: 'Fira', confidence: 0.8 },
-      sourceHost: 'example.com',
-    });
+    const { pinPlace } = await cover(import('./board_store'));
+    await settleWrite(
+      pinPlace({
+        place: { ...VALID_PLACE, placeName: 'Fira', city: 'Fira', confidence: 0.8 },
+        sourceHost: 'example.com',
+      })
+    );
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE)).mockResolvedValueOnce(
       groundedResponse({
         alternatives: [
@@ -3679,7 +3782,7 @@ describe('sidepanel', () => {
         ],
       })
     );
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
 
     const card = document.querySelector('#result-slot') as HTMLElement;
@@ -3722,7 +3825,7 @@ describe('sidepanel', () => {
         headers: { 'Content-Type': 'text/event-stream' },
       })
     );
-    await mock.session.set({ [SLOT]: READY() });
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
     await clickPlanTrip();
     await waitFor(() => {

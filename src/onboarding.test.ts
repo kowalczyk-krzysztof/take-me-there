@@ -27,7 +27,16 @@ vi.mock('idb-keyval', () => {
 });
 
 import type { ChromeMock } from './test/chrome_mock';
-import { clickEl, dispatchEl, readShell, setupPage, teardownPage, waitFor } from './test/helpers';
+import {
+  clickEl,
+  cover,
+  dispatchEl,
+  readShell,
+  settleWrite,
+  setupPage,
+  teardownPage,
+  waitFor,
+} from './test/helpers';
 
 const SHELL = readShell('onboarding');
 
@@ -68,8 +77,8 @@ describe('onboarding', () => {
   it('reports the verified mode when the session-only move fails', async () => {
     const mock = await setup();
 
-    const { saveKey, loadKey } = await import('./key_vault');
-    await saveKey('muse', 'LLM_x', false);
+    const { saveKey, loadKey } = await cover(import('./key_vault'));
+    await settleWrite(saveKey('muse', 'LLM_x', false));
 
     mock.session.fault = (op) => {
       if (op === 'set') {
@@ -87,7 +96,7 @@ describe('onboarding', () => {
 
     mock.session.fault = () => undefined;
 
-    expect(await loadKey('muse')).toEqual({ state: 'ok', key: 'LLM_x' });
+    expect(await cover(loadKey('muse'))).toEqual({ state: 'ok', key: 'LLM_x' });
     expect(mock.local.data.has('apiKey:muse')).toBe(true);
   });
 
@@ -154,19 +163,21 @@ describe('onboarding', () => {
   it('switches back to Muse from onboarding', async () => {
     const mock = await setup();
 
-    const { saveSettings } = await import('./providers/index');
-    await saveSettings({
-      activeProviderId: 'openai_compat',
-      openaiCompat: {
-        baseURL: 'https://llm.example.com/v1',
-        model: 'm',
-        structuredOutput: 'json_object',
-      },
-      imageOnly: false,
-      sessionOnly: false,
-      skipWebSearch: false,
-      cacheTtlDays: 7,
-    });
+    const { saveSettings } = await cover(import('./providers/index'));
+    await settleWrite(
+      saveSettings({
+        activeProviderId: 'openai_compat',
+        openaiCompat: {
+          baseURL: 'https://llm.example.com/v1',
+          model: 'm',
+          structuredOutput: 'json_object',
+        },
+        imageOnly: false,
+        sessionOnly: false,
+        skipWebSearch: false,
+        cacheTtlDays: 7,
+      })
+    );
 
     const permsRemove = vi.fn().mockResolvedValue(undefined);
     (chrome as unknown as { permissions: unknown }).permissions = { remove: permsRemove };

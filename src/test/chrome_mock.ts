@@ -42,19 +42,6 @@ export type MockGlobalChangeListener = (
 
 export type StorageFault = (op: 'get' | 'set' | 'remove' | 'clear', keys: string[]) => void;
 
-// Lets a write's listener cascade settle before the write resolves. The
-// dispatch microtask plus the listeners' promise hops all run inside one
-// act() scope, so the React updates they schedule are attributed. Pure
-// microtasks: safe under fake timers. Longer cascades (fetch, real timers)
-// keep running and are covered by the test's own waitFor scopes.
-const settleDispatch = async (): Promise<void> => {
-  await act(async () => {
-    for (let i = 0; i < 100; i++) {
-      await Promise.resolve();
-    }
-  });
-};
-
 export class MockStorageArea {
   readonly data = new Map<string, unknown>();
   fault: StorageFault = () => undefined;
@@ -107,7 +94,6 @@ export class MockStorageArea {
       this.data.set(key, structuredClone(value));
     }
     this.dispatch(changes);
-    await settleDispatch();
   }
 
   async remove(keys: string | string[]): Promise<void> {
@@ -122,14 +108,12 @@ export class MockStorageArea {
       }
     }
     this.dispatch(changes);
-    await settleDispatch();
   }
 
   async clear(): Promise<void> {
     this.fault('clear', []);
     this.data.clear();
     this.dispatch({});
-    await settleDispatch();
   }
 
   private dispatch(changes: Record<string, MockStorageChange>): void {

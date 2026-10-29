@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { act } from 'react';
 import { vi } from 'vitest';
-import { installChromeMock, uninstallChromeMock, type ChromeMock } from './chrome_mock';
+import { installChromeMock, type ChromeMock } from './chrome_mock';
 import { handleHandoffMessage } from '../handoff';
 import { handleStorageMessage } from '../storage_service';
 
@@ -14,6 +14,12 @@ export const waitFor = async (fn: () => unknown, timeoutMs = 5000): Promise<void
     for (;;) {
       try {
         await fn();
+
+        // Settle the convergence cascade before returning so the test
+        // resumes (and later ends) with no unattributed updates queued.
+        for (let i = 0; i < 100; i++) {
+          await Promise.resolve();
+        }
 
         return;
       } catch (err) {
@@ -57,6 +63,37 @@ export const sleep = async (ms: number): Promise<void> => {
   await act(async () => {
     await new Promise((resolve) => setTimeout(resolve, ms));
   });
+};
+
+// Async act() scopes live only in test call-stack code: the mock opens
+// sync scopes alone, so scopes always nest lexically and can never exit
+// out of order. Await a storage or vault write through here to attribute
+// its listener cascade; pure microtasks, safe under fake timers.
+export const settleWrite = async <T>(write: Promise<T>): Promise<T> => {
+  let result!: T;
+
+  await act(async () => {
+    result = await write;
+
+    for (let i = 0; i < 200; i++) {
+      await Promise.resolve();
+    }
+  });
+
+  return result;
+};
+
+// Attribution window for cascade-free awaits (reads, imports, hashes):
+// product timers can fire while they yield, and those updates need an
+// open scope as much as write cascades do.
+export const cover = async <T>(work: Promise<T>): Promise<T> => {
+  let result!: T;
+
+  await act(async () => {
+    result = await work;
+  });
+
+  return result;
 };
 
 export const readShell = (page: string): string =>
@@ -130,19 +167,19 @@ export const routeWorkerMessages = (mock: ChromeMock): void => {
   };
 };
 
-export const teardownPage = async (): Promise<void> => {
-  // Unmount before clearing the DOM and uninstalling the chrome mock:
-  // a live root would otherwise render into the torn-down page when a
-  // trailing act() flush lands after the test.
-  await act(async () => {
+export const teardownPage = (): void => {
+  // Unmount before clearing the DOM: a live root would otherwise render
+  // into the torn-down page when a trailing act() flush lands after the
+  // test. The chrome and fetch mocks stay installed until the next setup
+  // reinstalls them: in-flight tails keep running past the last assertion
+  // and must never observe the globals disappear mid-chain.
+  act(() => {
     if (typeof mountedPage?.unmountPage === 'function') {
       (mountedPage.unmountPage as () => void)();
     }
     mountedPage = null;
   });
   document.body.innerHTML = '';
-  uninstallChromeMock();
-  vi.unstubAllGlobals();
 };
 
 export const chatResponse = (

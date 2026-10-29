@@ -28,7 +28,16 @@ vi.mock('idb-keyval', () => {
 
 import { monthKey } from './pricing';
 import type { ChromeMock } from './test/chrome_mock';
-import { clickEl, dispatchEl, readShell, setupPage, teardownPage, waitFor } from './test/helpers';
+import {
+  clickEl,
+  cover,
+  dispatchEl,
+  readShell,
+  settleWrite,
+  setupPage,
+  teardownPage,
+  waitFor,
+} from './test/helpers';
 
 const SHELL = readShell('options');
 
@@ -43,7 +52,7 @@ afterEach(teardownPage);
 describe('options', () => {
   it('renders sections and the live cost total', async () => {
     await setup(async (mock) => {
-      await mock.local.set({ costTotals: { [monthKey()]: 1.5 } });
+      await settleWrite(mock.local.set({ costTotals: { [monthKey()]: 1.5 } }));
 
       const chromeGlobal = globalThis as unknown as {
         chrome: { i18n: { getMessage: (key: string, subs?: string | string[]) => string } };
@@ -61,7 +70,7 @@ describe('options', () => {
 
   it('resets the monthly total', async () => {
     const mock = await setup(async (inner) => {
-      await inner.local.set({ costTotals: { [monthKey()]: 2 } });
+      await settleWrite(inner.local.set({ costTotals: { [monthKey()]: 2 } }));
     });
     clickEl(document.querySelector('#reset-cost') as HTMLButtonElement);
     await waitFor(() => {
@@ -129,8 +138,8 @@ describe('options', () => {
   it('tests the saved key and clears it', async () => {
     const mock = await setup();
 
-    const { saveKey, loadKey } = await import('./key_vault');
-    await saveKey('muse', 'LLM_x', false);
+    const { saveKey, loadKey } = await cover(import('./key_vault'));
+    await settleWrite(saveKey('muse', 'LLM_x', false));
     fetchMock.mockResolvedValue(new Response('[]', { status: 200 }));
     clickEl(document.querySelector('#test-key') as HTMLButtonElement);
     await waitFor(() => {
@@ -140,15 +149,15 @@ describe('options', () => {
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusKeyCleared');
     });
-    expect(await loadKey('muse')).toEqual({ state: 'missing', orphaned: false });
+    expect(await cover(loadKey('muse'))).toEqual({ state: 'missing', orphaned: false });
     expect(mock.local.data.has('apiKey:muse')).toBe(false);
   });
 
   it('reports the verified mode when the session-only move fails', async () => {
     const mock = await setup();
 
-    const { saveKey, loadKey } = await import('./key_vault');
-    await saveKey('muse', 'LLM_x', false);
+    const { saveKey, loadKey } = await cover(import('./key_vault'));
+    await settleWrite(saveKey('muse', 'LLM_x', false));
 
     mock.session.fault = (op) => {
       if (op === 'set') {
@@ -166,7 +175,7 @@ describe('options', () => {
 
     mock.session.fault = () => undefined;
 
-    expect(await loadKey('muse')).toEqual({ state: 'ok', key: 'LLM_x' });
+    expect(await cover(loadKey('muse'))).toEqual({ state: 'ok', key: 'LLM_x' });
     expect(mock.local.data.has('apiKey:muse')).toBe(true);
     expect(mock.session.data.has('apiKey:muse')).toBe(false);
   });
@@ -174,24 +183,24 @@ describe('options', () => {
   it('clears all saved keys', async () => {
     await setup();
 
-    const { saveKey, loadKey } = await import('./key_vault');
-    await saveKey('muse', 'LLM_x', false);
-    await saveKey('openai_compat', 'LLM_y', true);
+    const { saveKey, loadKey } = await cover(import('./key_vault'));
+    await settleWrite(saveKey('muse', 'LLM_x', false));
+    await settleWrite(saveKey('openai_compat', 'LLM_y', true));
 
     clickEl(document.querySelector('#clear-all-keys') as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusKeyCleared');
     });
 
-    expect((await loadKey('muse')).state).toBe('missing');
-    expect((await loadKey('openai_compat')).state).toBe('missing');
+    expect((await cover(loadKey('muse'))).state).toBe('missing');
+    expect((await cover(loadKey('openai_compat'))).state).toBe('missing');
   });
 
   it('shows clear failures instead of claiming success', async () => {
     const mock = await setup();
 
-    const { saveKey, loadKey } = await import('./key_vault');
-    await saveKey('muse', 'LLM_x', false);
+    const { saveKey, loadKey } = await cover(import('./key_vault'));
+    await settleWrite(saveKey('muse', 'LLM_x', false));
 
     const fail = (): void => {
       throw new Error('quota');
@@ -207,7 +216,7 @@ describe('options', () => {
     mock.session.fault = () => undefined;
     mock.local.fault = () => undefined;
 
-    expect(await loadKey('muse')).toEqual({ state: 'ok', key: 'LLM_x' });
+    expect(await cover(loadKey('muse'))).toEqual({ state: 'ok', key: 'LLM_x' });
   });
 
   it('labels the provider radio group and the server fieldset', async () => {
@@ -315,18 +324,20 @@ describe('options', () => {
 
   it('switches back to Muse immediately', async () => {
     const mock = await setup(async (inner) => {
-      await inner.local.set({
-        settings: {
-          activeProviderId: 'openai_compat',
-          openaiCompat: {
-            baseURL: 'https://llm.example.com/v1',
-            model: 'm',
-            structuredOutput: 'json_object',
+      await settleWrite(
+        inner.local.set({
+          settings: {
+            activeProviderId: 'openai_compat',
+            openaiCompat: {
+              baseURL: 'https://llm.example.com/v1',
+              model: 'm',
+              structuredOutput: 'json_object',
+            },
+            imageOnly: false,
+            sessionOnly: false,
           },
-          imageOnly: false,
-          sessionOnly: false,
-        },
-      });
+        })
+      );
     });
     await waitFor(() => {
       expect((document.querySelector('#provider-compat') as HTMLInputElement).checked).toBe(true);
@@ -419,22 +430,24 @@ describe('options', () => {
 
   it('removes the obsolete grant after a host change', async () => {
     await setup(async (inner) => {
-      await inner.local.set({
-        settings: {
-          v: 1,
+      await settleWrite(
+        inner.local.set({
           settings: {
-            activeProviderId: 'openai_compat',
-            openaiCompat: {
-              baseURL: 'https://old.example.com/v1',
-              model: 'm',
-              structuredOutput: 'json_object',
+            v: 1,
+            settings: {
+              activeProviderId: 'openai_compat',
+              openaiCompat: {
+                baseURL: 'https://old.example.com/v1',
+                model: 'm',
+                structuredOutput: 'json_object',
+              },
+              imageOnly: false,
+              sessionOnly: false,
+              skipWebSearch: false,
             },
-            imageOnly: false,
-            sessionOnly: false,
-            skipWebSearch: false,
           },
-        },
-      });
+        })
+      );
     });
 
     const permsRequest = vi.fn().mockResolvedValue(true);
@@ -465,22 +478,24 @@ describe('options', () => {
 
   it('removes the custom grant when switching back to Muse', async () => {
     await setup(async (inner) => {
-      await inner.local.set({
-        settings: {
-          v: 1,
+      await settleWrite(
+        inner.local.set({
           settings: {
-            activeProviderId: 'openai_compat',
-            openaiCompat: {
-              baseURL: 'https://llm.example.com/v1',
-              model: 'm',
-              structuredOutput: 'json_object',
+            v: 1,
+            settings: {
+              activeProviderId: 'openai_compat',
+              openaiCompat: {
+                baseURL: 'https://llm.example.com/v1',
+                model: 'm',
+                structuredOutput: 'json_object',
+              },
+              imageOnly: false,
+              sessionOnly: false,
+              skipWebSearch: false,
             },
-            imageOnly: false,
-            sessionOnly: false,
-            skipWebSearch: false,
           },
-        },
-      });
+        })
+      );
     });
 
     const permsRemove = vi.fn().mockResolvedValue(undefined);
@@ -511,14 +526,16 @@ describe('options', () => {
 
   it('changes retention and clears cached results', async () => {
     const mock = await setup(async (inner) => {
-      await inner.session.set({
-        'cache:a': {
-          v: 2,
-          createdAt: Date.now(),
-          entry: { place: null, guide: '# A', sources: [], usage: null, searchedWeb: false },
-        },
-        cacheKeys: ['a'],
-      });
+      await settleWrite(
+        inner.session.set({
+          'cache:a': {
+            v: 2,
+            createdAt: Date.now(),
+            entry: { place: null, guide: '# A', sources: [], usage: null, searchedWeb: false },
+          },
+          cacheKeys: ['a'],
+        })
+      );
     });
 
     await waitFor(() => {
@@ -593,8 +610,8 @@ describe('options', () => {
   it('keeps retention and key mode independent', async () => {
     const mock = await setup();
 
-    const { saveKey, loadKey } = await import('./key_vault');
-    await saveKey('muse', 'LLM_x', false);
+    const { saveKey, loadKey } = await cover(import('./key_vault'));
+    await settleWrite(saveKey('muse', 'LLM_x', false));
 
     await waitFor(() => {
       expect(document.querySelector('#cost-line')?.textContent).toContain('optionsCostMonth');
@@ -605,7 +622,7 @@ describe('options', () => {
     dispatchEl(sessionOnly, new Event('change', { bubbles: true }));
 
     await waitFor(async () => {
-      expect((await loadKey('muse')).state).toBe('ok');
+      expect((await cover(loadKey('muse'))).state).toBe('ok');
     });
 
     const retention = document.querySelector('#retention-select') as HTMLSelectElement;
@@ -621,7 +638,7 @@ describe('options', () => {
       expect(record.settings.sessionOnly).toBe(true);
     });
 
-    expect(await loadKey('muse')).toEqual({ state: 'ok', key: 'LLM_x' });
+    expect(await cover(loadKey('muse'))).toEqual({ state: 'ok', key: 'LLM_x' });
     expect(mock.session.data.has('apiKey:muse')).toBe(true);
   });
 });
