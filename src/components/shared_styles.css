@@ -53,6 +53,79 @@ summary {
   min-width: 24px;
 }
 
+button.primary,
+.plan-trip-button {
+  min-height: 40px;
+}
+
+button {
+  font: inherit;
+  font-weight: 500;
+  padding: 8px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  background: var(--card);
+  color: var(--text);
+  border: 1px solid var(--border);
+  transition: background-color 120ms ease;
+}
+
+button:hover {
+  background: var(--surface);
+}
+
+button:disabled,
+select:disabled,
+input:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.button-row {
+  display: flex;
+  gap: 8px;
+  margin: 8px 0;
+  flex-wrap: wrap;
+}
+
+.checkbox-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 8px 0;
+}
+
+.checkbox-row input {
+  margin-top: 2px;
+}
+
+.radio-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 8px 0;
+}
+
+.radio-row input {
+  margin-top: 2px;
+}
+
+.field-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.field-row input,
+.field-row select {
+  font: inherit;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+}
+
 ::placeholder {
   color: var(--muted);
   opacity: 1;
@@ -84,10 +157,10 @@ summary {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
+  border-radius: 8px;
   background: var(--badge-surface);
   color: var(--badge);
-  font-size: 20px;
+  font-size: 1.25rem;
   font-weight: 700;
 }
 
@@ -109,8 +182,11 @@ summary {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .skeleton-block {
-    animation: none;
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
   }
 
   .typing-caret {

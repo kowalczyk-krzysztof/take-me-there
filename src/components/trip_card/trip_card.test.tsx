@@ -647,6 +647,7 @@ describe('trip-card', () => {
       { onPin }
     );
     expect(root.querySelector('.pin-button')?.getAttribute('aria-pressed')).toBe('true');
+    expect(root.querySelector('.pin-button')?.textContent).toBe('savedButton(Oia)');
   });
 
   it('renders itineraries with stops, nights, links, and the Maps route', () => {

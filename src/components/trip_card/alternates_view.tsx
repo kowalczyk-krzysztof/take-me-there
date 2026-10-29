@@ -49,7 +49,7 @@ export const AlternatesView = ({ alternates, onPinAlternate, onPlanInstead, onCa
                 onPinAlternate(index);
               }}
             >
-              {msg('pinButton', card.name)}
+              {card.pinned ? msg('savedButton', card.name) : msg('pinButton', card.name)}
             </button>
             <button
               type="button"

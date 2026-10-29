@@ -2,14 +2,14 @@
   display: block;
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 12px;
   box-shadow: var(--shadow);
   padding: 12px;
 }
 .root form {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
   margin: 0;
 }
 .root label.field-label {
@@ -21,7 +21,7 @@
   box-sizing: border-box;
   padding: 8px 12px;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 8px;
   background: var(--card);
   color: var(--text);
   font: inherit;
@@ -32,19 +32,22 @@
 }
 .root .hint {
   margin: 0;
-  font-size: 13px;
+  font-size: 0.75rem;
+  line-height: 1.5;
   color: var(--muted);
 }
 .root .error {
   margin: 0;
-  font-size: 13px;
+  font-size: 0.75rem;
+  line-height: 1.5;
   color: var(--error);
 }
 .root .checkbox-row {
   display: flex;
   gap: 8px;
   align-items: flex-start;
-  font-size: 13px;
+  font-size: 0.75rem;
+  line-height: 1.5;
 }
 .root .checkbox-row input {
   margin-top: 2px;
@@ -58,7 +61,7 @@
   font: inherit;
   font-weight: 500;
   padding: 8px 16px;
-  border-radius: 6px;
+  border-radius: 8px;
   cursor: pointer;
   transition: background-color 120ms ease;
 }
@@ -84,19 +87,22 @@
 }
 .root .notice,
 .root .hygiene {
-  font-size: 13px;
+  font-size: 0.75rem;
+  line-height: 1.5;
   color: var(--muted);
   margin: 0;
 }
 .root .dashboard {
-  font-size: 13px;
+  font-size: 0.75rem;
+  line-height: 1.5;
   margin: 0;
 }
 .root a {
   color: var(--link);
 }
 .root h2 {
-  font-size: 16px;
+  font-size: 1rem;
+  line-height: 1.4;
   margin: 0 0 8px;
 }
 .root .consent-body {

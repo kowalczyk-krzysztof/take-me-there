@@ -1380,6 +1380,7 @@ describe('sidepanel', () => {
     expect(
       (card.querySelector('.pin-button') as HTMLButtonElement).getAttribute('aria-pressed')
     ).toBe('true');
+    expect(card.querySelector('.pin-button')?.textContent).toBe('savedButton(Oia)');
 
     const board = document.querySelector('#board-slot') as HTMLElement;
 

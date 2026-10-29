@@ -11,7 +11,7 @@
   min-height: 44px;
   padding: 8px;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 8px;
   box-shadow: var(--shadow);
   background: var(--card);
   color: var(--text);

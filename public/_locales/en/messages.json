@@ -1443,7 +1443,7 @@
   },
   "savedButton": {
     "message": "Saved $1",
-    "description": "Scan pin button after saving.",
+    "description": "Pin button after saving.",
     "placeholders": {
       "name": {
         "content": "$1",

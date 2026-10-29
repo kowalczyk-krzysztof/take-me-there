@@ -67,7 +67,7 @@ export const ResultView = ({
         aria-pressed={pinned}
         onClick={callbacks.onPin}
       >
-        {msg('pinButton', place.placeName)}
+        {pinned ? msg('savedButton', place.placeName) : msg('pinButton', place.placeName)}
       </button>
       {planState === 'ready' ? null : (
         <>

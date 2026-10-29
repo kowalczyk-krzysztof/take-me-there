@@ -2,12 +2,13 @@
   display: block;
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 12px;
   box-shadow: var(--shadow);
   padding: 12px;
 }
 .root h2 {
-  font-size: 18px;
+  font-size: 1.25rem;
+  line-height: 1.25;
   font-weight: 700;
   margin: 0 0 4px;
 }
@@ -25,12 +26,13 @@
 }
 .root .badge {
   display: inline-block;
-  font-size: 12px;
-  padding: 2px 8px;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  padding: 4px 8px;
   border-radius: 999px;
   background: var(--badge-surface);
   color: var(--badge);
-  margin-left: 8px;
+  margin-inline-start: 8px;
   vertical-align: middle;
 }
 .root .hint {
@@ -38,12 +40,14 @@
 }
 .root .shortcut {
   margin: 0;
-  font-size: 13px;
+  font-size: 0.75rem;
+  line-height: 1.5;
   color: var(--muted);
 }
 .root .scanHint {
   margin: 0 0 4px;
-  font-size: 13px;
+  font-size: 0.75rem;
+  line-height: 1.5;
   color: var(--muted);
 }
 .root .skeleton {
@@ -53,7 +57,8 @@
 }
 .root .cosmetic {
   color: var(--muted);
-  font-size: 13px;
+  font-size: 0.75rem;
+  line-height: 1.5;
   margin: 8px 0 0;
   min-height: 20px;
 }
@@ -62,14 +67,15 @@
   gap: 8px;
   align-items: center;
   margin-top: 8px;
-  font-size: 13px;
+  font-size: 0.75rem;
+  line-height: 1.5;
   color: var(--muted);
 }
 .root button {
   font: inherit;
   font-weight: 500;
   padding: 8px 16px;
-  border-radius: 6px;
+  border-radius: 8px;
   cursor: pointer;
   background: var(--card);
   color: var(--text);
@@ -92,7 +98,8 @@
   cursor: default;
 }
 .root .fallback {
-  font-size: 13px;
+  font-size: 0.75rem;
+  line-height: 1.5;
   color: var(--muted);
 }
 .root a {
@@ -112,7 +119,8 @@
 }
 .root .start-again-hint {
   margin: 4px 0 0;
-  font-size: 12px;
+  font-size: 0.75rem;
+  line-height: 1.5;
   color: var(--muted);
 }
 .root .pin-button[aria-pressed='true'] {
@@ -120,11 +128,13 @@
   color: var(--link);
 }
 .root .cancel-button {
-  margin: 8px 0 0 8px;
+  margin-top: 8px;
+  margin-inline-start: 8px;
 }
 .root .retry-cost {
-  margin-left: 8px;
-  font-size: 12px;
+  margin-inline-start: 8px;
+  font-size: 0.75rem;
+  line-height: 1.5;
   color: var(--muted);
 }
 .root .confidence {
@@ -132,12 +142,14 @@
 }
 .root .confidence-scale {
   margin: 2px 0 0;
-  font-size: 12px;
+  font-size: 0.75rem;
+  line-height: 1.5;
   color: var(--muted);
 }
 .root .source {
   margin: 4px 0 0;
-  font-size: 13px;
+  font-size: 0.75rem;
+  line-height: 1.5;
   color: var(--muted);
 }
 .root .secondary {
@@ -147,7 +159,7 @@
 }
 .root .stop-list {
   margin: 8px 0;
-  padding-left: 20px;
+  padding-inline-start: 20px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -158,12 +170,14 @@
 }
 .root .stop-nights {
   margin: 0;
-  font-size: 13px;
+  font-size: 0.75rem;
+  line-height: 1.5;
   color: var(--muted);
 }
 .root .stop-links {
   margin: 4px 0 0;
-  font-size: 13px;
+  font-size: 0.75rem;
+  line-height: 1.5;
 }
 .root .maps-link {
   display: inline-block;
@@ -178,13 +192,15 @@
   margin-top: 8px;
 }
 .root .chips-label {
-  font-size: 13px;
+  font-size: 0.75rem;
+  line-height: 1.5;
   color: var(--muted);
 }
 .root .chip {
   border-radius: 999px;
-  padding: 6px 12px;
-  font-size: 13px;
+  padding: 8px 12px;
+  font-size: 0.75rem;
+  line-height: 1.5;
 }
 .root .alternates {
   display: flex;
@@ -205,7 +221,7 @@
 }
 .root .alternate-card {
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 12px;
   box-shadow: var(--shadow);
   background: var(--card);
   padding: 12px;
@@ -228,15 +244,18 @@
 }
 .root .alternate-why {
   margin: 0 0 4px;
-  font-size: 13px;
+  font-size: 0.75rem;
+  line-height: 1.5;
 }
 .root .alternate-month {
   margin: 0 0 8px;
-  font-size: 13px;
+  font-size: 0.75rem;
+  line-height: 1.5;
   color: var(--muted);
 }
 .root .compare-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   align-items: flex-end;
   margin-top: 8px;
@@ -245,14 +264,21 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  font-size: 13px;
+  font-size: 0.75rem;
+  line-height: 1.5;
   color: var(--muted);
   flex: 1;
+}
+@media (max-width: 360px) {
+  .root .compare-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }
 .root .compare-row select {
   font: inherit;
   padding: 8px 12px;
-  border-radius: 6px;
+  border-radius: 8px;
   border: 1px solid var(--border);
   background: var(--card);
   color: var(--text);
