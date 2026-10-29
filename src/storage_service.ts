@@ -6,6 +6,7 @@
 import {
   BOARD_CAP,
   BOARD_STORAGE_KEY,
+  ITINERARY_STORAGE_KEY,
   dedupeKeyFor,
   readBoard,
   stripUrlEphemera,
@@ -153,6 +154,19 @@ const boardMove = async (
   await writeBoard(ordered);
 
   return ordered;
+};
+
+const itinerarySave = async (pinIds: string[], markdown: string): Promise<void> => {
+  if (pinIds.length < 2) {
+    throw new Error('itinerary needs two pins');
+  }
+
+  const record = { v: 1, pinIds: [...pinIds], markdown, plannedAt: Date.now() };
+  await chrome.storage.local.set({ [ITINERARY_STORAGE_KEY]: record });
+};
+
+const itineraryClear = async (): Promise<void> => {
+  await chrome.storage.local.remove(ITINERARY_STORAGE_KEY);
 };
 
 const spendRecord = async (amountUsd: number, at: number): Promise<number> => {
@@ -439,6 +453,17 @@ const execute = async (command: StorageCommand): Promise<CommandResult> => {
 
     case 'board.clear':
       await chrome.storage.local.remove(BOARD_STORAGE_KEY);
+      await itineraryClear();
+
+      return { ok: true, value: undefined };
+
+    case 'itinerary.save':
+      await itinerarySave(command.pinIds, command.markdown);
+
+      return { ok: true, value: undefined };
+
+    case 'itinerary.clear':
+      await itineraryClear();
 
       return { ok: true, value: undefined };
 

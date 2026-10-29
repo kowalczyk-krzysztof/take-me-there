@@ -2,14 +2,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   BOARD_CAP,
   BOARD_STORAGE_KEY,
+  ITINERARY_STORAGE_KEY,
   THUMB_MAX_BYTES,
   clearBoard,
   dedupeKeyFor,
+  itineraryStatus,
   listPins,
+  loadItinerary,
   makeThumbnail,
   movePin,
+  pinIdentity,
   pinPlace,
   removePin,
+  saveItinerary,
   stripUrlEphemera,
   type BoardPin,
 } from './board_store';
@@ -200,6 +205,52 @@ describe('board_store', () => {
       'Oia',
       'Fira',
     ]);
+  });
+
+  it('persists itineraries against ordered pin identity', async () => {
+    await pinPlace({ ...PIN(), addedAt: 1 });
+    await pinPlace({ ...PIN({ place: PLACE({ placeName: 'Fira' }) }), addedAt: 2 });
+
+    expect(await loadItinerary()).toBeNull();
+
+    const pins = await listPins();
+    await saveItinerary(await pinIdentity(pins), '## Day 1');
+
+    const stored = await loadItinerary();
+    expect(stored?.markdown).toBe('## Day 1');
+    expect(stored?.pinIds).toHaveLength(2);
+    expect(await itineraryStatus(pins, stored)).toBe('fresh');
+    expect(await itineraryStatus(pins, null)).toBe('none');
+
+    await movePin('Oia', 'Greece', 'down');
+    expect(await itineraryStatus(await listPins(), stored)).toBe('stale');
+
+    await removePin('Fira', 'Greece');
+    expect(await itineraryStatus(await listPins(), stored)).toBe('stale');
+  });
+
+  it('rejects itineraries for fewer than two pins', async () => {
+    await expect(saveItinerary(['only'], '## Day 1')).rejects.toThrow('two pins');
+    expect(await loadItinerary()).toBeNull();
+  });
+
+  it('ignores unrecognized itinerary records without erasing them', async () => {
+    await mock.local.set({ [ITINERARY_STORAGE_KEY]: { v: 99, pins: [] } });
+    expect(await loadItinerary()).toBeNull();
+    expect(mock.local.data.get(ITINERARY_STORAGE_KEY)).toEqual({ v: 99, pins: [] });
+
+    await mock.local.set({ [ITINERARY_STORAGE_KEY]: { v: 1, pinIds: 'nope', markdown: 'x' } });
+    expect(await loadItinerary()).toBeNull();
+  });
+
+  it('drops the itinerary when the board is cleared', async () => {
+    await pinPlace({ ...PIN(), addedAt: 1 });
+    await pinPlace({ ...PIN({ place: PLACE({ placeName: 'Fira' }) }), addedAt: 2 });
+    await saveItinerary(await pinIdentity(await listPins()), '## Day 1');
+    expect(await loadItinerary()).not.toBeNull();
+
+    await clearBoard();
+    expect(await loadItinerary()).toBeNull();
   });
 
   it('throws on storage rejection so the panel can offer the retry', async () => {

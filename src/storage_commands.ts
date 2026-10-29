@@ -36,6 +36,11 @@ const boardMoveSchema = z.strictObject({
   direction: z.enum(['up', 'down']),
 });
 
+const itinerarySaveSchema = z.strictObject({
+  pinIds: z.array(z.string().check(z.maxLength(128))),
+  markdown: z.string().check(z.maxLength(300000)),
+});
+
 const spendRecordSchema = z.strictObject({
   amountUsd: z.number(),
   at: z.number(),
@@ -94,6 +99,8 @@ export type StorageCommand =
   | { kind: 'board.remove'; placeName: string; country: string }
   | { kind: 'board.move'; placeName: string; country: string; direction: 'up' | 'down' }
   | { kind: 'board.clear' }
+  | { kind: 'itinerary.save'; pinIds: string[]; markdown: string }
+  | { kind: 'itinerary.clear' }
   | { kind: 'spend.record'; amountUsd: number; at: number }
   | { kind: 'spend.reset'; at: number }
   | { kind: 'cache.get'; hash: string }
@@ -125,6 +132,8 @@ export const COMMAND_SCHEMAS: Record<CommandKind, PayloadSchema> = {
   'board.remove': placeRefSchema,
   'board.move': boardMoveSchema,
   'board.clear': emptySchema,
+  'itinerary.save': itinerarySaveSchema,
+  'itinerary.clear': emptySchema,
   'spend.record': spendRecordSchema,
   'spend.reset': spendResetSchema,
   'cache.get': cacheKeySchema,

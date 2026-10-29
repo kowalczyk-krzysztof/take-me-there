@@ -1544,5 +1544,9 @@
   "boardDownloadFail": {
     "message": "Could not download the trip.",
     "description": "Download failure notice."
+  },
+  "boardPlanStale": {
+    "message": "Saved plan is outdated - plan again.",
+    "description": "Stale itinerary note on the board."
   }
 }

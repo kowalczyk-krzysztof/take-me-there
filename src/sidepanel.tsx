@@ -45,11 +45,15 @@ import {
   BOARD_STORAGE_KEY,
   clearBoard,
   dedupeKeyFor,
+  itineraryStatus,
   listPins,
+  loadItinerary,
   makeThumbnail,
   pinPlace,
   movePin,
+  pinIdentity,
   removePin,
+  saveItinerary,
   type BoardPin,
 } from './board_store';
 import { buildDestination, buildLinks, mapsDirUrl } from './deep_links';
@@ -262,6 +266,7 @@ interface PanelState {
   duel: DuelTableState | null;
   boardItems: BoardItemView[];
   boardCanPlan: boolean;
+  boardPlanStale: boolean;
   boardNotice: { text: string | null; retryLabel: string | null };
   privacy: string;
   cost: string;
@@ -310,6 +315,7 @@ const store = createStore<PanelState>({
   duel: null,
   boardItems: [],
   boardCanPlan: false,
+  boardPlanStale: false,
   boardNotice: { text: null, retryLabel: null },
   privacy: '',
   cost: '',
@@ -1441,6 +1447,7 @@ interface GuideArgs {
   origin: 'gesture' | 'panel';
   prompt?: string;
   completeKey?: string;
+  onCompleteText?: (text: string) => void;
 }
 
 const showGuideSkeleton = (content: HTMLElement): void => {
@@ -1580,6 +1587,7 @@ const runGuide = async (args: GuideArgs): Promise<RunOutcome> => {
   const finalText = start >= 0 ? guideSource.slice(start) : guideSource;
   finishGuideProgress(renderer, progress, guideSource);
   guideSource = finalText;
+  args.onCompleteText?.(guideSource);
   store.set({ guideBusy: false, searching: false, resultBusy: false });
   if (run.guideKey && run.place) {
     await setCacheEntry(run.guideKey, {
@@ -3368,8 +3376,18 @@ const boardItemViews = (pins: BoardPin[]): BoardItemView[] =>
 
 const renderBoard = async (): Promise<BoardPin[]> => {
   const pins = await listPins();
-  store.set({ boardItems: boardItemViews(pins), boardCanPlan: pins.length >= 2 });
+  await syncBoardPlan(pins);
   return pins;
+};
+
+const syncBoardPlan = async (pins: BoardPin[]): Promise<void> => {
+  const stored = await loadItinerary();
+  const status = await itineraryStatus(pins, stored);
+  store.set({
+    boardItems: boardItemViews(pins),
+    boardCanPlan: pins.length >= 2,
+    boardPlanStale: status === 'stale',
+  });
 };
 
 const syncPinButton = async (): Promise<void> => {
@@ -3420,10 +3438,7 @@ const attemptPin = async (pin: Omit<BoardPin, 'addedAt'>, withoutThumb = false):
     announceAlert('boardNoticeFull');
     return;
   }
-  store.set({
-    boardItems: boardItemViews(outcome.pins),
-    boardCanPlan: outcome.pins.length >= 2,
-  });
+  await syncBoardPlan(outcome.pins);
   await syncPinButton();
   announceStatus('statusPinned', [pin.place.placeName, String(outcome.pins.length)]);
 };
@@ -3463,9 +3478,8 @@ const onRemovePin = async (detail: TripRemovePinDetail): Promise<void> => {
   }
   failedRemove = null;
   removedPin = out.removed;
+  await syncBoardPlan(out.pins);
   store.set({
-    boardItems: boardItemViews(out.pins),
-    boardCanPlan: out.pins.length >= 2,
     boardNotice:
       out.removed === null
         ? { text: null, retryLabel: null }
@@ -3513,11 +3527,8 @@ const undoRemove = async (): Promise<void> => {
     announceAlert('boardUndoFull');
     return;
   }
-  store.set({
-    boardItems: boardItemViews(outcome.pins),
-    boardCanPlan: outcome.pins.length >= 2,
-    boardNotice: { text: null, retryLabel: null },
-  });
+  await syncBoardPlan(outcome.pins);
+  store.set({ boardNotice: { text: null, retryLabel: null } });
   await syncPinButton();
   await refreshScanPins();
   announceStatus('boardRestored', pin.place.placeName);
@@ -3537,7 +3548,7 @@ const onMovePin = async (detail: TripMovePinDetail): Promise<void> => {
     announceAlert('boardNoticeMoveFail', detail.placeName);
     return;
   }
-  store.set({ boardItems: boardItemViews(pins), boardCanPlan: pins.length >= 2 });
+  await syncBoardPlan(pins);
 };
 
 const exportMarkdown = async (): Promise<string | null> => {
@@ -3547,7 +3558,13 @@ const exportMarkdown = async (): Promise<string | null> => {
     return null;
   }
 
-  return formatTripMarkdown({ pins });
+  const stored = await loadItinerary();
+  const status = await itineraryStatus(pins, stored);
+
+  return formatTripMarkdown({
+    pins,
+    ...(stored ? { itinerary: stored.markdown, itineraryStale: status === 'stale' } : {}),
+  });
 };
 
 const onCopyTrip = async (): Promise<void> => {
@@ -3615,7 +3632,8 @@ const onClearConfirm = async (): Promise<void> => {
     return;
   }
   removedPin = null;
-  store.set({ boardItems: [], boardCanPlan: false, boardNotice: { text: null, retryLabel: null } });
+  store.set({ boardNotice: { text: null, retryLabel: null } });
+  await syncBoardPlan([]);
   await syncPinButton();
   await refreshScanPins();
   focusSelector('#board-heading button');
@@ -3707,7 +3725,7 @@ const planTrip = async (): Promise<void> => {
 
   if (pins.length < 2) {
     // The Plan button guards this, but the board may have changed underneath.
-    store.set({ boardItems: boardItemViews(pins), boardCanPlan: false });
+    await syncBoardPlan(pins);
     return;
   }
   selectTab('main');
@@ -3774,13 +3792,24 @@ const planTrip = async (): Promise<void> => {
   updatePrivacy('board');
   focusResultHeading();
   run.destination = result.plan.stops.join(', ');
-  await runGuide({
+  let narration = '';
+  const outcome = await runGuide({
     run,
     privacy: 'board',
     origin: 'panel',
     prompt: narrationPrompt(pins, result.plan),
     completeKey: 'statusItineraryReady',
+    onCompleteText: (text) => {
+      narration = text;
+    },
   });
+
+  if (outcome === 'result' && narration.trim()) {
+    // Only completed narrations persist: failures, partials, and
+    // superseded runs leave the previous plan untouched.
+    await saveItinerary(await pinIdentity(pins), narration);
+    await syncBoardPlan(await listPins());
+  }
 };
 
 const resumePending = async (): Promise<void> => {
@@ -4210,6 +4239,7 @@ const SidepanelApp = () => {
           <TripBoard
             items={state.boardItems}
             canPlan={state.boardCanPlan}
+            planStale={state.boardPlanStale}
             notice={state.boardNotice}
             onRemovePin={(detail) => void onRemovePin(detail)}
             onMovePin={(detail) => void onMovePin(detail)}

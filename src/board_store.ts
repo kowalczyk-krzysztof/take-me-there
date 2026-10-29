@@ -13,6 +13,14 @@ export const BOARD_STORAGE_KEY = 'tripBoard';
 
 export const BOARD_CAP = 24;
 
+export const ITINERARY_STORAGE_KEY = 'tripItinerary';
+
+export interface StoredItinerary {
+  pinIds: string[];
+  markdown: string;
+  plannedAt: number;
+}
+
 const BOARD_VERSION = 1;
 
 interface BoardRecord {
@@ -165,6 +173,63 @@ export const movePin = async (
 
 export const clearBoard = async (): Promise<void> => {
   await sendCommand<void>({ kind: 'board.clear' });
+};
+
+export const saveItinerary = async (pinIds: string[], markdown: string): Promise<void> => {
+  await sendCommand<void>({ kind: 'itinerary.save', pinIds, markdown });
+};
+
+export const loadItinerary = async (): Promise<StoredItinerary | null> => {
+  let record: unknown;
+
+  try {
+    const stored = (await chrome.storage.local.get(ITINERARY_STORAGE_KEY)) as Record<
+      string,
+      unknown
+    >;
+    record = stored[ITINERARY_STORAGE_KEY];
+  } catch {
+    return null;
+  }
+
+  if (typeof record !== 'object' || record === null) {
+    return null;
+  }
+
+  const { v, pinIds, markdown, plannedAt } = record as Record<string, unknown>;
+
+  if (
+    v !== 1 ||
+    !Array.isArray(pinIds) ||
+    !pinIds.every((id): id is string => typeof id === 'string') ||
+    typeof markdown !== 'string' ||
+    typeof plannedAt !== 'number'
+  ) {
+    return null;
+  }
+
+  return { pinIds, markdown, plannedAt };
+};
+
+export type ItineraryStatus = 'fresh' | 'stale' | 'none';
+
+export const pinIdentity = async (pins: BoardPin[]): Promise<string[]> =>
+  Promise.all(pins.map((pin) => dedupeKeyFor(pin.place.placeName, pin.place.country)));
+
+export const itineraryStatus = async (
+  pins: BoardPin[],
+  stored: StoredItinerary | null
+): Promise<ItineraryStatus> => {
+  if (!stored) {
+    return 'none';
+  }
+
+  const current = await pinIdentity(pins);
+
+  return current.length === stored.pinIds.length &&
+    current.every((id, index) => id === stored.pinIds[index])
+    ? 'fresh'
+    : 'stale';
 };
 
 const decodeImage = (dataUrl: string): Promise<HTMLImageElement> =>

@@ -1628,6 +1628,121 @@ describe('sidepanel', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('persists the narration and marks it stale after a reorder', async () => {
+    await setup();
+    await plantKeyAndConsent();
+
+    const { loadItinerary, pinPlace } = await cover(import('./board_store'));
+    await cover(pinPlace({ place: { ...VALID_PLACE }, sourceHost: 'example.com' }));
+    await cover(
+      pinPlace({
+        place: { ...VALID_PLACE, placeName: 'Fira', city: 'Fira' },
+        sourceHost: 'example.com',
+      })
+    );
+
+    const VALID_PLAN = {
+      stops: ['Oia, Greece', 'Fira, Greece'],
+      days: [
+        {
+          dayTitle: 'Caldera day',
+          stopNames: ['Oia, Greece', 'Fira, Greece'],
+          summary: 'Walk the caldera path.',
+        },
+      ],
+      nightsEach: [
+        { stop: 'Oia, Greece', nights: 2 },
+        { stop: 'Fira, Greece', nights: 1 },
+      ],
+    };
+    fetchMock
+      .mockResolvedValueOnce(chatResponse(VALID_PLAN))
+      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
+
+    const board = document.querySelector('#board-slot') as HTMLElement;
+    clickEl(board.querySelector('.plan-button') as HTMLButtonElement);
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('statusItineraryReady');
+    });
+
+    const stored = await cover(loadItinerary());
+    expect(stored?.markdown).toContain('Hello world');
+    expect(stored?.pinIds).toHaveLength(2);
+
+    const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined);
+
+    clickEl(board.querySelector('.copy-trip-button') as HTMLButtonElement);
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('boardCopied');
+    });
+
+    const fresh = writeText.mock.calls[0][0] as string;
+    expect(fresh).toContain('## Itinerary (AI-generated)');
+    expect(fresh).toContain('Hello world');
+    expect(fresh).not.toContain('outdated');
+
+    const rows = board.querySelectorAll('li');
+    clickEl(rows[0].querySelector('.move-down-button') as HTMLButtonElement);
+    await waitFor(() => {
+      expect(board.querySelector('.plan-note')?.textContent).toBe('boardPlanStale');
+    });
+
+    clickEl(board.querySelector('.copy-trip-button') as HTMLButtonElement);
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledTimes(2);
+    });
+
+    const stale = writeText.mock.calls[1][0] as string;
+    expect(stale).toContain('outdated - the board changed since');
+  });
+
+  it('keeps the previous plan when a replan fails', async () => {
+    await setup();
+    await plantKeyAndConsent();
+
+    const { loadItinerary, pinPlace } = await cover(import('./board_store'));
+    await cover(pinPlace({ place: { ...VALID_PLACE }, sourceHost: 'example.com' }));
+    await cover(
+      pinPlace({
+        place: { ...VALID_PLACE, placeName: 'Fira', city: 'Fira' },
+        sourceHost: 'example.com',
+      })
+    );
+
+    const VALID_PLAN = {
+      stops: ['Oia, Greece', 'Fira, Greece'],
+      days: [],
+      nightsEach: [
+        { stop: 'Oia, Greece', nights: 2 },
+        { stop: 'Fira, Greece', nights: 1 },
+      ],
+    };
+    fetchMock
+      .mockResolvedValueOnce(chatResponse(VALID_PLAN))
+      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
+
+    const board = document.querySelector('#board-slot') as HTMLElement;
+    clickEl(board.querySelector('.plan-button') as HTMLButtonElement);
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('statusItineraryReady');
+    });
+
+    const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined);
+
+    fetchMock.mockRejectedValueOnce(new Error('boom'));
+    clickEl(board.querySelector('.plan-button') as HTMLButtonElement);
+    await waitForHeading('errorNetworkTitle');
+
+    const stored = await cover(loadItinerary());
+    expect(stored?.markdown).toContain('Hello world');
+
+    clickEl(board.querySelector('.copy-trip-button') as HTMLButtonElement);
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('boardCopied');
+    });
+    expect(writeText.mock.calls[0][0] as string).toContain('Hello world');
+  });
+
   it('labels the board retry for failed removals', async () => {
     const mock = await setup();
     await plantKeyAndConsent();

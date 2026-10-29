@@ -41,12 +41,14 @@ export interface TripBoardCallbacks {
 interface Props extends TripBoardCallbacks {
   items: BoardItemView[];
   canPlan: boolean;
+  planStale: boolean;
   notice: BoardNoticeView;
 }
 
 export const TripBoard = ({
   items,
   canPlan,
+  planStale,
   notice,
   onRemovePin,
   onMovePin,
@@ -166,6 +168,9 @@ export const TripBoard = ({
                   {msg('boardPlan')}
                 </button>
                 {!canPlan ? <p className={styles['plan-note']}>{msg('boardPlanNote')}</p> : null}
+                {canPlan && planStale ? (
+                  <p className={styles['plan-note']}>{msg('boardPlanStale')}</p>
+                ) : null}
               </div>
               {items.length > 0 ? (
                 <div className={styles['export-row']}>

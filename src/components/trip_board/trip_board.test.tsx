@@ -36,6 +36,7 @@ const NOTICE_OFF: BoardNoticeView = { text: null, retryLabel: null };
 const renderBoard = (
   items: BoardItemView[],
   canPlan: boolean,
+  planStale = false,
   callbacks: {
     onRemovePin?: (detail: TripRemovePinDetail) => void;
     onMovePin?: (detail: TripMovePinDetail) => void;
@@ -51,6 +52,7 @@ const renderBoard = (
     <TripBoard
       items={items}
       canPlan={canPlan}
+      planStale={planStale}
       notice={notice}
       onRemovePin={callbacks.onRemovePin ?? (() => {})}
       onMovePin={callbacks.onMovePin ?? (() => {})}
@@ -76,7 +78,7 @@ describe('trip-board', () => {
   it('renders the labeled collapsible list with remove buttons', () => {
     const onRemovePin = vi.fn();
 
-    const root = renderBoard(ITEMS, true, { onRemovePin }).container;
+    const root = renderBoard(ITEMS, true, false, { onRemovePin }).container;
 
     const toggle = root.querySelector('.disclosure') as HTMLButtonElement;
     expect(toggle.getAttribute('aria-expanded')).toBe('true');
@@ -118,7 +120,7 @@ describe('trip-board', () => {
   it('disables planning with an adjacent explanation under two pins', () => {
     const onPlan = vi.fn();
 
-    const rendered = renderBoard([ITEMS[0]!], false, { onPlan });
+    const rendered = renderBoard([ITEMS[0]!], false, false, { onPlan });
 
     const root = rendered.container;
 
@@ -131,6 +133,7 @@ describe('trip-board', () => {
       <TripBoard
         items={ITEMS}
         canPlan={true}
+        planStale={false}
         notice={NOTICE_OFF}
         onRemovePin={() => {}}
         onMovePin={() => {}}
@@ -152,7 +155,7 @@ describe('trip-board', () => {
   it('confirms clearing inline with focus on the heading', () => {
     const onClearConfirm = vi.fn();
 
-    const root = renderBoard(ITEMS, true, { onClearConfirm }).container;
+    const root = renderBoard(ITEMS, true, false, { onClearConfirm }).container;
     clickEl(root.querySelector('.clear-button') as HTMLButtonElement);
 
     const heading = root.querySelector('.confirm-heading') as HTMLHeadingElement;
@@ -175,11 +178,12 @@ describe('trip-board', () => {
   it('shows the pin-failure notice with a retry action', () => {
     const onRetryPin = vi.fn();
 
-    const rendered = renderBoard(ITEMS, true, { onRetryPin });
+    const rendered = renderBoard(ITEMS, true, false, { onRetryPin });
     rendered.rerender(
       <TripBoard
         items={ITEMS}
         canPlan={true}
+        planStale={false}
         notice={{ text: 'boardNoticePinFail', retryLabel: 'boardRetryNoThumb' }}
         onRemovePin={() => {}}
         onMovePin={() => {}}
@@ -201,6 +205,7 @@ describe('trip-board', () => {
       <TripBoard
         items={ITEMS}
         canPlan={true}
+        planStale={false}
         notice={{ text: 'boardNoticeRemoveFail', retryLabel: 'boardRetryRemove' }}
         onRemovePin={() => {}}
         onMovePin={() => {}}
@@ -216,6 +221,7 @@ describe('trip-board', () => {
       <TripBoard
         items={ITEMS}
         canPlan={true}
+        planStale={false}
         notice={NOTICE_OFF}
         onRemovePin={() => {}}
         onMovePin={() => {}}
@@ -232,7 +238,7 @@ describe('trip-board', () => {
   it('moves pins with boundary-aware buttons', () => {
     const onMovePin = vi.fn();
 
-    const root = renderBoard(ITEMS, true, { onMovePin }).container;
+    const root = renderBoard(ITEMS, true, false, { onMovePin }).container;
 
     const entries = [...root.querySelectorAll('li')];
     expect(entries).toHaveLength(2);
@@ -269,7 +275,7 @@ describe('trip-board', () => {
 
     const onDownloadTrip = vi.fn();
 
-    const root = renderBoard(ITEMS, true, { onCopyTrip, onDownloadTrip }).container;
+    const root = renderBoard(ITEMS, true, false, { onCopyTrip, onDownloadTrip }).container;
 
     const copy = root.querySelector('.copy-trip-button') as HTMLButtonElement;
     expect(copy.textContent).toBe('boardCopy');
@@ -286,6 +292,16 @@ describe('trip-board', () => {
     expect(empty.querySelector('.download-trip-button')).toBeNull();
   });
 
+  it('marks a saved plan outdated beside an enabled plan button', () => {
+    const root = renderBoard(ITEMS, true, true).container;
+
+    const notes = [...root.querySelectorAll('.plan-note')].map((el) => el.textContent);
+    expect(notes).toEqual(['boardPlanStale']);
+
+    const fresh = renderBoard(ITEMS, true, false).container;
+    expect(fresh.querySelector('.plan-note')).toBeNull();
+  });
+
   it('repairs focus to the disclosure when a re-render removes it', () => {
     const rendered = renderBoard(ITEMS, true);
 
@@ -297,6 +313,7 @@ describe('trip-board', () => {
       <TripBoard
         items={[ITEMS[1]!]}
         canPlan={false}
+        planStale={false}
         notice={NOTICE_OFF}
         onRemovePin={() => {}}
         onMovePin={() => {}}
