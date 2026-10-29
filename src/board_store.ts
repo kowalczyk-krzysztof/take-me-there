@@ -122,8 +122,9 @@ export const writeBoard = async (pins: BoardPin[]): Promise<void> => {
 };
 
 export type PinOutcome =
-  | { status: 'pinned'; pins: BoardPin[]; evicted: BoardPin | null }
-  | { status: 'duplicate'; pins: BoardPin[] };
+  | { status: 'pinned'; pins: BoardPin[] }
+  | { status: 'duplicate'; pins: BoardPin[] }
+  | { status: 'full'; pins: BoardPin[] };
 
 export const stripUrlEphemera = (url: string): string => {
   if (url.startsWith('data:')) {
@@ -145,8 +146,15 @@ export const pinPlace = async (
   pin: Omit<BoardPin, 'addedAt'> & { addedAt?: number }
 ): Promise<PinOutcome> => sendCommand<PinOutcome>({ kind: 'board.add', pin });
 
-export const removePin = async (placeName: string, country: string): Promise<BoardPin[]> =>
-  sendCommand<BoardPin[]>({ kind: 'board.remove', placeName, country });
+export const removePin = async (
+  placeName: string,
+  country: string
+): Promise<{ pins: BoardPin[]; removed: BoardPin | null }> =>
+  sendCommand<{ pins: BoardPin[]; removed: BoardPin | null }>({
+    kind: 'board.remove',
+    placeName,
+    country,
+  });
 
 export const clearBoard = async (): Promise<void> => {
   await sendCommand<void>({ kind: 'board.clear' });

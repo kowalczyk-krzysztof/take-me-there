@@ -1055,20 +1055,6 @@
       }
     }
   },
-  "statusPinnedEvicted": {
-    "message": "Saved $1 - board full, removed $2",
-    "description": "Status announcement for a pin with eviction.",
-    "placeholders": {
-      "place": {
-        "content": "$1",
-        "example": "Oia"
-      },
-      "oldest": {
-        "content": "$2",
-        "example": "Fira"
-      }
-    }
-  },
   "statusPinDuplicate": {
     "message": "$1 is already on the board",
     "description": "Status announcement for a dedupe hit.",
@@ -1472,5 +1458,37 @@
   "panelScanHint": {
     "message": "Tip: right-click any page and choose “Scan page for places” to find every place pictured on it.",
     "description": "Idle hint exposing page scan."
+  },
+  "boardNoticeFull": {
+    "message": "The board is full (24 places) - remove one to save another.",
+    "description": "Capacity rejection notice."
+  },
+  "boardRemoved": {
+    "message": "Removed $1.",
+    "description": "Pin removal notice.",
+    "placeholders": {
+      "name": {
+        "content": "$1",
+        "example": "Oia"
+      }
+    }
+  },
+  "boardUndo": {
+    "message": "Undo",
+    "description": "Removal undo button."
+  },
+  "boardRestored": {
+    "message": "Restored $1.",
+    "description": "Undo confirmation notice.",
+    "placeholders": {
+      "name": {
+        "content": "$1",
+        "example": "Oia"
+      }
+    }
+  },
+  "boardUndoFull": {
+    "message": "The board filled up - remove a pin to undo.",
+    "description": "Undo blocked by a full board."
   }
 }

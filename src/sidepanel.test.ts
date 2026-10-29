@@ -1406,6 +1406,113 @@ describe('sidepanel', () => {
     ).toBe('false');
   });
 
+  it('restores a removed pin through undo', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
+    await waitForHeading('Oia');
+    clickEl(document.querySelector('#result-slot .pin-button') as HTMLButtonElement);
+    await waitFor(() => {
+      expect(document.querySelector('#board-slot li')).not.toBeNull();
+    });
+
+    const board = document.querySelector('#board-slot') as HTMLElement;
+
+    clickEl(board.querySelector('li button') as HTMLButtonElement);
+    await waitFor(() => {
+      expect(board.querySelectorAll('li')).toHaveLength(0);
+    });
+    await waitFor(() => {
+      expect(board.querySelector('.notice span')?.textContent).toBe('boardRemoved(Oia)');
+    });
+
+    const undo = board.querySelector('.notice button') as HTMLButtonElement;
+    expect(undo.textContent).toBe('boardUndo');
+    clickEl(undo);
+    await waitFor(() => {
+      expect(board.querySelectorAll('li')).toHaveLength(1);
+    });
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('boardRestored(Oia)');
+    });
+    expect(board.querySelector('.notice')?.hasAttribute('hidden')).toBe(true);
+  });
+
+  it('treats an undo after a re-pin as already restored', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
+    await waitForHeading('Oia');
+    clickEl(document.querySelector('#result-slot .pin-button') as HTMLButtonElement);
+    await waitFor(() => {
+      expect(document.querySelector('#board-slot li')).not.toBeNull();
+    });
+
+    const board = document.querySelector('#board-slot') as HTMLElement;
+
+    clickEl(board.querySelector('li button') as HTMLButtonElement);
+    await waitFor(() => {
+      expect(board.querySelector('.notice span')?.textContent).toBe('boardRemoved(Oia)');
+    });
+
+    const { pinPlace } = await cover(import('./board_store'));
+    const again = await cover(pinPlace({ place: { ...VALID_PLACE }, sourceHost: 'example.com' }));
+    expect(again.status).toBe('pinned');
+
+    clickEl(board.querySelector('.notice button') as HTMLButtonElement);
+    await waitFor(() => {
+      expect(board.querySelectorAll('li')).toHaveLength(1);
+    });
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('boardRestored(Oia)');
+    });
+    expect(board.querySelector('.notice')?.hasAttribute('hidden')).toBe(true);
+  });
+
+  it('blocks undo on a full board without evicting', async () => {
+    await setup();
+    await plantKeyAndConsent();
+
+    const { pinPlace } = await cover(import('./board_store'));
+
+    for (let i = 0; i < 24; i++) {
+      const out = await cover(
+        pinPlace({
+          place: { ...VALID_PLACE, placeName: `Place ${i}` },
+          sourceHost: 'example.com',
+        })
+      );
+      expect(out.status).toBe('pinned');
+    }
+    await waitFor(() => {
+      expect(document.querySelectorAll('#board-slot li')).toHaveLength(24);
+    });
+
+    const board = document.querySelector('#board-slot') as HTMLElement;
+
+    clickEl(board.querySelector('li button') as HTMLButtonElement);
+    await waitFor(() => {
+      expect(board.querySelectorAll('li')).toHaveLength(23);
+    });
+
+    const filled = await cover(
+      pinPlace({ place: { ...VALID_PLACE, placeName: 'Newest' }, sourceHost: 'example.com' })
+    );
+    expect(filled.status).toBe('pinned');
+
+    clickEl(board.querySelector('.notice button') as HTMLButtonElement);
+    await waitFor(() => {
+      expect(board.querySelector('.notice span')?.textContent).toBe('boardUndoFull');
+    });
+    await waitFor(() => {
+      expect(board.querySelectorAll('li')).toHaveLength(24);
+    });
+    expect(board.textContent).not.toContain('Place 0');
+    expect(board.textContent).toContain('Newest');
+  });
+
   it('labels the board retry for failed removals', async () => {
     const mock = await setup();
     await plantKeyAndConsent();

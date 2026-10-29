@@ -134,7 +134,7 @@ describe('board_store', () => {
     expect(out.status).toBe('pinned');
   });
 
-  it('evicts the oldest pin at the cap', async () => {
+  it('rejects the 25th pin without touching the 24 kept', async () => {
     for (let i = 0; i < BOARD_CAP; i++) {
       await pinPlace({
         ...PIN({ place: PLACE({ placeName: `Place ${i}` }) }),
@@ -146,25 +146,24 @@ describe('board_store', () => {
       ...PIN({ place: PLACE({ placeName: 'Newest' }) }),
       addedAt: BOARD_CAP,
     });
-    expect(out.status).toBe('pinned');
-
-    if (out.status !== 'pinned') {
-      throw new Error('unreachable');
-    }
-    expect(out.evicted?.place.placeName).toBe('Place 0');
+    expect(out.status).toBe('full');
 
     const pins = await listPins();
     expect(pins).toHaveLength(BOARD_CAP);
-    expect(pins.map((pin) => pin.place.placeName)).not.toContain('Place 0');
+    expect(pins.map((pin) => pin.place.placeName)).toContain('Place 0');
+    expect(pins.map((pin) => pin.place.placeName)).not.toContain('Newest');
   });
 
   it('removes by tuple and clears everything', async () => {
     await pinPlace(PIN());
     await pinPlace(PIN({ place: PLACE({ placeName: 'Fira' }) }));
 
-    const remaining = await removePin('Oia', 'Greece');
-    expect(remaining.map((pin) => pin.place.placeName)).toEqual(['Fira']);
-    expect(await removePin('Nowhere', 'Atlantis')).toHaveLength(1);
+    const out = await removePin('Oia', 'Greece');
+    expect(out.removed?.place.placeName).toBe('Oia');
+    expect(out.pins.map((pin) => pin.place.placeName)).toEqual(['Fira']);
+    const missing = await removePin('Nowhere', 'Atlantis');
+    expect(missing.removed).toBeNull();
+    expect(missing.pins).toHaveLength(1);
     await clearBoard();
     expect(await listPins()).toEqual([]);
   });

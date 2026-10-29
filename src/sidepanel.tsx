@@ -38,6 +38,7 @@ import {
 } from './settings_ops';
 import { prefersReducedMotion } from './utils/dom';
 import {
+  BOARD_STORAGE_KEY,
   clearBoard,
   dedupeKeyFor,
   listPins,
@@ -184,6 +185,8 @@ let alternatesController: AbortController | null = null;
 let failedPin: Omit<BoardPin, 'addedAt'> | null = null;
 
 let failedRemove: TripRemovePinDetail | null = null;
+
+let removedPin: BoardPin | null = null;
 
 interface PreviewOverlay {
   left: number;
@@ -370,6 +373,12 @@ const refreshLock = async (): Promise<void> => {
 const onLockAreaChanged = (changes: Record<string, unknown>): void => {
   if (Object.keys(changes).some((key) => isVaultKey(key) || key === SETTINGS_STORAGE_KEY)) {
     void refreshLock();
+  }
+};
+
+const onBoardAreaChanged = (changes: Record<string, unknown>): void => {
+  if (BOARD_STORAGE_KEY in changes) {
+    void renderBoard();
   }
 };
 
@@ -3389,10 +3398,18 @@ const attemptPin = async (pin: Omit<BoardPin, 'addedAt'>, withoutThumb = false):
     return;
   }
   failedPin = null;
+  removedPin = null;
   store.set({ boardNotice: { text: null, retryLabel: null } });
   if (outcome.status === 'duplicate') {
     await syncPinButton();
     announceStatus('statusPinDuplicate', pin.place.placeName);
+    return;
+  }
+  if (outcome.status === 'full') {
+    store.set({
+      boardNotice: { text: msg('boardNoticeFull'), retryLabel: null },
+    });
+    announceAlert('boardNoticeFull');
     return;
   }
   store.set({
@@ -3400,11 +3417,7 @@ const attemptPin = async (pin: Omit<BoardPin, 'addedAt'>, withoutThumb = false):
     boardCanPlan: outcome.pins.length >= 2,
   });
   await syncPinButton();
-  if (outcome.evicted) {
-    announceStatus('statusPinnedEvicted', [pin.place.placeName, outcome.evicted.place.placeName]);
-  } else {
-    announceStatus('statusPinned', [pin.place.placeName, String(outcome.pins.length)]);
-  }
+  announceStatus('statusPinned', [pin.place.placeName, String(outcome.pins.length)]);
 };
 
 const onPinToggle = async (): Promise<void> => {
@@ -3426,9 +3439,9 @@ const onPinToggle = async (): Promise<void> => {
 };
 
 const onRemovePin = async (detail: TripRemovePinDetail): Promise<void> => {
-  let pins: BoardPin[];
+  let out: { pins: BoardPin[]; removed: BoardPin | null };
   try {
-    pins = await removePin(detail.placeName, detail.country);
+    out = await removePin(detail.placeName, detail.country);
   } catch {
     failedRemove = detail;
     store.set({
@@ -3441,9 +3454,65 @@ const onRemovePin = async (detail: TripRemovePinDetail): Promise<void> => {
     return;
   }
   failedRemove = null;
-  store.set({ boardItems: boardItemViews(pins), boardCanPlan: pins.length >= 2 });
+  removedPin = out.removed;
+  store.set({
+    boardItems: boardItemViews(out.pins),
+    boardCanPlan: out.pins.length >= 2,
+    boardNotice:
+      out.removed === null
+        ? { text: null, retryLabel: null }
+        : {
+            text: msg('boardRemoved', detail.placeName),
+            retryLabel: msg('boardUndo'),
+          },
+  });
   await syncPinButton();
   await refreshScanPins();
+  if (out.removed !== null) {
+    announceStatus('boardRemoved', detail.placeName);
+  }
+};
+
+const undoRemove = async (): Promise<void> => {
+  const pin = removedPin;
+  removedPin = null;
+
+  if (!pin) {
+    return;
+  }
+  let outcome;
+  try {
+    outcome = await pinPlace(pin);
+  } catch {
+    failedPin = pin;
+    store.set({
+      boardNotice: {
+        text: msg('boardNoticePinFail', pin.place.placeName),
+        retryLabel: msg('boardRetryNoThumb'),
+      },
+    });
+    announceAlert('alertPinFail', pin.place.placeName);
+    return;
+  }
+  if (outcome.status === 'full') {
+    // Someone filled the board while the undo was pending: keep the
+    // removed pin so undo retries after the user frees a slot, and never
+    // evict another pin to make room.
+    removedPin = pin;
+    store.set({
+      boardNotice: { text: msg('boardUndoFull'), retryLabel: msg('boardUndo') },
+    });
+    announceAlert('boardUndoFull');
+    return;
+  }
+  store.set({
+    boardItems: boardItemViews(outcome.pins),
+    boardCanPlan: outcome.pins.length >= 2,
+    boardNotice: { text: null, retryLabel: null },
+  });
+  await syncPinButton();
+  await refreshScanPins();
+  announceStatus('boardRestored', pin.place.placeName);
 };
 
 const onRetryPin = async (): Promise<void> => {
@@ -3455,6 +3524,8 @@ const onRetryPin = async (): Promise<void> => {
     const target = failedRemove;
     failedRemove = null;
     await onRemovePin(target);
+  } else if (removedPin) {
+    await undoRemove();
   }
 };
 
@@ -3465,7 +3536,8 @@ const onClearConfirm = async (): Promise<void> => {
     announceAlert('alertBoardClearFail');
     return;
   }
-  store.set({ boardItems: [], boardCanPlan: false });
+  removedPin = null;
+  store.set({ boardItems: [], boardCanPlan: false, boardNotice: { text: null, retryLabel: null } });
   await syncPinButton();
   await refreshScanPins();
   focusSelector('#board-heading button');
@@ -4214,6 +4286,7 @@ export const initPanel = (): void => {
   void renderBoard();
   void refreshLock();
   chrome.storage.local.onChanged.addListener(onLockAreaChanged);
+  chrome.storage.local.onChanged.addListener(onBoardAreaChanged);
   chrome.storage.session.onChanged.addListener(onLockAreaChanged);
 
   void refreshPanelSettings();

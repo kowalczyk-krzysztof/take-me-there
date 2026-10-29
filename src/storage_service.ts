@@ -68,6 +68,10 @@ const boardAdd = async (
     return { status: 'duplicate', pins };
   }
 
+  if (pins.length >= BOARD_CAP) {
+    return { status: 'full', pins };
+  }
+
   const entry: BoardPin = {
     ...pin,
     ...(pin.imageUrl ? { imageUrl: stripUrlEphemera(pin.imageUrl) } : {}),
@@ -76,18 +80,15 @@ const boardAdd = async (
 
   const next = [...pins, entry].sort((a, b) => a.addedAt - b.addedAt);
 
-  let evicted: BoardPin | null = null;
-
-  if (next.length > BOARD_CAP) {
-    evicted = next.shift() ?? null;
-  }
-
   await writeBoard(next);
 
-  return { status: 'pinned', pins: next, evicted };
+  return { status: 'pinned', pins: next };
 };
 
-const boardRemove = async (placeName: string, country: string): Promise<BoardPin[]> => {
+const boardRemove = async (
+  placeName: string,
+  country: string
+): Promise<{ pins: BoardPin[]; removed: BoardPin | null }> => {
   const { pins, writable } = await readBoard();
 
   if (!writable) {
@@ -100,13 +101,15 @@ const boardRemove = async (placeName: string, country: string): Promise<BoardPin
     pins.map((entry) => dedupeKeyFor(entry.place.placeName, entry.place.country))
   );
 
+  const removed = pins.find((_, index) => keys[index] === key) ?? null;
+
   const next = pins.filter((_, index) => keys[index] !== key);
 
   if (next.length !== pins.length) {
     await writeBoard(next);
   }
 
-  return next;
+  return { pins: next, removed };
 };
 
 const spendRecord = async (amountUsd: number, at: number): Promise<number> => {
