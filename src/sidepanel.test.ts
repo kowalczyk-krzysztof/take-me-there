@@ -36,6 +36,7 @@ import {
   clickEl,
   cover,
   dispatchEl,
+  drainStragglers,
   focusEl,
   groundedResponse,
   plantKeyAndConsent,
@@ -290,6 +291,9 @@ describe('sidepanel', () => {
     dispatchEl(tabSettings, new KeyboardEvent('keydown', { key: 'Home', bubbles: true }));
     expect(document.activeElement).toBe(tabMain);
     expect(tabMain.getAttribute('aria-selected')).toBe('true');
+    // The End key selected settings and kicked its async refresh; the
+    // tail below it is pure sync, so drain the aftershock here.
+    await drainStragglers();
   });
 
   it('replaces the saved key from settings and returns to main', async () => {

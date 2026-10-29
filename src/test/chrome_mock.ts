@@ -4,7 +4,6 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { act } from 'react';
 
 const catalog = JSON.parse(
   readFileSync(
@@ -120,17 +119,16 @@ export class MockStorageArea {
     // Chrome delivers storage events asynchronously with just the changes
     // on per-area listeners (the area is implicit).
     queueMicrotask(() => {
-      // Storage listeners drive the page stores; delivering inside act()
-      // attributes their synchronous React updates.
-      act(() => {
-        for (const listener of this.listeners) {
-          listener(structuredClone(changes));
-        }
+      // Storage listeners drive the page stores; they run bare so the
+      // surrounding harness scope attributes and flushes them. A nested
+      // act() scope here would clobber the outer async scope's queue.
+      for (const listener of this.listeners) {
+        listener(structuredClone(changes));
+      }
 
-        for (const listener of this.globalListeners) {
-          listener(structuredClone(changes), this.areaName);
-        }
-      });
+      for (const listener of this.globalListeners) {
+        listener(structuredClone(changes), this.areaName);
+      }
     });
   }
 

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -8,28 +9,34 @@ import { handleHandoffMessage } from '../handoff';
 import { handleStorageMessage } from '../storage_service';
 
 export const waitFor = async (fn: () => unknown, timeoutMs = 5000): Promise<void> => {
-  await act(async () => {
-    const start = Date.now();
+  // Sequential short scopes, never one long-held scope: each round opens
+  // a scope, advances fake time, drains the microtask cascade its timers
+  // and listeners schedule, then exits, and exiting flushes renders and
+  // effects so the convergence check below reads fresh DOM. Holding one
+  // scope across the whole poll would queue updates without flushing
+  // (converging only via a nested scope, whose exit clobbers the outer
+  // queue and unattributedly warns afterwards).
+  const start = Date.now();
 
-    for (;;) {
-      try {
-        await fn();
+  for (;;) {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(25);
 
-        // Settle the convergence cascade before returning so the test
-        // resumes (and later ends) with no unattributed updates queued.
-        for (let i = 0; i < 100; i++) {
-          await Promise.resolve();
-        }
+      for (let i = 0; i < 200; i++) {
+        await Promise.resolve();
+      }
+    });
 
-        return;
-      } catch (err) {
-        if (Date.now() - start > timeoutMs) {
-          throw err;
-        }
-        await new Promise((resolve) => setTimeout(resolve, 25));
+    try {
+      await fn();
+
+      return;
+    } catch (err) {
+      if (Date.now() - start > timeoutMs) {
+        throw err;
       }
     }
-  });
+  }
 };
 
 // DOM events drive React through store updates; delivering each event
@@ -61,7 +68,7 @@ export const dispatchEl = (target: Element | null, event: Event): boolean => {
 // scope so straggler updates stay attributed instead of warning.
 export const sleep = async (ms: number): Promise<void> => {
   await act(async () => {
-    await new Promise((resolve) => setTimeout(resolve, ms));
+    await vi.advanceTimersByTimeAsync(ms);
   });
 };
 
@@ -84,16 +91,33 @@ export const settleWrite = async <T>(write: Promise<T>): Promise<T> => {
 };
 
 // Attribution window for cascade-free awaits (reads, imports, hashes):
-// product timers can fire while they yield, and those updates need an
-// open scope as much as write cascades do.
+// parallel product cascades can still complete while they yield, so
+// drain after the work resolves the way settleWrite does.
 export const cover = async <T>(work: Promise<T>): Promise<T> => {
   let result!: T;
 
   await act(async () => {
     result = await work;
+
+    for (let i = 0; i < 200; i++) {
+      await Promise.resolve();
+    }
   });
 
   return result;
+};
+
+// End-of-test drain for sync-tailed tests: DOM events kick
+// fire-and-forget product chains, and a test whose last lines are pure
+// sync events and asserts has no later scope for those aftershocks to
+// land in, so they would complete in the post-return gap unattributed.
+// Await this after the last event instead.
+export const drainStragglers = async (): Promise<void> => {
+  await act(async () => {
+    for (let i = 0; i < 200; i++) {
+      await Promise.resolve();
+    }
+  });
 };
 
 export const readShell = (page: string): string =>
@@ -122,6 +146,30 @@ export const setupPage = async (
   runEntry: () => Promise<unknown>,
   beforeImport?: (mock: ChromeMock) => void | Promise<void>
 ): Promise<ChromeMock> => {
+  // Freeze wall-clock timers (skeleton, settle, stale, SAM dwell):
+  // setImmediate stays real so act() flushes never stall, microtasks
+  // stay real so cascades interleave, and time advances only inside
+  // waitFor/sleep scopes where product timer callbacks are attributed.
+  vi.useFakeTimers({
+    toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'],
+  });
+  // WebCrypto digests run on a real threadpool, which fake time would
+  // otherwise outrun (inverting completion order against timer-paced
+  // flows). Same SHA-256, resolved in microtasks instead.
+  const realDigest = crypto.subtle.digest.bind(crypto.subtle);
+  vi.spyOn(crypto.subtle, 'digest').mockImplementation(async (algorithm, data) => {
+    if (algorithm !== 'SHA-256') {
+      return realDigest(algorithm, data);
+    }
+    const bytes =
+      data instanceof ArrayBuffer
+        ? new Uint8Array(data)
+        : new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+    const hash = createHash('sha256').update(bytes).digest();
+    const out = new ArrayBuffer(hash.byteLength);
+    new Uint8Array(out).set(hash);
+    return out;
+  });
   vi.resetModules();
 
   const mock = installChromeMock();
@@ -137,8 +185,12 @@ export const setupPage = async (
     mountedPage = (await runEntry()) as MountedPage | null;
     // initPanel kicks fire-and-forget chains (lock, board, settings,
     // handoff watch): settle them before returning so no test await
-    // observes their unattributed updates.
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    // observes their unattributed updates. Microtask rounds (no timer
+    // advancement): nothing is due this early, and advancing zero would
+    // not yield.
+    for (let i = 0; i < 100; i++) {
+      await Promise.resolve();
+    }
   });
 
   return mock;
@@ -179,6 +231,10 @@ export const teardownPage = (): void => {
     }
     mountedPage = null;
   });
+  // Thaw timers: pending fake callbacks are discarded with the clock,
+  // so in-flight tails die quietly instead of firing into the next test.
+  vi.useRealTimers();
+  vi.restoreAllMocks();
   document.body.innerHTML = '';
 };
 
@@ -233,5 +289,9 @@ export const plantKeyAndConsent = async (): Promise<void> => {
     const { setConsented } = await import('../providers/index');
     await saveKey('muse', 'LLM_x', false);
     await setConsented();
+
+    for (let i = 0; i < 200; i++) {
+      await Promise.resolve();
+    }
   });
 };
