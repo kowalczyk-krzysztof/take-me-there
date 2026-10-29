@@ -1,3 +1,4 @@
+import { clickEl } from '../../test/helpers';
 import type { ReactNode } from 'react';
 import { flushSync } from 'react-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -71,7 +72,7 @@ describe('error-boundary', () => {
     );
     expect(rendered.container.querySelector('button')).not.toBeNull();
     flushSync(() => {
-      (rendered.container.querySelector('button') as HTMLButtonElement).click();
+      clickEl(rendered.container.querySelector('button') as HTMLButtonElement);
     });
     expect(rendered.container.querySelector('p')?.textContent).toBe('recovered');
   });

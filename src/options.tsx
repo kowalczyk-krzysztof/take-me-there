@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { createRoot } from 'react-dom/client';
+import { createRoot, type Root } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import { KeySetup } from './components/key_setup/key_setup';
 import { ProviderSection } from './components/settings/provider_section';
@@ -459,6 +459,13 @@ const OptionsApp = () => {
 
 let initialized = false;
 
+let optionsRoot: Root | null = null;
+
+export const unmountPage = (): void => {
+  optionsRoot?.unmount();
+  optionsRoot = null;
+};
+
 export const initOptions = (): void => {
   if (initialized) {
     return;
@@ -470,8 +477,10 @@ export const initOptions = (): void => {
   initialized = true;
 
   document.title = msg('appName');
+  optionsRoot = createRoot(host);
+  const root = optionsRoot;
   flushSync(() => {
-    createRoot(host).render(
+    root.render(
       <ErrorBoundary
         fallback={() => (
           <main>

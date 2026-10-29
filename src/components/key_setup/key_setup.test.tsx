@@ -1,5 +1,5 @@
+import { clickEl, dispatchEl, focusEl } from '../../test/helpers';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act } from 'react';
 import { KeySetup, type KeySetupCallbacks } from './key_setup';
 import { installChromeMock, uninstallChromeMock } from '../../test/chrome_mock';
 import { renderSync, type Rendered } from '../../test/render_sync';
@@ -92,9 +92,7 @@ describe('key-setup', () => {
     const root = renderSetup({}, { onSave, onError }).container;
 
     const form = root.querySelector('form') as HTMLFormElement;
-    act(() => {
-      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-    });
+    dispatchEl(form, new Event('submit', { bubbles: true, cancelable: true }));
     expect(onSave).not.toHaveBeenCalled();
     expect(onError).toHaveBeenCalledWith('keyErrorEmpty');
   });
@@ -122,15 +120,11 @@ describe('key-setup', () => {
 
     const box = root.querySelector('#session-only') as HTMLInputElement;
     box.checked = true;
-    act(() => {
-      box.dispatchEvent(new Event('change', { bubbles: true }));
-    });
+    dispatchEl(box, new Event('change', { bubbles: true }));
     expect(sessionOnly).toBe(true);
 
     const form = root.querySelector('form') as HTMLFormElement;
-    act(() => {
-      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-    });
+    dispatchEl(form, new Event('submit', { bubbles: true, cancelable: true }));
     expect(onSave).toHaveBeenCalledWith('LLM_x');
   });
 
@@ -167,9 +161,7 @@ describe('key-setup', () => {
     expect(show.textContent).toBe('showKeyButton');
     expect(show.hasAttribute('aria-pressed')).toBe(false);
     expect(show.getAttribute('aria-controls')).toBe('key-input');
-    act(() => {
-      show.click();
-    });
+    clickEl(show);
     expect(input.type).toBe('text');
     expect(show.hasAttribute('aria-pressed')).toBe(false);
     expect(show.textContent).toBe('hideKeyButton');
@@ -185,9 +177,7 @@ describe('key-setup', () => {
     const box = root.querySelector('#session-only') as HTMLInputElement;
     expect(box.checked).toBe(true);
     box.checked = false;
-    act(() => {
-      box.dispatchEvent(new Event('change', { bubbles: true }));
-    });
+    dispatchEl(box, new Event('change', { bubbles: true }));
     expect(onSessionOnlyChange).toHaveBeenCalledWith(false);
   });
 
@@ -200,13 +190,9 @@ describe('key-setup', () => {
 
     const buttons = [...root.querySelectorAll('.button-row button')];
     expect(buttons.map((button) => button.textContent)).toEqual(['agreeButton', 'declineButton']);
-    act(() => {
-      (buttons[0] as HTMLButtonElement).click();
-    });
+    clickEl(buttons[0] as HTMLButtonElement);
     expect(onConsentDecision).toHaveBeenCalledWith(true);
-    act(() => {
-      (buttons[1] as HTMLButtonElement).click();
-    });
+    clickEl(buttons[1] as HTMLButtonElement);
     expect(onConsentDecision).toHaveBeenCalledWith(false);
   });
 
@@ -229,7 +215,7 @@ describe('key-setup', () => {
     const root = renderSetup({ mode: 'consent' }).container;
 
     const heading = root.querySelector('h2') as HTMLHeadingElement;
-    heading.focus();
+    focusEl(heading);
     expect(document.activeElement?.tagName).toBe('H2');
   });
 });

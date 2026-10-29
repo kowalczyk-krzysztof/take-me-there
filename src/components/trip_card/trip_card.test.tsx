@@ -1,5 +1,5 @@
+import { clickEl, focusEl } from '../../test/helpers';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act } from 'react';
 import { TripCard, type CardState, type TripCardCallbacks } from './trip_card';
 import type { PlaceResult } from '../../types';
 import { installChromeMock, uninstallChromeMock } from '../../test/chrome_mock';
@@ -85,7 +85,7 @@ describe('trip-card', () => {
     const cancel = root.querySelector('.cancel-button') as HTMLButtonElement;
     expect(cancel?.textContent).toBe('cancelButton');
     expect(cancel.closest('[aria-hidden="true"]')).toBeNull();
-    cancel.click();
+    clickEl(cancel);
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
 
@@ -197,9 +197,7 @@ describe('trip-card', () => {
 
     const button = disagree.querySelector('button') as HTMLButtonElement;
     expect(button.textContent).toBe('reanalyzeButton');
-    act(() => {
-      button.click();
-    });
+    clickEl(button);
     expect(onReanalyze).toHaveBeenCalledTimes(1);
   });
 
@@ -259,9 +257,7 @@ describe('trip-card', () => {
     expect(root.querySelector('.chips-label')?.textContent).toBe('alternatesLabel');
     expect(chips[0]?.textContent).toBe('alternatesCheaper');
     expect(chips[0]?.hasAttribute('aria-pressed')).toBe(false);
-    act(() => {
-      (chips[1] as HTMLButtonElement).click();
-    });
+    clickEl(chips[1] as HTMLButtonElement);
     expect(onAlternates).toHaveBeenCalledWith('quieter');
   });
 
@@ -286,9 +282,7 @@ describe('trip-card', () => {
     const chips = root.querySelectorAll('.chips-row .chip');
     expect(chips[0]?.getAttribute('aria-disabled')).toBe('true');
     expect(chips[1]?.hasAttribute('aria-disabled')).toBe(false);
-    act(() => {
-      (chips[0] as HTMLButtonElement).click();
-    });
+    clickEl(chips[0] as HTMLButtonElement);
     expect(onAlternates).not.toHaveBeenCalled();
 
     const skeletons = root.querySelector('.alternates-skeletons');
@@ -329,11 +323,7 @@ describe('trip-card', () => {
     expect(root.querySelector('.alternate-name')?.textContent).toBe('Fira, Greece');
     expect(root.querySelector('.alternate-why')?.textContent).toBe('Same caldera, lower prices.');
     expect(root.querySelector('.alternate-month')?.textContent).toBe('alternatesBestMonth(May)');
-    act(() => {
-      (
-        root.querySelector('.alternate-actions button:not(.pin-button)') as HTMLButtonElement
-      ).click();
-    });
+    clickEl(root.querySelector('.alternate-actions button:not(.pin-button)') as HTMLButtonElement);
     expect(onPlanInstead).toHaveBeenCalledWith(0);
   });
 
@@ -378,9 +368,7 @@ describe('trip-card', () => {
     expect(pins).toHaveLength(2);
     expect(pins[0]?.getAttribute('aria-pressed')).toBe('false');
     expect(pins[1]?.getAttribute('aria-pressed')).toBe('true');
-    act(() => {
-      pins[0]?.click();
-    });
+    clickEl(pins[0]);
     expect(onPinAlternate).toHaveBeenCalledWith(0);
   });
 
@@ -407,9 +395,7 @@ describe('trip-card', () => {
     expect(empty.querySelector('select')?.hasAttribute('disabled')).toBe(true);
     expect(empty.querySelector('option')?.textContent).toBe('compareEmpty');
     expect(empty.querySelector('.compare-go')?.hasAttribute('disabled')).toBe(true);
-    act(() => {
-      (empty.querySelector('.compare-go') as HTMLButtonElement).click();
-    });
+    clickEl(empty.querySelector('.compare-go') as HTMLButtonElement);
     expect(onCompare).not.toHaveBeenCalled();
     rerenderCard(
       rendered,
@@ -430,9 +416,7 @@ describe('trip-card', () => {
     const row = root.querySelector('.compare-row');
     expect(row?.querySelector('label')?.textContent).toContain('compareLabel');
     expect(row?.querySelector('.compare-go')?.textContent).toBe('compareGo');
-    act(() => {
-      (row?.querySelector('.compare-go') as HTMLButtonElement).click();
-    });
+    clickEl(row?.querySelector('.compare-go') as HTMLButtonElement);
     expect(onCompare).toHaveBeenCalledWith('Fira|||Greece');
   });
 
@@ -453,9 +437,7 @@ describe('trip-card', () => {
 
     const button = root.querySelector('button.primary') as HTMLButtonElement;
     expect(button.textContent).toBe('lookAgainButton');
-    act(() => {
-      button.click();
-    });
+    clickEl(button);
     expect(onLookAgain).toHaveBeenCalledTimes(1);
 
     const link = root.querySelector('.fallback a') as HTMLAnchorElement;
@@ -481,9 +463,7 @@ describe('trip-card', () => {
 
     const root = rendered.container;
     expect(root.querySelector('h2')?.textContent).toBe('T');
-    act(() => {
-      (root.querySelector('button') as HTMLButtonElement).click();
-    });
+    clickEl(root.querySelector('button') as HTMLButtonElement);
     expect(onRetry).toHaveBeenCalledTimes(1);
     rerenderCard(rendered, { view: 'error', title: 'T', body: 'B', showRetry: false }, { onRetry });
     expect(root.querySelector('button')?.textContent).toBe('dismissErrorButton');
@@ -500,9 +480,7 @@ describe('trip-card', () => {
     const buttons = root.querySelectorAll('button');
     expect(buttons).toHaveLength(1);
     expect(buttons[0]?.textContent).toBe('dismissErrorButton');
-    act(() => {
-      (buttons[0] as HTMLButtonElement).click();
-    });
+    clickEl(buttons[0] as HTMLButtonElement);
     expect(onDismissError).toHaveBeenCalledTimes(1);
   });
 
@@ -519,15 +497,11 @@ describe('trip-card', () => {
     const buttons = root.querySelectorAll('button');
     expect(buttons).toHaveLength(2);
     expect(buttons[1]?.textContent).toBe('fetchRetryButton');
-    act(() => {
-      (buttons[1] as HTMLButtonElement).click();
-    });
+    clickEl(buttons[1] as HTMLButtonElement);
     expect(buttons[1]?.textContent).toBe('fetchRetryLoading');
     expect(onFetchRetry).toHaveBeenCalledTimes(1);
     expect(onRetry).not.toHaveBeenCalled();
-    act(() => {
-      (buttons[1] as HTMLButtonElement).click();
-    });
+    clickEl(buttons[1] as HTMLButtonElement);
     expect(onFetchRetry).toHaveBeenCalledTimes(1);
   });
 
@@ -544,7 +518,7 @@ describe('trip-card', () => {
     }).container;
 
     const heading = root.querySelector('h2') as HTMLHeadingElement;
-    heading.focus();
+    focusEl(heading);
     expect(document.activeElement?.tagName).toBe('H2');
   });
 
@@ -570,9 +544,7 @@ describe('trip-card', () => {
     const button = root.querySelector('.plan-trip-button') as HTMLButtonElement;
     expect(button.textContent).toBe('planTripButton');
     expect(button.hasAttribute('aria-disabled')).toBe(false);
-    act(() => {
-      button.click();
-    });
+    clickEl(button);
     expect(onPlanTrip).toHaveBeenCalledTimes(1);
     rerenderCard(
       rendered,
@@ -592,9 +564,7 @@ describe('trip-card', () => {
     const busy = root.querySelector('.plan-trip-button') as HTMLButtonElement;
     expect(busy.textContent).toBe('planningButton');
     expect(busy.getAttribute('aria-disabled')).toBe('true');
-    act(() => {
-      busy.click();
-    });
+    clickEl(busy);
     expect(onPlanTrip).toHaveBeenCalledTimes(1);
     rerenderCard(
       rendered,
@@ -634,9 +604,7 @@ describe('trip-card', () => {
     expect(button.textContent).toBe('startAgainButton');
     expect(button.hasAttribute('aria-disabled')).toBe(false);
     expect(root.querySelector('.start-again-hint')?.textContent).toBe('startAgainHint');
-    act(() => {
-      button.click();
-    });
+    clickEl(button);
     expect(onPlanTrip).toHaveBeenCalledTimes(1);
   });
 
@@ -662,9 +630,7 @@ describe('trip-card', () => {
     const pin = root.querySelector('.pin-button') as HTMLButtonElement;
     expect(pin.textContent).toBe('pinButton(Oia)');
     expect(pin.getAttribute('aria-pressed')).toBe('false');
-    act(() => {
-      pin.click();
-    });
+    clickEl(pin);
     expect(onPin).toHaveBeenCalledTimes(1);
     rerenderCard(
       rendered,
@@ -736,12 +702,8 @@ describe('trip-card', () => {
     ).container;
 
     const retry = root.querySelector('.primary') as HTMLButtonElement;
-    act(() => {
-      retry.click();
-    });
-    act(() => {
-      retry.click();
-    });
+    clickEl(retry);
+    clickEl(retry);
     expect(onRetry).toHaveBeenCalledTimes(1);
     expect(retry.getAttribute('aria-disabled')).toBe('true');
     expect(retry.textContent).toBe('retryingButton');
@@ -756,12 +718,8 @@ describe('trip-card', () => {
     ).container;
 
     const lookAgain = root.querySelector('.primary') as HTMLButtonElement;
-    act(() => {
-      lookAgain.click();
-    });
-    act(() => {
-      lookAgain.click();
-    });
+    clickEl(lookAgain);
+    clickEl(lookAgain);
     expect(onLookAgain).toHaveBeenCalledTimes(1);
     expect(lookAgain.getAttribute('aria-disabled')).toBe('true');
     expect(lookAgain.textContent).toBe('lookingAgainButton');

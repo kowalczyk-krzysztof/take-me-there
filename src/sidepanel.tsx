@@ -1,7 +1,7 @@
 // Panel state machine: handoff intake, key and consent gates, cached or live
 // analysis with streamed guides, disagree flows, and the cost footer.
 import { useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent } from 'react';
-import { createRoot } from 'react-dom/client';
+import { createRoot, type Root } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import { BookingGrid } from './components/booking_grid/booking_grid';
 import { CompareTable, type DuelTableState } from './components/compare_table/compare_table';
@@ -4180,6 +4180,13 @@ const onPanelCrash = (): void => {
   cancelAllWork();
 };
 
+let panelRoot: Root | null = null;
+
+export const unmountPage = (): void => {
+  panelRoot?.unmount();
+  panelRoot = null;
+};
+
 export const initPanel = (): void => {
   if (initialized) {
     return;
@@ -4191,8 +4198,10 @@ export const initPanel = (): void => {
   initialized = true;
 
   document.title = msg('appName');
+  panelRoot = createRoot(host);
+  const root = panelRoot;
   flushSync(() => {
-    createRoot(host).render(
+    root.render(
       <ErrorBoundary fallback={renderCrashFallback} onCatch={onPanelCrash}>
         <SidepanelApp />
       </ErrorBoundary>

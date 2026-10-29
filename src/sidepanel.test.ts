@@ -33,10 +33,14 @@ import { monthKey } from './pricing';
 import type { ChromeMock } from './test/chrome_mock';
 import {
   chatResponse,
+  clickEl,
+  dispatchEl,
+  focusEl,
   groundedResponse,
   plantKeyAndConsent,
   readShell,
   setupPage,
+  sleep,
   sseResponse,
   teardownPage,
   waitFor,
@@ -50,11 +54,11 @@ const CATALOG_PATH = join(
 );
 
 const selectBoardTab = (): void => {
-  (document.querySelector('#tab-board') as HTMLButtonElement).click();
+  clickEl(document.querySelector('#tab-board') as HTMLButtonElement);
 };
 
 const selectSettingsTab = (): void => {
-  (document.querySelector('#tab-settings') as HTMLButtonElement).click();
+  clickEl(document.querySelector('#tab-settings') as HTMLButtonElement);
 };
 
 const waitForSettings = async (): Promise<void> => {
@@ -75,7 +79,7 @@ const clickPlanTrip = async (): Promise<void> => {
   await waitFor(() => {
     expect(document.querySelector('#result-slot .plan-trip-button')).not.toBeNull();
   });
-  (document.querySelector('#result-slot .plan-trip-button') as HTMLButtonElement).click();
+  clickEl(document.querySelector('#result-slot .plan-trip-button') as HTMLButtonElement);
 };
 
 const VALID_PLACE = {
@@ -220,7 +224,7 @@ describe('sidepanel', () => {
     expect(tabMain.getAttribute('aria-selected')).toBe('true');
     expect(tabMain.hasAttribute('aria-disabled')).toBe(false);
     await plantKeyAndConsent();
-    tabMain.click();
+    clickEl(tabMain);
 
     const i18n = vi.spyOn(chrome.i18n, 'getMessage');
     expect(tabMain.textContent).toBe('mainTab');
@@ -231,21 +235,21 @@ describe('sidepanel', () => {
     expect(document.querySelector('#tab-bar')?.getAttribute('aria-label')).toBe('tabsLabel');
     expect(document.querySelector('#main-panel')?.hasAttribute('hidden')).toBe(false);
     expect(document.querySelector('#board-panel')?.hasAttribute('hidden')).toBe(true);
-    tabBoard.click();
+    clickEl(tabBoard);
     expect(tabBoard.getAttribute('aria-selected')).toBe('true');
     expect(tabBoard.tabIndex).toBe(0);
     expect(tabMain.tabIndex).toBe(-1);
     expect(document.querySelector('#main-panel')?.hasAttribute('hidden')).toBe(true);
     expect(document.querySelector('#board-panel')?.hasAttribute('hidden')).toBe(false);
-    tabMain.focus();
-    tabMain.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    focusEl(tabMain);
+    dispatchEl(tabMain, new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
     expect(document.activeElement).toBe(tabBoard);
     expect(tabBoard.getAttribute('aria-selected')).toBe('true');
-    tabBoard.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }));
+    dispatchEl(tabBoard, new KeyboardEvent('keydown', { key: 'Home', bubbles: true }));
     expect(document.activeElement).toBe(tabMain);
     expect(tabMain.getAttribute('aria-selected')).toBe('true');
     // A new run surfaces on the main tab even from the board tab.
-    tabBoard.click();
+    clickEl(tabBoard);
     fetchMock
       .mockResolvedValueOnce(chatResponse(VALID_PLACE))
       .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
@@ -254,7 +258,7 @@ describe('sidepanel', () => {
       expect(document.querySelector('#result-slot h2')?.textContent).toBe('Oia');
     });
     expect(tabMain.getAttribute('aria-selected')).toBe('true');
-    (document.querySelector('#result-slot .pin-button') as HTMLButtonElement).click();
+    clickEl(document.querySelector('#result-slot .pin-button') as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned(Oia | 1)');
     });
@@ -272,16 +276,16 @@ describe('sidepanel', () => {
     expect(tabMain.getAttribute('aria-selected')).toBe('true');
     expect(tabMain.hasAttribute('aria-disabled')).toBe(false);
     expect(tabMain.textContent).toBe('mainTab');
-    tabMain.click();
+    clickEl(tabMain);
     expect(tabMain.getAttribute('aria-selected')).toBe('true');
-    tabSettings.focus();
-    tabSettings.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    focusEl(tabSettings);
+    dispatchEl(tabSettings, new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
     expect(document.activeElement).toBe(tabMain);
-    tabMain.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    dispatchEl(tabMain, new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
     expect(document.activeElement).toBe(tabBoard);
-    tabBoard.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }));
+    dispatchEl(tabBoard, new KeyboardEvent('keydown', { key: 'End', bubbles: true }));
     expect(document.activeElement).toBe(tabSettings);
-    tabSettings.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }));
+    dispatchEl(tabSettings, new KeyboardEvent('keydown', { key: 'Home', bubbles: true }));
     expect(document.activeElement).toBe(tabMain);
     expect(tabMain.getAttribute('aria-selected')).toBe('true');
   });
@@ -291,7 +295,7 @@ describe('sidepanel', () => {
     await plantKeyAndConsent();
 
     const tabMain = document.querySelector('#tab-main') as HTMLButtonElement;
-    (document.querySelector('#tab-settings') as HTMLButtonElement).click();
+    clickEl(document.querySelector('#tab-settings') as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#key-saved-status')?.textContent).toBe('keySavedStatus');
     });
@@ -302,13 +306,14 @@ describe('sidepanel', () => {
       'clearKeyButton',
       'clearAllKeysButton',
     ]);
-    (actions[0] as HTMLButtonElement).click();
+    clickEl(actions[0] as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#settings-panel #key-input')).not.toBeNull();
     });
     fetchMock.mockResolvedValueOnce(new Response('[]', { status: 200 }));
     (document.querySelector('#settings-panel #key-input') as HTMLInputElement).value = 'LLM_new';
-    (document.querySelector('#settings-panel form') as HTMLFormElement).dispatchEvent(
+    dispatchEl(
+      document.querySelector('#settings-panel form') as HTMLFormElement,
       new Event('submit', { bubbles: true, cancelable: true })
     );
     await waitFor(() => {
@@ -324,13 +329,13 @@ describe('sidepanel', () => {
     await plantKeyAndConsent();
 
     const tabMain = document.querySelector('#tab-main') as HTMLButtonElement;
-    (document.querySelector('#tab-settings') as HTMLButtonElement).click();
+    clickEl(document.querySelector('#tab-settings') as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#key-saved-status')).not.toBeNull();
     });
 
     const actions = [...document.querySelectorAll('#settings-panel .confirm-actions button')];
-    (actions[1] as HTMLButtonElement).click();
+    clickEl(actions[1] as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#settings-panel #key-input')).not.toBeNull();
     });
@@ -350,7 +355,8 @@ describe('sidepanel', () => {
 
     fetchMock.mockResolvedValueOnce(new Response('[]', { status: 200 }));
     (document.querySelector('#settings-panel #key-input') as HTMLInputElement).value = 'LLM_x';
-    (document.querySelector('#settings-panel form') as HTMLFormElement).dispatchEvent(
+    dispatchEl(
+      document.querySelector('#settings-panel form') as HTMLFormElement,
       new Event('submit', { bubbles: true, cancelable: true })
     );
     await waitFor(() => {
@@ -359,7 +365,7 @@ describe('sidepanel', () => {
 
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
     const buttons = document.querySelector('#result-slot')?.querySelectorAll('button');
-    (buttons?.[0] as HTMLButtonElement).click();
+    clickEl(buttons?.[0] as HTMLButtonElement);
     await waitForHeading('Oia');
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
@@ -390,7 +396,7 @@ describe('sidepanel', () => {
 
     const box = document.querySelector('#settings-panel #session-only') as HTMLInputElement;
     box.checked = true;
-    box.dispatchEvent(new Event('change', { bubbles: true }));
+    dispatchEl(box, new Event('change', { bubbles: true }));
     await waitFor(() => {
       expect(document.querySelector('#settings-panel #key-error')?.textContent).toBe(
         'settingsSaveFailed'
@@ -406,7 +412,7 @@ describe('sidepanel', () => {
 
     const retry = document.querySelector('#settings-panel #session-only') as HTMLInputElement;
     retry.checked = true;
-    retry.dispatchEvent(new Event('change', { bubbles: true }));
+    dispatchEl(retry, new Event('change', { bubbles: true }));
     await waitFor(async () => {
       expect((await loadSettings()).sessionOnly).toBe(true);
     });
@@ -420,13 +426,13 @@ describe('sidepanel', () => {
     const mock = await setup();
     await plantKeyAndConsent();
 
-    (document.querySelector('#tab-settings') as HTMLButtonElement).click();
+    clickEl(document.querySelector('#tab-settings') as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#key-saved-status')).not.toBeNull();
     });
 
     const actions = [...document.querySelectorAll('#settings-panel .confirm-actions button')];
-    (actions[0] as HTMLButtonElement).click();
+    clickEl(actions[0] as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#settings-panel #session-only')).not.toBeNull();
     });
@@ -439,7 +445,7 @@ describe('sidepanel', () => {
 
     const box = document.querySelector('#settings-panel #session-only') as HTMLInputElement;
     box.checked = true;
-    box.dispatchEvent(new Event('change', { bubbles: true }));
+    dispatchEl(box, new Event('change', { bubbles: true }));
     await waitFor(() => {
       expect(document.querySelector('#settings-panel #key-error')?.textContent).toBe(
         'settingsSaveFailed'
@@ -467,14 +473,14 @@ describe('sidepanel', () => {
     const { saveKey, loadKey } = await import('./key_vault');
     await saveKey('openai_compat', 'LLM_y', false);
 
-    (document.querySelector('#tab-settings') as HTMLButtonElement).click();
+    clickEl(document.querySelector('#tab-settings') as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#key-saved-status')).not.toBeNull();
     });
 
     const actions = [...document.querySelectorAll('#settings-panel .confirm-actions button')];
     const clearAll = actions.find((button) => button.textContent === 'clearAllKeysButton');
-    (clearAll as HTMLButtonElement).click();
+    clickEl(clearAll as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#settings-panel #key-input')).not.toBeNull();
     });
@@ -487,7 +493,7 @@ describe('sidepanel', () => {
     const mock = await setup();
     await plantKeyAndConsent();
 
-    (document.querySelector('#tab-settings') as HTMLButtonElement).click();
+    clickEl(document.querySelector('#tab-settings') as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#key-saved-status')).not.toBeNull();
     });
@@ -499,7 +505,7 @@ describe('sidepanel', () => {
     mock.local.fault = fail;
 
     const actions = [...document.querySelectorAll('#settings-panel .confirm-actions button')];
-    (actions[1] as HTMLButtonElement).click();
+    clickEl(actions[1] as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#settings-panel #key-saved-error')?.textContent).toBe(
         'settingsSaveFailed'
@@ -520,10 +526,11 @@ describe('sidepanel', () => {
     expect(document.querySelector('main > #alert-region')).not.toBeNull();
     expect(document.querySelector('#main-panel #status-region')).toBeNull();
     expect(document.querySelector('#board-panel #alert-region')).toBeNull();
-    (document.querySelector('#tab-settings') as HTMLButtonElement).click();
+    clickEl(document.querySelector('#tab-settings') as HTMLButtonElement);
     fetchMock.mockResolvedValue(new Response('[]', { status: 401 }));
     (document.querySelector('#settings-panel #key-input') as HTMLInputElement).value = 'LLM_bad';
-    (document.querySelector('#settings-panel form') as HTMLFormElement).dispatchEvent(
+    dispatchEl(
+      document.querySelector('#settings-panel form') as HTMLFormElement,
       new Event('submit', { bubbles: true, cancelable: true })
     );
     await waitFor(() => {
@@ -832,7 +839,7 @@ describe('sidepanel', () => {
     await waitForHeading('errorServerTitle');
 
     const card = document.querySelector('#result-slot') as HTMLElement;
-    (card.querySelector('.primary') as HTMLButtonElement).click();
+    clickEl(card.querySelector('.primary') as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#guide-content')?.textContent).toContain('Hello world');
     });
@@ -902,7 +909,8 @@ describe('sidepanel', () => {
       .mockResolvedValueOnce(chatResponse(VALID_PLACE))
       .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
     (document.querySelector('#key-input') as HTMLInputElement).value = 'LLM_good';
-    (document.querySelector('#settings-panel form') as HTMLFormElement).dispatchEvent(
+    dispatchEl(
+      document.querySelector('#settings-panel form') as HTMLFormElement,
       new Event('submit', { bubbles: true, cancelable: true })
     );
     await waitForHeading('Oia');
@@ -921,7 +929,7 @@ describe('sidepanel', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
     const card = document.querySelector('#result-slot') as HTMLElement;
-    (card.querySelector('.primary') as HTMLButtonElement).click();
+    clickEl(card.querySelector('.primary') as HTMLButtonElement);
     await waitFor(() => {
       expect(card.querySelector('h2')?.textContent).toBe('Oia');
     });
@@ -1032,7 +1040,7 @@ describe('sidepanel', () => {
         'startAgainButton'
       );
     });
-    (document.querySelector('#result-slot .plan-trip-button') as HTMLButtonElement).click();
+    clickEl(document.querySelector('#result-slot .plan-trip-button') as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe(
         'statusGuideReadySources(1)'
@@ -1092,7 +1100,7 @@ describe('sidepanel', () => {
     const agree = [...document.querySelectorAll('#result-slot button')].find(
       (button) => button.textContent === 'agreeButton'
     ) as HTMLButtonElement;
-    agree.click();
+    clickEl(agree);
     await waitFor(() => {
       expect(document.querySelector('#alert-region')?.textContent).toBe('settingsSaveFailed');
     });
@@ -1103,7 +1111,7 @@ describe('sidepanel', () => {
     const retry = [...document.querySelectorAll('#result-slot button')].find(
       (button) => button.textContent === 'agreeButton'
     ) as HTMLButtonElement;
-    retry.click();
+    clickEl(retry);
     await waitForHeading('Oia');
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
@@ -1117,7 +1125,7 @@ describe('sidepanel', () => {
     await waitFor(() => {
       expect(document.querySelector('#result-slot h2')?.textContent).toBe('consentTitle');
     });
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await sleep(50);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -1137,7 +1145,7 @@ describe('sidepanel', () => {
     const agree = [...document.querySelectorAll('#result-slot button')].find(
       (button) => button.textContent === 'agreeButton'
     ) as HTMLButtonElement;
-    agree.click();
+    clickEl(agree);
     await waitForHeading('Oia');
     expect(await hasConsented()).toBe(true);
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -1158,7 +1166,7 @@ describe('sidepanel', () => {
     const decline = [...document.querySelectorAll('#result-slot button')].find(
       (button) => button.textContent === 'declineButton'
     ) as HTMLButtonElement;
-    decline.click();
+    clickEl(decline);
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusConsentDeclined');
     });
@@ -1211,7 +1219,7 @@ describe('sidepanel', () => {
     await waitFor(() => {
       expect(document.querySelector('#result-slot .confirm-actions .primary')).not.toBeNull();
     });
-    (document.querySelector('#result-slot .confirm-actions .primary') as HTMLButtonElement).click();
+    clickEl(document.querySelector('#result-slot .confirm-actions .primary') as HTMLButtonElement);
     await waitForHeading('Oia');
 
     const init = fetchMock.mock.calls[0][1] as RequestInit;
@@ -1241,14 +1249,14 @@ describe('sidepanel', () => {
     });
 
     const fail = vi.spyOn(mock.local, 'set').mockRejectedValueOnce(new Error('quota'));
-    (document.querySelector('#result-slot .confirm-actions .primary') as HTMLButtonElement).click();
+    clickEl(document.querySelector('#result-slot .confirm-actions .primary') as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#alert-region')?.textContent).toBe('settingsSaveFailed');
     });
     expect(document.querySelector('#result-slot h2')?.textContent).toBe('videoConfirmTitle');
     expect(fetchMock).not.toHaveBeenCalled();
     fail.mockRestore();
-    (document.querySelector('#result-slot .confirm-actions .primary') as HTMLButtonElement).click();
+    clickEl(document.querySelector('#result-slot .confirm-actions .primary') as HTMLButtonElement);
     await waitForHeading('Oia');
     expect(fetchMock).toHaveBeenCalledTimes(1);
     // The gate is one-time: the next video analyzes without asking.
@@ -1287,7 +1295,7 @@ describe('sidepanel', () => {
     const cancel = [
       ...document.querySelectorAll('#result-slot .confirm-actions button'),
     ][1] as HTMLButtonElement;
-    cancel.click();
+    clickEl(cancel);
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe(
         'statusVideoConfirmDeclined'
@@ -1338,7 +1346,7 @@ describe('sidepanel', () => {
 
     const pin = card.querySelector('.pin-button') as HTMLButtonElement;
     expect(pin.getAttribute('aria-pressed')).toBe('false');
-    pin.click();
+    clickEl(pin);
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned(Oia | 1)');
     });
@@ -1355,14 +1363,14 @@ describe('sidepanel', () => {
     expect(
       (board.querySelector('.plan-button') as HTMLButtonElement).getAttribute('aria-disabled')
     ).toBe('true');
-    (card.querySelector('.pin-button') as HTMLButtonElement).click();
+    clickEl(card.querySelector('.pin-button') as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusPinDuplicate(Oia)');
     });
     expect(board.querySelectorAll('li')).toHaveLength(1);
 
     const remove = items[0].querySelector('button') as HTMLButtonElement;
-    remove.click();
+    clickEl(remove);
     await waitFor(() => {
       expect(board.querySelectorAll('li')).toHaveLength(0);
     });
@@ -1377,13 +1385,13 @@ describe('sidepanel', () => {
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
     await mock.session.set({ [SLOT]: READY() });
     await waitForHeading('Oia');
-    (document.querySelector('#result-slot .pin-button') as HTMLButtonElement).click();
+    clickEl(document.querySelector('#result-slot .pin-button') as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#board-slot li')).not.toBeNull();
     });
 
     const fail = vi.spyOn(mock.local, 'set').mockRejectedValueOnce(new Error('quota'));
-    (document.querySelector('#board-slot li button') as HTMLButtonElement).click();
+    clickEl(document.querySelector('#board-slot li button') as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#board-slot .notice button')?.textContent).toBe(
         'boardRetryRemove'
@@ -1404,7 +1412,7 @@ describe('sidepanel', () => {
     const fail = vi.spyOn(mock.local, 'set').mockRejectedValueOnce(new Error('quota'));
 
     const card = document.querySelector('#result-slot') as HTMLElement;
-    (card.querySelector('.pin-button') as HTMLButtonElement).click();
+    clickEl(card.querySelector('.pin-button') as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#alert-region')?.textContent).toBe('alertPinFail(Oia)');
     });
@@ -1413,7 +1421,7 @@ describe('sidepanel', () => {
     expect(board.querySelector('.notice')?.textContent).toContain('boardNoticePinFail');
     fail.mockRestore();
     selectBoardTab();
-    (board.querySelector('.notice button') as HTMLButtonElement).click();
+    clickEl(board.querySelector('.notice button') as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned(Oia | 1)');
     });
@@ -1435,27 +1443,27 @@ describe('sidepanel', () => {
     await waitForHeading('Oia');
 
     const card = document.querySelector('#result-slot') as HTMLElement;
-    (card.querySelector('.pin-button') as HTMLButtonElement).click();
+    clickEl(card.querySelector('.pin-button') as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned(Oia | 1)');
     });
 
     const board = document.querySelector('#board-slot') as HTMLElement;
     selectBoardTab();
-    (board.querySelector('.clear-button') as HTMLButtonElement).click();
+    clickEl(board.querySelector('.clear-button') as HTMLButtonElement);
     expect(board.querySelector('.confirm-heading')?.textContent).toBe('boardClearTitle(1)');
 
     const [, cancel] = [
       ...(board.querySelectorAll('.confirm-actions button') ?? []),
     ] as HTMLButtonElement[];
-    cancel.click();
+    clickEl(cancel);
     expect(board.querySelectorAll('li')).toHaveLength(1);
-    (board.querySelector('.clear-button') as HTMLButtonElement).click();
+    clickEl(board.querySelector('.clear-button') as HTMLButtonElement);
 
     const [confirm] = [
       ...(board.querySelectorAll('.confirm-actions button') ?? []),
     ] as HTMLButtonElement[];
-    confirm.click();
+    clickEl(confirm);
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('boardCleared');
     });
@@ -1492,7 +1500,7 @@ describe('sidepanel', () => {
     await waitForHeading('Oia');
 
     const card = document.querySelector('#result-slot') as HTMLElement;
-    (card.querySelector('.pin-button') as HTMLButtonElement).click();
+    clickEl(card.querySelector('.pin-button') as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned(Oia | 1)');
     });
@@ -1505,7 +1513,7 @@ describe('sidepanel', () => {
     await waitFor(() => {
       expect(card.querySelector('h2')?.textContent).toBe('Fira');
     });
-    (card.querySelector('.pin-button') as HTMLButtonElement).click();
+    clickEl(card.querySelector('.pin-button') as HTMLButtonElement);
     await waitFor(() => {
       const board = document.querySelector('#board-slot') as HTMLElement;
       expect(board.querySelectorAll('li')).toHaveLength(2);
@@ -1516,7 +1524,7 @@ describe('sidepanel', () => {
 
     const plan = board.querySelector('.plan-button') as HTMLButtonElement;
     expect(plan.hasAttribute('aria-disabled')).toBe(false);
-    plan.click();
+    clickEl(plan);
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusItineraryReady');
     });
@@ -1578,7 +1586,7 @@ describe('sidepanel', () => {
     await waitForHeading('Oia');
 
     const card = document.querySelector('#result-slot') as HTMLElement;
-    (card.querySelector('.pin-button') as HTMLButtonElement).click();
+    clickEl(card.querySelector('.pin-button') as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned(Oia | 1)');
     });
@@ -1591,7 +1599,7 @@ describe('sidepanel', () => {
     await waitFor(() => {
       expect(card.querySelector('h2')?.textContent).toBe('Fira');
     });
-    (card.querySelector('.pin-button') as HTMLButtonElement).click();
+    clickEl(card.querySelector('.pin-button') as HTMLButtonElement);
     await waitFor(() => {
       const board = document.querySelector('#board-slot') as HTMLElement;
       expect(board.querySelectorAll('li')).toHaveLength(2);
@@ -1601,7 +1609,7 @@ describe('sidepanel', () => {
     selectBoardTab();
 
     const plan = board.querySelector('.plan-button') as HTMLButtonElement;
-    plan.click();
+    clickEl(plan);
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusItineraryReady');
     });
@@ -1693,7 +1701,7 @@ describe('sidepanel', () => {
     const mock = await setup();
     await plantKeyAndConsent();
     await mock.session.set({ [SLOT]: READY({ requestId: '200-2', windowId: 2 }) });
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await sleep(50);
     expect(fetchMock).not.toHaveBeenCalled();
     expect(document.querySelector('#result-slot')?.textContent).toContain('panelIdle');
     expect(document.querySelector('#status-region')?.textContent).toBe('');
@@ -1709,10 +1717,12 @@ describe('sidepanel', () => {
 
   it('delivers a stored record on startup without any storage event', async () => {
     await setup(async (mock) => {
+      // The startup chain fires during import and must never observe an
+      // unmocked fetch.
+      fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
       await plantKeyAndConsent();
       await mock.session.set({ [SLOT]: READY({ requestId: '500-1' }) });
     });
-    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
     await waitForHeading('Oia');
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
@@ -1744,7 +1754,7 @@ describe('sidepanel', () => {
         at: Date.now(),
       }),
     });
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await sleep(50);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
@@ -1783,7 +1793,7 @@ describe('sidepanel', () => {
     });
     await waitForHeading('Fira');
     resolveFirst(chatResponse(VALID_PLACE));
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await sleep(50);
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(document.querySelector('#result-slot')?.textContent).toContain('Fira');
     expect(document.querySelector('#result-slot')?.textContent).not.toContain('Oia');
@@ -1795,7 +1805,7 @@ describe('sidepanel', () => {
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
     await mock.session.set({ [SLOT]: READY({ requestId: '400-1' }) });
     await waitForHeading('Oia');
-    (document.querySelector('#result-slot .pin-button') as HTMLButtonElement).focus();
+    focusEl(document.querySelector('#result-slot .pin-button') as HTMLButtonElement);
     await mock.session.set({
       [SLOT]: READY({ requestId: '400-2', dataPending: true, srcUrl: '' }),
     });
@@ -1810,7 +1820,7 @@ describe('sidepanel', () => {
     await mock.session.set({
       [SLOT]: READY({ requestId: '200-2', at: Date.now() - 11 * 60 * 1000 }),
     });
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await sleep(50);
     expect(fetchMock).not.toHaveBeenCalled();
 
     await waitFor(() => {
@@ -1846,7 +1856,7 @@ describe('sidepanel', () => {
     const mock = await setup();
     await plantKeyAndConsent();
     await mock.session.set({ 'tripRequest:2': READY({ windowId: 2 }) });
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await sleep(50);
     expect(fetchMock).not.toHaveBeenCalled();
     expect(document.querySelector('#result-slot')?.textContent).toContain('panelIdle');
     expect(document.querySelector('#status-region')?.textContent).toBe('');
@@ -1926,7 +1936,7 @@ describe('sidepanel', () => {
     });
 
     const list = document.querySelector('#result-slot') as HTMLElement;
-    (list.querySelector('.scan-card button') as HTMLButtonElement).click();
+    clickEl(list.querySelector('.scan-card button') as HTMLButtonElement);
     await waitForHeading('Oia');
     await waitFor(() => {
       expect(document.querySelector('#guide-content')?.textContent).toContain('Hello world');
@@ -1970,7 +1980,7 @@ describe('sidepanel', () => {
     });
 
     const list = document.querySelector('#result-slot') as HTMLElement;
-    (list.querySelector('.scan-card button') as HTMLButtonElement).click();
+    clickEl(list.querySelector('.scan-card button') as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#guide-content')?.textContent).toContain('Hello world');
     });
@@ -2023,7 +2033,7 @@ describe('sidepanel', () => {
     const list = document.querySelector('#result-slot') as HTMLElement;
 
     const cards = list.querySelectorAll('.scan-card');
-    (cards?.[0]?.querySelector('.pin-button') as HTMLButtonElement).click();
+    clickEl(cards?.[0]?.querySelector('.pin-button') as HTMLButtonElement);
     await waitFor(async () => {
       expect(await listPins()).toHaveLength(1);
     });
@@ -2038,9 +2048,9 @@ describe('sidepanel', () => {
     });
 
     for (const box of list.querySelectorAll('input[type="checkbox"]') ?? []) {
-      (box as HTMLInputElement).click();
+      clickEl(box as HTMLInputElement);
     }
-    (list.querySelector('.pin-selected') as HTMLButtonElement).click();
+    clickEl(list.querySelector('.pin-selected') as HTMLButtonElement);
     await waitFor(async () => {
       expect(await listPins()).toHaveLength(2);
     });
@@ -2074,7 +2084,7 @@ describe('sidepanel', () => {
     await waitForHeading('errorServerTitle');
 
     const card = document.querySelector('#result-slot') as HTMLElement;
-    (card.querySelector('.primary') as HTMLButtonElement).click();
+    clickEl(card.querySelector('.primary') as HTMLButtonElement);
     await waitFor(() => {
       const list = document.querySelector('#result-slot');
       expect(list?.querySelectorAll('.scan-card')).toHaveLength(1);
@@ -2108,7 +2118,7 @@ describe('sidepanel', () => {
       expect(card.querySelectorAll('.compare-row option')).toHaveLength(1);
     });
     expect(card.querySelector('.compare-row option')?.textContent).toBe('Fira, Greece');
-    (card.querySelector('.compare-go') as HTMLButtonElement).click();
+    clickEl(card.querySelector('.compare-go') as HTMLButtonElement);
     await waitFor(() => {
       const table = document.querySelector('#duel-slot');
       expect(table?.querySelectorAll('tbody tr')).toHaveLength(2);
@@ -2151,11 +2161,11 @@ describe('sidepanel', () => {
     await waitFor(() => {
       expect(card.querySelectorAll('.compare-row option')).toHaveLength(1);
     });
-    (card.querySelector('.compare-go') as HTMLButtonElement).click();
+    clickEl(card.querySelector('.compare-go') as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#duel-slot button')?.textContent).toBe('cancelButton');
     });
-    (document.querySelector('#duel-slot button') as HTMLButtonElement).click();
+    clickEl(document.querySelector('#duel-slot button') as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#duel-slot')?.hasAttribute('hidden')).toBe(true);
     });
@@ -2175,11 +2185,11 @@ describe('sidepanel', () => {
 
     const chips = [...card.querySelectorAll('.chips-row .chip')] as HTMLButtonElement[];
     expect(chips).toHaveLength(3);
-    chips[0].click();
+    clickEl(chips[0]);
     await waitFor(() => {
       expect(card.querySelector('.alternates button')?.textContent).toBe('cancelButton');
     });
-    (card.querySelector('.alternates button') as HTMLButtonElement).click();
+    clickEl(card.querySelector('.alternates button') as HTMLButtonElement);
     await waitFor(() => {
       expect(card.querySelector('.alternates')?.hasAttribute('hidden')).toBe(true);
     });
@@ -2212,7 +2222,7 @@ describe('sidepanel', () => {
     });
 
     const card = document.querySelector('#result-slot') as HTMLElement;
-    (card.querySelector('.compare-go') as HTMLButtonElement).click();
+    clickEl(card.querySelector('.compare-go') as HTMLButtonElement);
     await waitFor(() => {
       const table = document.querySelector('#duel-slot');
       expect(table?.querySelectorAll('tbody tr')).toHaveLength(2);
@@ -2248,7 +2258,7 @@ describe('sidepanel', () => {
     });
 
     const card = document.querySelector('#result-slot') as HTMLElement;
-    (card.querySelector('.compare-go') as HTMLButtonElement).click();
+    clickEl(card.querySelector('.compare-go') as HTMLButtonElement);
     await waitFor(() => {
       const table = document.querySelector('#duel-slot');
       expect(table?.querySelector('.duel-error p')?.textContent).toBe(
@@ -2258,7 +2268,7 @@ describe('sidepanel', () => {
     expect(card.querySelector('h2')?.textContent).toBe('Oia');
 
     const table = document.querySelector('#duel-slot') as HTMLElement;
-    (table.querySelector('.duel-error button') as HTMLButtonElement).click();
+    clickEl(table.querySelector('.duel-error button') as HTMLButtonElement);
     await waitFor(() => {
       const retried = document.querySelector('#duel-slot');
       expect(retried?.querySelectorAll('tbody tr')).toHaveLength(2);
@@ -2292,16 +2302,14 @@ describe('sidepanel', () => {
 
     const chips = card.querySelectorAll('.chips-row .chip');
     expect(chips).toHaveLength(3);
-    (chips?.[0] as HTMLButtonElement).click();
+    clickEl(chips?.[0] as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('alternatesReady(2)');
     });
 
     const fresh = document.querySelector('#result-slot') as HTMLElement;
     expect(fresh.querySelectorAll('.alternate-card')).toHaveLength(2);
-    (
-      fresh.querySelector('.alternate-actions button:not(.pin-button)') as HTMLButtonElement
-    ).click();
+    clickEl(fresh.querySelector('.alternate-actions button:not(.pin-button)') as HTMLButtonElement);
     await waitFor(() => {
       const grid = document.querySelector('#links-slot');
 
@@ -2340,15 +2348,13 @@ describe('sidepanel', () => {
     await waitForHeading('Oia');
 
     const card = document.querySelector('#result-slot') as HTMLElement;
-    (card.querySelector('.chips-row .chip') as HTMLButtonElement).click();
+    clickEl(card.querySelector('.chips-row .chip') as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('alternatesReady(1)');
     });
 
     const fresh = document.querySelector('#result-slot') as HTMLElement;
-    (
-      fresh.querySelector('.alternate-actions button:not(.pin-button)') as HTMLButtonElement
-    ).click();
+    clickEl(fresh.querySelector('.alternate-actions button:not(.pin-button)') as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#guide-content')?.textContent).toContain('Hello world');
     });
@@ -2379,7 +2385,7 @@ describe('sidepanel', () => {
     await waitForHeading('Oia');
 
     const card = document.querySelector('#result-slot') as HTMLElement;
-    (card.querySelector('.chips-row .chip') as HTMLButtonElement).click();
+    clickEl(card.querySelector('.chips-row .chip') as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('alternatesReady(1)');
     });
@@ -2389,7 +2395,7 @@ describe('sidepanel', () => {
     const pin = fresh.querySelector('.alternate-card .pin-button') as HTMLButtonElement;
     expect(pin.getAttribute('aria-pressed')).toBe('false');
     expect(fresh.querySelector('.alternate-card .thumb-monogram')?.textContent).toBe('F');
-    pin.click();
+    clickEl(pin);
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned(Fira | 1)');
     });
@@ -2418,7 +2424,7 @@ describe('sidepanel', () => {
     await waitForHeading('Oia');
 
     const card = document.querySelector('#result-slot') as HTMLElement;
-    (card.querySelector('.chips-row .chip') as HTMLButtonElement).click();
+    clickEl(card.querySelector('.chips-row .chip') as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#alert-region')?.textContent).toBe('alternatesFail');
     });
@@ -2451,7 +2457,7 @@ describe('sidepanel', () => {
     const card = document.querySelector('#result-slot') as HTMLElement;
     expect(card.querySelector('.compare-row option')?.textContent).toBe('Fira, Greece');
     await removePin('Fira', 'Greece');
-    (card.querySelector('.compare-go') as HTMLButtonElement).click();
+    clickEl(card.querySelector('.compare-go') as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('compareStale');
     });
@@ -2501,7 +2507,7 @@ describe('sidepanel', () => {
 
     const buttons = card.querySelectorAll('button');
     expect(buttons?.[1]?.textContent).toBe('fetchRetryButton');
-    (buttons?.[1] as HTMLButtonElement).click();
+    clickEl(buttons?.[1] as HTMLButtonElement);
     await waitFor(() => {
       const retried = document.querySelector('#result-slot');
       expect(retried?.querySelector('h2')?.textContent).toBe('Oia');
@@ -2612,7 +2618,7 @@ describe('sidepanel', () => {
     });
 
     const buttons = document.querySelector('#result-slot')?.querySelectorAll('button');
-    (buttons?.[1] as HTMLButtonElement).click();
+    clickEl(buttons?.[1] as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#result-slot h2')?.textContent).toBe('Oia');
     });
@@ -2658,7 +2664,7 @@ describe('sidepanel', () => {
     });
 
     const buttons = document.querySelector('#result-slot')?.querySelectorAll('button');
-    (buttons?.[1] as HTMLButtonElement).click();
+    clickEl(buttons?.[1] as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#result-slot h2')?.textContent).toBe('Oia');
     });
@@ -2688,7 +2694,7 @@ describe('sidepanel', () => {
       expect(card?.querySelectorAll('button')).toHaveLength(2);
     });
     const card = document.querySelector('#result-slot') as HTMLElement;
-    (card.querySelectorAll('button')?.[1] as HTMLButtonElement).click();
+    clickEl(card.querySelectorAll('button')?.[1] as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#alert-region')?.textContent).toBe('fetchFailed');
     });
@@ -2733,7 +2739,7 @@ describe('sidepanel', () => {
     });
     const card = document.querySelector('#result-slot') as HTMLElement;
     expect(card.querySelectorAll('button')?.[1]?.textContent).toBe('fetchRetryButton');
-    (card.querySelectorAll('button')?.[1] as HTMLButtonElement).click();
+    clickEl(card.querySelectorAll('button')?.[1] as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#result-slot')?.querySelector('h2')?.textContent).toBe('Oia');
     });
@@ -2761,7 +2767,7 @@ describe('sidepanel', () => {
     });
     const card = document.querySelector('#result-slot') as HTMLElement;
     const buttons = card.querySelectorAll('button');
-    (buttons?.[1] as HTMLButtonElement).click();
+    clickEl(buttons?.[1] as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#alert-region')?.textContent).toBe('fetchDenied');
     });
@@ -2829,7 +2835,7 @@ describe('sidepanel', () => {
     await mock.session.set({ [SLOT]: READY() });
     await waitForHeading('noPlaceTitle');
     const card = document.querySelector('#result-slot') as HTMLElement;
-    (card.querySelector('.primary') as HTMLButtonElement).click();
+    clickEl(card.querySelector('.primary') as HTMLButtonElement);
     await waitFor(() => {
       expect(card.querySelector('h2')?.textContent).toBe('Oia');
     });
@@ -2908,7 +2914,7 @@ describe('sidepanel', () => {
     await mock.session.set({ [SLOT]: READY() });
     await waitForHeading('noPlaceTitle');
     let card = document.querySelector('#result-slot') as HTMLElement;
-    (card.querySelector('.primary') as HTMLButtonElement).click();
+    clickEl(card.querySelector('.primary') as HTMLButtonElement);
     await waitFor(() => {
       expect(card.querySelector('h2')?.textContent).toBe('Oia');
     });
@@ -2921,7 +2927,7 @@ describe('sidepanel', () => {
       expect(retry?.querySelector('h2')?.textContent).toBe('noPlaceTitle');
     });
     card = document.querySelector('#result-slot') as HTMLElement;
-    (card.querySelector('.primary') as HTMLButtonElement).click();
+    clickEl(card.querySelector('.primary') as HTMLButtonElement);
     await waitFor(() => {
       expect(card.querySelector('h2')?.textContent).toBe('Oia');
     });
@@ -2966,7 +2972,7 @@ describe('sidepanel', () => {
     const box = document.querySelector('#image-only') as HTMLInputElement;
     expect(box.checked).toBe(false);
     box.checked = true;
-    box.dispatchEvent(new Event('change', { bubbles: true }));
+    dispatchEl(box, new Event('change', { bubbles: true }));
 
     await waitFor(() => {
       const record = mock.local.data.get('settings') as { settings: { imageOnly: boolean } };
@@ -2976,7 +2982,7 @@ describe('sidepanel', () => {
 
     const skip = document.querySelector('#skip-search') as HTMLInputElement;
     skip.checked = true;
-    skip.dispatchEvent(new Event('change', { bubbles: true }));
+    dispatchEl(skip, new Event('change', { bubbles: true }));
 
     await waitFor(() => {
       const record = mock.local.data.get('settings') as {
@@ -3000,7 +3006,7 @@ describe('sidepanel', () => {
 
     const box = document.querySelector('#image-only') as HTMLInputElement;
     box.checked = true;
-    box.dispatchEvent(new Event('change', { bubbles: true }));
+    dispatchEl(box, new Event('change', { bubbles: true }));
 
     await waitFor(() => {
       expect(document.querySelector('#alert-region')?.textContent).toBe('settingsSaveFailed');
@@ -3024,13 +3030,13 @@ describe('sidepanel', () => {
 
     const compat = document.querySelector('#provider-compat') as HTMLInputElement;
     compat.checked = true;
-    compat.dispatchEvent(new Event('change', { bubbles: true }));
+    dispatchEl(compat, new Event('change', { bubbles: true }));
     expect(document.querySelector('#compat-fields')?.hasAttribute('hidden')).toBe(false);
 
     (document.querySelector('#compat-base-url') as HTMLInputElement).value =
       'https://llm.example.com/v1';
     (document.querySelector('#compat-model') as HTMLInputElement).value = 'test-model';
-    (document.querySelector('#compat-save') as HTMLButtonElement).click();
+    clickEl(document.querySelector('#compat-save') as HTMLButtonElement);
 
     await waitFor(() => {
       expect(document.querySelector('#compat-error')?.textContent).toBe(
@@ -3038,7 +3044,7 @@ describe('sidepanel', () => {
       );
     });
 
-    (document.querySelector('#compat-save') as HTMLButtonElement).click();
+    clickEl(document.querySelector('#compat-save') as HTMLButtonElement);
 
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusProviderSaved');
@@ -3052,7 +3058,7 @@ describe('sidepanel', () => {
 
     const muse = document.querySelector('#provider-muse') as HTMLInputElement;
     muse.checked = true;
-    muse.dispatchEvent(new Event('change', { bubbles: true }));
+    dispatchEl(muse, new Event('change', { bubbles: true }));
 
     await waitFor(() => {
       const record = mock.local.data.get('settings') as {
@@ -3082,7 +3088,7 @@ describe('sidepanel', () => {
     const retention = document.querySelector('#retention-select') as HTMLSelectElement;
     expect(retention.value).toBe('7');
     retention.value = '1';
-    retention.dispatchEvent(new Event('change', { bubbles: true }));
+    dispatchEl(retention, new Event('change', { bubbles: true }));
 
     await waitFor(() => {
       const record = mock.local.data.get('settings') as {
@@ -3092,7 +3098,7 @@ describe('sidepanel', () => {
       expect(record.settings.cacheTtlDays).toBe(1);
     });
 
-    (document.querySelector('#settings-panel #clear-cache') as HTMLButtonElement).click();
+    clickEl(document.querySelector('#settings-panel #clear-cache') as HTMLButtonElement);
 
     await waitFor(() => {
       expect(document.querySelector('#cache-result')?.textContent).toBe('cacheClearedOne');
@@ -3112,7 +3118,7 @@ describe('sidepanel', () => {
       );
     });
 
-    (document.querySelector('#settings-reset-cost') as HTMLButtonElement).click();
+    clickEl(document.querySelector('#settings-reset-cost') as HTMLButtonElement);
 
     await waitFor(() => {
       expect(document.querySelector('#settings-cost-line')?.textContent).toBe(
@@ -3129,14 +3135,14 @@ describe('sidepanel', () => {
     await waitForSettings();
 
     const reset = document.querySelector('#settings-reset-cost') as HTMLButtonElement;
-    reset.click();
+    clickEl(reset);
 
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusMonthlyReset');
     });
 
     const first = document.querySelector('#status-region span');
-    reset.click();
+    clickEl(reset);
 
     await waitFor(() => {
       expect(document.querySelector('#status-region span')).not.toBe(first);
@@ -3212,7 +3218,7 @@ describe('sidepanel', () => {
     const paragraphs = [...document.querySelectorAll('#result-slot p')].map((p) => p.textContent);
     expect(paragraphs).toContain('videoConfirmImageOnly');
 
-    (document.querySelector('#result-slot .confirm-actions .primary') as HTMLButtonElement).click();
+    clickEl(document.querySelector('#result-slot .confirm-actions .primary') as HTMLButtonElement);
     await waitForHeading('Oia');
     expect(document.querySelector('#privacy-line')?.textContent).toBe(
       "privacyVideoFrameOnly(Meta's Muse API)"
@@ -3241,7 +3247,7 @@ describe('sidepanel', () => {
     expect(paragraphs).toContain('videoConfirmBody');
     expect(paragraphs).toContain('videoConfirmRung2Note');
 
-    (document.querySelector('#result-slot .confirm-actions .primary') as HTMLButtonElement).click();
+    clickEl(document.querySelector('#result-slot .confirm-actions .primary') as HTMLButtonElement);
     await waitForHeading('Oia');
     expect(document.querySelector('#privacy-line')?.textContent).toBe(
       "privacyVideoUrl(Meta's Muse API)"
@@ -3279,20 +3285,18 @@ describe('sidepanel', () => {
     await waitForHeading('Oia');
 
     const card = document.querySelector('#result-slot') as HTMLElement;
-    (card.querySelector('.pin-button') as HTMLButtonElement).click();
+    clickEl(card.querySelector('.pin-button') as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned(Oia | 1)');
     });
 
-    (card.querySelector('.chips-row .chip') as HTMLButtonElement).click();
+    clickEl(card.querySelector('.chips-row .chip') as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('alternatesReady(1)');
     });
 
     const fresh = document.querySelector('#result-slot') as HTMLElement;
-    (
-      fresh.querySelector('.alternate-actions button:not(.pin-button)') as HTMLButtonElement
-    ).click();
+    clickEl(fresh.querySelector('.alternate-actions button:not(.pin-button)') as HTMLButtonElement);
     await waitForHeading('Fira');
 
     const swapped = document.querySelector('#result-slot') as HTMLElement;
@@ -3308,7 +3312,7 @@ describe('sidepanel', () => {
     expect(tiles?.length).toBeGreaterThan(0);
     expect((tiles?.[0] as HTMLAnchorElement).href).toContain('Fira');
 
-    (swapped.querySelector('.pin-button') as HTMLButtonElement).click();
+    clickEl(swapped.querySelector('.pin-button') as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned(Fira | 2)');
     });
@@ -3323,7 +3327,7 @@ describe('sidepanel', () => {
       expect(compared.querySelectorAll('.compare-row option')).toHaveLength(1);
     });
     expect(compared.querySelector('.compare-row option')?.textContent).toBe('Oia, Greece');
-    (compared.querySelector('.compare-go') as HTMLButtonElement).click();
+    clickEl(compared.querySelector('.compare-go') as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('duelReady');
     });
@@ -3358,7 +3362,7 @@ describe('sidepanel', () => {
       'loadingPhaseIdentifying'
     );
 
-    (document.querySelector('#result-slot .cancel-button') as HTMLButtonElement).click();
+    clickEl(document.querySelector('#result-slot .cancel-button') as HTMLButtonElement);
 
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusCanceled');
@@ -3381,7 +3385,7 @@ describe('sidepanel', () => {
       );
     });
 
-    (document.querySelector('#result-slot .cancel-button') as HTMLButtonElement).click();
+    clickEl(document.querySelector('#result-slot .cancel-button') as HTMLButtonElement);
 
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusCanceled');
@@ -3408,7 +3412,7 @@ describe('sidepanel', () => {
     await waitForHeading('Oia');
 
     const card = document.querySelector('#result-slot') as HTMLElement;
-    (card.querySelector('.pin-button') as HTMLButtonElement).click();
+    clickEl(card.querySelector('.pin-button') as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned(Oia | 1)');
     });
@@ -3421,14 +3425,14 @@ describe('sidepanel', () => {
     await waitFor(() => {
       expect(card.querySelector('h2')?.textContent).toBe('Fira');
     });
-    (card.querySelector('.pin-button') as HTMLButtonElement).click();
+    clickEl(card.querySelector('.pin-button') as HTMLButtonElement);
     await waitFor(() => {
       const board = document.querySelector('#board-slot') as HTMLElement;
       expect(board.querySelectorAll('li')).toHaveLength(2);
     });
 
     hangUntilAbort();
-    (document.querySelector('#board-slot .plan-button') as HTMLButtonElement).click();
+    clickEl(document.querySelector('#board-slot .plan-button') as HTMLButtonElement);
 
     await waitFor(() => {
       expect(document.querySelector('#result-slot .cancel-button')?.textContent).toBe(
@@ -3439,7 +3443,7 @@ describe('sidepanel', () => {
       'loadingPhaseWriting'
     );
 
-    (document.querySelector('#result-slot .cancel-button') as HTMLButtonElement).click();
+    clickEl(document.querySelector('#result-slot .cancel-button') as HTMLButtonElement);
 
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusCanceled');
@@ -3473,7 +3477,7 @@ describe('sidepanel', () => {
       );
     });
 
-    (document.querySelector('#result-slot section > button') as HTMLButtonElement).click();
+    clickEl(document.querySelector('#result-slot section > button') as HTMLButtonElement);
 
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusCanceled');
@@ -3558,7 +3562,7 @@ describe('sidepanel', () => {
 
     const pin = document.querySelector('#result-slot .scan-card .pin-button') as HTMLButtonElement;
     expect(pin.textContent).toBe('pinButton(Oia)');
-    pin.click();
+    clickEl(pin);
 
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned(Oia | 1)');
@@ -3600,7 +3604,7 @@ describe('sidepanel', () => {
       expect(document.querySelector('#result-slot h2')?.textContent).toBe('scanNoneTitle');
     });
 
-    (document.querySelector('#result-slot button') as HTMLButtonElement).click();
+    clickEl(document.querySelector('#result-slot button') as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelectorAll('#result-slot .scan-card')).toHaveLength(1);
     });
@@ -3619,7 +3623,7 @@ describe('sidepanel', () => {
 
     const dismiss = document.querySelector('#result-slot button') as HTMLButtonElement;
     expect(dismiss.textContent).toBe('dismissErrorButton');
-    dismiss.click();
+    clickEl(dismiss);
 
     await waitFor(() => {
       expect(document.querySelector('#result-slot .hint')?.textContent).toBe('panelIdle');
@@ -3633,7 +3637,7 @@ describe('sidepanel', () => {
     await mock.session.set({ [SLOT]: READY() });
     await waitForHeading('Oia');
 
-    (document.querySelector('#result-slot .pin-button') as HTMLButtonElement).focus();
+    focusEl(document.querySelector('#result-slot .pin-button') as HTMLButtonElement);
     expect(document.activeElement?.className).toContain('pin-button');
 
     hangUntilAbort();
@@ -3648,7 +3652,7 @@ describe('sidepanel', () => {
       expect(document.activeElement?.id).toBe('preview-heading');
     });
 
-    (document.querySelector('#result-slot .cancel-button') as HTMLButtonElement).click();
+    clickEl(document.querySelector('#result-slot .cancel-button') as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusCanceled');
     });
@@ -3679,7 +3683,7 @@ describe('sidepanel', () => {
     await waitForHeading('Oia');
 
     const card = document.querySelector('#result-slot') as HTMLElement;
-    (card.querySelector('.chips-row .chip') as HTMLButtonElement).click();
+    clickEl(card.querySelector('.chips-row .chip') as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('alternatesReady(1)');
     });
@@ -3696,7 +3700,7 @@ describe('sidepanel', () => {
     expect((controls[0] as HTMLElement).className).toContain('pin-button');
 
     const plan = fresh.querySelector('.plan-trip-button') as HTMLButtonElement;
-    plan.focus();
+    focusEl(plan);
     expect(document.activeElement).toBe(plan);
   });
 

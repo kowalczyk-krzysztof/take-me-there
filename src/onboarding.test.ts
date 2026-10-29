@@ -27,7 +27,7 @@ vi.mock('idb-keyval', () => {
 });
 
 import type { ChromeMock } from './test/chrome_mock';
-import { readShell, setupPage, teardownPage, waitFor } from './test/helpers';
+import { clickEl, dispatchEl, readShell, setupPage, teardownPage, waitFor } from './test/helpers';
 
 const SHELL = readShell('onboarding');
 
@@ -55,7 +55,8 @@ describe('onboarding', () => {
     await setup();
     fetchMock.mockResolvedValue(new Response('[]', { status: 401 }));
     (document.querySelector('#key-input') as HTMLInputElement).value = 'LLM_bad';
-    (document.querySelector('#key-host form') as HTMLFormElement).dispatchEvent(
+    dispatchEl(
+      document.querySelector('#key-host form') as HTMLFormElement,
       new Event('submit', { bubbles: true, cancelable: true })
     );
     await waitFor(() => {
@@ -78,7 +79,7 @@ describe('onboarding', () => {
 
     const box = document.querySelector('#session-only') as HTMLInputElement;
     box.checked = true;
-    box.dispatchEvent(new Event('change', { bubbles: true }));
+    dispatchEl(box, new Event('change', { bubbles: true }));
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('settingsSaveFailed');
     });
@@ -94,7 +95,8 @@ describe('onboarding', () => {
     const mock = await setup();
     fetchMock.mockResolvedValue(new Response('[]', { status: 200 }));
     (document.querySelector('#key-input') as HTMLInputElement).value = 'LLM_new';
-    (document.querySelector('#key-host form') as HTMLFormElement).dispatchEvent(
+    dispatchEl(
+      document.querySelector('#key-host form') as HTMLFormElement,
       new Event('submit', { bubbles: true, cancelable: true })
     );
     await waitFor(() => {
@@ -115,13 +117,13 @@ describe('onboarding', () => {
 
     const compat = document.querySelector('#provider-compat') as HTMLInputElement;
     compat.checked = true;
-    compat.dispatchEvent(new Event('change', { bubbles: true }));
+    dispatchEl(compat, new Event('change', { bubbles: true }));
     expect(document.querySelector('#compat-fields')?.hasAttribute('hidden')).toBe(false);
 
     (document.querySelector('#compat-base-url') as HTMLInputElement).value =
       'https://llm.example.com/v1';
     (document.querySelector('#compat-model') as HTMLInputElement).value = 'test-model';
-    (document.querySelector('#compat-save') as HTMLButtonElement).click();
+    clickEl(document.querySelector('#compat-save') as HTMLButtonElement);
 
     await waitFor(() => {
       expect(document.querySelector('#compat-error')?.textContent).toBe(
@@ -129,7 +131,7 @@ describe('onboarding', () => {
       );
     });
 
-    (document.querySelector('#compat-save') as HTMLButtonElement).click();
+    clickEl(document.querySelector('#compat-save') as HTMLButtonElement);
 
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusProviderSaved');
@@ -171,7 +173,7 @@ describe('onboarding', () => {
 
     const muse = document.querySelector('#provider-muse') as HTMLInputElement;
     muse.checked = true;
-    muse.dispatchEvent(new Event('change', { bubbles: true }));
+    dispatchEl(muse, new Event('change', { bubbles: true }));
 
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusProviderSaved');

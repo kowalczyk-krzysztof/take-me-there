@@ -1,26 +1,62 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { act } from 'react';
 import { vi } from 'vitest';
 import { installChromeMock, uninstallChromeMock, type ChromeMock } from './chrome_mock';
 import { handleHandoffMessage } from '../handoff';
 import { handleStorageMessage } from '../storage_service';
 
 export const waitFor = async (fn: () => unknown, timeoutMs = 5000): Promise<void> => {
-  const start = Date.now();
+  await act(async () => {
+    const start = Date.now();
 
-  for (;;) {
-    try {
-      await fn();
+    for (;;) {
+      try {
+        await fn();
 
-      return;
-    } catch (err) {
-      if (Date.now() - start > timeoutMs) {
-        throw err;
+        return;
+      } catch (err) {
+        if (Date.now() - start > timeoutMs) {
+          throw err;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 25));
       }
-      await new Promise((resolve) => setTimeout(resolve, 25));
     }
-  }
+  });
+};
+
+// DOM events drive React through store updates; delivering each event
+// inside act() attributes those updates the way React Testing Library's
+// fireEvent does.
+export const clickEl = (target: Element | null): void => {
+  act(() => {
+    (target as HTMLElement).click();
+  });
+};
+
+export const focusEl = (target: Element | null): void => {
+  act(() => {
+    (target as HTMLElement).focus();
+  });
+};
+
+export const dispatchEl = (target: Element | null, event: Event): boolean => {
+  let delivered = false;
+
+  act(() => {
+    delivered = (target as Element).dispatchEvent(event);
+  });
+
+  return delivered;
+};
+
+// Negative tests sleep to prove nothing happens; the sleep holds an act()
+// scope so straggler updates stay attributed instead of warning.
+export const sleep = async (ms: number): Promise<void> => {
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, ms));
+  });
 };
 
 export const readShell = (page: string): string =>
@@ -31,8 +67,17 @@ export const readShell = (page: string): string =>
 
 export const mountShell = (html: string): void => {
   const body = html.split(/<body[^>]*>/)[1]?.split('</body>')[0] ?? '';
-  document.body.innerHTML = body;
+  // The shell references the built bundle, which can neither load nor run
+  // here: the entry module is imported directly. Strip script tags so the
+  // mounted test DOM contains only what the test drives.
+  document.body.innerHTML = body.replace(/<script[\s\S]*?<\/script\s*>/gi, '');
 };
+
+interface MountedPage {
+  unmountPage?: unknown;
+}
+
+let mountedPage: MountedPage | null = null;
 
 export const setupPage = async (
   shell: string,
@@ -45,13 +90,19 @@ export const setupPage = async (
   const mock = installChromeMock();
   routeWorkerMessages(mock);
 
+  fetchMock.mockReset();
   if (beforeImport) {
     await beforeImport(mock);
   }
   mountShell(shell);
-  fetchMock.mockReset();
   vi.stubGlobal('fetch', fetchMock);
-  await runEntry();
+  await act(async () => {
+    mountedPage = (await runEntry()) as MountedPage | null;
+    // initPanel kicks fire-and-forget chains (lock, board, settings,
+    // handoff watch): settle them before returning so no test await
+    // observes their unattributed updates.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
 
   return mock;
 };
@@ -79,7 +130,16 @@ export const routeWorkerMessages = (mock: ChromeMock): void => {
   };
 };
 
-export const teardownPage = (): void => {
+export const teardownPage = async (): Promise<void> => {
+  // Unmount before clearing the DOM and uninstalling the chrome mock:
+  // a live root would otherwise render into the torn-down page when a
+  // trailing act() flush lands after the test.
+  await act(async () => {
+    if (typeof mountedPage?.unmountPage === 'function') {
+      (mountedPage.unmountPage as () => void)();
+    }
+    mountedPage = null;
+  });
   document.body.innerHTML = '';
   uninstallChromeMock();
   vi.unstubAllGlobals();
@@ -130,9 +190,11 @@ export const groundedResponse = (json: unknown, annotations: unknown[] = []): Re
   );
 
 export const plantKeyAndConsent = async (): Promise<void> => {
-  const { saveKey } = await import('../key_vault');
+  await act(async () => {
+    const { saveKey } = await import('../key_vault');
 
-  const { setConsented } = await import('../providers/index');
-  await saveKey('muse', 'LLM_x', false);
-  await setConsented();
+    const { setConsented } = await import('../providers/index');
+    await saveKey('muse', 'LLM_x', false);
+    await setConsented();
+  });
 };

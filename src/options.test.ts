@@ -28,7 +28,7 @@ vi.mock('idb-keyval', () => {
 
 import { monthKey } from './pricing';
 import type { ChromeMock } from './test/chrome_mock';
-import { readShell, setupPage, teardownPage, waitFor } from './test/helpers';
+import { clickEl, dispatchEl, readShell, setupPage, teardownPage, waitFor } from './test/helpers';
 
 const SHELL = readShell('options');
 
@@ -63,7 +63,7 @@ describe('options', () => {
     const mock = await setup(async (inner) => {
       await inner.local.set({ costTotals: { [monthKey()]: 2 } });
     });
-    (document.querySelector('#reset-cost') as HTMLButtonElement).click();
+    clickEl(document.querySelector('#reset-cost') as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusMonthlyReset');
     });
@@ -75,7 +75,7 @@ describe('options', () => {
 
     const box = document.querySelector('#image-only') as HTMLInputElement;
     box.checked = true;
-    box.dispatchEvent(new Event('change', { bubbles: true }));
+    dispatchEl(box, new Event('change', { bubbles: true }));
     await waitFor(() => {
       const record = mock.local.data.get('settings') as {
         settings: { imageOnly: boolean };
@@ -89,7 +89,7 @@ describe('options', () => {
 
     const box = document.querySelector('#skip-search') as HTMLInputElement;
     box.checked = true;
-    box.dispatchEvent(new Event('change', { bubbles: true }));
+    dispatchEl(box, new Event('change', { bubbles: true }));
     await waitFor(() => {
       const record = mock.local.data.get('settings') as {
         settings: { skipWebSearch: boolean };
@@ -102,7 +102,8 @@ describe('options', () => {
     const mock = await setup();
     fetchMock.mockResolvedValue(new Response('[]', { status: 200 }));
     (document.querySelector('#key-input') as HTMLInputElement).value = 'LLM_new';
-    (document.querySelector('#key-host form') as HTMLFormElement).dispatchEvent(
+    dispatchEl(
+      document.querySelector('#key-host form') as HTMLFormElement,
       new Event('submit', { bubbles: true, cancelable: true })
     );
     await waitFor(() => {
@@ -115,7 +116,8 @@ describe('options', () => {
     await setup();
     fetchMock.mockResolvedValue(new Response('[]', { status: 401 }));
     (document.querySelector('#key-input') as HTMLInputElement).value = 'LLM_bad';
-    (document.querySelector('#key-host form') as HTMLFormElement).dispatchEvent(
+    dispatchEl(
+      document.querySelector('#key-host form') as HTMLFormElement,
       new Event('submit', { bubbles: true, cancelable: true })
     );
     await waitFor(() => {
@@ -130,11 +132,11 @@ describe('options', () => {
     const { saveKey, loadKey } = await import('./key_vault');
     await saveKey('muse', 'LLM_x', false);
     fetchMock.mockResolvedValue(new Response('[]', { status: 200 }));
-    (document.querySelector('#test-key') as HTMLButtonElement).click();
+    clickEl(document.querySelector('#test-key') as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusKeyWorks');
     });
-    (document.querySelector('#clear-key') as HTMLButtonElement).click();
+    clickEl(document.querySelector('#clear-key') as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusKeyCleared');
     });
@@ -156,7 +158,7 @@ describe('options', () => {
 
     const box = document.querySelector('#session-only') as HTMLInputElement;
     box.checked = true;
-    box.dispatchEvent(new Event('change', { bubbles: true }));
+    dispatchEl(box, new Event('change', { bubbles: true }));
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('settingsSaveFailed');
     });
@@ -176,7 +178,7 @@ describe('options', () => {
     await saveKey('muse', 'LLM_x', false);
     await saveKey('openai_compat', 'LLM_y', true);
 
-    (document.querySelector('#clear-all-keys') as HTMLButtonElement).click();
+    clickEl(document.querySelector('#clear-all-keys') as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusKeyCleared');
     });
@@ -197,7 +199,7 @@ describe('options', () => {
     mock.session.fault = fail;
     mock.local.fault = fail;
 
-    (document.querySelector('#clear-key') as HTMLButtonElement).click();
+    clickEl(document.querySelector('#clear-key') as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('settingsSaveFailed');
     });
@@ -224,7 +226,7 @@ describe('options', () => {
 
     const compat = document.querySelector('#provider-compat') as HTMLInputElement;
     compat.checked = true;
-    compat.dispatchEvent(new Event('change', { bubbles: true }));
+    dispatchEl(compat, new Event('change', { bubbles: true }));
     expect(document.querySelector('#compat-fields')?.hasAttribute('hidden')).toBe(false);
     (document.querySelector('#compat-base-url') as HTMLInputElement).value =
       'https://llm.example.com/v1/';
@@ -232,7 +234,7 @@ describe('options', () => {
     (document.querySelector('#compat-structured') as HTMLSelectElement).value = 'json_schema';
     (document.querySelector('#compat-input-rate') as HTMLInputElement).value = '1.5';
     (document.querySelector('#compat-cached-rate') as HTMLInputElement).value = '0.2';
-    (document.querySelector('#compat-save') as HTMLButtonElement).click();
+    clickEl(document.querySelector('#compat-save') as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#compat-error')?.textContent).toBe(
         'compatHostWarning(llm.example.com)'
@@ -241,7 +243,7 @@ describe('options', () => {
     expect(document.querySelector('#compat-save')?.textContent).toBe('compatSaveAnyway');
     expect(permsRequest).not.toHaveBeenCalled();
     expect(mock.local.data.get('settings')).toBeUndefined();
-    (document.querySelector('#compat-save') as HTMLButtonElement).click();
+    clickEl(document.querySelector('#compat-save') as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusProviderSaved');
     });
@@ -271,39 +273,39 @@ describe('options', () => {
     (chrome as unknown as { permissions: unknown }).permissions = { request: permsRequest };
     const compat = document.querySelector('#provider-compat') as HTMLInputElement;
     compat.checked = true;
-    compat.dispatchEvent(new Event('change', { bubbles: true }));
+    dispatchEl(compat, new Event('change', { bubbles: true }));
     const save = document.querySelector('#compat-save') as HTMLButtonElement;
     const baseUrl = document.querySelector('#compat-base-url') as HTMLInputElement;
     const model = document.querySelector('#compat-model') as HTMLInputElement;
     const error = () => document.querySelector('#compat-error')?.textContent;
     baseUrl.value = 'https://remote.example.com:81/x';
-    save.click();
+    clickEl(save);
     await waitFor(() => {
       expect(error()).toBe('providerErrorModel');
     });
     baseUrl.value = 'not a url';
     model.value = 'm';
-    save.click();
+    clickEl(save);
     await waitFor(() => {
       expect(error()).toBe('providerErrorUrl');
     });
     baseUrl.value = 'http://remote.example.com/v1';
-    save.click();
+    clickEl(save);
     await waitFor(() => {
       expect(error()).toBe('providerErrorUrl');
     });
     baseUrl.value = 'http://localhost:11434/v1';
     (document.querySelector('#compat-input-rate') as HTMLInputElement).value = '-2';
-    save.click();
+    clickEl(save);
     await waitFor(() => {
       expect(error()).toBe('providerErrorRates');
     });
     (document.querySelector('#compat-input-rate') as HTMLInputElement).value = '';
-    save.click();
+    clickEl(save);
     await waitFor(() => {
       expect(error()).toBe('compatHostWarning(localhost:11434)');
     });
-    save.click();
+    clickEl(save);
     await waitFor(() => {
       expect(error()).toBe('providerErrorDenied');
     });
@@ -335,7 +337,7 @@ describe('options', () => {
     );
     const muse = document.querySelector('#provider-muse') as HTMLInputElement;
     muse.checked = true;
-    muse.dispatchEvent(new Event('change', { bubbles: true }));
+    dispatchEl(muse, new Event('change', { bubbles: true }));
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusProviderSaved');
     });
@@ -358,18 +360,18 @@ describe('options', () => {
 
     const compat = document.querySelector('#provider-compat') as HTMLInputElement;
     compat.checked = true;
-    compat.dispatchEvent(new Event('change', { bubbles: true }));
+    dispatchEl(compat, new Event('change', { bubbles: true }));
     (document.querySelector('#compat-base-url') as HTMLInputElement).value =
       'http://127.0.0.1:11434/v1';
     (document.querySelector('#compat-model') as HTMLInputElement).value = 'local-model';
     const save = document.querySelector('#compat-save') as HTMLButtonElement;
-    save.click();
+    clickEl(save);
     await waitFor(() => {
       expect(document.querySelector('#compat-error')?.textContent).toBe(
         'compatHostWarning(127.0.0.1:11434)'
       );
     });
-    save.click();
+    clickEl(save);
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusProviderSaved');
     });
@@ -396,16 +398,16 @@ describe('options', () => {
 
     const compat = document.querySelector('#provider-compat') as HTMLInputElement;
     compat.checked = true;
-    compat.dispatchEvent(new Event('change', { bubbles: true }));
+    dispatchEl(compat, new Event('change', { bubbles: true }));
     (document.querySelector('#compat-base-url') as HTMLInputElement).value =
       'https://llm.example.com/v1';
     (document.querySelector('#compat-model') as HTMLInputElement).value = 'test-model';
     const save = document.querySelector('#compat-save') as HTMLButtonElement;
-    save.click();
+    clickEl(save);
     await waitFor(() => {
       expect(document.querySelector('#compat-error')?.textContent).toContain('compatHostWarning');
     });
-    save.click();
+    clickEl(save);
     await waitFor(() => {
       expect(document.querySelector('#compat-error')?.textContent).toBe('settingsSaveFailed');
     });
@@ -449,11 +451,11 @@ describe('options', () => {
     (document.querySelector('#compat-base-url') as HTMLInputElement).value =
       'https://new.example.com/v1';
     const save = document.querySelector('#compat-save') as HTMLButtonElement;
-    save.click();
+    clickEl(save);
     await waitFor(() => {
       expect(document.querySelector('#compat-error')?.textContent).toContain('compatHostWarning');
     });
-    save.click();
+    clickEl(save);
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusProviderSaved');
     });
@@ -486,7 +488,7 @@ describe('options', () => {
 
     const muse = document.querySelector('#provider-muse') as HTMLInputElement;
     muse.checked = true;
-    muse.dispatchEvent(new Event('change', { bubbles: true }));
+    dispatchEl(muse, new Event('change', { bubbles: true }));
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusProviderSaved');
     });
@@ -526,7 +528,7 @@ describe('options', () => {
     const retention = document.querySelector('#retention-select') as HTMLSelectElement;
     expect(retention.value).toBe('7');
     retention.value = '30';
-    retention.dispatchEvent(new Event('change', { bubbles: true }));
+    dispatchEl(retention, new Event('change', { bubbles: true }));
 
     await waitFor(() => {
       const record = mock.local.data.get('settings') as {
@@ -536,14 +538,14 @@ describe('options', () => {
       expect(record.settings.cacheTtlDays).toBe(30);
     });
 
-    (document.querySelector('#clear-cache') as HTMLButtonElement).click();
+    clickEl(document.querySelector('#clear-cache') as HTMLButtonElement);
 
     await waitFor(() => {
       expect(document.querySelector('#cache-result')?.textContent).toBe('cacheClearedOne');
     });
     expect(mock.session.data.has('cache:a')).toBe(false);
 
-    (document.querySelector('#clear-cache') as HTMLButtonElement).click();
+    clickEl(document.querySelector('#clear-cache') as HTMLButtonElement);
 
     await waitFor(() => {
       expect(document.querySelector('#cache-result')?.textContent).toBe('cacheClearedNone');
@@ -565,7 +567,7 @@ describe('options', () => {
 
     const retention = document.querySelector('#retention-select') as HTMLSelectElement;
     retention.value = '1';
-    retention.dispatchEvent(new Event('change', { bubbles: true }));
+    dispatchEl(retention, new Event('change', { bubbles: true }));
 
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('settingsSaveFailed');
@@ -579,7 +581,7 @@ describe('options', () => {
       }
     };
 
-    (document.querySelector('#clear-cache') as HTMLButtonElement).click();
+    clickEl(document.querySelector('#clear-cache') as HTMLButtonElement);
 
     await waitFor(() => {
       expect(document.querySelector('#cache-result')?.textContent).toBe('cacheClearFailed');
@@ -600,7 +602,7 @@ describe('options', () => {
 
     const sessionOnly = document.querySelector('#session-only') as HTMLInputElement;
     sessionOnly.checked = true;
-    sessionOnly.dispatchEvent(new Event('change', { bubbles: true }));
+    dispatchEl(sessionOnly, new Event('change', { bubbles: true }));
 
     await waitFor(async () => {
       expect((await loadKey('muse')).state).toBe('ok');
@@ -608,7 +610,7 @@ describe('options', () => {
 
     const retention = document.querySelector('#retention-select') as HTMLSelectElement;
     retention.value = '30';
-    retention.dispatchEvent(new Event('change', { bubbles: true }));
+    dispatchEl(retention, new Event('change', { bubbles: true }));
 
     await waitFor(() => {
       const record = mock.local.data.get('settings') as {

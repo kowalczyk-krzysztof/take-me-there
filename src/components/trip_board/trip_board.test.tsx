@@ -1,5 +1,5 @@
+import { clickEl, focusEl } from '../../test/helpers';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act } from 'react';
 import {
   TripBoard,
   type BoardItemView,
@@ -87,16 +87,12 @@ describe('trip-board', () => {
     const mono = entries[1].querySelector('.thumb-monogram');
     expect(mono?.textContent).toBe('F');
     expect(mono?.getAttribute('aria-hidden')).toBe('true');
-    act(() => {
-      (entries[0].querySelector('button') as HTMLButtonElement).click();
-    });
+    clickEl(entries[0].querySelector('button') as HTMLButtonElement);
     expect(onRemovePin).toHaveBeenCalledWith({
       placeName: 'Oia',
       country: 'Greece',
     } satisfies TripRemovePinDetail);
-    act(() => {
-      toggle.click();
-    });
+    clickEl(toggle);
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
     expect(root.querySelector('.board-body')?.hasAttribute('hidden')).toBe(true);
   });
@@ -118,9 +114,7 @@ describe('trip-board', () => {
     const plan = root.querySelector('.plan-button') as HTMLButtonElement;
     expect(plan.getAttribute('aria-disabled')).toBe('true');
     expect(root.querySelector('.plan-note')?.textContent).toBe('boardPlanNote');
-    act(() => {
-      plan.click();
-    });
+    clickEl(plan);
     expect(onPlan).not.toHaveBeenCalled();
     rendered.rerender(
       <TripBoard
@@ -137,9 +131,7 @@ describe('trip-board', () => {
     const enabled = root.querySelector('.plan-button') as HTMLButtonElement;
     expect(enabled.hasAttribute('aria-disabled')).toBe(false);
     expect(root.querySelector('.plan-note')).toBeNull();
-    act(() => {
-      enabled.click();
-    });
+    clickEl(enabled);
     expect(onPlan).toHaveBeenCalledTimes(1);
   });
 
@@ -147,9 +139,7 @@ describe('trip-board', () => {
     const onClearConfirm = vi.fn();
 
     const root = renderBoard(ITEMS, true, { onClearConfirm }).container;
-    act(() => {
-      (root.querySelector('.clear-button') as HTMLButtonElement).click();
-    });
+    clickEl(root.querySelector('.clear-button') as HTMLButtonElement);
 
     const heading = root.querySelector('.confirm-heading') as HTMLHeadingElement;
     expect(heading.textContent).toBe('boardClearTitle(2)');
@@ -158,18 +148,12 @@ describe('trip-board', () => {
     const [confirm, cancel] = [
       ...root.querySelectorAll('.confirm-actions button'),
     ] as HTMLButtonElement[];
-    act(() => {
-      cancel.click();
-    });
+    clickEl(cancel);
     expect(onClearConfirm).not.toHaveBeenCalled();
     expect(root.querySelector('ul')).not.toBeNull();
     expect(document.activeElement?.className).toContain('clear-button');
-    act(() => {
-      (root.querySelector('.clear-button') as HTMLButtonElement).click();
-    });
-    act(() => {
-      (root.querySelectorAll('.confirm-actions button')[0] as HTMLButtonElement).click();
-    });
+    clickEl(root.querySelector('.clear-button') as HTMLButtonElement);
+    clickEl(root.querySelectorAll('.confirm-actions button')[0] as HTMLButtonElement);
     expect(confirm).not.toBeNull();
     expect(onClearConfirm).toHaveBeenCalledTimes(1);
   });
@@ -194,9 +178,7 @@ describe('trip-board', () => {
     expect(notice.hidden).toBe(false);
     expect(notice.textContent).toContain('boardNoticePinFail');
     expect(notice.querySelector('button')?.textContent).toBe('boardRetryNoThumb');
-    act(() => {
-      (notice.querySelector('button') as HTMLButtonElement).click();
-    });
+    clickEl(notice.querySelector('button') as HTMLButtonElement);
     expect(onRetryPin).toHaveBeenCalledTimes(1);
     rendered.rerender(
       <TripBoard
@@ -230,7 +212,7 @@ describe('trip-board', () => {
     const root = rendered.container;
 
     const remove = root.querySelector('li button') as HTMLButtonElement;
-    remove.focus();
+    focusEl(remove);
     rendered.rerender(
       <TripBoard
         items={[ITEMS[1]!]}

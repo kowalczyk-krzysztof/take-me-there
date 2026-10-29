@@ -4,6 +4,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { act } from 'react';
 
 const catalog = JSON.parse(
   readFileSync(
@@ -40,6 +41,19 @@ export type MockGlobalChangeListener = (
 ) => void;
 
 export type StorageFault = (op: 'get' | 'set' | 'remove' | 'clear', keys: string[]) => void;
+
+// Lets a write's listener cascade settle before the write resolves. The
+// dispatch microtask plus the listeners' promise hops all run inside one
+// act() scope, so the React updates they schedule are attributed. Pure
+// microtasks: safe under fake timers. Longer cascades (fetch, real timers)
+// keep running and are covered by the test's own waitFor scopes.
+const settleDispatch = async (): Promise<void> => {
+  await act(async () => {
+    for (let i = 0; i < 100; i++) {
+      await Promise.resolve();
+    }
+  });
+};
 
 export class MockStorageArea {
   readonly data = new Map<string, unknown>();
@@ -93,6 +107,7 @@ export class MockStorageArea {
       this.data.set(key, structuredClone(value));
     }
     this.dispatch(changes);
+    await settleDispatch();
   }
 
   async remove(keys: string | string[]): Promise<void> {
@@ -107,25 +122,31 @@ export class MockStorageArea {
       }
     }
     this.dispatch(changes);
+    await settleDispatch();
   }
 
   async clear(): Promise<void> {
     this.fault('clear', []);
     this.data.clear();
     this.dispatch({});
+    await settleDispatch();
   }
 
   private dispatch(changes: Record<string, MockStorageChange>): void {
     // Chrome delivers storage events asynchronously with just the changes
     // on per-area listeners (the area is implicit).
     queueMicrotask(() => {
-      for (const listener of this.listeners) {
-        listener(structuredClone(changes));
-      }
+      // Storage listeners drive the page stores; delivering inside act()
+      // attributes their synchronous React updates.
+      act(() => {
+        for (const listener of this.listeners) {
+          listener(structuredClone(changes));
+        }
 
-      for (const listener of this.globalListeners) {
-        listener(structuredClone(changes), this.areaName);
-      }
+        for (const listener of this.globalListeners) {
+          listener(structuredClone(changes), this.areaName);
+        }
+      });
     });
   }
 

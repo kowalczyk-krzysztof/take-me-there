@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { createRoot } from 'react-dom/client';
+import { createRoot, type Root } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import { KeySetup } from './components/key_setup/key_setup';
 import { ProviderSection } from './components/settings/provider_section';
@@ -257,6 +257,13 @@ const OnboardingApp = () => {
 
 let initialized = false;
 
+let onboardingRoot: Root | null = null;
+
+export const unmountPage = (): void => {
+  onboardingRoot?.unmount();
+  onboardingRoot = null;
+};
+
 export const initOnboarding = (): void => {
   if (initialized) {
     return;
@@ -272,8 +279,10 @@ export const initOnboarding = (): void => {
 
   document.title = msg('appName');
 
+  onboardingRoot = createRoot(host);
+  const root = onboardingRoot;
   flushSync(() => {
-    createRoot(host).render(
+    root.render(
       <ErrorBoundary
         fallback={() => (
           <main>

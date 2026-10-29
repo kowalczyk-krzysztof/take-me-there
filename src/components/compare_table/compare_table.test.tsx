@@ -1,3 +1,4 @@
+import { clickEl } from '../../test/helpers';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CompareTable, type DuelRowView, type DuelTableState } from './compare_table';
 import { installChromeMock, uninstallChromeMock } from '../../test/chrome_mock';
@@ -104,7 +105,7 @@ describe('compare-table', () => {
 
     const button = root.querySelector('.root button, button') as HTMLButtonElement;
     expect(button?.textContent).toBe('cancelButton');
-    button.click();
+    clickEl(button);
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
 
@@ -120,7 +121,7 @@ describe('compare-table', () => {
       'duelError(Oia, Greece | Fira, Greece)'
     );
     expect(root.querySelector('.duel-error button')?.textContent).toBe('duelRetry');
-    (root.querySelector('.duel-error button') as HTMLButtonElement).click();
+    clickEl(root.querySelector('.duel-error button') as HTMLButtonElement);
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
 });

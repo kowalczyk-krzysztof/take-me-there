@@ -1,3 +1,4 @@
+import { clickEl } from '../../test/helpers';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ScanList, type ScanItemView } from './scan_list';
 import { installChromeMock, uninstallChromeMock } from '../../test/chrome_mock';
@@ -62,7 +63,7 @@ describe('scan-list', () => {
     );
     const cancel = rendered.container.querySelector('section > button') as HTMLButtonElement;
     expect(cancel?.textContent).toBe('cancelButton');
-    cancel.click();
+    clickEl(cancel);
     expect(onCancel).toHaveBeenCalledTimes(1);
 
     rendered.rerender(
@@ -204,8 +205,8 @@ describe('scan-list', () => {
     ).container;
 
     const cards = root.querySelectorAll('.scan-card');
-    (cards[1]?.querySelectorAll('button')[0] as HTMLButtonElement).click();
-    (cards[0]?.querySelectorAll('button')[1] as HTMLButtonElement).click();
+    clickEl(cards[1]?.querySelectorAll('button')[0] as HTMLButtonElement);
+    clickEl(cards[0]?.querySelectorAll('button')[1] as HTMLButtonElement);
     expect(onGuide).toHaveBeenCalledWith(1);
     expect(onPin).toHaveBeenCalledWith(0);
   });
@@ -229,8 +230,8 @@ describe('scan-list', () => {
     const root = rendered.container;
 
     const boxes = root.querySelectorAll('input[type="checkbox"]');
-    (boxes[0] as HTMLInputElement).click();
-    (boxes[1] as HTMLInputElement).click();
+    clickEl(boxes[0] as HTMLInputElement);
+    clickEl(boxes[1] as HTMLInputElement);
     expect(i18n).toHaveBeenLastCalledWith('scanPinSelected', '2');
     // Re-render (e.g. after a single pin) keeps the checked titles.
     rendered.rerender(
@@ -244,7 +245,7 @@ describe('scan-list', () => {
       />
     );
     expect(i18n).toHaveBeenLastCalledWith('scanPinSelected', '2');
-    (root.querySelector('.pin-selected') as HTMLButtonElement).click();
+    clickEl(root.querySelector('.pin-selected') as HTMLButtonElement);
     expect(onPinSelected).toHaveBeenCalledWith([0, 1]);
   });
 
@@ -261,7 +262,7 @@ describe('scan-list', () => {
         onCancel={noop}
       />
     ).container;
-    (root.querySelector('.pin-selected') as HTMLButtonElement).click();
+    clickEl(root.querySelector('.pin-selected') as HTMLButtonElement);
     expect(onPinSelected).not.toHaveBeenCalled();
   });
 });
