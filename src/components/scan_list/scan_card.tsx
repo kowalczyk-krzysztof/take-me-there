@@ -30,9 +30,10 @@ export const ScanCard = ({ item, index, initialChecked, onGuide, onPin }: Props)
         type="button"
         className="pin-button"
         aria-pressed={item.pinned}
+        disabled={item.pinned || undefined}
         onClick={() => onPin(index)}
       >
-        {msg('pinButton', item.placeName)}
+        {item.pinned ? msg('savedButton', item.placeName) : msg('pinButton', item.placeName)}
       </button>
     </div>
   </div>

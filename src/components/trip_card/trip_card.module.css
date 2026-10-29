@@ -41,6 +41,11 @@
   font-size: 13px;
   color: var(--muted);
 }
+.root .scanHint {
+  margin: 0 0 4px;
+  font-size: 13px;
+  color: var(--muted);
+}
 .root .skeleton {
   display: flex;
   flex-direction: column;

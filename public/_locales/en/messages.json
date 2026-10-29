@@ -1454,5 +1454,23 @@
   "secondaryHeading": {
     "message": "More actions",
     "description": "Label for the secondary card actions area."
+  },
+  "savedButton": {
+    "message": "Saved $1",
+    "description": "Scan pin button after saving.",
+    "placeholders": {
+      "name": {
+        "content": "$1",
+        "example": "Oia"
+      }
+    }
+  },
+  "dismissErrorButton": {
+    "message": "Start over",
+    "description": "Dismiss button on dead-end error cards."
+  },
+  "panelScanHint": {
+    "message": "Tip: right-click any page and choose “Scan page for places” to find every place pictured on it.",
+    "description": "Idle hint exposing page scan."
   }
 }

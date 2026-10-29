@@ -71,6 +71,7 @@ export interface TripCardCallbacks {
   onPlanInstead: (index: number) => void;
   onCancelAlternates: () => void;
   onCancelLoading: () => void;
+  onDismissError: () => void;
 }
 
 export type CardState =

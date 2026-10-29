@@ -6,12 +6,16 @@
   margin: 0 0 0.75rem;
 }
 .root .skeleton-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 0.75rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
-.root .skeleton-card {
-  min-height: 9rem;
+.root .skeleton-thumb {
+  height: 5rem;
+  border-radius: 0.375rem;
 }
 .root .scan-results {
   display: flex;
@@ -58,6 +62,13 @@
 }
 .root .card-actions button {
   flex: 1;
+}
+.root .pin-button[aria-pressed='true'] {
+  border-color: var(--link);
+  color: var(--link);
+}
+.root .pin-button:disabled {
+  cursor: default;
 }
 .root button {
   font: inherit;

@@ -31,6 +31,7 @@ const fullCallbacks = (overrides: Partial<TripCardCallbacks> = {}): TripCardCall
   onPlanInstead: noop,
   onCancelAlternates: noop,
   onCancelLoading: noop,
+  onDismissError: noop,
   ...overrides,
 });
 
@@ -59,6 +60,7 @@ describe('trip-card', () => {
   it('renders idle hints', () => {
     const root = renderCard({ view: 'idle', hint: 'hint', shortcut: 'keys' }).container;
     expect(root.querySelector('.hint')?.textContent).toBe('hint');
+    expect(root.querySelector('.scanHint')?.textContent).toBe('panelScanHint');
     expect(root.querySelector('.shortcut')?.textContent).toBe('keys');
   });
 
@@ -484,7 +486,24 @@ describe('trip-card', () => {
     });
     expect(onRetry).toHaveBeenCalledTimes(1);
     rerenderCard(rendered, { view: 'error', title: 'T', body: 'B', showRetry: false }, { onRetry });
-    expect(root.querySelector('button')).toBeNull();
+    expect(root.querySelector('button')?.textContent).toBe('dismissErrorButton');
+  });
+
+  it('dismisses dead-end errors back to start', () => {
+    const onDismissError = vi.fn();
+
+    const root = renderCard(
+      { view: 'error', title: 'T', body: 'B', showRetry: false },
+      { onDismissError }
+    ).container;
+
+    const buttons = root.querySelectorAll('button');
+    expect(buttons).toHaveLength(1);
+    expect(buttons[0]?.textContent).toBe('dismissErrorButton');
+    act(() => {
+      (buttons[0] as HTMLButtonElement).click();
+    });
+    expect(onDismissError).toHaveBeenCalledTimes(1);
   });
 
   it('renders the byte-fetch retry alongside the plain retry', () => {

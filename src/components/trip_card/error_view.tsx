@@ -9,7 +9,7 @@ interface Props {
   showRetry: boolean;
   fallback: { label: string; href: string } | null;
   showFetchRetry: boolean;
-  callbacks: Pick<TripCardCallbacks, 'onRetry' | 'onFetchRetry'>;
+  callbacks: Pick<TripCardCallbacks, 'onRetry' | 'onFetchRetry' | 'onDismissError'>;
 }
 
 export const ErrorView = ({
@@ -19,24 +19,33 @@ export const ErrorView = ({
   fallback,
   showFetchRetry,
   callbacks,
-}: Props) => (
-  <>
-    <h2 tabIndex={-1}>{title}</h2>
-    <p>{body}</p>
-    {showRetry ? (
-      <OneShotButton
-        label={msg('retryButton')}
-        loadingLabel={msg('retryingButton')}
-        onFire={callbacks.onRetry}
-      />
-    ) : null}
-    {showFetchRetry ? (
-      <OneShotButton
-        label={msg('fetchRetryButton')}
-        loadingLabel={msg('fetchRetryLoading')}
-        onFire={callbacks.onFetchRetry}
-      />
-    ) : null}
-    {fallback ? <FallbackLine fallback={fallback} /> : null}
-  </>
-);
+}: Props) => {
+  const hasAction = showRetry || showFetchRetry || fallback !== null;
+
+  return (
+    <>
+      <h2 tabIndex={-1}>{title}</h2>
+      <p>{body}</p>
+      {showRetry ? (
+        <OneShotButton
+          label={msg('retryButton')}
+          loadingLabel={msg('retryingButton')}
+          onFire={callbacks.onRetry}
+        />
+      ) : null}
+      {showFetchRetry ? (
+        <OneShotButton
+          label={msg('fetchRetryButton')}
+          loadingLabel={msg('fetchRetryLoading')}
+          onFire={callbacks.onFetchRetry}
+        />
+      ) : null}
+      {fallback ? <FallbackLine fallback={fallback} /> : null}
+      {hasAction ? null : (
+        <button type="button" onClick={callbacks.onDismissError}>
+          {msg('dismissErrorButton')}
+        </button>
+      )}
+    </>
+  );
+};

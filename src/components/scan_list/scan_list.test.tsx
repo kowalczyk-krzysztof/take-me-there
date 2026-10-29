@@ -42,7 +42,8 @@ describe('scan-list', () => {
 
     const grid = root.querySelector('.skeleton-grid');
     expect(grid?.getAttribute('aria-hidden')).toBe('true');
-    expect(grid?.querySelectorAll('.skeleton-block').length).toBe(6);
+    expect(grid?.querySelectorAll('.scan-card').length).toBe(3);
+    expect(grid?.querySelectorAll('.skeleton-block').length).toBe(9);
     expect(root.querySelector('section')?.getAttribute('aria-busy')).toBe('true');
   });
 
@@ -79,6 +80,28 @@ describe('scan-list', () => {
         (button) => button.textContent === 'cancelButton'
       )
     ).toBe(false);
+  });
+
+  it('shows saved pins as disabled with pressed state', () => {
+    const root = renderSync(
+      <ScanList
+        loading={false}
+        items={ITEMS}
+        onGuide={noop}
+        onPin={noop}
+        onPinSelected={noop}
+        onCancel={noop}
+      />
+    ).container;
+
+    const pins = [...root.querySelectorAll('.scan-card .pin-button')] as HTMLButtonElement[];
+    expect(pins).toHaveLength(2);
+    expect(pins[0].textContent).toBe('pinButton(Oia)');
+    expect(pins[0].getAttribute('aria-pressed')).toBe('false');
+    expect(pins[0].disabled).toBe(false);
+    expect(pins[1].textContent).toBe('savedButton(Fira)');
+    expect(pins[1].getAttribute('aria-pressed')).toBe('true');
+    expect(pins[1].disabled).toBe(true);
   });
 
   it('renders a no-skeleton shadow after results arrive', () => {

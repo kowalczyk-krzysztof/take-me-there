@@ -2159,7 +2159,7 @@ const runScan = async (run: RunContext, origin: 'gesture' | 'panel'): Promise<vo
   const images = request.scanImages ?? [];
   const privacy: PrivacyMode = 'scan';
   if (images.length === 0) {
-    renderErrorCard('scanEmptyTitle', 'scanEmptyBody', false, false);
+    renderErrorCard('scanEmptyTitle', 'scanEmptyBody', true, false);
     announceAlert('scanEmptyBody');
     updatePrivacy('idle');
     return;
@@ -2209,7 +2209,7 @@ const runScan = async (run: RunContext, origin: 'gesture' | 'panel'): Promise<vo
     }
 
     updatePrivacy(privacy);
-    renderErrorCard('scanNoneTitle', 'scanNoneBody', false, false);
+    renderErrorCard('scanNoneTitle', 'scanNoneBody', true, false);
     announceAlert('scanNoneBody');
     return;
   }
@@ -3437,6 +3437,7 @@ const onRemovePin = async (detail: TripRemovePinDetail): Promise<void> => {
   failedRemove = null;
   store.set({ boardItems: boardItemViews(pins), boardCanPlan: pins.length >= 2 });
   await syncPinButton();
+  await refreshScanPins();
 };
 
 const onRetryPin = async (): Promise<void> => {
@@ -3460,6 +3461,7 @@ const onClearConfirm = async (): Promise<void> => {
   }
   store.set({ boardItems: [], boardCanPlan: false });
   await syncPinButton();
+  await refreshScanPins();
   focusSelector('#board-heading button');
   announceStatus('boardCleared');
 };
@@ -3954,6 +3956,7 @@ const SidepanelApp = () => {
                 onPlanInstead: (index) => void onPlanInstead(index),
                 onCancelAlternates: onAlternatesCancel,
                 onCancelLoading: () => onCancelLoading(),
+                onDismissError: () => showIdle(),
               }}
             />
           ) : null}

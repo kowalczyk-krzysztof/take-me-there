@@ -98,8 +98,12 @@ export const ScanList = ({ loading, items, onGuide, onPin, onPinSelected, onCanc
         {loading ? (
           <>
             <div className={styles['skeleton-grid']} aria-hidden="true">
-              {[0, 1, 2, 3, 4, 5].map((index) => (
-                <div key={index} className={`skeleton-block ${styles['skeleton-card']}`} />
+              {[0, 1, 2].map((index) => (
+                <div key={index} className={styles['scan-card']}>
+                  <div className={`skeleton-block ${styles['skeleton-thumb']}`} />
+                  <div className="skeleton-block" style={{ width: '70%' }} />
+                  <div className="skeleton-block" style={{ width: '45%' }} />
+                </div>
               ))}
             </div>
             <button type="button" onClick={onCancel}>

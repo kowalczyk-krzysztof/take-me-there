@@ -1612,7 +1612,8 @@ describe('sidepanel', () => {
 
     const grid = list?.querySelector('.skeleton-grid');
     expect(grid?.getAttribute('aria-hidden')).toBe('true');
-    expect(grid?.querySelectorAll('.skeleton-block')).toHaveLength(6);
+    expect(grid?.querySelectorAll('.scan-card')).toHaveLength(3);
+    expect(grid?.querySelectorAll('.skeleton-block')).toHaveLength(9);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -3502,5 +3503,234 @@ describe('sidepanel', () => {
     expect(catalog.pinButton.message).toBe('Save $1 to trip');
     expect(catalog.planTripButton.message).toBe('Build a guide');
     expect(catalog.planningButton.message).toBe('Building guide…');
+  });
+
+  it('marks scan pins saved with pressed state', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    fetchMock.mockResolvedValueOnce(
+      chatResponse({
+        places: [
+          { placeName: 'Oia', city: 'Oia', country: 'Greece', confidence: 0.9, imageIndex: 0 },
+        ],
+      })
+    );
+    await mock.session.set({
+      [SLOT]: READY({
+        srcUrl: '',
+        signals: undefined,
+        scanImages: [
+          {
+            url: 'https://img.example.com/a.jpg',
+            caption: '',
+            heading: '',
+            width: 800,
+            height: 600,
+          },
+        ],
+      }),
+    });
+    await waitFor(() => {
+      expect(document.querySelectorAll('#result-slot .scan-card')).toHaveLength(1);
+    });
+
+    const pin = document.querySelector('#result-slot .scan-card .pin-button') as HTMLButtonElement;
+    expect(pin.textContent).toBe('pinButton(Oia)');
+    pin.click();
+
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned(Oia | 1)');
+    });
+
+    const saved = document.querySelector(
+      '#result-slot .scan-card .pin-button'
+    ) as HTMLButtonElement;
+    expect(saved.textContent).toBe('savedButton(Oia)');
+    expect(saved.getAttribute('aria-pressed')).toBe('true');
+    expect(saved.disabled).toBe(true);
+  });
+
+  it('retries an empty scan from the error card', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    fetchMock.mockResolvedValueOnce(chatResponse({ places: [] })).mockResolvedValueOnce(
+      chatResponse({
+        places: [
+          { placeName: 'Oia', city: 'Oia', country: 'Greece', confidence: 0.9, imageIndex: 0 },
+        ],
+      })
+    );
+    const record = {
+      srcUrl: '',
+      signals: undefined,
+      scanImages: [
+        {
+          url: 'https://img.example.com/a.jpg',
+          caption: '',
+          heading: '',
+          width: 800,
+          height: 600,
+        },
+      ],
+    };
+    await mock.session.set({ [SLOT]: READY(record) });
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot h2')?.textContent).toBe('scanNoneTitle');
+    });
+
+    (document.querySelector('#result-slot button') as HTMLButtonElement).click();
+    await waitFor(() => {
+      expect(document.querySelectorAll('#result-slot .scan-card')).toHaveLength(1);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('dismisses dead-end errors back to idle', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    await mock.session.set({
+      [SLOT]: READY({ status: 'error', reason: 'collecting-failed' }),
+    });
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot h2')?.textContent).toBe('handoffFailedTitle');
+    });
+
+    const dismiss = document.querySelector('#result-slot button') as HTMLButtonElement;
+    expect(dismiss.textContent).toBe('dismissErrorButton');
+    dismiss.click();
+
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot .hint')?.textContent).toBe('panelIdle');
+    });
+  });
+
+  it('falls back to the preview heading after headingless loading', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
+    await mock.session.set({ [SLOT]: READY() });
+    await waitForHeading('Oia');
+
+    (document.querySelector('#result-slot .pin-button') as HTMLButtonElement).focus();
+    expect(document.activeElement?.className).toContain('pin-button');
+
+    hangUntilAbort();
+    await mock.session.set({
+      [SLOT]: READY({
+        requestId: '200-2',
+        srcUrl: 'https://cdn.example.com/fira.jpg',
+      }),
+    });
+
+    await waitFor(() => {
+      expect(document.activeElement?.id).toBe('preview-heading');
+    });
+
+    (document.querySelector('#result-slot .cancel-button') as HTMLButtonElement).click();
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('statusCanceled');
+    });
+  });
+
+  it('keeps every result action keyboard-operable', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+
+    const { pinPlace } = await import('./board_store');
+    await pinPlace({
+      place: { ...VALID_PLACE, placeName: 'Fira', city: 'Fira', confidence: 0.8 },
+      sourceHost: 'example.com',
+    });
+    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE)).mockResolvedValueOnce(
+      groundedResponse({
+        alternatives: [
+          {
+            placeName: 'Fira',
+            country: 'Greece',
+            why: 'Same caldera, lower prices.',
+            bestMonth: 'May',
+          },
+        ],
+      })
+    );
+    await mock.session.set({ [SLOT]: READY() });
+    await waitForHeading('Oia');
+
+    const card = document.querySelector('#result-slot') as HTMLElement;
+    (card.querySelector('.chips-row .chip') as HTMLButtonElement).click();
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('alternatesReady(1)');
+    });
+
+    const fresh = document.querySelector('#result-slot') as HTMLElement;
+    const controls = [...fresh.querySelectorAll('button, select, input, a[href]')];
+    expect(controls.length).toBeGreaterThan(5);
+
+    for (const control of controls) {
+      expect((control as HTMLElement).tabIndex).toBeGreaterThanOrEqual(0);
+    }
+
+    expect(fresh.querySelectorAll('[role="button"]')).toHaveLength(0);
+    expect((controls[0] as HTMLElement).className).toContain('pin-button');
+
+    const plan = fresh.querySelector('.plan-trip-button') as HTMLButtonElement;
+    plan.focus();
+    expect(document.activeElement).toBe(plan);
+  });
+
+  it('renders guide blocks progressively with bounded announcements', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
+
+    const encoder = new TextEncoder();
+    let controller!: ReadableStreamDefaultController<Uint8Array>;
+    const stream = new ReadableStream<Uint8Array>({
+      start(c) {
+        controller = c;
+      },
+    });
+    fetchMock.mockResolvedValueOnce(
+      new Response(stream, {
+        status: 200,
+        headers: { 'Content-Type': 'text/event-stream' },
+      })
+    );
+    await mock.session.set({ [SLOT]: READY() });
+    await waitForHeading('Oia');
+    await clickPlanTrip();
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    controller.enqueue(
+      encoder.encode(
+        'event: response.output_text.delta\n' +
+          'data: {"delta":"## Oia\\n\\nSunny days.\\n\\n"}\n' +
+          '\n'
+      )
+    );
+
+    await waitFor(() => {
+      expect(document.querySelector('#guide-content')?.textContent).toContain('Sunny days.');
+    });
+    expect(document.querySelector('#status-region')?.textContent).toBe('statusPlanningTrip');
+
+    controller.enqueue(
+      encoder.encode(
+        'event: response.output_text.delta\n' +
+          'data: {"delta":"Evenings glow."}\n' +
+          '\n' +
+          'event: response.completed\n' +
+          'data: {"response":{"usage":{"input_tokens":300,"output_tokens":120}}}\n' +
+          '\n'
+      )
+    );
+    controller.close();
+
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('statusGuideReady');
+    });
+    expect(document.querySelector('#guide-content')?.textContent).toContain('Evenings glow.');
   });
 });
