@@ -205,29 +205,41 @@ describe('storage service concurrency', () => {
       }
     };
 
-    const partial = await handleStorageMessage(
-      { scope: STORAGE_MESSAGE_SCOPE, command: { kind: 'migrate.run' } },
-      PAGE_SENDER
-    );
-    expect(partial?.ok).toBe(true);
+    // The faulted step logs its failure; capture the expected warning
+    // instead of printing it.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-    const steps = (partial as { ok: true; value: Array<{ name: string; ok: boolean }> }).value;
-    expect(steps.find((step) => step.name === 'settings')?.ok).toBe(false);
-    expect(steps.find((step) => step.name === 'board')?.ok).toBe(true);
+    try {
+      const partial = await handleStorageMessage(
+        { scope: STORAGE_MESSAGE_SCOPE, command: { kind: 'migrate.run' } },
+        PAGE_SENDER
+      );
+      expect(partial?.ok).toBe(true);
 
-    // Restart: a fresh service instance holds no migration progress.
-    mock.local.fault = () => undefined;
-    vi.resetModules();
-    const fresh = await import('./storage_service');
+      const steps = (partial as { ok: true; value: Array<{ name: string; ok: boolean }> }).value;
+      expect(steps.find((step) => step.name === 'settings')?.ok).toBe(false);
+      expect(steps.find((step) => step.name === 'board')?.ok).toBe(true);
 
-    const retried = await fresh.handleStorageMessage(
-      { scope: STORAGE_MESSAGE_SCOPE, command: { kind: 'migrate.run' } },
-      PAGE_SENDER
-    );
-    expect(retried?.ok).toBe(true);
+      // Restart: a fresh service instance holds no migration progress.
+      mock.local.fault = () => undefined;
+      vi.resetModules();
+      const fresh = await import('./storage_service');
 
-    const done = (retried as { ok: true; value: Array<{ name: string; ok: boolean }> }).value;
-    expect(done.every((step) => step.ok)).toBe(true);
+      const retried = await fresh.handleStorageMessage(
+        { scope: STORAGE_MESSAGE_SCOPE, command: { kind: 'migrate.run' } },
+        PAGE_SENDER
+      );
+      expect(retried?.ok).toBe(true);
+
+      const done = (retried as { ok: true; value: Array<{ name: string; ok: boolean }> }).value;
+      expect(done.every((step) => step.ok)).toBe(true);
+
+      // The interrupted step logged once; the clean retry stays silent.
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn).toHaveBeenCalledWith('migration settings failed', expect.any(Error));
+    } finally {
+      warn.mockRestore();
+    }
 
     const settings = mock.local.data.get('settings') as { v: number };
     expect(settings.v).toBe(1);
