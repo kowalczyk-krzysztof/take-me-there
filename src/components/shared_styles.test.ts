@@ -50,6 +50,36 @@ describe('shared_styles contrast', () => {
     }
   });
 
+  it.each([
+    ['light', light],
+    ['dark', dark],
+  ])('keeps action labels at 4.5:1 or better in %s mode', (_mode, block) => {
+    expect(ratio(token('--on-action', block), token('--action', block))).toBeGreaterThanOrEqual(
+      4.5
+    );
+    expect(
+      ratio(token('--on-action', block), token('--action-hover', block))
+    ).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it.each([
+    ['light', light],
+    ['dark', dark],
+  ])('keeps control boundaries and focus visible in %s mode', (_mode, block) => {
+    expect(ratio(token('--action', block), token('--card', block))).toBeGreaterThanOrEqual(3);
+    expect(
+      ratio(token('--focus-color', block), token('--background', block))
+    ).toBeGreaterThanOrEqual(3);
+    expect(ratio(token('--focus-color', block), token('--card', block))).toBeGreaterThanOrEqual(3);
+  });
+
+  it.each([
+    ['light', light],
+    ['dark', dark],
+  ])('keeps error text at 4.5:1 or better in %s mode', (_mode, block) => {
+    expect(ratio(token('--error', block), token('--card', block))).toBeGreaterThanOrEqual(4.5);
+  });
+
   it('pins placeholder text to the muted token at full opacity', () => {
     expect(css).toContain('::placeholder');
 

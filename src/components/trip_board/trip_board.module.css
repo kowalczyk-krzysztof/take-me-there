@@ -89,12 +89,12 @@
   background: var(--surface);
 }
 .root button.primary {
-  background: var(--link);
-  color: var(--on-primary);
+  background: var(--action);
+  color: var(--on-action);
   border-color: transparent;
 }
 .root button.primary:hover {
-  background: var(--link-hover);
+  background: var(--action-hover);
 }
 .root button[aria-disabled='true'] {
   opacity: 0.55;

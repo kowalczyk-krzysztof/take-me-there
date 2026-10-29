@@ -236,11 +236,11 @@ main {
 }
 
 .confirm-actions button.primary {
-  background: var(--link);
-  color: var(--on-primary);
+  background: var(--action);
+  color: var(--on-action);
   border-color: transparent;
 }
 
 .confirm-actions button.primary:hover {
-  background: var(--link-hover);
+  background: var(--action-hover);
 }

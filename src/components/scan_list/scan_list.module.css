@@ -85,13 +85,13 @@
   background: var(--surface);
 }
 .root button.primary {
-  background: var(--link);
-  border-color: var(--link);
-  color: var(--on-primary);
+  background: var(--action);
+  border-color: var(--action);
+  color: var(--on-action);
 }
 .root button.primary:hover {
-  background: var(--link-hover);
-  border-color: var(--link-hover);
+  background: var(--action-hover);
+  border-color: var(--action-hover);
 }
 .root .pin-selected {
   margin-top: 0.75rem;

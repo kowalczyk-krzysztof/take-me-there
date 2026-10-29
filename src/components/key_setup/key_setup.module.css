@@ -63,12 +63,12 @@
   transition: background-color 120ms ease;
 }
 .root button.primary {
-  background: var(--link);
-  color: var(--on-primary);
+  background: var(--action);
+  color: var(--on-action);
   border: 1px solid transparent;
 }
 .root button.primary:hover {
-  background: var(--link-hover);
+  background: var(--action-hover);
 }
 .root button.secondary {
   background: var(--card);
