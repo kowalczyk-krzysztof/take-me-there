@@ -42,6 +42,8 @@ const renderBoard = (
     onPlan?: () => void;
     onClearConfirm?: () => void;
     onRetryPin?: () => void;
+    onCopyTrip?: () => void;
+    onDownloadTrip?: () => void;
   } = {},
   notice: BoardNoticeView = NOTICE_OFF
 ) =>
@@ -55,6 +57,8 @@ const renderBoard = (
       onPlan={callbacks.onPlan ?? (() => {})}
       onClearConfirm={callbacks.onClearConfirm ?? (() => {})}
       onRetryPin={callbacks.onRetryPin ?? (() => {})}
+      onCopyTrip={callbacks.onCopyTrip ?? (() => {})}
+      onDownloadTrip={callbacks.onDownloadTrip ?? (() => {})}
     />
   );
 
@@ -133,6 +137,8 @@ describe('trip-board', () => {
         onPlan={onPlan}
         onClearConfirm={() => {}}
         onRetryPin={() => {}}
+        onCopyTrip={() => {}}
+        onDownloadTrip={() => {}}
       />
     );
 
@@ -180,6 +186,8 @@ describe('trip-board', () => {
         onPlan={() => {}}
         onClearConfirm={() => {}}
         onRetryPin={onRetryPin}
+        onCopyTrip={() => {}}
+        onDownloadTrip={() => {}}
       />
     );
 
@@ -199,6 +207,8 @@ describe('trip-board', () => {
         onPlan={() => {}}
         onClearConfirm={() => {}}
         onRetryPin={onRetryPin}
+        onCopyTrip={() => {}}
+        onDownloadTrip={() => {}}
       />
     );
     expect(notice.querySelector('button')?.textContent).toBe('boardRetryRemove');
@@ -212,6 +222,8 @@ describe('trip-board', () => {
         onPlan={() => {}}
         onClearConfirm={() => {}}
         onRetryPin={onRetryPin}
+        onCopyTrip={() => {}}
+        onDownloadTrip={() => {}}
       />
     );
     expect(notice.hidden).toBe(true);
@@ -252,6 +264,28 @@ describe('trip-board', () => {
     );
   });
 
+  it('exposes copy and download actions only with pins', () => {
+    const onCopyTrip = vi.fn();
+
+    const onDownloadTrip = vi.fn();
+
+    const root = renderBoard(ITEMS, true, { onCopyTrip, onDownloadTrip }).container;
+
+    const copy = root.querySelector('.copy-trip-button') as HTMLButtonElement;
+    expect(copy.textContent).toBe('boardCopy');
+    clickEl(copy);
+    expect(onCopyTrip).toHaveBeenCalledTimes(1);
+
+    const download = root.querySelector('.download-trip-button') as HTMLButtonElement;
+    expect(download.textContent).toBe('boardDownload');
+    clickEl(download);
+    expect(onDownloadTrip).toHaveBeenCalledTimes(1);
+
+    const empty = renderBoard([], false).container;
+    expect(empty.querySelector('.copy-trip-button')).toBeNull();
+    expect(empty.querySelector('.download-trip-button')).toBeNull();
+  });
+
   it('repairs focus to the disclosure when a re-render removes it', () => {
     const rendered = renderBoard(ITEMS, true);
 
@@ -269,6 +303,8 @@ describe('trip-board', () => {
         onPlan={() => {}}
         onClearConfirm={() => {}}
         onRetryPin={() => {}}
+        onCopyTrip={() => {}}
+        onDownloadTrip={() => {}}
       />
     );
     expect(document.activeElement?.className).toContain('disclosure');

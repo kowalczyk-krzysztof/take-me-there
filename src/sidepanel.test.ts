@@ -1557,6 +1557,77 @@ describe('sidepanel', () => {
     expect(stored.map((pin) => pin.place.placeName)).toEqual(['Fira', 'Oia', 'Imerovigli']);
   });
 
+  it('copies the trip from stored state without a provider request', async () => {
+    await setup();
+    await plantKeyAndConsent();
+
+    const { pinPlace } = await cover(import('./board_store'));
+    await cover(pinPlace({ place: { ...VALID_PLACE }, sourceHost: 'example.com' }));
+    await cover(
+      pinPlace({
+        place: { ...VALID_PLACE, placeName: 'Fira', city: 'Fira' },
+        sourceHost: 'blog.example',
+      })
+    );
+    await waitFor(() => {
+      expect(document.querySelectorAll('#board-slot li')).toHaveLength(2);
+    });
+
+    const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined);
+
+    clickEl(document.querySelector('#board-slot .copy-trip-button') as HTMLButtonElement);
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('boardCopied');
+    });
+
+    expect(writeText).toHaveBeenCalledTimes(1);
+
+    const markdown = writeText.mock.calls[0][0] as string;
+    expect(markdown).toContain('**Oia, Greece** - found on example.com');
+    expect(markdown).toContain('**Fira, Greece** - found on blog.example');
+    expect(markdown).toContain('Open the route in Google Maps');
+    expect(markdown).toContain('No itinerary generated yet.');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('downloads the trip with a markdown filename', async () => {
+    await setup();
+    await plantKeyAndConsent();
+
+    const { pinPlace } = await cover(import('./board_store'));
+    await cover(pinPlace({ place: { ...VALID_PLACE }, sourceHost: 'example.com' }));
+    await waitFor(() => {
+      expect(document.querySelectorAll('#board-slot li')).toHaveLength(1);
+    });
+
+    const create = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:trip');
+    const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+
+    let href = '';
+    let download = '';
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement
+    ) {
+      href = this.href;
+      download = this.download;
+    });
+
+    clickEl(document.querySelector('#board-slot .download-trip-button') as HTMLButtonElement);
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('boardDownloaded');
+    });
+
+    expect(create).toHaveBeenCalledTimes(1);
+
+    const blob = create.mock.calls[0][0] as Blob;
+    expect(blob.type).toBe('text/markdown');
+    expect(await blob.text()).toContain('**Oia, Greece** - found on example.com');
+    expect(href).toBe('blob:trip');
+    expect(download).toBe('take-me-there-trip.md');
+    expect(revoke).toHaveBeenCalledWith('blob:trip');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('labels the board retry for failed removals', async () => {
     const mock = await setup();
     await plantKeyAndConsent();

@@ -1520,5 +1520,29 @@
         "example": "Oia"
       }
     }
+  },
+  "boardCopy": {
+    "message": "Copy trip",
+    "description": "Copy-trip button."
+  },
+  "boardDownload": {
+    "message": "Download Markdown",
+    "description": "Download-Markdown button."
+  },
+  "boardCopied": {
+    "message": "Trip copied to the clipboard.",
+    "description": "Copy confirmation."
+  },
+  "boardDownloaded": {
+    "message": "Trip downloaded as Markdown.",
+    "description": "Download confirmation."
+  },
+  "boardCopyFail": {
+    "message": "Could not copy the trip.",
+    "description": "Copy failure notice."
+  },
+  "boardDownloadFail": {
+    "message": "Could not download the trip.",
+    "description": "Download failure notice."
   }
 }

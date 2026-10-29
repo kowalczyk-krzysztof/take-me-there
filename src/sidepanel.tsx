@@ -53,6 +53,7 @@ import {
   type BoardPin,
 } from './board_store';
 import { buildDestination, buildLinks, mapsDirUrl } from './deep_links';
+import { TRIP_EXPORT_FILENAME, formatTripMarkdown } from './trip_export';
 import {
   dataUrlToBytes,
   downscaleToJpegDataUrl,
@@ -3539,6 +3540,59 @@ const onMovePin = async (detail: TripMovePinDetail): Promise<void> => {
   store.set({ boardItems: boardItemViews(pins), boardCanPlan: pins.length >= 2 });
 };
 
+const exportMarkdown = async (): Promise<string | null> => {
+  const pins = await listPins();
+
+  if (pins.length === 0) {
+    return null;
+  }
+
+  return formatTripMarkdown({ pins });
+};
+
+const onCopyTrip = async (): Promise<void> => {
+  const markdown = await exportMarkdown();
+
+  if (markdown === null) {
+    return;
+  }
+
+  try {
+    await navigator.clipboard.writeText(markdown);
+  } catch {
+    announceAlert('boardCopyFail');
+    return;
+  }
+
+  announceStatus('boardCopied');
+};
+
+const onDownloadTrip = async (): Promise<void> => {
+  const markdown = await exportMarkdown();
+
+  if (markdown === null) {
+    return;
+  }
+
+  try {
+    const url = URL.createObjectURL(new Blob([markdown], { type: 'text/markdown' }));
+
+    try {
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = TRIP_EXPORT_FILENAME;
+      anchor.click();
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  } catch {
+    announceAlert('boardDownloadFail');
+    return;
+  }
+
+  announceStatus('boardDownloaded');
+};
+
 const onRetryPin = async (): Promise<void> => {
   if (failedPin) {
     const pin = failedPin;
@@ -4159,6 +4213,8 @@ const SidepanelApp = () => {
             notice={state.boardNotice}
             onRemovePin={(detail) => void onRemovePin(detail)}
             onMovePin={(detail) => void onMovePin(detail)}
+            onCopyTrip={() => void onCopyTrip()}
+            onDownloadTrip={() => void onDownloadTrip()}
             onPlan={() => void planTrip()}
             onClearConfirm={() => void onClearConfirm()}
             onRetryPin={() => void onRetryPin()}

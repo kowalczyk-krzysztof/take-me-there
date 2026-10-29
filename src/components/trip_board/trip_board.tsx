@@ -34,6 +34,8 @@ export interface TripBoardCallbacks {
   onPlan: () => void;
   onClearConfirm: () => void;
   onRetryPin: () => void;
+  onCopyTrip: () => void;
+  onDownloadTrip: () => void;
 }
 
 interface Props extends TripBoardCallbacks {
@@ -51,6 +53,8 @@ export const TripBoard = ({
   onPlan,
   onClearConfirm,
   onRetryPin,
+  onCopyTrip,
+  onDownloadTrip,
 }: Props) => {
   const [open, setOpen] = useState(true);
 
@@ -163,6 +167,16 @@ export const TripBoard = ({
                 </button>
                 {!canPlan ? <p className={styles['plan-note']}>{msg('boardPlanNote')}</p> : null}
               </div>
+              {items.length > 0 ? (
+                <div className={styles['export-row']}>
+                  <button type="button" className="copy-trip-button" onClick={onCopyTrip}>
+                    {msg('boardCopy')}
+                  </button>
+                  <button type="button" className="download-trip-button" onClick={onDownloadTrip}>
+                    {msg('boardDownload')}
+                  </button>
+                </div>
+              ) : null}
               {items.length > 0 ? (
                 <button
                   type="button"
