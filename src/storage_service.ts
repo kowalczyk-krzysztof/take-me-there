@@ -53,7 +53,7 @@ const getAllSession = async (): Promise<Record<string, unknown>> =>
 const boardAdd = async (
   pin: Omit<BoardPin, 'addedAt'> & { addedAt?: number }
 ): Promise<PinOutcome> => {
-  const { pins, writable } = await readBoard();
+  const { pins, carried, writable } = await readBoard();
 
   if (!writable) {
     throw new Error('unwritable board record');
@@ -81,7 +81,7 @@ const boardAdd = async (
 
   const next = [...pins, entry].sort((a, b) => a.addedAt - b.addedAt);
 
-  await writeBoard(next);
+  await writeBoard([...next, ...carried]);
 
   return { status: 'pinned', pins: next };
 };
@@ -90,7 +90,7 @@ const boardRemove = async (
   placeName: string,
   country: string
 ): Promise<{ pins: BoardPin[]; removed: BoardPin | null }> => {
-  const { pins, writable } = await readBoard();
+  const { pins, carried, writable } = await readBoard();
 
   if (!writable) {
     throw new Error('unwritable board record');
@@ -107,7 +107,7 @@ const boardRemove = async (
   const next = pins.filter((_, index) => keys[index] !== key);
 
   if (next.length !== pins.length) {
-    await writeBoard(next);
+    await writeBoard([...next, ...carried]);
   }
 
   return { pins: next, removed };
@@ -120,7 +120,7 @@ const boardMove = async (
   country: string,
   direction: 'up' | 'down'
 ): Promise<BoardPin[]> => {
-  const { pins, writable } = await readBoard();
+  const { pins, carried, writable } = await readBoard();
 
   if (!writable) {
     throw new Error('unwritable board record');
@@ -151,7 +151,7 @@ const boardMove = async (
 
   const ordered = next.sort((a, b) => a.addedAt - b.addedAt);
 
-  await writeBoard(ordered);
+  await writeBoard([...ordered, ...carried]);
 
   return ordered;
 };

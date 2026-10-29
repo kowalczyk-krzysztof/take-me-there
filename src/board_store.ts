@@ -67,29 +67,50 @@ const isPin = (value: unknown): value is BoardPin => {
   );
 };
 
-const validPins = (pins: unknown): BoardPin[] => {
-  if (!Array.isArray(pins)) {
-    return [];
+const partitionPins = (entries: unknown): { pins: BoardPin[]; carried: unknown[] } => {
+  if (!Array.isArray(entries)) {
+    return { pins: [], carried: [] };
   }
 
-  return pins.filter(isPin).sort((a, b) => a.addedAt - b.addedAt);
+  const pins: BoardPin[] = [];
+
+  const carried: unknown[] = [];
+
+  for (const entry of entries) {
+    if (isPin(entry)) {
+      pins.push(entry);
+    } else {
+      carried.push(entry);
+    }
+  }
+
+  pins.sort((a, b) => a.addedAt - b.addedAt);
+
+  return { pins, carried };
 };
 
 // Strict read for writers: storage failures throw so callers abort instead
 // of persisting a board derived from an empty read. Legacy bare arrays
-// migrate on the next write; unknown versions refuse the write. Exported
-// for the worker storage service, the only writer.
-export const readBoard = async (): Promise<{ pins: BoardPin[]; writable: boolean }> => {
+// migrate on the next write; unknown versions refuse the write. Entries
+// that are not pins ride along verbatim so no writer erases what it
+// cannot parse. Exported for the worker storage service, the only writer.
+export const readBoard = async (): Promise<{
+  pins: BoardPin[];
+  carried: unknown[];
+  writable: boolean;
+}> => {
   const stored = (await chrome.storage.local.get(BOARD_STORAGE_KEY)) as Record<string, unknown>;
 
   const record: unknown = stored[BOARD_STORAGE_KEY];
 
   if (record === undefined) {
-    return { pins: [], writable: true };
+    return { pins: [], carried: [], writable: true };
   }
 
   if (Array.isArray(record)) {
-    return { pins: validPins(record), writable: true };
+    const { pins, carried } = partitionPins(record);
+
+    return { pins, carried, writable: true };
   }
 
   if (
@@ -97,14 +118,19 @@ export const readBoard = async (): Promise<{ pins: BoardPin[]; writable: boolean
     record !== null &&
     (record as BoardRecord).v === BOARD_VERSION
   ) {
-    return { pins: validPins((record as BoardRecord).pins), writable: true };
+    const { pins, carried } = partitionPins((record as BoardRecord).pins);
+
+    return { pins, carried, writable: true };
   }
 
-  return { pins: [], writable: false };
+  return { pins: [], carried: [], writable: false };
 };
 
-// idempotent: wraps a legacy bare array in the versioned record. Anything
+// Idempotent: wraps a legacy bare array in the versioned record. Anything
 // else (versioned, absent, unwritable) is left for the normal read path.
+// Remote image URLs shrink to the stored thumbnail whenever one exists;
+// entries that are not pins are carried into the record verbatim, never
+// erased to make the migration succeed.
 export const migrateBoard = async (): Promise<void> => {
   const stored = (await chrome.storage.local.get(BOARD_STORAGE_KEY)) as Record<string, unknown>;
 
@@ -113,7 +139,24 @@ export const migrateBoard = async (): Promise<void> => {
   if (!Array.isArray(record)) {
     return;
   }
-  await writeBoard(validPins(record));
+
+  const { pins, carried } = partitionPins(record);
+
+  const minimized = pins.map((pin) => {
+    if (!pin.imageUrl || pin.imageUrl.startsWith('data:')) {
+      return pin;
+    }
+
+    if (pin.thumbnail) {
+      const { imageUrl: _dropped, ...kept } = pin;
+
+      return kept;
+    }
+
+    return { ...pin, imageUrl: stripUrlEphemera(pin.imageUrl) };
+  });
+
+  await writeBoard([...minimized, ...carried]);
 };
 
 export const listPins = async (): Promise<BoardPin[]> => {
@@ -124,8 +167,8 @@ export const listPins = async (): Promise<BoardPin[]> => {
   }
 };
 
-export const writeBoard = async (pins: BoardPin[]): Promise<void> => {
-  const record: BoardRecord = { v: BOARD_VERSION, pins };
+export const writeBoard = async (entries: unknown[]): Promise<void> => {
+  const record: BoardRecord = { v: BOARD_VERSION, pins: entries };
   await chrome.storage.local.set({ [BOARD_STORAGE_KEY]: record });
 };
 

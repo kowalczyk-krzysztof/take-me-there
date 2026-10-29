@@ -16,6 +16,7 @@ export const BoardItem = ({ item, onRemovePin, onMovePin }: Props) => (
     <div className={styles['item-text']}>
       <p className={styles['item-name']}>{item.title}</p>
       <p className={styles['item-host']}>{item.host}</p>
+      {item.remoteImage ? <p className={styles['item-remote']}>{msg('boardRemoteImage')}</p> : null}
     </div>
     <button
       type="button"

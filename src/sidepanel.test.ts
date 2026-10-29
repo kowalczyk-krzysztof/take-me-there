@@ -1743,6 +1743,42 @@ describe('sidepanel', () => {
     expect(writeText.mock.calls[0][0] as string).toContain('Hello world');
   });
 
+  it('discloses remote images and falls back to monograms', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
+    await waitForHeading('Oia');
+    clickEl(document.querySelector('#result-slot .pin-button') as HTMLButtonElement);
+
+    const board = document.querySelector('#board-slot') as HTMLElement;
+    await waitFor(() => {
+      expect(board.querySelectorAll('li')).toHaveLength(1);
+    });
+
+    const remote = board.querySelector('li') as HTMLElement;
+    expect(remote.querySelector('img')?.getAttribute('src')).toBe(
+      'https://cdn.example.com/oia.jpg'
+    );
+    expect(remote.querySelector('.item-remote')?.textContent).toBe('boardRemoteImage');
+
+    const { pinPlace } = await cover(import('./board_store'));
+    await cover(
+      pinPlace({
+        place: { ...VALID_PLACE, placeName: 'Fira', city: 'Fira' },
+        sourceHost: 'blog.example',
+      })
+    );
+    await waitFor(() => {
+      expect(board.querySelectorAll('li')).toHaveLength(2);
+    });
+
+    const mono = board.querySelectorAll('li')[1] as HTMLElement;
+    expect(mono.querySelector('img')).toBeNull();
+    expect(mono.querySelector('.thumb-monogram')?.textContent).toBe('F');
+    expect(mono.querySelector('.item-remote')).toBeNull();
+  });
+
   it('labels the board retry for failed removals', async () => {
     const mock = await setup();
     await plantKeyAndConsent();

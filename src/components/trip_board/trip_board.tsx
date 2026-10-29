@@ -10,6 +10,7 @@ export interface BoardItemView {
   title: string;
   host: string;
   image: string | null;
+  remoteImage: boolean;
   canMoveUp: boolean;
   canMoveDown: boolean;
 }

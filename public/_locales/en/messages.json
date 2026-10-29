@@ -1548,5 +1548,9 @@
   "boardPlanStale": {
     "message": "Saved plan is outdated - plan again.",
     "description": "Stale itinerary note on the board."
+  },
+  "boardRemoteImage": {
+    "message": "Loads a remote image.",
+    "description": "Disclosure for pins without a stored thumbnail."
   }
 }

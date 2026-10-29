@@ -3363,16 +3363,21 @@ const pinDisplayName = (pin: BoardPin): string =>
   buildDestination(pin.place.placeName, pin.place.city, pin.place.country);
 
 const boardItemViews = (pins: BoardPin[]): BoardItemView[] =>
-  pins.map((pin, index) => ({
-    placeName: pin.place.placeName,
-    country: pin.place.country,
-    title: pinDisplayName(pin),
-    host: pin.sourceHost,
-    image:
-      pin.thumbnail ?? (pin.imageUrl && isAllowedPreviewUrl(pin.imageUrl) ? pin.imageUrl : null),
-    canMoveUp: index > 0,
-    canMoveDown: index < pins.length - 1,
-  }));
+  pins.map((pin, index) => {
+    const remoteFallback =
+      !pin.thumbnail && !!pin.imageUrl && isAllowedPreviewUrl(pin.imageUrl) ? pin.imageUrl : null;
+
+    return {
+      placeName: pin.place.placeName,
+      country: pin.place.country,
+      title: pinDisplayName(pin),
+      host: pin.sourceHost,
+      image: pin.thumbnail ?? remoteFallback,
+      remoteImage: !!remoteFallback && !remoteFallback.startsWith('data:'),
+      canMoveUp: index > 0,
+      canMoveDown: index < pins.length - 1,
+    };
+  });
 
 const renderBoard = async (): Promise<BoardPin[]> => {
   const pins = await listPins();

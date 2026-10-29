@@ -10,6 +10,7 @@ import {
   listPins,
   loadItinerary,
   makeThumbnail,
+  migrateBoard,
   movePin,
   pinIdentity,
   pinPlace,
@@ -251,6 +252,59 @@ describe('board_store', () => {
 
     await clearBoard();
     expect(await loadItinerary()).toBeNull();
+  });
+
+  it('minimizes legacy remote image URLs to stored thumbnails', async () => {
+    await mock.local.set({
+      [BOARD_STORAGE_KEY]: [
+        {
+          ...PIN(),
+          thumbnail: 'data:image/jpeg,thumb',
+          imageUrl: 'https://cdn.example.com/oia.jpg?sig=abc#frag',
+          addedAt: 1,
+        },
+        {
+          ...PIN({ place: PLACE({ placeName: 'Fira' }) }),
+          imageUrl: 'https://cdn.example.com/fira.jpg?sig=abc#frag',
+          addedAt: 2,
+        },
+        {
+          ...PIN({ place: PLACE({ placeName: 'Imerovigli' }) }),
+          imageUrl: 'data:image/jpeg,held',
+          addedAt: 3,
+        },
+      ],
+    });
+
+    await migrateBoard();
+
+    const record = mock.local.data.get(BOARD_STORAGE_KEY) as { v: number; pins: BoardPin[] };
+    expect(record.v).toBe(1);
+
+    const [withThumb, remoteOnly, held] = record.pins;
+    expect(withThumb.thumbnail).toBe('data:image/jpeg,thumb');
+    expect(withThumb).not.toHaveProperty('imageUrl');
+    expect(remoteOnly.imageUrl).toBe('https://cdn.example.com/fira.jpg');
+    expect(held.imageUrl).toBe('data:image/jpeg,held');
+    expect(await listPins()).toHaveLength(3);
+  });
+
+  it('carries unrecognized entries through migration and writes', async () => {
+    const garbage = [42, { v: 99, future: true }, 'junk'];
+    await mock.local.set({ [BOARD_STORAGE_KEY]: [{ ...PIN(), addedAt: 1 }, ...garbage] });
+
+    await migrateBoard();
+
+    const record = mock.local.data.get(BOARD_STORAGE_KEY) as { v: number; pins: unknown[] };
+    expect(record.v).toBe(1);
+    expect(record.pins.slice(1)).toEqual(garbage);
+    expect(await listPins()).toHaveLength(1);
+
+    await pinPlace({ ...PIN({ place: PLACE({ placeName: 'Fira' }) }), addedAt: 2 });
+
+    const after = mock.local.data.get(BOARD_STORAGE_KEY) as { v: number; pins: unknown[] };
+    expect(after.pins.slice(2)).toEqual(garbage);
+    expect(await listPins()).toHaveLength(2);
   });
 
   it('throws on storage rejection so the panel can offer the retry', async () => {

@@ -17,6 +17,7 @@ const ITEMS: BoardItemView[] = [
     title: 'Oia, Greece',
     host: 'example.com',
     image: 'data:image/jpeg,aaa',
+    remoteImage: false,
     canMoveUp: false,
     canMoveDown: true,
   },
@@ -26,6 +27,7 @@ const ITEMS: BoardItemView[] = [
     title: 'Fira, Greece',
     host: 'blog.example',
     image: null,
+    remoteImage: false,
     canMoveUp: true,
     canMoveDown: false,
   },
@@ -300,6 +302,18 @@ describe('trip-board', () => {
 
     const fresh = renderBoard(ITEMS, true, false).container;
     expect(fresh.querySelector('.plan-note')).toBeNull();
+  });
+
+  it('discloses remote image loading per item', () => {
+    const root = renderBoard(
+      [{ ...ITEMS[1]!, image: 'https://cdn.example.com/fira.jpg', remoteImage: true }],
+      false
+    ).container;
+
+    expect(root.querySelector('.item-remote')?.textContent).toBe('boardRemoteImage');
+
+    const stored = renderBoard(ITEMS, true).container;
+    expect(stored.querySelector('.item-remote')).toBeNull();
   });
 
   it('repairs focus to the disclosure when a re-render removes it', () => {
