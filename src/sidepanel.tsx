@@ -18,6 +18,7 @@ import { TripCard } from './components/trip_card/trip_card';
 import { KeySetup } from './components/key_setup/key_setup';
 import { SourceChips } from './components/source_chips/source_chips';
 import type { BoardItemView, TripRemovePinDetail } from './components/trip_board/trip_board';
+import type { LoadingPhase } from './components/trip_card/trip_card';
 import { TripBoard } from './components/trip_board/trip_board';
 import { ProviderSection } from './components/settings/provider_section';
 import { ModesSection } from './components/settings/modes_section';
@@ -855,7 +856,7 @@ const cancelSkeleton = (): void => {
   }
 };
 
-const showSkeleton = (id: string): void => {
+const showSkeleton = (id: string, phase: LoadingPhase = 'collecting'): void => {
   cancelSkeleton();
   skeletonFor = id;
   skeletonTimer = setTimeout(() => {
@@ -863,7 +864,7 @@ const showSkeleton = (id: string): void => {
       return;
     }
     swapResultSlot(() => {
-      store.set({ result: { ...blankResultSlot(), card: { view: 'loading' } } });
+      store.set({ result: { ...blankResultSlot(), card: { view: 'loading', phase } } });
     });
     currentView = 'loading';
     skeletonShownAt = Date.now();
@@ -1041,6 +1042,22 @@ const abortSiblings = (): void => {
 const cancelAllWork = (): void => {
   cancelActiveRun();
   abortSiblings();
+};
+
+// The visible Cancel beside every paid phase: runs in flight abort
+// through their own paths (partial guide kept, spend settled, announced);
+// with nothing in flight (still collecting), the panel idles directly.
+const onCancelLoading = (): void => {
+  const hadRun = cancelActiveRun() !== null;
+
+  abortSiblings();
+
+  if (!hadRun) {
+    clearStaleTimer();
+    updatePreview(null);
+    showIdle();
+    announceStatus('statusCanceled');
+  }
 };
 
 // Follow-up stages of one request (guide after identify, look-again)
@@ -1811,6 +1828,13 @@ const runGuidePlan = async (): Promise<void> => {
   }
 
   if (!ownsUi(run)) {
+    // User-cancelled (nothing superseded it): the Plan button returns.
+    // Superseded runs leave the UI to their successor.
+    if (outcome === 'aborted' && activeRun() === null) {
+      currentPlanState = 'idle';
+      await refreshResultCard();
+    }
+
     return;
   }
 
@@ -2068,7 +2092,7 @@ const runVideoAnalysis = async (
         ? 'statusAnalyzingFrame'
         : 'statusAnalyzingVideo'
   );
-  showSkeleton(request.requestId);
+  showSkeleton(request.requestId, 'identifying');
   await runIdentify({ run, origin });
 };
 
@@ -2302,6 +2326,11 @@ const runScanGuide = async (
   const outcome = await runGuide({ run, privacy, origin });
 
   if (!ownsUi(run)) {
+    if (outcome === 'aborted' && activeRun() === null) {
+      currentPlanState = 'idle';
+      await refreshResultCard();
+    }
+
     return;
   }
 
@@ -2433,7 +2462,7 @@ const runAnalysis = async (request: TripRequest, origin: 'gesture' | 'panel'): P
     return;
   }
   announceStatus(superseded ? 'statusCanceledNew' : 'statusAnalyzing');
-  showSkeleton(request.requestId);
+  showSkeleton(request.requestId, 'identifying');
   await runIdentify({ run, origin });
 };
 
@@ -3244,6 +3273,11 @@ const onPlanInstead = async (index: number): Promise<void> => {
   const outcome = await runGuide({ run, privacy: 'names', origin: 'panel' });
 
   if (!ownsUi(run)) {
+    if (outcome === 'aborted' && activeRun() === null) {
+      currentPlanState = 'idle';
+      await refreshResultCard();
+    }
+
     return;
   }
 
@@ -3481,7 +3515,7 @@ const planTrip = async (): Promise<void> => {
   selectTab('main');
   clearContentSlots();
   announceStatus('statusPlanning', String(pins.length));
-  showSkeleton(itinId);
+  showSkeleton(itinId, 'writing');
   const run = startRun(
     {
       runId: nextRunId(itinId),
@@ -3879,6 +3913,7 @@ const SidepanelApp = () => {
                 onPinAlternate: (index) => void onPinAlternate(index),
                 onPlanInstead: (index) => void onPlanInstead(index),
                 onCancelAlternates: onAlternatesCancel,
+                onCancelLoading: () => onCancelLoading(),
               }}
             />
           ) : null}
@@ -3889,6 +3924,7 @@ const SidepanelApp = () => {
               onGuide={(index) => void onScanGuide(index)}
               onPin={(index) => void onScanPin(index)}
               onPinSelected={(indices) => void onScanPinSelected(indices)}
+              onCancel={() => onCancelLoading()}
             />
           ) : null}
           {state.result.consent ? (

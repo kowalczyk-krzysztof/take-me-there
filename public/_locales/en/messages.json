@@ -444,7 +444,7 @@
     "description": "No-place card title."
   },
   "noPlaceBody": {
-    "message": "Try another photo, look again with more effort, or type a destination below.",
+    "message": "Try another photo, or look again with more effort. Looking again runs a new paid analysis.",
     "description": "No-place card body."
   },
   "fallbackPrefix": {
@@ -566,18 +566,6 @@
   "previewUnavailable": {
     "message": "Image preview unavailable",
     "description": "Visible placeholder text."
-  },
-  "loadingReading": {
-    "message": "Reading the photo…",
-    "description": "Cosmetic loading line."
-  },
-  "loadingIdentifying": {
-    "message": "Identifying the place…",
-    "description": "Cosmetic loading line."
-  },
-  "loadingWriting": {
-    "message": "Writing your trip guide…",
-    "description": "Cosmetic loading line."
   },
   "videoConfirmTitle": {
     "message": "Analyze this video?",
@@ -1402,5 +1390,21 @@
   "keyPlaceholderCustom": {
     "message": "Your API key",
     "description": "Key field placeholder for a custom server."
+  },
+  "loadingPhaseCollecting": {
+    "message": "Collecting the photo…",
+    "description": "Loading phase while the page handoff arrives."
+  },
+  "loadingPhaseIdentifying": {
+    "message": "Identifying the place…",
+    "description": "Loading phase while the model names the place."
+  },
+  "loadingPhaseWriting": {
+    "message": "Writing…",
+    "description": "Loading phase while the itinerary is written."
+  },
+  "reanalyzeCost": {
+    "message": "Runs a new analysis (billed again).",
+    "description": "Retry-cost note beside Analyze again."
   }
 }

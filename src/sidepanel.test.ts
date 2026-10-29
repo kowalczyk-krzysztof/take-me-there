@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('idb-keyval', () => {
@@ -40,6 +43,11 @@ import {
 } from './test/helpers';
 
 const SHELL = readShell('sidepanel');
+
+const CATALOG_PATH = join(
+  dirname(fileURLToPath(import.meta.url)),
+  '../public/_locales/en/messages.json'
+);
 
 const selectBoardTab = (): void => {
   (document.querySelector('#tab-board') as HTMLButtonElement).click();
@@ -171,6 +179,19 @@ const CHAT_GUIDE_SSE = [
 ];
 
 const fetchMock = vi.fn();
+
+// A hung request with real-fetch abort semantics: it rejects when the
+// caller aborts, so cancel paths behave as they do in production.
+const hangUntilAbort = (): void => {
+  fetchMock.mockImplementationOnce(
+    (_url: string, init?: { signal?: AbortSignal }) =>
+      new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => {
+          reject(new DOMException('Aborted', 'AbortError'));
+        });
+      })
+  );
+};
 
 const setup = async (
   beforeImport?: (mock: ChromeMock) => void | Promise<void>
@@ -3298,5 +3319,160 @@ describe('sidepanel', () => {
           record.entry?.guide === 'Hello world' && record.entry?.place?.placeName === 'Fira'
       )
     ).toBe(true);
+  });
+
+  it('cancels a hanging identify from the loading card', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    hangUntilAbort();
+    await mock.session.set({ [SLOT]: READY() });
+
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot .cancel-button')?.textContent).toBe(
+        'cancelButton'
+      );
+    });
+    expect(document.querySelector('#result-slot .cosmetic')?.textContent).toBe(
+      'loadingPhaseIdentifying'
+    );
+
+    (document.querySelector('#result-slot .cancel-button') as HTMLButtonElement).click();
+
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('statusCanceled');
+    });
+    expect(document.querySelector('#result-slot .hint')?.textContent).toBe('panelIdle');
+  });
+
+  it('cancels a hanging guide and returns the plan button', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
+    hangUntilAbort();
+    await mock.session.set({ [SLOT]: READY() });
+    await waitForHeading('Oia');
+    await clickPlanTrip();
+
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot .cancel-button')?.textContent).toBe(
+        'cancelButton'
+      );
+    });
+
+    (document.querySelector('#result-slot .cancel-button') as HTMLButtonElement).click();
+
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('statusCanceled');
+    });
+    expect(document.querySelector('#result-slot h2')?.textContent).toBe('Oia');
+    expect(document.querySelector('#result-slot .plan-trip-button')?.textContent).toBe(
+      'planTripButton'
+    );
+    expect(document.querySelector('#guide-content')?.textContent).toBe('');
+  });
+
+  it('cancels a hanging itinerary from the loading card', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+
+    const FIRA = { ...VALID_PLACE, placeName: 'Fira', city: 'Fira' };
+    fetchMock
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
+      .mockResolvedValueOnce(chatResponse(FIRA));
+    await mock.session.set({ [SLOT]: READY() });
+    await waitForHeading('Oia');
+
+    const card = document.querySelector('#result-slot') as HTMLElement;
+    (card.querySelector('.pin-button') as HTMLButtonElement).click();
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned(Oia | 1)');
+    });
+    await mock.session.set({
+      [SLOT]: READY({
+        requestId: '200-2',
+        srcUrl: 'https://cdn.example.com/fira.jpg',
+      }),
+    });
+    await waitFor(() => {
+      expect(card.querySelector('h2')?.textContent).toBe('Fira');
+    });
+    (card.querySelector('.pin-button') as HTMLButtonElement).click();
+    await waitFor(() => {
+      const board = document.querySelector('#board-slot') as HTMLElement;
+      expect(board.querySelectorAll('li')).toHaveLength(2);
+    });
+
+    hangUntilAbort();
+    (document.querySelector('#board-slot .plan-button') as HTMLButtonElement).click();
+
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot .cancel-button')?.textContent).toBe(
+        'cancelButton'
+      );
+    });
+    expect(document.querySelector('#result-slot .cosmetic')?.textContent).toBe(
+      'loadingPhaseWriting'
+    );
+
+    (document.querySelector('#result-slot .cancel-button') as HTMLButtonElement).click();
+
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('statusCanceled');
+    });
+    expect(document.querySelector('#result-slot .hint')?.textContent).toBe('panelIdle');
+  });
+
+  it('cancels a hanging scan from the scan skeleton', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    hangUntilAbort();
+    await mock.session.set({
+      [SLOT]: READY({
+        srcUrl: '',
+        signals: undefined,
+        scanImages: [
+          {
+            url: 'https://img.example.com/a.jpg',
+            caption: '',
+            heading: '',
+            width: 800,
+            height: 600,
+          },
+        ],
+      }),
+    });
+
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot section > button')?.textContent).toBe(
+        'cancelButton'
+      );
+    });
+
+    (document.querySelector('#result-slot section > button') as HTMLButtonElement).click();
+
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('statusCanceled');
+    });
+    expect(document.querySelector('#result-slot .hint')?.textContent).toBe('panelIdle');
+  });
+
+  it('drops the type-a-destination instruction and prices retries honestly', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    fetchMock.mockResolvedValueOnce(chatResponse({ ...VALID_PLACE, confidence: 0.1 }));
+    await mock.session.set({ [SLOT]: READY() });
+
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot h2')?.textContent).toBe('noPlaceTitle');
+    });
+    expect(document.querySelector('#result-slot p')?.textContent).toBe('noPlaceBody');
+
+    const catalog = JSON.parse(readFileSync(CATALOG_PATH, 'utf8')) as Record<
+      string,
+      { message: string }
+    >;
+    expect(catalog.noPlaceBody.message).not.toContain('type a destination');
+    expect(catalog.noPlaceBody.message).toContain('paid analysis');
+    expect(catalog.reanalyzeCost.message).toContain('billed again');
   });
 });

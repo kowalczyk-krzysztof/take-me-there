@@ -29,7 +29,14 @@ afterEach(() => {
 describe('scan-list', () => {
   it('renders an aria-hidden skeleton while loading', () => {
     const root = renderSync(
-      <ScanList loading={true} items={[]} onGuide={noop} onPin={noop} onPinSelected={noop} />
+      <ScanList
+        loading={true}
+        items={[]}
+        onGuide={noop}
+        onPin={noop}
+        onPinSelected={noop}
+        onCancel={noop}
+      />
     ).container;
     expect(root.querySelector('h2')?.textContent).toBe('scanTitle');
 
@@ -39,12 +46,61 @@ describe('scan-list', () => {
     expect(root.querySelector('section')?.getAttribute('aria-busy')).toBe('true');
   });
 
+  it('offers cancel while loading and hides it with results', () => {
+    const onCancel = vi.fn();
+
+    const rendered = renderSync(
+      <ScanList
+        loading={true}
+        items={[]}
+        onGuide={noop}
+        onPin={noop}
+        onPinSelected={noop}
+        onCancel={onCancel}
+      />
+    );
+    const cancel = rendered.container.querySelector('section > button') as HTMLButtonElement;
+    expect(cancel?.textContent).toBe('cancelButton');
+    cancel.click();
+    expect(onCancel).toHaveBeenCalledTimes(1);
+
+    rendered.rerender(
+      <ScanList
+        loading={false}
+        items={ITEMS}
+        onGuide={noop}
+        onPin={noop}
+        onPinSelected={noop}
+        onCancel={onCancel}
+      />
+    );
+    expect(
+      [...rendered.container.querySelectorAll('section > button')].some(
+        (button) => button.textContent === 'cancelButton'
+      )
+    ).toBe(false);
+  });
+
   it('renders a no-skeleton shadow after results arrive', () => {
     const rendered = renderSync(
-      <ScanList loading={true} items={[]} onGuide={noop} onPin={noop} onPinSelected={noop} />
+      <ScanList
+        loading={true}
+        items={[]}
+        onGuide={noop}
+        onPin={noop}
+        onPinSelected={noop}
+        onCancel={noop}
+      />
     );
     rendered.rerender(
-      <ScanList loading={false} items={ITEMS} onGuide={noop} onPin={noop} onPinSelected={noop} />
+      <ScanList
+        loading={false}
+        items={ITEMS}
+        onGuide={noop}
+        onPin={noop}
+        onPinSelected={noop}
+        onCancel={noop}
+      />
     );
 
     const root = rendered.container;
@@ -59,7 +115,14 @@ describe('scan-list', () => {
 
   it('renders cards with group labels and three sibling controls', () => {
     const root = renderSync(
-      <ScanList loading={false} items={ITEMS} onGuide={noop} onPin={noop} onPinSelected={noop} />
+      <ScanList
+        loading={false}
+        items={ITEMS}
+        onGuide={noop}
+        onPin={noop}
+        onPinSelected={noop}
+        onCancel={noop}
+      />
     ).container;
 
     const cards = root.querySelectorAll('.scan-card');
@@ -80,7 +143,14 @@ describe('scan-list', () => {
 
   it('renders decorative thumbnails with a placeholder fallback', () => {
     const root = renderSync(
-      <ScanList loading={false} items={ITEMS} onGuide={noop} onPin={noop} onPinSelected={noop} />
+      <ScanList
+        loading={false}
+        items={ITEMS}
+        onGuide={noop}
+        onPin={noop}
+        onPinSelected={noop}
+        onCancel={noop}
+      />
     ).container;
 
     const cards = root.querySelectorAll('.scan-card');
@@ -106,6 +176,7 @@ describe('scan-list', () => {
         onGuide={onGuide}
         onPin={onPin}
         onPinSelected={noop}
+        onCancel={noop}
       />
     ).container;
 
@@ -128,6 +199,7 @@ describe('scan-list', () => {
         onGuide={noop}
         onPin={noop}
         onPinSelected={onPinSelected}
+        onCancel={noop}
       />
     );
 
@@ -145,6 +217,7 @@ describe('scan-list', () => {
         onGuide={noop}
         onPin={noop}
         onPinSelected={onPinSelected}
+        onCancel={noop}
       />
     );
     expect(i18n).toHaveBeenLastCalledWith('scanPinSelected', '2');
@@ -162,6 +235,7 @@ describe('scan-list', () => {
         onGuide={noop}
         onPin={noop}
         onPinSelected={onPinSelected}
+        onCancel={noop}
       />
     ).container;
     (root.querySelector('.pin-selected') as HTMLButtonElement).click();

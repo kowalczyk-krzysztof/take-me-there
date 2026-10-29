@@ -51,6 +51,8 @@ export interface TripPlanInsteadDetail {
 
 export type PlanState = 'idle' | 'planning' | 'ready' | 'interrupted';
 
+export type LoadingPhase = 'collecting' | 'identifying' | 'writing';
+
 export interface TripCardCallbacks {
   onPin: () => void;
   onPlanTrip: () => void;
@@ -63,11 +65,12 @@ export interface TripCardCallbacks {
   onPinAlternate: (index: number) => void;
   onPlanInstead: (index: number) => void;
   onCancelAlternates: () => void;
+  onCancelLoading: () => void;
 }
 
 export type CardState =
   | { view: 'idle'; hint: string; shortcut: string }
-  | { view: 'loading' }
+  | { view: 'loading'; phase: LoadingPhase }
   | {
       view: 'result';
       place: PlaceResult;
@@ -118,7 +121,7 @@ export const TripCard = ({ card, callbacks }: Props) => {
 
       break;
     case 'loading':
-      view = <LoadingView />;
+      view = <LoadingView phase={card.phase} onCancel={callbacks.onCancelLoading} />;
 
       break;
     case 'result':

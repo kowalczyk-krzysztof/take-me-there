@@ -1,33 +1,28 @@
-import { useEffect, useState } from 'react';
-import { prefersReducedMotion } from '../../utils/dom';
 import styles from './trip_card.module.css';
 import { msg } from '../../utils/i18n';
+import type { LoadingPhase } from './trip_card';
 
-const LOADING_LINES = ['loadingReading', 'loadingIdentifying', 'loadingWriting'];
+const PHASE_KEYS: Record<LoadingPhase, string> = {
+  collecting: 'loadingPhaseCollecting',
+  identifying: 'loadingPhaseIdentifying',
+  writing: 'loadingPhaseWriting',
+};
 
-const ROTATE_MS = 2500;
+interface Props {
+  phase: LoadingPhase;
+  onCancel: () => void;
+}
 
-export const LoadingView = () => {
-  const [index, setIndex] = useState(0);
-
-  useEffect(() => {
-    if (prefersReducedMotion()) {
-      return;
-    }
-
-    const timer = setInterval(() => {
-      setIndex((current) => (current + 1) % LOADING_LINES.length);
-    }, ROTATE_MS);
-
-    return () => clearInterval(timer);
-  }, []);
-
-  return (
+export const LoadingView = ({ phase, onCancel }: Props) => (
+  <>
     <div className={styles.skeleton} aria-hidden="true">
       {['60%', '40%', '100%', '100%'].map((width, index) => (
         <div key={index} className="skeleton-block" style={{ width }} />
       ))}
-      <p className={styles.cosmetic}>{msg(LOADING_LINES[index])}</p>
+      <p className={styles.cosmetic}>{msg(PHASE_KEYS[phase])}</p>
     </div>
-  );
-};
+    <button type="button" className={styles['cancel-button']} onClick={onCancel}>
+      {msg('cancelButton')}
+    </button>
+  </>
+);

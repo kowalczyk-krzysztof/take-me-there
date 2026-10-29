@@ -75,6 +75,15 @@ export const ResultView = ({
                   : 'planTripButton'
             )}
           </button>
+          {planState === 'planning' ? (
+            <button
+              type="button"
+              className={styles['cancel-button']}
+              onClick={callbacks.onCancelLoading}
+            >
+              {msg('cancelButton')}
+            </button>
+          ) : null}
           {planState === 'interrupted' ? (
             <p className={styles['start-again-hint']}>{msg('startAgainHint')}</p>
           ) : null}
@@ -94,6 +103,7 @@ export const ResultView = ({
           <button type="button" onClick={callbacks.onReanalyze}>
             {msg('reanalyzeButton')}
           </button>
+          <span className={styles['retry-cost']}>{msg('reanalyzeCost')}</span>
         </div>
       ) : null}
     </>

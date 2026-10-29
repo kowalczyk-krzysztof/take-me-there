@@ -28,6 +28,7 @@ export interface ScanListCallbacks {
   onGuide: (index: number) => void;
   onPin: (index: number) => void;
   onPinSelected: (indices: number[]) => void;
+  onCancel: () => void;
 }
 
 interface Props extends ScanListCallbacks {
@@ -35,7 +36,7 @@ interface Props extends ScanListCallbacks {
   items: ScanItemView[];
 }
 
-export const ScanList = ({ loading, items, onGuide, onPin, onPinSelected }: Props) => {
+export const ScanList = ({ loading, items, onGuide, onPin, onPinSelected, onCancel }: Props) => {
   const checkedRef = useRef<Set<string>>(new Set());
 
   const [epoch, setEpoch] = useState(0);
@@ -95,11 +96,16 @@ export const ScanList = ({ loading, items, onGuide, onPin, onPinSelected }: Prop
           {msg('scanTitle')}
         </h2>
         {loading ? (
-          <div className={styles['skeleton-grid']} aria-hidden="true">
-            {[0, 1, 2, 3, 4, 5].map((index) => (
-              <div key={index} className={`skeleton-block ${styles['skeleton-card']}`} />
-            ))}
-          </div>
+          <>
+            <div className={styles['skeleton-grid']} aria-hidden="true">
+              {[0, 1, 2, 3, 4, 5].map((index) => (
+                <div key={index} className={`skeleton-block ${styles['skeleton-card']}`} />
+              ))}
+            </div>
+            <button type="button" onClick={onCancel}>
+              {msg('cancelButton')}
+            </button>
+          </>
         ) : (
           <div ref={attach}>
             <ul className={styles['scan-results']} key={epoch}>

@@ -28,6 +28,7 @@ const fullCallbacks = (overrides: Partial<TripCardCallbacks> = {}): TripCardCall
   onPinAlternate: noop,
   onPlanInstead: noop,
   onCancelAlternates: noop,
+  onCancelLoading: noop,
   ...overrides,
 });
 
@@ -60,12 +61,28 @@ describe('trip-card', () => {
   });
 
   it('renders an aria-hidden skeleton while loading', () => {
-    const root = renderCard({ view: 'loading' }).container;
+    const root = renderCard({ view: 'loading', phase: 'identifying' }).container;
 
     const skeleton = root.querySelector('.skeleton');
     expect(skeleton?.getAttribute('aria-hidden')).toBe('true');
     expect(skeleton?.querySelectorAll('.skeleton-block').length).toBeGreaterThan(0);
-    expect(root.querySelector('.cosmetic')?.textContent).toBe('loadingReading');
+    expect(root.querySelector('.cosmetic')?.textContent).toBe('loadingPhaseIdentifying');
+  });
+
+  it('shows the collecting phase with a working cancel', () => {
+    const onCancel = vi.fn();
+
+    const root = renderCard(
+      { view: 'loading', phase: 'collecting' },
+      { onCancelLoading: onCancel }
+    ).container;
+    expect(root.querySelector('.cosmetic')?.textContent).toBe('loadingPhaseCollecting');
+
+    const cancel = root.querySelector('.cancel-button') as HTMLButtonElement;
+    expect(cancel?.textContent).toBe('cancelButton');
+    expect(cancel.closest('[aria-hidden="true"]')).toBeNull();
+    cancel.click();
+    expect(onCancel).toHaveBeenCalledTimes(1);
   });
 
   it('hides the correction row when there is nothing to reanalyze', () => {
