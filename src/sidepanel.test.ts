@@ -1779,6 +1779,98 @@ describe('sidepanel', () => {
     expect(mono.querySelector('.item-remote')).toBeNull();
   });
 
+  it('keeps pins with provenance across a panel restart', async () => {
+    const first = await setup();
+
+    const { pinPlace } = await cover(import('./board_store'));
+    await cover(pinPlace({ place: { ...VALID_PLACE }, sourceHost: 'example.com' }));
+    await cover(
+      pinPlace({
+        place: { ...VALID_PLACE, placeName: 'Fira', city: 'Fira' },
+        sourceHost: 'blog.example',
+      })
+    );
+    await waitFor(() => {
+      expect(document.querySelectorAll('#board-slot li')).toHaveLength(2);
+    });
+
+    const saved = new Map(first.local.data);
+    teardownPage();
+
+    await setup((mock) => {
+      for (const [key, value] of saved) {
+        mock.local.data.set(key, structuredClone(value));
+      }
+    });
+
+    const board = document.querySelector('#board-slot') as HTMLElement;
+    await waitFor(() => {
+      expect(board.querySelectorAll('li')).toHaveLength(2);
+    });
+
+    const hosts = [...board.querySelectorAll('li .item-host')].map((el) => el.textContent);
+    expect(hosts).toEqual(['example.com', 'blog.example']);
+  });
+
+  it('reflects another window’s board edits', async () => {
+    await setup();
+
+    const { pinPlace, removePin } = await cover(import('./board_store'));
+
+    const board = document.querySelector('#board-slot') as HTMLElement;
+    expect(board.querySelectorAll('li')).toHaveLength(0);
+
+    await cover(pinPlace({ place: { ...VALID_PLACE }, sourceHost: 'example.com' }));
+    await waitFor(() => {
+      expect(board.querySelectorAll('li')).toHaveLength(1);
+    });
+    expect(board.querySelector('li .item-host')?.textContent).toBe('example.com');
+
+    await cover(removePin('Oia', 'Greece'));
+    await waitFor(() => {
+      expect(board.querySelectorAll('li')).toHaveLength(0);
+    });
+  });
+
+  it('views, removes, and exports the board without an API key', async () => {
+    await setup();
+
+    const { pinPlace } = await cover(import('./board_store'));
+    await cover(pinPlace({ place: { ...VALID_PLACE }, sourceHost: 'example.com' }));
+    await cover(
+      pinPlace({
+        place: { ...VALID_PLACE, placeName: 'Fira', city: 'Fira' },
+        sourceHost: 'blog.example',
+      })
+    );
+
+    const board = document.querySelector('#board-slot') as HTMLElement;
+    await waitFor(() => {
+      expect(board.querySelectorAll('li')).toHaveLength(2);
+    });
+
+    const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined);
+
+    clickEl(board.querySelector('.copy-trip-button') as HTMLButtonElement);
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('boardCopied');
+    });
+
+    const markdown = writeText.mock.calls[0][0] as string;
+    expect(markdown).toContain('**Oia, Greece** - found on example.com');
+    expect(markdown).toContain('**Fira, Greece** - found on blog.example');
+    expect(markdown).toContain('Open the route in Google Maps');
+
+    clickEl(board.querySelector('li .remove-button') as HTMLButtonElement);
+    await waitFor(() => {
+      expect(board.querySelectorAll('li')).toHaveLength(1);
+    });
+    await waitFor(() => {
+      expect(board.querySelector('.notice span')?.textContent).toBe('boardRemoved(Oia)');
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('labels the board retry for failed removals', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
