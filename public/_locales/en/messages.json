@@ -54,7 +54,7 @@
     }
   },
   "statusPlanningTrip": {
-    "message": "Planning your trip…",
+    "message": "Building your guide…",
     "description": "Status announcement when the guide starts loading."
   },
   "statusSearchingWeb": {
@@ -670,11 +670,11 @@
     "description": "Itinerary action button."
   },
   "planTripButton": {
-    "message": "Plan a trip",
+    "message": "Build a guide",
     "description": "Result card button that loads the trip guide."
   },
   "planningButton": {
-    "message": "Planning trip…",
+    "message": "Building guide…",
     "description": "Result card button label while the guide loads."
   },
   "startAgainButton": {
@@ -704,7 +704,7 @@
     }
   },
   "pinButton": {
-    "message": "Pin $1 to trip",
+    "message": "Save $1 to trip",
     "description": "Result card pin toggle.",
     "placeholders": {
       "place": {
@@ -732,7 +732,7 @@
     }
   },
   "scanPinSelected": {
-    "message": "Pin selected ($1)",
+    "message": "Save selected ($1)",
     "description": "Scan shortlist bulk-pin button.",
     "placeholders": {
       "count": {
@@ -890,7 +890,7 @@
     }
   },
   "alternatesInstead": {
-    "message": "Plan trip to $1 instead",
+    "message": "Build a guide for $1 instead",
     "description": "Alternate card re-plan action.",
     "placeholders": {
       "place": {
@@ -1010,7 +1010,7 @@
     "description": "SAM crop preview alt text."
   },
   "boardNoticePinFail": {
-    "message": "Couldn't pin $1 - storage is unavailable.",
+    "message": "Couldn't save $1 - storage is unavailable.",
     "description": "Visible pin-failure notice.",
     "placeholders": {
       "place": {
@@ -1042,7 +1042,7 @@
     "description": "Status announcement after clearing."
   },
   "statusPinned": {
-    "message": "Pinned $1 - $2 places on board",
+    "message": "Saved $1 - $2 places on board",
     "description": "Status announcement for a successful pin.",
     "placeholders": {
       "place": {
@@ -1056,7 +1056,7 @@
     }
   },
   "statusPinnedEvicted": {
-    "message": "Pinned $1 - board full, removed $2",
+    "message": "Saved $1 - board full, removed $2",
     "description": "Status announcement for a pin with eviction.",
     "placeholders": {
       "place": {
@@ -1080,7 +1080,7 @@
     }
   },
   "alertPinFail": {
-    "message": "Couldn't pin $1",
+    "message": "Couldn't save $1",
     "description": "Alert announcement for a failed pin.",
     "placeholders": {
       "place": {
@@ -1406,5 +1406,53 @@
   "reanalyzeCost": {
     "message": "Runs a new analysis (billed again).",
     "description": "Retry-cost note beside Analyze again."
+  },
+  "confidenceHigh": {
+    "message": "High",
+    "description": "Top identification-confidence band."
+  },
+  "confidenceMedium": {
+    "message": "Medium",
+    "description": "Middle identification-confidence band."
+  },
+  "confidenceLow": {
+    "message": "Low",
+    "description": "Bottom identification-confidence band."
+  },
+  "confidenceLine": {
+    "message": "Confidence: $1 ($2).",
+    "description": "Explained identification confidence.",
+    "placeholders": {
+      "band": {
+        "content": "$1",
+        "example": "High"
+      },
+      "value": {
+        "content": "$2",
+        "example": "0.92"
+      }
+    }
+  },
+  "confidenceScale": {
+    "message": "Scores run 0 to 1; 0.6 and up is a match, below is a best guess.",
+    "description": "Confidence scale explanation."
+  },
+  "confidenceChosen": {
+    "message": "Picked from the alternatives list.",
+    "description": "Provenance line for a Plan-instead place."
+  },
+  "sourceLine": {
+    "message": "Spotted on $1.",
+    "description": "Photo source host line.",
+    "placeholders": {
+      "host": {
+        "content": "$1",
+        "example": "example.com"
+      }
+    }
+  },
+  "secondaryHeading": {
+    "message": "More actions",
+    "description": "Label for the secondary card actions area."
   }
 }

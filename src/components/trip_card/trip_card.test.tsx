@@ -14,6 +14,8 @@ const PLACE: PlaceResult = {
   oneLiner: 'Blue domes.',
 };
 
+const CONF = { line: 'Confidence: High (0.90).', showScale: true };
+
 const noop = () => {};
 
 const fullCallbacks = (overrides: Partial<TripCardCallbacks> = {}): TripCardCallbacks => ({
@@ -85,6 +87,57 @@ describe('trip-card', () => {
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
 
+  it('orders name, location, confidence, and source before actions', () => {
+    const root = renderCard({
+      view: 'result',
+      place: PLACE,
+      lowConfidence: false,
+      pinned: false,
+      planState: 'idle',
+      canReanalyze: true,
+      confidence: { line: 'Confidence: High (0.90).', showScale: true },
+      sourceHost: 'example.com',
+    }).container;
+
+    const order = [...(root.querySelector('.root')?.children ?? [])].map((el) =>
+      el.tagName === 'H2'
+        ? 'name'
+        : el.tagName === 'SECTION'
+          ? 'secondary'
+          : (el as HTMLElement).className || el.tagName
+    );
+    expect(order.indexOf('name')).toBe(0);
+    expect(order).toContain('secondary');
+
+    const texts = [...(root.querySelectorAll('.root > p') ?? [])].map((el) => el.textContent);
+    expect(texts[0]).toBe('Oia, Greece');
+    expect(texts[1]).toBe('Confidence: High (0.90).');
+    expect(texts[2]).toBe('confidenceScale');
+    expect(texts[3]).toBe('sourceLine(example.com)');
+    expect(texts[4]).toBe('Blue domes.');
+
+    const secondary = root.querySelector('section.secondary') as HTMLElement;
+    expect(secondary?.getAttribute('aria-label')).toBe('secondaryHeading');
+    expect(secondary?.querySelector('.disagree-row')).not.toBeNull();
+    expect(secondary?.querySelector('.compare-row')).not.toBeNull();
+  });
+
+  it('hides source and scale for chosen places', () => {
+    const root = renderCard({
+      view: 'result',
+      place: PLACE,
+      lowConfidence: false,
+      pinned: false,
+      planState: 'idle',
+      canReanalyze: false,
+      confidence: { line: 'confidenceChosen', showScale: false },
+      sourceHost: null,
+    }).container;
+    expect(root.querySelector('.confidence')?.textContent).toBe('confidenceChosen');
+    expect(root.querySelector('.confidence-scale')).toBeNull();
+    expect(root.querySelector('.source')).toBeNull();
+  });
+
   it('hides the correction row when there is nothing to reanalyze', () => {
     const root = renderCard({
       view: 'result',
@@ -93,6 +146,8 @@ describe('trip-card', () => {
       pinned: false,
       planState: 'ready',
       canReanalyze: false,
+      confidence: CONF,
+      sourceHost: 'example.com',
     }).container;
     expect(root.querySelector('h2')?.textContent).toBe('Oia');
     expect(root.querySelector('.disagree-row')).toBeNull();
@@ -109,6 +164,8 @@ describe('trip-card', () => {
         pinned: false,
         planState: 'ready',
         canReanalyze: true,
+        confidence: CONF,
+        sourceHost: 'example.com',
       },
       { onReanalyze }
     );
@@ -126,6 +183,8 @@ describe('trip-card', () => {
         pinned: false,
         planState: 'ready',
         canReanalyze: true,
+        confidence: CONF,
+        sourceHost: 'example.com',
       },
       { onReanalyze }
     );
@@ -150,6 +209,8 @@ describe('trip-card', () => {
       pinned: false,
       planState: 'ready',
       canReanalyze: true,
+      confidence: CONF,
+      sourceHost: 'example.com',
     }).container;
     expect(root.querySelector('.subtitle')).toBeNull();
     expect(root.querySelector('.oneliner')).toBeNull();
@@ -165,6 +226,8 @@ describe('trip-card', () => {
       pinned: false,
       planState: 'ready',
       canReanalyze: true,
+      confidence: CONF,
+      sourceHost: 'example.com',
     }).container;
 
     const oneliner = root.querySelector('.oneliner') as HTMLElement;
@@ -183,6 +246,8 @@ describe('trip-card', () => {
         pinned: false,
         planState: 'ready',
         canReanalyze: true,
+        confidence: CONF,
+        sourceHost: 'example.com',
       },
       { onAlternates }
     ).container;
@@ -209,6 +274,8 @@ describe('trip-card', () => {
         pinned: false,
         planState: 'ready',
         canReanalyze: true,
+        confidence: CONF,
+        sourceHost: 'example.com',
         alternates: { state: 'loading', intent: 'cheaper' },
       },
       { onAlternates }
@@ -239,6 +306,8 @@ describe('trip-card', () => {
         pinned: false,
         planState: 'ready',
         canReanalyze: true,
+        confidence: CONF,
+        sourceHost: 'example.com',
         alternates: {
           state: 'ready',
           intent: 'cheaper',
@@ -277,6 +346,8 @@ describe('trip-card', () => {
         pinned: false,
         planState: 'ready',
         canReanalyze: true,
+        confidence: CONF,
+        sourceHost: 'example.com',
         alternates: {
           state: 'ready',
           intent: 'cheaper',
@@ -322,6 +393,8 @@ describe('trip-card', () => {
         pinned: false,
         planState: 'ready',
         canReanalyze: true,
+        confidence: CONF,
+        sourceHost: 'example.com',
       },
       { onCompare }
     );
@@ -345,6 +418,8 @@ describe('trip-card', () => {
         pinned: false,
         planState: 'ready',
         canReanalyze: true,
+        confidence: CONF,
+        sourceHost: 'example.com',
         compareOptions: [{ value: 'Fira|||Greece', label: 'Fira, Greece' }],
       },
       { onCompare }
@@ -445,6 +520,8 @@ describe('trip-card', () => {
       pinned: false,
       planState: 'ready',
       canReanalyze: true,
+      confidence: CONF,
+      sourceHost: 'example.com',
     }).container;
 
     const heading = root.querySelector('h2') as HTMLHeadingElement;
@@ -463,6 +540,8 @@ describe('trip-card', () => {
         pinned: false,
         planState: 'idle',
         canReanalyze: true,
+        confidence: CONF,
+        sourceHost: 'example.com',
       },
       { onPlanTrip }
     );
@@ -485,6 +564,8 @@ describe('trip-card', () => {
         pinned: false,
         planState: 'planning',
         canReanalyze: true,
+        confidence: CONF,
+        sourceHost: 'example.com',
       },
       { onPlanTrip }
     );
@@ -505,6 +586,8 @@ describe('trip-card', () => {
         pinned: false,
         planState: 'ready',
         canReanalyze: true,
+        confidence: CONF,
+        sourceHost: 'example.com',
       },
       { onPlanTrip }
     );
@@ -522,6 +605,8 @@ describe('trip-card', () => {
         pinned: false,
         planState: 'interrupted',
         canReanalyze: true,
+        confidence: CONF,
+        sourceHost: 'example.com',
       },
       { onPlanTrip }
     ).container;
@@ -547,6 +632,8 @@ describe('trip-card', () => {
         pinned: false,
         planState: 'ready',
         canReanalyze: true,
+        confidence: CONF,
+        sourceHost: 'example.com',
       },
       { onPin }
     );
@@ -569,6 +656,8 @@ describe('trip-card', () => {
         pinned: true,
         planState: 'ready',
         canReanalyze: true,
+        confidence: CONF,
+        sourceHost: 'example.com',
       },
       { onPin }
     );

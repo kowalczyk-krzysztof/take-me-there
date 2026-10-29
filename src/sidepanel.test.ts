@@ -3277,6 +3277,8 @@ describe('sidepanel', () => {
 
     const swapped = document.querySelector('#result-slot') as HTMLElement;
     expect(swapped.querySelector('.disagree-row')).toBeNull();
+    expect(swapped.querySelector('.confidence')?.textContent).toBe('confidenceChosen');
+    expect(swapped.querySelector('.source')).toBeNull();
     expect(swapped.querySelector('.pin-button')?.textContent).toBe('pinButton(Fira)');
     expect(swapped.querySelector('.alternate-card')).toBeNull();
     expect(document.querySelector('#preview-frame img')).toBeNull();
@@ -3474,5 +3476,31 @@ describe('sidepanel', () => {
     expect(catalog.noPlaceBody.message).not.toContain('type a destination');
     expect(catalog.noPlaceBody.message).toContain('paid analysis');
     expect(catalog.reanalyzeCost.message).toContain('billed again');
+  });
+
+  it('shows confidence, source, and the save and guide actions', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
+    await mock.session.set({ [SLOT]: READY() });
+    await waitForHeading('Oia');
+
+    const card = document.querySelector('#result-slot') as HTMLElement;
+    expect(card.querySelector('.confidence')?.textContent).toBe(
+      'confidenceLine(confidenceHigh | 0.90)'
+    );
+    expect(card.querySelector('.confidence-scale')?.textContent).toBe('confidenceScale');
+    expect(card.querySelector('.source')?.textContent).toBe('sourceLine(example.com)');
+    expect(card.querySelector('.pin-button')?.textContent).toBe('pinButton(Oia)');
+    expect(card.querySelector('.plan-trip-button')?.textContent).toBe('planTripButton');
+    expect(card.querySelector('section.secondary')).not.toBeNull();
+
+    const catalog = JSON.parse(readFileSync(CATALOG_PATH, 'utf8')) as Record<
+      string,
+      { message: string }
+    >;
+    expect(catalog.pinButton.message).toBe('Save $1 to trip');
+    expect(catalog.planTripButton.message).toBe('Build a guide');
+    expect(catalog.planningButton.message).toBe('Building guide…');
   });
 });

@@ -12,6 +12,7 @@ import type {
   AlternatesView,
   CardState,
   CompareOptionView,
+  ConfidenceView,
   PlanState,
 } from './components/trip_card/trip_card';
 import { TripCard } from './components/trip_card/trip_card';
@@ -61,7 +62,13 @@ import {
   readMonthSpend,
   resetMonthSpend,
 } from './pricing';
-import { createGuideRenderer, findGuideStart } from './render_markdown';
+import {
+  createGuideProgress,
+  createGuideRenderer,
+  findGuideStart,
+  finishGuideProgress,
+  pushGuideProgress,
+} from './render_markdown';
 import {
   GUIDE_MAX_TEXT_CHARS,
   TRIP_REQUEST_SCHEMA,
@@ -1103,10 +1110,20 @@ const nextRunId = (requestId: string): string => {
   return `${requestId}#${runCounter}`;
 };
 
+type PlaceKind = 'analysis' | 'scan' | 'instead';
+
+let currentPlaceKind: PlaceKind = 'analysis';
+
 // Commits a run's working state to the displayed globals. Callers must own
 // the UI; rendering from any other run's state is a cross-run leak.
 const commitDisplayed = (run: RunContext, view: string): void => {
   currentPlace = run.place;
+  currentPlaceKind =
+    run.kind === 'scan-guide'
+      ? 'scan'
+      : run.kind === 'guide' && !run.request
+        ? 'instead'
+        : 'analysis';
   currentDestination = run.destination;
   currentCacheKey = run.cacheKey;
   displayedRequestId = run.requestId;
@@ -1429,9 +1446,9 @@ const showGuideSkeleton = (content: HTMLElement): void => {
   content.append(wrap);
 };
 
-// The network stream is consumed but never rendered live: deltas buffer
-// until completion, then the guide renders once into its fixed box. The
-// searching line and sources still arrive live; they own fixed slots.
+// Completed guide blocks render as they stream; the trailing partial
+// block and any preamble stay back until more arrives. The searching line
+// and sources still arrive live; they own fixed slots.
 const runGuide = async (args: GuideArgs): Promise<RunOutcome> => {
   const { run, privacy, origin } = args;
   const provider = run.provider;
@@ -1441,6 +1458,8 @@ const runGuide = async (args: GuideArgs): Promise<RunOutcome> => {
   }
   store.set({ guideVisible: true, guideBusy: true });
   showGuideSkeleton(content);
+  const renderer = createGuideRenderer(content, msg('truncatedNotice'));
+  const progress = createGuideProgress();
   let guideSource = '';
   const sources: GuideSource[] = [];
   let searchedWeb = false;
@@ -1456,6 +1475,10 @@ const runGuide = async (args: GuideArgs): Promise<RunOutcome> => {
       if (event.type === 'delta') {
         if (guideSource.length < GUIDE_MAX_TEXT_CHARS) {
           guideSource += event.text.slice(0, GUIDE_MAX_TEXT_CHARS - guideSource.length);
+        }
+
+        if (ownsUi(run)) {
+          pushGuideProgress(renderer, progress, guideSource);
         }
       } else if (event.type === 'searching') {
         searchedWeb = true;
@@ -1488,10 +1511,7 @@ const runGuide = async (args: GuideArgs): Promise<RunOutcome> => {
       // User-cancelled while owning the UI: keep partial text without
       // marking complete. Never cached; planning stays available.
       if (guideSource.trim()) {
-        const start = findGuideStart(guideSource);
-        const renderer = createGuideRenderer(content, msg('truncatedNotice'));
-        renderer.push(start >= 0 ? guideSource.slice(start) : guideSource);
-        renderer.finish();
+        finishGuideProgress(renderer, progress, guideSource);
         const notice = document.createElement('p');
         notice.className = 'guide-interrupted';
         notice.textContent = msg('guideInterrupted');
@@ -1516,11 +1536,7 @@ const runGuide = async (args: GuideArgs): Promise<RunOutcome> => {
       // Keep what streamed: a partial guide with an interrupted notice
       // beats an error card. It is never cached as complete, and the
       // Plan button stays available for a full retry.
-      const start = findGuideStart(guideSource);
-      const finalText = start >= 0 ? guideSource.slice(start) : guideSource;
-      const renderer = createGuideRenderer(content, msg('truncatedNotice'));
-      renderer.push(finalText);
-      renderer.finish();
+      finishGuideProgress(renderer, progress, guideSource);
       const notice = document.createElement('p');
       notice.className = 'guide-interrupted';
       notice.textContent = msg('guideInterrupted');
@@ -1547,9 +1563,7 @@ const runGuide = async (args: GuideArgs): Promise<RunOutcome> => {
   // Degenerate stream with no heading: render everything rather than
   // dropping content the hold-back rule cannot place.
   const finalText = start >= 0 ? guideSource.slice(start) : guideSource;
-  const renderer = createGuideRenderer(content, msg('truncatedNotice'));
-  renderer.push(finalText);
-  renderer.finish();
+  finishGuideProgress(renderer, progress, guideSource);
   guideSource = finalText;
   store.set({ guideBusy: false, searching: false, resultBusy: false });
   if (run.guideKey && run.place) {
@@ -2936,6 +2950,24 @@ const compareOptionViews = async (place: PlaceResult): Promise<CompareOptionView
   }));
 };
 
+const confidenceView = (place: PlaceResult): ConfidenceView => {
+  if (currentPlaceKind === 'instead') {
+    return { line: msg('confidenceChosen'), showScale: false };
+  }
+
+  const band =
+    place.confidence >= 0.8
+      ? 'confidenceHigh'
+      : place.confidence >= 0.6
+        ? 'confidenceMedium'
+        : 'confidenceLow';
+
+  return {
+    line: msg('confidenceLine', [msg(band), place.confidence.toFixed(2)]),
+    showScale: true,
+  };
+};
+
 const resultCardProps = async (
   place: PlaceResult
 ): Promise<{
@@ -2945,18 +2977,26 @@ const resultCardProps = async (
   pinned: boolean;
   planState: PlanState;
   canReanalyze: boolean;
+  confidence: ConfidenceView;
+  sourceHost: string | null;
   compareOptions: CompareOptionView[];
   alternates: AlternatesView;
-}> => ({
-  view: 'result',
-  place,
-  lowConfidence: place.confidence < 0.6,
-  pinned: await isPlacePinned(place),
-  planState: currentPlanState,
-  canReanalyze: (displayedRequest?.srcUrl ?? '') !== '',
-  compareOptions: await compareOptionViews(place),
-  alternates: await alternatesView(),
-});
+}> => {
+  const host = sourceHostFor(displayedRequest);
+
+  return {
+    view: 'result',
+    place,
+    lowConfidence: place.confidence < 0.6,
+    pinned: await isPlacePinned(place),
+    planState: currentPlanState,
+    canReanalyze: (displayedRequest?.srcUrl ?? '') !== '',
+    confidence: confidenceView(place),
+    sourceHost: host === '' ? null : host,
+    compareOptions: await compareOptionViews(place),
+    alternates: await alternatesView(),
+  };
+};
 
 const refreshResultCard = async (): Promise<void> => {
   if (currentView !== 'result' || !currentPlace) {

@@ -19,6 +19,11 @@ export interface CompareOptionView {
   label: string;
 }
 
+export interface ConfidenceView {
+  line: string;
+  showScale: boolean;
+}
+
 export type AlternateIntentView = 'cheaper' | 'quieter' | 'similar';
 
 export interface AlternateCardView {
@@ -78,6 +83,8 @@ export type CardState =
       pinned: boolean;
       planState: PlanState;
       canReanalyze: boolean;
+      confidence: ConfidenceView;
+      sourceHost: string | null;
       compareOptions?: CompareOptionView[];
       alternates?: AlternatesView;
     }
@@ -132,6 +139,8 @@ export const TripCard = ({ card, callbacks }: Props) => {
           pinned={card.pinned}
           planState={card.planState}
           canReanalyze={card.canReanalyze}
+          confidence={card.confidence}
+          sourceHost={card.sourceHost}
           compareOptions={card.compareOptions ?? []}
           alternates={card.alternates ?? { state: 'idle' }}
           callbacks={callbacks}

@@ -1,7 +1,7 @@
 // Markdown-lite renderer for model output: real semantic elements built
-// with createElement, model strings inserted ONLY as text nodes. The whole
-// buffer renders at once into the fixed guide box: guides are small, and a
-// single render can never strand half-open structures.
+// with createElement, model strings inserted ONLY as text nodes. Blocks
+// render progressively into the fixed guide box at blank-line boundaries,
+// so half-open structures never strand.
 export const MAX_GUIDE_CHARS = 20000;
 
 // Offset of the first rendered heading, or -1 when the source holds none
@@ -27,6 +27,60 @@ export const findGuideStart = (source: string): number => {
   }
 
   return -1;
+};
+
+// Progressive block state: completed Markdown blocks render as they
+// arrive while the preamble hold-back and the trailing partial block stay
+// back. Block granularity (never per token) bounds re-renders, and the
+// final finish() renders whatever remains, so output matches one-shot.
+export interface GuideProgress {
+  started: boolean;
+  flushed: number;
+}
+
+export const createGuideProgress = (): GuideProgress => ({ started: false, flushed: 0 });
+
+export const pushGuideProgress = (
+  renderer: GuideRenderer,
+  progress: GuideProgress,
+  source: string
+): void => {
+  const start = findGuideStart(source);
+
+  if (start < 0) {
+    return;
+  }
+
+  if (!progress.started) {
+    progress.started = true;
+    progress.flushed = start;
+  }
+
+  const rest = source.slice(progress.flushed);
+  const boundary = rest.lastIndexOf('\n\n');
+
+  if (boundary <= 0) {
+    return;
+  }
+
+  renderer.push(rest.slice(0, boundary));
+  progress.flushed += boundary;
+};
+
+export const finishGuideProgress = (
+  renderer: GuideRenderer,
+  progress: GuideProgress,
+  source: string
+): void => {
+  if (!progress.started) {
+    const start = findGuideStart(source);
+
+    renderer.push(start >= 0 ? source.slice(start) : source);
+  } else {
+    renderer.push(source.slice(progress.flushed));
+  }
+
+  renderer.finish();
 };
 
 export interface GuideRenderer {

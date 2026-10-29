@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { createGuideRenderer, findGuideStart } from './render_markdown';
+import {
+  createGuideProgress,
+  createGuideRenderer,
+  findGuideStart,
+  finishGuideProgress,
+  pushGuideProgress,
+} from './render_markdown';
 
 let container: HTMLElement;
 
@@ -120,5 +126,64 @@ describe('findGuideStart', () => {
 
   it('finds headings past blank lines and CRLF endings', () => {
     expect(findGuideStart('preamble\n\n### Day 1\r\ntext')).toBe('preamble\n\n'.length);
+  });
+});
+
+describe('guide progress', () => {
+  it('holds back preamble and the trailing partial block', () => {
+    const render = createGuideRenderer(container, 'truncated');
+    const progress = createGuideProgress();
+
+    pushGuideProgress(render, progress, "I'll research Oia.\n\n## Oia\n\nSunny days");
+    expect(container.children).toHaveLength(1);
+    expect(container.textContent).toContain('Oia');
+    expect(container.textContent).not.toContain("I'll research");
+    expect(container.textContent).not.toContain('Sunny days');
+
+    pushGuideProgress(render, progress, "I'll research Oia.\n\n## Oia\n\nSunny days.\n\nNext");
+    expect(container.textContent).toContain('Sunny days.');
+    expect(container.textContent).not.toContain('Next');
+
+    finishGuideProgress(render, progress, "I'll research Oia.\n\n## Oia\n\nSunny days.\n\nNext");
+    expect(container.textContent).toContain('Next');
+    expect(container.textContent).not.toContain("I'll research");
+  });
+
+  it('renders everything when no heading ever arrives', () => {
+    const render = createGuideRenderer(container, 'truncated');
+    const progress = createGuideProgress();
+
+    pushGuideProgress(render, progress, 'Just prose.\n\nMore prose.');
+    expect(container.children).toHaveLength(0);
+
+    finishGuideProgress(render, progress, 'Just prose.\n\nMore prose.');
+    expect(container.textContent).toContain('Just prose.');
+    expect(container.textContent).toContain('More prose.');
+  });
+
+  it('matches one-shot output after a chunked stream', () => {
+    const source = '## A\n\nFirst.\n\n## B\n\nSecond.\n\n## C\n\nThird.';
+    const render = createGuideRenderer(container, 'truncated');
+    const progress = createGuideProgress();
+
+    let fed = '';
+
+    for (const word of source.split(' ')) {
+      fed += (fed ? ' ' : '') + word;
+      pushGuideProgress(render, progress, fed);
+    }
+
+    finishGuideProgress(render, progress, fed);
+
+    const progressive = container.innerHTML;
+
+    document.body.innerHTML = '';
+    const fresh = document.createElement('div');
+    document.body.append(fresh);
+    const once = createGuideRenderer(fresh, 'truncated');
+    once.push(source);
+    once.finish();
+
+    expect(progressive).toBe(fresh.innerHTML);
   });
 });
