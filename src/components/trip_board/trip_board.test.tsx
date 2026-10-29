@@ -246,7 +246,8 @@ describe('trip-board', () => {
     expect(entries).toHaveLength(2);
 
     const upFirst = entries[0].querySelector('.move-up-button') as HTMLButtonElement;
-    expect(upFirst.textContent).toBe('boardMoveUp(Oia)');
+    expect(upFirst.textContent).toBe('boardMoveUpShort');
+    expect(upFirst.getAttribute('aria-label')).toBe('boardMoveUp(Oia)');
     expect(upFirst.disabled).toBe(true);
 
     const downFirst = entries[0].querySelector('.move-down-button') as HTMLButtonElement;

@@ -1552,7 +1552,8 @@ describe('sidepanel', () => {
     await waitFor(() => {
       expect(names()).toEqual(['Fira, Greece', 'Oia, Greece', 'Imerovigli, Greece']);
     });
-    expect(document.activeElement?.textContent).toBe('boardMoveDown(Oia)');
+    expect(document.activeElement?.textContent).toBe('boardMoveDownShort');
+    expect(document.activeElement?.getAttribute('aria-label')).toBe('boardMoveDown(Oia)');
 
     const stored = await cover(listPins());
     expect(stored.map((pin) => pin.place.placeName)).toEqual(['Fira', 'Oia', 'Imerovigli']);

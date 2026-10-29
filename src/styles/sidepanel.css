@@ -32,6 +32,10 @@ main {
 #tab-bar [role='tab'] {
   font: inherit;
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   padding: 8px;
   background: transparent;
   color: var(--muted);

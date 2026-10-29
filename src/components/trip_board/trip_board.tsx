@@ -70,17 +70,16 @@ export const TripBoard = ({
   };
   // Focus repair: a list re-render that removes the focused control falls
   // back to the disclosure button, never to <body>. A reorder keeps the
-  // control (or an identical one) in the list, so re-focus by label and
-  // only fall back when no match survives.
+  // control (or an identical one) in the list, so re-focus by accessible
+  // name and only fall back when no match survives.
   const repairFocus = useRef<string | null>(null);
 
   const prevItems = useRef(items);
 
   if (prevItems.current !== items) {
     prevItems.current = items;
-    repairFocus.current = document.activeElement?.closest('li')
-      ? (document.activeElement?.textContent ?? null)
-      : null;
+    const focused = document.activeElement?.closest('li') ? document.activeElement : null;
+    repairFocus.current = focused?.getAttribute('aria-label') ?? focused?.textContent ?? null;
     setConfirming(null);
   }
 
@@ -91,7 +90,7 @@ export const TripBoard = ({
 
       if (!rootRef.current?.contains(document.activeElement)) {
         const same = [...(rootRef.current?.querySelectorAll('li button') ?? [])].find(
-          (button) => button.textContent === label
+          (button) => (button.getAttribute('aria-label') ?? button.textContent) === label
         );
 
         if (same instanceof HTMLButtonElement && !same.disabled) {

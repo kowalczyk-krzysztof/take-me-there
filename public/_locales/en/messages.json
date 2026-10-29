@@ -1552,5 +1552,17 @@
   "boardRemoteImage": {
     "message": "Loads a remote image.",
     "description": "Disclosure for pins without a stored thumbnail."
+  },
+  "boardMoveUpShort": {
+    "message": "Up",
+    "description": "Compact move-up button."
+  },
+  "boardMoveDownShort": {
+    "message": "Down",
+    "description": "Compact move-down button."
+  },
+  "boardRemoveShort": {
+    "message": "Remove",
+    "description": "Compact remove button."
   }
 }

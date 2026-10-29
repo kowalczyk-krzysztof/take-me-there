@@ -14,38 +14,45 @@ export const BoardItem = ({ item, onRemovePin, onMovePin }: Props) => (
   <li>
     {item.image ? <ThumbImage src={item.image} /> : <Monogram name={item.title} />}
     <div className={styles['item-text']}>
-      <p className={styles['item-name']}>{item.title}</p>
-      <p className={styles['item-host']}>{item.host}</p>
+      <p className={styles['item-name']} title={item.title}>
+        {item.title}
+      </p>
+      <p className={styles['item-host']} title={item.host}>
+        {item.host}
+      </p>
       {item.remoteImage ? <p className={styles['item-remote']}>{msg('boardRemoteImage')}</p> : null}
     </div>
     <button
       type="button"
       className="move-up-button"
       disabled={!item.canMoveUp || undefined}
+      aria-label={msg('boardMoveUp', item.placeName)}
       onClick={() => {
         onMovePin({ placeName: item.placeName, country: item.country, direction: 'up' });
       }}
     >
-      {msg('boardMoveUp', item.placeName)}
+      {msg('boardMoveUpShort')}
     </button>
     <button
       type="button"
       className="move-down-button"
       disabled={!item.canMoveDown || undefined}
+      aria-label={msg('boardMoveDown', item.placeName)}
       onClick={() => {
         onMovePin({ placeName: item.placeName, country: item.country, direction: 'down' });
       }}
     >
-      {msg('boardMoveDown', item.placeName)}
+      {msg('boardMoveDownShort')}
     </button>
     <button
       type="button"
       className="remove-button"
+      aria-label={msg('boardRemove', item.placeName)}
       onClick={() => {
         onRemovePin({ placeName: item.placeName, country: item.country });
       }}
     >
-      {msg('boardRemove', item.placeName)}
+      {msg('boardRemoveShort')}
     </button>
   </li>
 );

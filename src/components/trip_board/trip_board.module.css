@@ -43,6 +43,7 @@
 }
 .root li {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   align-items: center;
   border-top: 1px solid var(--border);
@@ -61,12 +62,18 @@
 }
 .root .item-name {
   margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-weight: 600;
   font-size: 0.75rem;
   line-height: 1.5;
 }
 .root .item-host {
   margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--muted);
   font-size: 0.75rem;
   line-height: 1.5;
