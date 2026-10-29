@@ -1490,5 +1490,35 @@
   "boardUndoFull": {
     "message": "The board filled up - remove a pin to undo.",
     "description": "Undo blocked by a full board."
+  },
+  "boardMoveUp": {
+    "message": "Move $1 up",
+    "description": "Move-pin-up button label.",
+    "placeholders": {
+      "name": {
+        "content": "$1",
+        "example": "Oia"
+      }
+    }
+  },
+  "boardMoveDown": {
+    "message": "Move $1 down",
+    "description": "Move-pin-down button label.",
+    "placeholders": {
+      "name": {
+        "content": "$1",
+        "example": "Oia"
+      }
+    }
+  },
+  "boardNoticeMoveFail": {
+    "message": "Could not move $1 - try again.",
+    "description": "Pin reorder failure notice.",
+    "placeholders": {
+      "name": {
+        "content": "$1",
+        "example": "Oia"
+      }
+    }
   }
 }

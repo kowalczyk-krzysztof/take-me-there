@@ -112,6 +112,49 @@ const boardRemove = async (
   return { pins: next, removed };
 };
 
+// User ordering rides on addedAt: moving swaps timestamps with the
+// neighbor so the read-path sort stays the single source of order.
+const boardMove = async (
+  placeName: string,
+  country: string,
+  direction: 'up' | 'down'
+): Promise<BoardPin[]> => {
+  const { pins, writable } = await readBoard();
+
+  if (!writable) {
+    throw new Error('unwritable board record');
+  }
+
+  const key = await dedupeKeyFor(placeName, country);
+
+  const keys = await Promise.all(
+    pins.map((entry) => dedupeKeyFor(entry.place.placeName, entry.place.country))
+  );
+
+  const at = keys.indexOf(key);
+
+  const swapWith = direction === 'up' ? at - 1 : at + 1;
+
+  if (at < 0 || swapWith < 0 || swapWith >= pins.length) {
+    return pins;
+  }
+
+  const next = [...pins];
+
+  const moving = next[at];
+
+  const neighbor = next[swapWith];
+
+  next[at] = { ...neighbor, addedAt: moving.addedAt };
+  next[swapWith] = { ...moving, addedAt: neighbor.addedAt };
+
+  const ordered = next.sort((a, b) => a.addedAt - b.addedAt);
+
+  await writeBoard(ordered);
+
+  return ordered;
+};
+
 const spendRecord = async (amountUsd: number, at: number): Promise<number> => {
   if (!Number.isFinite(amountUsd)) {
     throw new Error('invalid spend amount');
@@ -387,6 +430,12 @@ const execute = async (command: StorageCommand): Promise<CommandResult> => {
 
     case 'board.remove':
       return { ok: true, value: await boardRemove(command.placeName, command.country) };
+
+    case 'board.move':
+      return {
+        ok: true,
+        value: await boardMove(command.placeName, command.country, command.direction),
+      };
 
     case 'board.clear':
       await chrome.storage.local.remove(BOARD_STORAGE_KEY);

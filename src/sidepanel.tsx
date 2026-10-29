@@ -18,7 +18,11 @@ import type {
 import { TripCard } from './components/trip_card/trip_card';
 import { KeySetup } from './components/key_setup/key_setup';
 import { SourceChips } from './components/source_chips/source_chips';
-import type { BoardItemView, TripRemovePinDetail } from './components/trip_board/trip_board';
+import type {
+  BoardItemView,
+  TripMovePinDetail,
+  TripRemovePinDetail,
+} from './components/trip_board/trip_board';
 import type { LoadingPhase } from './components/trip_card/trip_card';
 import { TripBoard } from './components/trip_board/trip_board';
 import { ProviderSection } from './components/settings/provider_section';
@@ -44,6 +48,7 @@ import {
   listPins,
   makeThumbnail,
   pinPlace,
+  movePin,
   removePin,
   type BoardPin,
 } from './board_store';
@@ -3349,13 +3354,15 @@ const pinDisplayName = (pin: BoardPin): string =>
   buildDestination(pin.place.placeName, pin.place.city, pin.place.country);
 
 const boardItemViews = (pins: BoardPin[]): BoardItemView[] =>
-  pins.map((pin) => ({
+  pins.map((pin, index) => ({
     placeName: pin.place.placeName,
     country: pin.place.country,
     title: pinDisplayName(pin),
     host: pin.sourceHost,
     image:
       pin.thumbnail ?? (pin.imageUrl && isAllowedPreviewUrl(pin.imageUrl) ? pin.imageUrl : null),
+    canMoveUp: index > 0,
+    canMoveDown: index < pins.length - 1,
   }));
 
 const renderBoard = async (): Promise<BoardPin[]> => {
@@ -3513,6 +3520,23 @@ const undoRemove = async (): Promise<void> => {
   await syncPinButton();
   await refreshScanPins();
   announceStatus('boardRestored', pin.place.placeName);
+};
+
+const onMovePin = async (detail: TripMovePinDetail): Promise<void> => {
+  let pins: BoardPin[];
+  try {
+    pins = await movePin(detail.placeName, detail.country, detail.direction);
+  } catch {
+    store.set({
+      boardNotice: {
+        text: msg('boardNoticeMoveFail', detail.placeName),
+        retryLabel: null,
+      },
+    });
+    announceAlert('boardNoticeMoveFail', detail.placeName);
+    return;
+  }
+  store.set({ boardItems: boardItemViews(pins), boardCanPlan: pins.length >= 2 });
 };
 
 const onRetryPin = async (): Promise<void> => {
@@ -4134,6 +4158,7 @@ const SidepanelApp = () => {
             canPlan={state.boardCanPlan}
             notice={state.boardNotice}
             onRemovePin={(detail) => void onRemovePin(detail)}
+            onMovePin={(detail) => void onMovePin(detail)}
             onPlan={() => void planTrip()}
             onClearConfirm={() => void onClearConfirm()}
             onRetryPin={() => void onRetryPin()}

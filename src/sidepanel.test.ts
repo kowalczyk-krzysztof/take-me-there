@@ -1396,7 +1396,7 @@ describe('sidepanel', () => {
     });
     expect(board.querySelectorAll('li')).toHaveLength(1);
 
-    const remove = items[0].querySelector('button') as HTMLButtonElement;
+    const remove = items[0].querySelector('.remove-button') as HTMLButtonElement;
     clickEl(remove);
     await waitFor(() => {
       expect(board.querySelectorAll('li')).toHaveLength(0);
@@ -1419,7 +1419,7 @@ describe('sidepanel', () => {
 
     const board = document.querySelector('#board-slot') as HTMLElement;
 
-    clickEl(board.querySelector('li button') as HTMLButtonElement);
+    clickEl(board.querySelector('li .remove-button') as HTMLButtonElement);
     await waitFor(() => {
       expect(board.querySelectorAll('li')).toHaveLength(0);
     });
@@ -1452,7 +1452,7 @@ describe('sidepanel', () => {
 
     const board = document.querySelector('#board-slot') as HTMLElement;
 
-    clickEl(board.querySelector('li button') as HTMLButtonElement);
+    clickEl(board.querySelector('li .remove-button') as HTMLButtonElement);
     await waitFor(() => {
       expect(board.querySelector('.notice span')?.textContent).toBe('boardRemoved(Oia)');
     });
@@ -1492,7 +1492,7 @@ describe('sidepanel', () => {
 
     const board = document.querySelector('#board-slot') as HTMLElement;
 
-    clickEl(board.querySelector('li button') as HTMLButtonElement);
+    clickEl(board.querySelector('li .remove-button') as HTMLButtonElement);
     await waitFor(() => {
       expect(board.querySelectorAll('li')).toHaveLength(23);
     });
@@ -1513,6 +1513,50 @@ describe('sidepanel', () => {
     expect(board.textContent).toContain('Newest');
   });
 
+  it('reorders pins with move up and move down', async () => {
+    await setup();
+    await plantKeyAndConsent();
+
+    const { listPins, pinPlace } = await cover(import('./board_store'));
+    await cover(pinPlace({ place: { ...VALID_PLACE }, sourceHost: 'example.com' }));
+    await cover(
+      pinPlace({
+        place: { ...VALID_PLACE, placeName: 'Fira', city: 'Fira' },
+        sourceHost: 'example.com',
+      })
+    );
+    await cover(
+      pinPlace({
+        place: { ...VALID_PLACE, placeName: 'Imerovigli', city: 'Imerovigli' },
+        sourceHost: 'example.com',
+      })
+    );
+
+    const board = document.querySelector('#board-slot') as HTMLElement;
+
+    const names = () => [...board.querySelectorAll('li .item-name')].map((el) => el.textContent);
+
+    await waitFor(() => {
+      expect(board.querySelectorAll('li')).toHaveLength(3);
+    });
+    expect(names()).toEqual(['Oia, Greece', 'Fira, Greece', 'Imerovigli, Greece']);
+
+    const rows = board.querySelectorAll('li');
+    expect((rows[0].querySelector('.move-up-button') as HTMLButtonElement).disabled).toBe(true);
+    expect((rows[2].querySelector('.move-down-button') as HTMLButtonElement).disabled).toBe(true);
+
+    const down = rows[0].querySelector('.move-down-button') as HTMLButtonElement;
+    focusEl(down);
+    clickEl(down);
+    await waitFor(() => {
+      expect(names()).toEqual(['Fira, Greece', 'Oia, Greece', 'Imerovigli, Greece']);
+    });
+    expect(document.activeElement?.textContent).toBe('boardMoveDown(Oia)');
+
+    const stored = await cover(listPins());
+    expect(stored.map((pin) => pin.place.placeName)).toEqual(['Fira', 'Oia', 'Imerovigli']);
+  });
+
   it('labels the board retry for failed removals', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
@@ -1525,7 +1569,7 @@ describe('sidepanel', () => {
     });
 
     const fail = vi.spyOn(mock.local, 'set').mockRejectedValueOnce(new Error('quota'));
-    clickEl(document.querySelector('#board-slot li button') as HTMLButtonElement);
+    clickEl(document.querySelector('#board-slot li .remove-button') as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#board-slot .notice button')?.textContent).toBe(
         'boardRetryRemove'

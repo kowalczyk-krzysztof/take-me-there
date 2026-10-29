@@ -30,6 +30,12 @@ const placeRefSchema = z.strictObject({
   country: z.string().check(z.maxLength(100)),
 });
 
+const boardMoveSchema = z.strictObject({
+  placeName: z.string().check(z.maxLength(100)),
+  country: z.string().check(z.maxLength(100)),
+  direction: z.enum(['up', 'down']),
+});
+
 const spendRecordSchema = z.strictObject({
   amountUsd: z.number(),
   at: z.number(),
@@ -86,6 +92,7 @@ const emptySchema = z.strictObject({});
 export type StorageCommand =
   | { kind: 'board.add'; pin: z.infer<typeof pinSchema> }
   | { kind: 'board.remove'; placeName: string; country: string }
+  | { kind: 'board.move'; placeName: string; country: string; direction: 'up' | 'down' }
   | { kind: 'board.clear' }
   | { kind: 'spend.record'; amountUsd: number; at: number }
   | { kind: 'spend.reset'; at: number }
@@ -116,6 +123,7 @@ interface PayloadSchema {
 export const COMMAND_SCHEMAS: Record<CommandKind, PayloadSchema> = {
   'board.add': z.strictObject({ pin: pinSchema }),
   'board.remove': placeRefSchema,
+  'board.move': boardMoveSchema,
   'board.clear': emptySchema,
   'spend.record': spendRecordSchema,
   'spend.reset': spendResetSchema,

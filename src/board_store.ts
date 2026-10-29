@@ -156,6 +156,13 @@ export const removePin = async (
     country,
   });
 
+export const movePin = async (
+  placeName: string,
+  country: string,
+  direction: 'up' | 'down'
+): Promise<BoardPin[]> =>
+  sendCommand<BoardPin[]>({ kind: 'board.move', placeName, country, direction });
+
 export const clearBoard = async (): Promise<void> => {
   await sendCommand<void>({ kind: 'board.clear' });
 };

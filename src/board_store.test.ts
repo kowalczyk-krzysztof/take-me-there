@@ -7,6 +7,7 @@ import {
   dedupeKeyFor,
   listPins,
   makeThumbnail,
+  movePin,
   pinPlace,
   removePin,
   stripUrlEphemera,
@@ -166,6 +167,39 @@ describe('board_store', () => {
     expect(missing.pins).toHaveLength(1);
     await clearBoard();
     expect(await listPins()).toEqual([]);
+  });
+
+  it('reorders pins by swapping neighbors', async () => {
+    await pinPlace({ ...PIN(), addedAt: 1 });
+    await pinPlace({ ...PIN({ place: PLACE({ placeName: 'Fira' }) }), addedAt: 2 });
+    await pinPlace({ ...PIN({ place: PLACE({ placeName: 'Imerovigli' }) }), addedAt: 3 });
+
+    const moved = await movePin('Fira', 'Greece', 'down');
+    expect(moved.map((pin) => pin.place.placeName)).toEqual(['Oia', 'Imerovigli', 'Fira']);
+
+    const back = await movePin('Fira', 'Greece', 'up');
+    expect(back.map((pin) => pin.place.placeName)).toEqual(['Oia', 'Fira', 'Imerovigli']);
+
+    const stored = await listPins();
+    expect(stored.map((pin) => pin.place.placeName)).toEqual(['Oia', 'Fira', 'Imerovigli']);
+  });
+
+  it('leaves the board alone at the edges and for unknown pins', async () => {
+    await pinPlace({ ...PIN(), addedAt: 1 });
+    await pinPlace({ ...PIN({ place: PLACE({ placeName: 'Fira' }) }), addedAt: 2 });
+
+    expect((await movePin('Oia', 'Greece', 'up')).map((pin) => pin.place.placeName)).toEqual([
+      'Oia',
+      'Fira',
+    ]);
+    expect((await movePin('Fira', 'Greece', 'down')).map((pin) => pin.place.placeName)).toEqual([
+      'Oia',
+      'Fira',
+    ]);
+    expect((await movePin('Nowhere', 'Atlantis', 'up')).map((pin) => pin.place.placeName)).toEqual([
+      'Oia',
+      'Fira',
+    ]);
   });
 
   it('throws on storage rejection so the panel can offer the retry', async () => {

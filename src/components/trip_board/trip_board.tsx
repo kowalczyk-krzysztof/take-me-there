@@ -10,11 +10,17 @@ export interface BoardItemView {
   title: string;
   host: string;
   image: string | null;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
 }
 
 export interface TripRemovePinDetail {
   placeName: string;
   country: string;
+}
+
+export interface TripMovePinDetail extends TripRemovePinDetail {
+  direction: 'up' | 'down';
 }
 
 export interface BoardNoticeView {
@@ -24,6 +30,7 @@ export interface BoardNoticeView {
 
 export interface TripBoardCallbacks {
   onRemovePin: (detail: TripRemovePinDetail) => void;
+  onMovePin: (detail: TripMovePinDetail) => void;
   onPlan: () => void;
   onClearConfirm: () => void;
   onRetryPin: () => void;
@@ -40,6 +47,7 @@ export const TripBoard = ({
   canPlan,
   notice,
   onRemovePin,
+  onMovePin,
   onPlan,
   onClearConfirm,
   onRetryPin,
@@ -54,21 +62,37 @@ export const TripBoard = ({
     root?.querySelector<HTMLButtonElement>(`.${styles.disclosure}`)?.focus();
   };
   // Focus repair: a list re-render that removes the focused control falls
-  // back to the disclosure button, never to <body>.
-  const repairFocus = useRef(false);
+  // back to the disclosure button, never to <body>. A reorder keeps the
+  // control (or an identical one) in the list, so re-focus by label and
+  // only fall back when no match survives.
+  const repairFocus = useRef<string | null>(null);
 
   const prevItems = useRef(items);
 
   if (prevItems.current !== items) {
     prevItems.current = items;
-    repairFocus.current = !!document.activeElement?.closest('li');
+    repairFocus.current = document.activeElement?.closest('li')
+      ? (document.activeElement?.textContent ?? null)
+      : null;
     setConfirming(null);
   }
 
   useLayoutEffect(() => {
-    if (repairFocus.current) {
-      repairFocus.current = false;
-      focusDisclosure(rootRef.current);
+    if (repairFocus.current !== null) {
+      const label = repairFocus.current;
+      repairFocus.current = null;
+
+      if (!rootRef.current?.contains(document.activeElement)) {
+        const same = [...(rootRef.current?.querySelectorAll('li button') ?? [])].find(
+          (button) => button.textContent === label
+        );
+
+        if (same instanceof HTMLButtonElement && !same.disabled) {
+          same.focus();
+        } else {
+          focusDisclosure(rootRef.current);
+        }
+      }
     }
   });
 
@@ -119,6 +143,7 @@ export const TripBoard = ({
                       key={`${item.placeName}|${item.country}`}
                       item={item}
                       onRemovePin={onRemovePin}
+                      onMovePin={onMovePin}
                     />
                   ))}
                 </ul>

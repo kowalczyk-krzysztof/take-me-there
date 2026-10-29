@@ -4,6 +4,7 @@ import {
   TripBoard,
   type BoardItemView,
   type BoardNoticeView,
+  type TripMovePinDetail,
   type TripRemovePinDetail,
 } from './trip_board';
 import { installChromeMock, uninstallChromeMock } from '../../test/chrome_mock';
@@ -16,6 +17,8 @@ const ITEMS: BoardItemView[] = [
     title: 'Oia, Greece',
     host: 'example.com',
     image: 'data:image/jpeg,aaa',
+    canMoveUp: false,
+    canMoveDown: true,
   },
   {
     placeName: 'Fira',
@@ -23,6 +26,8 @@ const ITEMS: BoardItemView[] = [
     title: 'Fira, Greece',
     host: 'blog.example',
     image: null,
+    canMoveUp: true,
+    canMoveDown: false,
   },
 ];
 
@@ -33,6 +38,7 @@ const renderBoard = (
   canPlan: boolean,
   callbacks: {
     onRemovePin?: (detail: TripRemovePinDetail) => void;
+    onMovePin?: (detail: TripMovePinDetail) => void;
     onPlan?: () => void;
     onClearConfirm?: () => void;
     onRetryPin?: () => void;
@@ -45,6 +51,7 @@ const renderBoard = (
       canPlan={canPlan}
       notice={notice}
       onRemovePin={callbacks.onRemovePin ?? (() => {})}
+      onMovePin={callbacks.onMovePin ?? (() => {})}
       onPlan={callbacks.onPlan ?? (() => {})}
       onClearConfirm={callbacks.onClearConfirm ?? (() => {})}
       onRetryPin={callbacks.onRetryPin ?? (() => {})}
@@ -87,7 +94,7 @@ describe('trip-board', () => {
     const mono = entries[1].querySelector('.thumb-monogram');
     expect(mono?.textContent).toBe('F');
     expect(mono?.getAttribute('aria-hidden')).toBe('true');
-    clickEl(entries[0].querySelector('button') as HTMLButtonElement);
+    clickEl(entries[0].querySelector('.remove-button') as HTMLButtonElement);
     expect(onRemovePin).toHaveBeenCalledWith({
       placeName: 'Oia',
       country: 'Greece',
@@ -122,6 +129,7 @@ describe('trip-board', () => {
         canPlan={true}
         notice={NOTICE_OFF}
         onRemovePin={() => {}}
+        onMovePin={() => {}}
         onPlan={onPlan}
         onClearConfirm={() => {}}
         onRetryPin={() => {}}
@@ -168,6 +176,7 @@ describe('trip-board', () => {
         canPlan={true}
         notice={{ text: 'boardNoticePinFail', retryLabel: 'boardRetryNoThumb' }}
         onRemovePin={() => {}}
+        onMovePin={() => {}}
         onPlan={() => {}}
         onClearConfirm={() => {}}
         onRetryPin={onRetryPin}
@@ -186,6 +195,7 @@ describe('trip-board', () => {
         canPlan={true}
         notice={{ text: 'boardNoticeRemoveFail', retryLabel: 'boardRetryRemove' }}
         onRemovePin={() => {}}
+        onMovePin={() => {}}
         onPlan={() => {}}
         onClearConfirm={() => {}}
         onRetryPin={onRetryPin}
@@ -198,6 +208,7 @@ describe('trip-board', () => {
         canPlan={true}
         notice={NOTICE_OFF}
         onRemovePin={() => {}}
+        onMovePin={() => {}}
         onPlan={() => {}}
         onClearConfirm={() => {}}
         onRetryPin={onRetryPin}
@@ -206,12 +217,47 @@ describe('trip-board', () => {
     expect(notice.hidden).toBe(true);
   });
 
+  it('moves pins with boundary-aware buttons', () => {
+    const onMovePin = vi.fn();
+
+    const root = renderBoard(ITEMS, true, { onMovePin }).container;
+
+    const entries = [...root.querySelectorAll('li')];
+    expect(entries).toHaveLength(2);
+
+    const upFirst = entries[0].querySelector('.move-up-button') as HTMLButtonElement;
+    expect(upFirst.textContent).toBe('boardMoveUp(Oia)');
+    expect(upFirst.disabled).toBe(true);
+
+    const downFirst = entries[0].querySelector('.move-down-button') as HTMLButtonElement;
+    expect(downFirst.disabled).toBe(false);
+    clickEl(downFirst);
+    expect(onMovePin).toHaveBeenCalledWith({
+      placeName: 'Oia',
+      country: 'Greece',
+      direction: 'down',
+    } satisfies TripMovePinDetail);
+
+    const upLast = entries[1].querySelector('.move-up-button') as HTMLButtonElement;
+    expect(upLast.disabled).toBe(false);
+    clickEl(upLast);
+    expect(onMovePin).toHaveBeenCalledWith({
+      placeName: 'Fira',
+      country: 'Greece',
+      direction: 'up',
+    } satisfies TripMovePinDetail);
+    expect(entries[1].querySelector('.move-down-button') as HTMLButtonElement).toHaveProperty(
+      'disabled',
+      true
+    );
+  });
+
   it('repairs focus to the disclosure when a re-render removes it', () => {
     const rendered = renderBoard(ITEMS, true);
 
     const root = rendered.container;
 
-    const remove = root.querySelector('li button') as HTMLButtonElement;
+    const remove = root.querySelector('li .remove-button') as HTMLButtonElement;
     focusEl(remove);
     rendered.rerender(
       <TripBoard
@@ -219,6 +265,7 @@ describe('trip-board', () => {
         canPlan={false}
         notice={NOTICE_OFF}
         onRemovePin={() => {}}
+        onMovePin={() => {}}
         onPlan={() => {}}
         onClearConfirm={() => {}}
         onRetryPin={() => {}}
