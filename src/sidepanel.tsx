@@ -2984,17 +2984,23 @@ const resultCardProps = async (
 }> => {
   const host = sourceHostFor(displayedRequest);
 
+  const [pinned, compareOptions, alternates] = await Promise.all([
+    isPlacePinned(place),
+    compareOptionViews(place),
+    alternatesView(),
+  ]);
+
   return {
     view: 'result',
     place,
     lowConfidence: place.confidence < 0.6,
-    pinned: await isPlacePinned(place),
+    pinned,
     planState: currentPlanState,
     canReanalyze: (displayedRequest?.srcUrl ?? '') !== '',
     confidence: confidenceView(place),
     sourceHost: host === '' ? null : host,
-    compareOptions: await compareOptionViews(place),
-    alternates: await alternatesView(),
+    compareOptions,
+    alternates,
   };
 };
 

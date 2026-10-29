@@ -725,6 +725,12 @@ describe('sidepanel', () => {
 
     await mock.local.set({ settings: { v: 1, settings: { skipWebSearch: true } } });
     await mock.session.set({ [SLOT]: READY() });
+    // Prove the second handoff took the cache-hit branch before Plan.
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toContain(
+        'statusCacheHit(Oia)'
+      );
+    });
     await waitForHeading('Oia');
     await clickPlanTrip();
     await waitFor(() => {
@@ -761,6 +767,10 @@ describe('sidepanel', () => {
 
     await mock.local.set({ settings: { v: 1, settings: { imageOnly: true } } });
     await mock.session.set({ [SLOT]: READY() });
+    // Prove the second handoff re-ran identify before Plan.
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+    });
     await waitForHeading('Oia');
     await clickPlanTrip();
     await waitFor(() => {
@@ -826,8 +836,11 @@ describe('sidepanel', () => {
     await waitFor(() => {
       expect(document.querySelector('#guide-content')?.textContent).toContain('Hello world');
     });
-    expect(document.querySelector('#result-slot h2')?.textContent).toBe('Oia');
-    expect(document.querySelector('#result-slot .plan-trip-button')).toBeNull();
+    // The result card repaint lands after the streamed guide paint.
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot h2')?.textContent).toBe('Oia');
+      expect(document.querySelector('#result-slot .plan-trip-button')).toBeNull();
+    });
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
@@ -977,10 +990,13 @@ describe('sidepanel', () => {
       expect(document.querySelector('.guide-interrupted')?.textContent).toBe('guideInterrupted');
     });
     expect(document.querySelector('#guide-content')?.textContent).toContain('Hello');
-    expect(document.querySelector('#result-slot')?.querySelector('h2')?.textContent).toBe('Oia');
-    expect(document.querySelector('#result-slot .plan-trip-button')?.textContent).toBe(
-      'startAgainButton'
-    );
+    // The result card repaint lands after the interruption tombstone.
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot')?.querySelector('h2')?.textContent).toBe('Oia');
+      expect(document.querySelector('#result-slot .plan-trip-button')?.textContent).toBe(
+        'startAgainButton'
+      );
+    });
     expect(document.querySelector('#result-slot .start-again-hint')?.textContent).toBe(
       'startAgainHint'
     );
@@ -1023,7 +1039,10 @@ describe('sidepanel', () => {
       );
     });
     expect(document.querySelector('#guide-content')?.textContent).toContain('Hello world');
-    expect(document.querySelector('#result-slot .plan-trip-button')).toBeNull();
+    // The result card repaint lands after the streamed guide paint.
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot .plan-trip-button')).toBeNull();
+    });
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
@@ -3367,10 +3386,13 @@ describe('sidepanel', () => {
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusCanceled');
     });
-    expect(document.querySelector('#result-slot h2')?.textContent).toBe('Oia');
-    expect(document.querySelector('#result-slot .plan-trip-button')?.textContent).toBe(
-      'planTripButton'
-    );
+    // The result card repaint lands after the cancel announcement.
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot h2')?.textContent).toBe('Oia');
+      expect(document.querySelector('#result-slot .plan-trip-button')?.textContent).toBe(
+        'planTripButton'
+      );
+    });
     expect(document.querySelector('#guide-content')?.textContent).toBe('');
   });
 
