@@ -1,7 +1,6 @@
 import { useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { flushSync } from 'react-dom';
-import { BookingGrid } from './components/booking_grid/booking_grid';
 import type { AlternatesView, CardState, ConfidenceView } from './components/trip_card/trip_card';
 import { TripCard } from './components/trip_card/trip_card';
 import { KeySetup } from './components/key_setup/key_setup';
@@ -160,7 +159,6 @@ interface PanelState {
   preview: PreviewState;
   result: ResultSlotState;
   resultBusy: boolean;
-  links: string | null;
   privacy: string;
   cost: string;
   keyForm: KeyFormState;
@@ -191,7 +189,6 @@ const store = createStore<PanelState>({
   preview: { kind: 'placeholder' },
   result: blankResultSlot(),
   resultBusy: false,
-  links: null,
   privacy: '',
   cost: '',
   keyForm: {
@@ -345,6 +342,8 @@ let pendingRun: PendingRun | null = null;
 let lastRun: PendingRun | null = null;
 
 let currentCacheKey = '';
+
+let currentCached = false;
 
 let currentPlace: PlaceResult | null = null;
 
@@ -510,16 +509,6 @@ const setPreviewIdentified = (placeName: string): void => {
   }
 };
 
-const clearLinks = (): void => {
-  store.set({
-    links: null,
-  });
-};
-
-const showLinks = (destination: string): void => {
-  store.set({ links: destination });
-};
-
 type PrivacyMode =
   | 'image'
   | 'image-only'
@@ -575,6 +564,7 @@ const priceAndRecord = async (run: RunContext, stage: string): Promise<void> => 
   store.set({
     cost: msg('costLine', [formatUsd(usd)]),
   });
+  await refreshResultCard();
 };
 
 const cancelSkeleton = (): void => {
@@ -625,7 +615,6 @@ const showIdle = (): void => {
       },
     });
   });
-  clearLinks();
   updatePrivacy('idle');
   clearCost();
 };
@@ -633,7 +622,6 @@ const showIdle = (): void => {
 const showOnboarding = (orphaned: boolean): void => {
   cancelSkeleton();
   currentView = 'onboarding';
-  clearLinks();
   selectTab('settings');
   setKeyForm({ sessionOnly: runSettings?.sessionOnly ?? false });
   store.set({ showOrphaned: orphaned, replacing: false, keySaved: false });
@@ -644,7 +632,6 @@ const showOnboarding = (orphaned: boolean): void => {
 const showConsent = (focusGate: boolean): void => {
   cancelSkeleton();
   currentView = 'consent';
-  clearLinks();
   selectTab('main');
   swapResultSlot(() => {
     store.set({ result: { ...blankResultSlot(), consent: true } });
@@ -658,7 +645,6 @@ const showConsent = (focusGate: boolean): void => {
 const showVideoConfirm = (rung2: boolean, imageOnly: boolean, focusGate: boolean): void => {
   cancelSkeleton();
   currentView = 'video-confirm';
-  clearLinks();
   swapResultSlot(() => {
     store.set({ result: { ...blankResultSlot(), video: { rung2, imageOnly } } });
   });
@@ -898,6 +884,7 @@ const renderResultHeader = async (
   cancelSkeleton();
   currentView = 'result';
   currentAlternates = null;
+  currentCached = false;
   const props = resultCardProps(place);
 
   if (!ownsUi(run)) {
@@ -907,7 +894,6 @@ const renderResultHeader = async (
   swapResultSlot(() => {
     store.set({ result: { ...blankResultSlot(), card: props } });
   });
-  showLinks(currentDestination);
   setPreviewIdentified(place.placeName);
   if (announce) {
     announceStatus('statusFound', place.placeName);
@@ -944,7 +930,6 @@ const renderNoPlace = async (
       },
     });
   });
-  clearLinks();
 
   if (cached) {
     store.set({ cost: msg('costLine', [formatUsd(0)]) });
@@ -1318,6 +1303,7 @@ const renderCached = async (
   run.destination = buildDestination(entry.place.placeName, entry.place.city, entry.place.country);
   currentAlternates = null;
   commitDisplayed(run, 'result');
+  currentCached = true;
   const props = resultCardProps(entry.place);
 
   if (!ownsUi(run)) {
@@ -1327,9 +1313,9 @@ const renderCached = async (
   swapResultSlot(() => {
     store.set({ result: { ...blankResultSlot(), card: props } });
   });
-  showLinks(currentDestination);
   setPreviewIdentified(entry.place.placeName);
   store.set({ cost: msg('costLine', [formatUsd(0)]) });
+  await refreshResultCard();
   updatePrivacy('cache');
   announceStatus('statusCacheHit', entry.place.placeName);
   if (origin === 'panel') {
@@ -1910,7 +1896,6 @@ const retry = async (): Promise<void> => {
   if (!target) {
     return;
   }
-  clearLinks();
   await netPanelRun(() => runAnalysis(target.request, 'panel'), target.request);
 };
 
@@ -2163,11 +2148,16 @@ const resultCardProps = (
   canReanalyze: boolean;
   confidence: ConfidenceView;
   sourceHost: string | null;
+  destination: string | null;
+  runCost: string | null;
+  cached: boolean;
   alternates: AlternatesView;
 } => {
   const host = sourceHostFor(displayedRequest);
 
   const alternates = alternatesView();
+
+  const cost = store.get().cost;
 
   return {
     view: 'result',
@@ -2176,6 +2166,9 @@ const resultCardProps = (
     canReanalyze: (displayedRequest?.srcUrl ?? '') !== '',
     confidence: confidenceView(place),
     sourceHost: host === '' ? null : host,
+    destination: currentDestination === '' ? null : currentDestination,
+    runCost: cost === '' ? null : cost,
+    cached: currentCached,
     alternates,
   };
 };
@@ -2566,14 +2559,6 @@ const SidepanelApp = () => {
             </>
           ) : null}
         </div>
-        <section id="links-slot" aria-labelledby="links-heading" className="panel-card">
-          <h2 id="links-heading">{msg('linksHeading')}</h2>
-          {state.links !== null ? (
-            <BookingGrid destination={state.links} />
-          ) : (
-            <p className="slot-empty">{msg('linksEmpty')}</p>
-          )}
-        </section>
       </section>
       <section
         id="settings-panel"
@@ -2629,8 +2614,6 @@ const SidepanelApp = () => {
             headingId="settings-cost-heading"
             lineId="settings-cost-line"
             costText={state.panelSettings.costText}
-            runText={state.cost}
-            runLineId="settings-run-line"
           />
         </section>
       </section>

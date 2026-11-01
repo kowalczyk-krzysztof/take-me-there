@@ -2,6 +2,7 @@ import type { PlaceResult } from '../../types';
 import styles from './trip_card.module.css';
 import { msg } from '../../utils/i18n';
 import type { AlternatesView, ConfidenceView, TripCardCallbacks } from './trip_card';
+import { BookingGrid } from '../booking_grid/booking_grid';
 import { ChipsRow } from './chips_row';
 import { AlternatesView as AlternatesList } from './alternates_view';
 
@@ -11,6 +12,9 @@ interface Props {
   canReanalyze: boolean;
   confidence: ConfidenceView;
   sourceHost: string | null;
+  destination: string | null;
+  runCost: string | null;
+  cached: boolean;
   alternates: AlternatesView;
   callbacks: TripCardCallbacks;
 }
@@ -21,6 +25,9 @@ export const ResultView = ({
   canReanalyze,
   confidence,
   sourceHost,
+  destination,
+  runCost,
+  cached,
   alternates,
   callbacks,
 }: Props) => {
@@ -48,7 +55,24 @@ export const ResultView = ({
           {place.oneLiner}
         </p>
       ) : null}
+      {destination ? (
+        <div className={styles.links}>
+          <BookingGrid destination={destination} />
+        </div>
+      ) : null}
+      {runCost ? (
+        <p className={styles['run-cost']}>
+          {runCost}
+          {cached ? (
+            <>
+              {' '}
+              <span className={styles.badge}>{msg('cacheFreeBadge')}</span>
+            </>
+          ) : null}
+        </p>
+      ) : null}
       <section className={styles.secondary} aria-label={msg('secondaryHeading')}>
+        <p className={styles['paid-note']}>{msg('paidActionsNote')}</p>
         {canReanalyze ? (
           <div className={styles['disagree-row']}>
             <span>{msg('notThisPlace')}</span>

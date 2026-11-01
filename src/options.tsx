@@ -266,8 +266,6 @@ const OptionsApp = () => {
         headingId="cost-heading"
         lineId="cost-line"
         costText={state.costText}
-        runText=""
-        runLineId="options-run-line"
       />
       <h2 id="privacy-heading">{msg('optionsPrivacyHeading')}</h2>
       <p id="privacy-body">{msg('optionsPrivacyBody')}</p>

@@ -65,6 +65,9 @@ describe('trip-card', () => {
       canReanalyze: true,
       confidence: CONF,
       sourceHost: null,
+      destination: null,
+      runCost: null,
+      cached: false,
       alternates: { state: 'loading', intent: 'cheaper' },
     });
 
@@ -79,6 +82,9 @@ describe('trip-card', () => {
       canReanalyze: true,
       confidence: CONF,
       sourceHost: null,
+      destination: null,
+      runCost: null,
+      cached: false,
       alternates: {
         state: 'ready',
         intent: 'cheaper',
@@ -136,6 +142,9 @@ describe('trip-card', () => {
       canReanalyze: true,
       confidence: { line: 'Confidence: High (0.90).', showScale: true },
       sourceHost: 'example.com',
+      destination: null,
+      runCost: null,
+      cached: false,
     }).container;
 
     const order = [...(root.querySelector('.root')?.children ?? [])].map((el) =>
@@ -168,6 +177,9 @@ describe('trip-card', () => {
       canReanalyze: false,
       confidence: { line: 'confidenceChosen', showScale: false },
       sourceHost: null,
+      destination: null,
+      runCost: null,
+      cached: false,
     }).container;
     expect(root.querySelector('.confidence')?.textContent).toBe('confidenceChosen');
     expect(root.querySelector('.confidence-scale')).toBeNull();
@@ -182,6 +194,9 @@ describe('trip-card', () => {
       canReanalyze: false,
       confidence: CONF,
       sourceHost: 'example.com',
+      destination: null,
+      runCost: null,
+      cached: false,
     }).container;
     expect(root.querySelector('h2')?.textContent).toBe('Oia');
     expect(root.querySelector('.disagree-row')).toBeNull();
@@ -198,6 +213,9 @@ describe('trip-card', () => {
         canReanalyze: true,
         confidence: CONF,
         sourceHost: 'example.com',
+        destination: null,
+        runCost: null,
+        cached: false,
       },
       { onReanalyze }
     );
@@ -215,6 +233,9 @@ describe('trip-card', () => {
         canReanalyze: true,
         confidence: CONF,
         sourceHost: 'example.com',
+        destination: null,
+        runCost: null,
+        cached: false,
       },
       { onReanalyze }
     );
@@ -237,6 +258,9 @@ describe('trip-card', () => {
       canReanalyze: true,
       confidence: CONF,
       sourceHost: 'example.com',
+      destination: null,
+      runCost: null,
+      cached: false,
     }).container;
     expect(root.querySelector('.subtitle')).toBeNull();
     expect(root.querySelector('.oneliner')).toBeNull();
@@ -252,6 +276,9 @@ describe('trip-card', () => {
       canReanalyze: true,
       confidence: CONF,
       sourceHost: 'example.com',
+      destination: null,
+      runCost: null,
+      cached: false,
     }).container;
 
     const oneliner = root.querySelector('.oneliner') as HTMLElement;
@@ -270,6 +297,9 @@ describe('trip-card', () => {
         canReanalyze: true,
         confidence: CONF,
         sourceHost: 'example.com',
+        destination: null,
+        runCost: null,
+        cached: false,
       },
       { onAlternates }
     ).container;
@@ -294,6 +324,9 @@ describe('trip-card', () => {
         canReanalyze: true,
         confidence: CONF,
         sourceHost: 'example.com',
+        destination: null,
+        runCost: null,
+        cached: false,
         alternates: { state: 'loading', intent: 'cheaper' },
       },
       { onAlternates }
@@ -319,6 +352,9 @@ describe('trip-card', () => {
       canReanalyze: true,
       confidence: CONF,
       sourceHost: 'example.com',
+      destination: null,
+      runCost: null,
+      cached: false,
       alternates: {
         state: 'ready',
         intent: 'cheaper',
@@ -429,6 +465,9 @@ describe('trip-card', () => {
       canReanalyze: true,
       confidence: CONF,
       sourceHost: 'example.com',
+      destination: null,
+      runCost: null,
+      cached: false,
     }).container;
 
     const heading = root.querySelector('h2') as HTMLHeadingElement;

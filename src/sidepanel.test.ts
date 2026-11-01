@@ -162,11 +162,10 @@ describe('sidepanel', () => {
     expect(card?.querySelector('.hint')?.textContent).toBe('panelIdle');
   });
 
-  it('keeps every Explore section visible with empty states', async () => {
+  it('hides the links card before identification', async () => {
     await setup();
-    expect(document.querySelector('#links-heading')?.textContent).toBe('linksHeading');
-    expect(document.querySelector('#links-slot .slot-empty')?.textContent).toBe('linksEmpty');
-    expect(document.querySelector('#links-slot')?.className).toContain('panel-card');
+    expect(document.querySelector('#links-slot')).toBeNull();
+    expect(document.querySelector('#result-slot .hint')?.textContent).toBe('panelIdle');
   });
 
   it('keeps settings in key, modes, and cost cards', async () => {
@@ -540,9 +539,15 @@ describe('sidepanel', () => {
       })
     );
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
+    await waitForHeading('Oia');
     await waitFor(() => {
-      expect(document.querySelector('#settings-run-line')?.textContent).toBe('costLine($0.00)');
+      expect(document.querySelector('#result-slot .run-cost')?.textContent).toContain(
+        'costLine($0.00)'
+      );
     });
+    expect(document.querySelector('#result-slot .run-cost .badge')?.textContent).toBe(
+      'cacheFreeBadge'
+    );
     expect(document.querySelector('#status-region')?.textContent).toBe('statusCacheHit(Oia)');
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0][0]).toBe('https://cdn.example.com/oia.jpg');
@@ -562,7 +567,10 @@ describe('sidepanel', () => {
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
 
-    expect(document.querySelector('#settings-run-line')?.textContent).toContain('costLine(');
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot .run-cost')?.textContent).toContain('costLine(');
+    });
+    expect(document.querySelector('#result-slot .run-cost .badge')).toBeNull();
     expect(fetchMock).toHaveBeenCalledTimes(2);
     mock.session.fault = () => undefined;
   });
@@ -2668,18 +2676,40 @@ describe('sidepanel', () => {
     expect(card.querySelector('section.secondary')).not.toBeNull();
   });
 
-  it('shows booking tiles for the identified place', async () => {
+  it('orders links, cost, and paid actions below the destination', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
     fetchMock.mockResolvedValueOnce(previewMiss());
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
+
+    const card = document.querySelector('#result-slot') as HTMLElement;
+
     await waitFor(() => {
-      expect(document.querySelectorAll('#links-slot a.tile')).toHaveLength(2);
+      expect(card.querySelectorAll('a.tile')).toHaveLength(2);
     });
-    const tiles = document.querySelectorAll('#links-slot a.tile');
+
+    const tiles = card.querySelectorAll('a.tile');
     expect((tiles[0] as HTMLAnchorElement).href).toContain(encodeURIComponent('Oia, Greece'));
+    expect(tiles[0].textContent).toContain('bookingLink_maps');
+    expect(tiles[1].textContent).toContain('bookingLink_hotels');
+
+    await waitFor(() => {
+      expect(card.querySelector('.run-cost')?.textContent).toContain('costLine(');
+    });
+    expect(card.querySelector('.paid-note')?.textContent).toBe('paidActionsNote');
+    expect(card.querySelector('.source')?.textContent).toBe('sourceLine(example.com)');
+
+    const order = [...card.querySelectorAll('h2, .links, .run-cost, section.secondary')].map(
+      (el) => el.className || el.tagName
+    );
+    expect(order).toEqual([
+      'H2',
+      expect.stringContaining('links'),
+      expect.stringContaining('run-cost'),
+      expect.stringContaining('secondary'),
+    ]);
   });
 
   it('dismisses dead-end errors back to idle', async () => {
@@ -2773,7 +2803,11 @@ describe('sidepanel', () => {
     }
 
     expect(fresh.querySelectorAll('[role="button"]')).toHaveLength(0);
-    expect((controls[0] as HTMLElement).textContent).toBe('reanalyzeButton');
+    expect((controls[0] as HTMLElement).textContent).toContain('bookingLink_maps');
+    expect((controls[1] as HTMLElement).textContent).toContain('bookingLink_hotels');
+    expect(
+      controls.some((control) => (control as HTMLElement).textContent === 'reanalyzeButton')
+    ).toBe(true);
 
     const chip = fresh.querySelector('.chips-row .chip') as HTMLButtonElement;
     focusEl(chip);

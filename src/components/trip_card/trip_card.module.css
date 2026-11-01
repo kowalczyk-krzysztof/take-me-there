@@ -115,6 +115,21 @@
   line-height: 1.5;
   color: var(--muted);
 }
+.root .links {
+  margin: 8px 0 0;
+}
+.root .run-cost {
+  margin: 8px 0 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.root .paid-note {
+  margin: 0 0 8px;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
 .root .secondary {
   margin: 12px 0 0;
   padding: 8px 0 0;

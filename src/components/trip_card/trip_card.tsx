@@ -48,6 +48,9 @@ export type CardState =
       canReanalyze: boolean;
       confidence: ConfidenceView;
       sourceHost: string | null;
+      destination: string | null;
+      runCost: string | null;
+      cached: boolean;
       alternates?: AlternatesView;
     }
   | { view: 'no-place'; showLookAgain: boolean; fallback: { label: string; href: string } | null }
@@ -108,6 +111,9 @@ export const TripCard = ({ card, callbacks }: Props) => {
           canReanalyze={card.canReanalyze}
           confidence={card.confidence}
           sourceHost={card.sourceHost}
+          destination={card.destination}
+          runCost={card.runCost}
+          cached={card.cached}
           alternates={card.alternates ?? { state: 'idle' }}
           callbacks={callbacks}
         />

@@ -3,21 +3,11 @@ interface Props {
   headingId: string;
   lineId: string;
   costText: string;
-  runText: string;
-  runLineId: string;
 }
 
-export const CostSection = ({
-  heading,
-  headingId,
-  lineId,
-  costText,
-  runText,
-  runLineId,
-}: Props) => (
+export const CostSection = ({ heading, headingId, lineId, costText }: Props) => (
   <>
     <h2 id={headingId}>{heading}</h2>
     <p id={lineId}>{costText}</p>
-    {runText ? <p id={runLineId}>{runText}</p> : null}
   </>
 );
