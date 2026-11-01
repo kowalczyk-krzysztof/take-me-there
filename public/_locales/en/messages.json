@@ -72,7 +72,7 @@
     "description": "Status announcement when a tested key is accepted."
   },
   "alertAuth": {
-    "message": "Your API key was rejected. Check the key and try again.",
+    "message": "Your Muse API key was rejected. Check the key and try again.",
     "description": "Alert for authentication failures."
   },
   "alertRateLimited": {
@@ -92,7 +92,7 @@
     "description": "Alert for validation failures."
   },
   "errorAuthTitle": {
-    "message": "Check your API key",
+    "message": "Check your Muse API key",
     "description": "Error card title for rejected keys."
   },
   "errorAuthBody": {
@@ -244,7 +244,7 @@
     "description": "Session-only checkbox label."
   },
   "securityNotice": {
-    "message": "Your API key is encrypted before it's saved (AES-GCM, with a non-extractable key kept in this browser profile) and never leaves this device except to authenticate requests to api.meta.ai. Someone with full access to your computer account could still recover it, so only save it on a trusted device - or enable session-only mode, which keeps the key in memory and forgets it when the browser closes. Saving the key sends only the key itself to validate it - images and page text are never sent before you click 'Agree & analyze'.",
+    "message": "Your Muse API key is encrypted before it's saved (AES-GCM, with a non-extractable key kept in this browser profile) and never leaves this device except to authenticate requests to api.meta.ai. Someone with full access to your computer account could still recover it, so only save it on a trusted device - or enable session-only mode, which keeps the key in memory and forgets it when the browser closes. Saving the key sends only the key itself to validate it - images and page text are never sent before you click 'Agree & analyze'.",
     "description": "Canonical key security notice."
   },
   "keyHygienePrefix": {
@@ -268,7 +268,7 @@
     "description": "Onboarding note about changing the key later."
   },
   "optionsKeyHeading": {
-    "message": "API key",
+    "message": "Muse API key",
     "description": "Options key section heading."
   },
   "optionsCostMonth": {
@@ -598,11 +598,11 @@
     "description": "Settings panel tab label."
   },
   "settingsKeyHeading": {
-    "message": "API key",
-    "description": "Settings section heading for the API key."
+    "message": "Muse API key",
+    "description": "Settings section heading for the Muse API key."
   },
   "keySavedStatus": {
-    "message": "An API key is saved.",
+    "message": "A Muse API key is saved.",
     "description": "Settings status when a key is stored."
   },
   "keyReplaceButton": {

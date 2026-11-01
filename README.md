@@ -47,7 +47,7 @@ mode keeps it in memory and forgets it when the browser closes.
 Stored on your machine, never uploaded anywhere except the API
 calls above:
 
-- API key: AES-GCM encrypted in this browser profile (or memory
+- Muse API key: AES-GCM encrypted in this browser profile (or memory
   only, in session-only mode).
 - Cost totals: monthly spend per provider.
 - Result cache: recent results keyed by image and page, kept 7 days

@@ -12,7 +12,7 @@ Identify travel places in photos and videos.
 Only after the user clicks "Agree & analyze" (alternatives for
 those runs reuse it), to `https://api.meta.ai`:
 
-- The API key, to authenticate each call. Saving a key also sends
+- The Muse API key, to authenticate each call. Saving a key also sends
   the key alone to `GET /v1/models` to validate it.
 - The clicked image address, or its bytes when the page blocks
   remote fetch. Image bytes are fetched without cookies.
@@ -27,7 +27,7 @@ those runs reuse it), to `https://api.meta.ai`:
 
 ## Data stored on the device only
 
-AES-GCM encrypted API key in this browser profile (or memory
+AES-GCM encrypted Muse API key in this browser profile (or memory
 only in session-only mode), wrapping key in IndexedDB, settings,
 consent flags, monthly cost totals, the recent result cache
 (session storage: 7-day default expiry with a 1/7/30 day setting,
