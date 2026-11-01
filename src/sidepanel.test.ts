@@ -141,6 +141,12 @@ const hangUntilAbort = (): void => {
   fetchMock.mockImplementationOnce(
     (_url: string, init?: { signal?: AbortSignal }) =>
       new Promise<Response>((_resolve, reject) => {
+        if (init?.signal?.aborted) {
+          reject(new DOMException('Aborted', 'AbortError'));
+
+          return;
+        }
+
         init?.signal?.addEventListener('abort', () => {
           reject(new DOMException('Aborted', 'AbortError'));
         });
@@ -1501,6 +1507,11 @@ describe('sidepanel', () => {
       expect(document.querySelector('#result-slot .alternates button')?.textContent).toBe(
         'cancelButton'
       );
+    });
+    // Cancel only once the chat fallback is hanging: grounded usage is then
+    // absorbed and the abort listener is attached to a live signal.
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(4);
     });
     clickEl(document.querySelector('#result-slot .alternates button') as HTMLButtonElement);
 
