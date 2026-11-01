@@ -30,7 +30,7 @@ vi.mock('idb-keyval', () => {
 });
 
 import * as idbKeyval from 'idb-keyval';
-import { clearKey, loadKey, saveKey, type KeyRecord } from './key_vault';
+import { clearKey, loadKey, persistKey, type KeyRecord } from './key_vault';
 import { installChromeMock, uninstallChromeMock, type ChromeMock } from './test/chrome_mock';
 import { routeWorkerMessages } from './test/helpers';
 
@@ -52,7 +52,7 @@ afterEach(() => {
 
 describe('key_vault', () => {
   it('round-trips a key through encrypted local storage', async () => {
-    await saveKey('muse', 'LLM_secret-value', false);
+    await persistKey('muse', 'LLM_secret-value', false);
     expect(await loadKey('muse')).toEqual({ state: 'ok', key: 'LLM_secret-value' });
 
     const record = mock.local.data.get('apiKey:muse') as KeyRecord;
@@ -67,23 +67,23 @@ describe('key_vault', () => {
   });
 
   it('routes session-only keys to session storage and clears local', async () => {
-    await saveKey('muse', 'LLM_first', false);
+    await persistKey('muse', 'LLM_first', false);
     expect(mock.local.data.has('apiKey:muse')).toBe(true);
-    await saveKey('muse', 'LLM_second', true);
+    await persistKey('muse', 'LLM_second', true);
     expect(mock.session.data.has('apiKey:muse')).toBe(true);
     expect(mock.local.data.has('apiKey:muse')).toBe(false);
     expect(await loadKey('muse')).toEqual({ state: 'ok', key: 'LLM_second' });
   });
 
   it('treats a lost wrapping key as an orphan and keeps the ciphertext', async () => {
-    await saveKey('muse', 'LLM_secret-value', false);
+    await persistKey('muse', 'LLM_secret-value', false);
     resetIdb();
     expect(await loadKey('muse')).toEqual({ state: 'missing', orphaned: true });
     expect(mock.local.data.has('apiKey:muse')).toBe(true);
   });
 
   it('treats tampered ciphertext as an orphan and keeps it', async () => {
-    await saveKey('muse', 'LLM_secret-value', false);
+    await persistKey('muse', 'LLM_secret-value', false);
 
     const record = { ...(mock.local.data.get('apiKey:muse') as KeyRecord) };
     record.ciphertext = `${record.ciphertext.slice(0, -1)}A`;
@@ -93,7 +93,7 @@ describe('key_vault', () => {
   });
 
   it('reads legacy records without a version', async () => {
-    await saveKey('muse', 'LLM_secret-value', false);
+    await persistKey('muse', 'LLM_secret-value', false);
 
     const record = { ...(mock.local.data.get('apiKey:muse') as KeyRecord) } as Record<
       string,
@@ -105,7 +105,7 @@ describe('key_vault', () => {
   });
 
   it('orphans records from a newer version instead of deleting them', async () => {
-    await saveKey('muse', 'LLM_secret-value', false);
+    await persistKey('muse', 'LLM_secret-value', false);
 
     const record = { ...(mock.local.data.get('apiKey:muse') as KeyRecord), v: 99 };
     mock.local.data.set('apiKey:muse', record);
@@ -114,8 +114,8 @@ describe('key_vault', () => {
   });
 
   it('clears keys from both areas', async () => {
-    await saveKey('muse', 'LLM_secret-value', false);
-    await saveKey('openai_compat', 'sk-other', true);
+    await persistKey('muse', 'LLM_secret-value', false);
+    await persistKey('openai_compat', 'sk-other', true);
     await clearKey('muse');
     expect(await loadKey('muse')).toEqual({ state: 'missing', orphaned: false });
     expect(await loadKey('openai_compat')).toEqual({ state: 'ok', key: 'sk-other' });

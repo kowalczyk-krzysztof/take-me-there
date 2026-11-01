@@ -42,6 +42,13 @@ const SHELL = readShell('options');
 
 const fetchMock = vi.fn();
 
+// React drops change events after a programmatic value set, so bypass its
+// tracker the way a real user pick does.
+const pickRetention = (select: HTMLSelectElement, value: string): void => {
+  Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set?.call(select, value);
+  dispatchEl(select, new Event('change', { bubbles: true }));
+};
+
 const setup = async (
   beforeImport?: (mock: ChromeMock) => void | Promise<void>
 ): Promise<ChromeMock> => setupPage(SHELL, fetchMock, () => import('./options'), beforeImport);
@@ -70,8 +77,7 @@ describe('options', () => {
     const mock = await setup();
 
     const box = document.querySelector('#image-only') as HTMLInputElement;
-    box.checked = true;
-    dispatchEl(box, new Event('change', { bubbles: true }));
+    clickEl(box);
     await waitFor(() => {
       const record = mock.local.data.get('settings') as {
         settings: { imageOnly: boolean };
@@ -84,8 +90,7 @@ describe('options', () => {
     const mock = await setup();
 
     const box = document.querySelector('#skip-search') as HTMLInputElement;
-    box.checked = true;
-    dispatchEl(box, new Event('change', { bubbles: true }));
+    clickEl(box);
     await waitFor(() => {
       const record = mock.local.data.get('settings') as {
         settings: { skipWebSearch: boolean };
@@ -126,8 +131,8 @@ describe('options', () => {
   it('tests the saved key and clears it', async () => {
     const mock = await setup();
 
-    const { saveKey, loadKey } = await settleWrite(import('./key_vault'));
-    await settleWrite(saveKey('muse', 'LLM_x', false));
+    const { persistKey, loadKey } = await settleWrite(import('./key_vault'));
+    await settleWrite(persistKey('muse', 'LLM_x', false));
     fetchMock.mockResolvedValue(new Response('[]', { status: 200 }));
     clickEl(document.querySelector('#test-key') as HTMLButtonElement);
     await waitFor(() => {
@@ -144,8 +149,8 @@ describe('options', () => {
   it('reports the verified mode when the session-only move fails', async () => {
     const mock = await setup();
 
-    const { saveKey, loadKey } = await settleWrite(import('./key_vault'));
-    await settleWrite(saveKey('muse', 'LLM_x', false));
+    const { persistKey, loadKey } = await settleWrite(import('./key_vault'));
+    await settleWrite(persistKey('muse', 'LLM_x', false));
 
     mock.session.fault = (op) => {
       if (op === 'set') {
@@ -171,8 +176,8 @@ describe('options', () => {
   it('shows clear failures instead of claiming success', async () => {
     const mock = await setup();
 
-    const { saveKey, loadKey } = await settleWrite(import('./key_vault'));
-    await settleWrite(saveKey('muse', 'LLM_x', false));
+    const { persistKey, loadKey } = await settleWrite(import('./key_vault'));
+    await settleWrite(persistKey('muse', 'LLM_x', false));
 
     const fail = (): void => {
       throw new Error('quota');
@@ -211,8 +216,7 @@ describe('options', () => {
 
     const retention = document.querySelector('#retention-select') as HTMLSelectElement;
     expect(retention.value).toBe('7');
-    retention.value = '30';
-    dispatchEl(retention, new Event('change', { bubbles: true }));
+    pickRetention(retention, '30');
 
     await waitFor(() => {
       const record = mock.local.data.get('settings') as {
@@ -250,8 +254,7 @@ describe('options', () => {
     };
 
     const retention = document.querySelector('#retention-select') as HTMLSelectElement;
-    retention.value = '1';
-    dispatchEl(retention, new Event('change', { bubbles: true }));
+    pickRetention(retention, '1');
 
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('settingsSaveFailed');
@@ -277,8 +280,8 @@ describe('options', () => {
   it('keeps retention and key mode independent', async () => {
     const mock = await setup();
 
-    const { saveKey, loadKey } = await settleWrite(import('./key_vault'));
-    await settleWrite(saveKey('muse', 'LLM_x', false));
+    const { persistKey, loadKey } = await settleWrite(import('./key_vault'));
+    await settleWrite(persistKey('muse', 'LLM_x', false));
 
     await waitFor(() => {
       expect(document.querySelector('#cost-line')?.textContent).toContain('optionsCostMonth');
@@ -293,8 +296,7 @@ describe('options', () => {
     });
 
     const retention = document.querySelector('#retention-select') as HTMLSelectElement;
-    retention.value = '30';
-    dispatchEl(retention, new Event('change', { bubbles: true }));
+    pickRetention(retention, '30');
 
     await waitFor(() => {
       const record = mock.local.data.get('settings') as {
@@ -307,5 +309,82 @@ describe('options', () => {
 
     expect(await settleWrite(loadKey('muse'))).toEqual({ state: 'ok', key: 'LLM_x' });
     expect(mock.session.data.has('apiKey:muse')).toBe(true);
+  });
+
+  it('reflects settings changed in another surface without a reload', async () => {
+    const mock = await setup();
+
+    await waitFor(() => {
+      expect(document.querySelector('#cost-line')?.textContent).toContain('optionsCostMonth');
+    });
+
+    expect((document.querySelector('#image-only') as HTMLInputElement).checked).toBe(false);
+
+    await settleWrite(
+      mock.local.set({
+        settings: {
+          v: 1,
+          settings: {
+            imageOnly: true,
+            sessionOnly: false,
+            skipWebSearch: false,
+            cacheTtlDays: 30,
+          },
+        },
+      })
+    );
+
+    await waitFor(() => {
+      expect((document.querySelector('#image-only') as HTMLInputElement).checked).toBe(true);
+      expect((document.querySelector('#retention-select') as HTMLSelectElement).value).toBe('30');
+    });
+  });
+
+  it('preserves mode edits made during key validation', async () => {
+    const mock = await setup();
+
+    let release!: (value: Response) => void;
+    fetchMock.mockImplementationOnce(
+      () =>
+        new Promise<Response>((resolve) => {
+          release = resolve;
+        })
+    );
+
+    (document.querySelector('#key-input') as HTMLInputElement).value = 'LLM_new';
+    dispatchEl(
+      document.querySelector('#key-host form') as HTMLFormElement,
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
+
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('statusValidatingKey');
+    });
+
+    clickEl(document.querySelector('#image-only') as HTMLInputElement);
+
+    await waitFor(() => {
+      const record = mock.local.data.get('settings') as {
+        settings: { imageOnly: boolean };
+      };
+
+      expect(record.settings.imageOnly).toBe(true);
+    });
+
+    await settleWrite(
+      (async () => {
+        release(new Response('[]', { status: 200 }));
+      })()
+    );
+
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('statusKeySaved');
+    });
+
+    const record = mock.local.data.get('settings') as {
+      settings: { imageOnly: boolean; sessionOnly: boolean };
+    };
+    expect(record.settings.imageOnly).toBe(true);
+    expect(record.settings.sessionOnly).toBe(false);
   });
 });

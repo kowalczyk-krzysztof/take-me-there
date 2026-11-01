@@ -859,10 +859,10 @@ export const CONSENT_STORAGE_KEY = 'consentGiven';
 // grants below this version stop counting and the gate re-appears.
 export const CONSENT_VERSION: number = 2;
 
-import { loadSettings, saveSettings } from '../settings_store';
+import { loadSettings, readSettingsStrict } from '../settings_store';
 import type { ExtensionSettings } from '../settings_store';
 
-export { loadSettings, saveSettings };
+export { loadSettings, readSettingsStrict };
 export type { ExtensionSettings };
 
 export const hasConsented = async (): Promise<boolean> => {
@@ -907,11 +907,15 @@ export const assertConsent = async (): Promise<void> => {
 
 const museProvider = new MuseProvider();
 
-export const getActiveProvider = async (): Promise<{
+export const getProvider = (): Provider => museProvider;
+
+// Strict read: a failed settings read throws so run gates refuse instead
+// of silently running with permissive defaults.
+export const getActiveProviderStrict = async (): Promise<{
   provider: Provider;
   settings: ExtensionSettings;
 }> => {
-  const settings = await loadSettings();
+  const { settings } = await readSettingsStrict();
 
   return { provider: museProvider, settings };
 };

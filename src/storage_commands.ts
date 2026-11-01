@@ -29,13 +29,6 @@ const cacheSetSchema = z.strictObject({
   entry: cacheEntrySchema,
 });
 
-const settingsSchema = z.strictObject({
-  imageOnly: z.boolean(),
-  sessionOnly: z.boolean(),
-  skipWebSearch: z.boolean(),
-  cacheTtlDays: z.number(),
-});
-
 const settingsPatchSchema = z.strictObject({
   imageOnly: z.optional(z.boolean()),
   skipWebSearch: z.optional(z.boolean()),
@@ -46,7 +39,7 @@ const providerSchema = z.strictObject({
   providerId: z.string().check(z.maxLength(64)),
 });
 
-const keySaveSchema = z.strictObject({
+const keyPersistSchema = z.strictObject({
   providerId: z.string().check(z.maxLength(64)),
   key: z.string().check(z.maxLength(4000)),
   sessionOnly: z.boolean(),
@@ -64,9 +57,8 @@ export type StorageCommand =
   | { kind: 'cache.get'; hash: string }
   | { kind: 'cache.set'; hash: string; entry: z.infer<typeof cacheEntrySchema> }
   | { kind: 'cache.clear' }
-  | { kind: 'settings.save'; settings: z.infer<typeof settingsSchema> }
   | { kind: 'settings.patch'; patch: z.infer<typeof settingsPatchSchema> }
-  | { kind: 'key.save'; providerId: string; key: string; sessionOnly: boolean }
+  | { kind: 'key.persist'; providerId: string; key: string; sessionOnly: boolean }
   | { kind: 'key.clear'; providerId: string }
   | { kind: 'key.setMode'; providerId: string; sessionOnly: boolean }
   | { kind: 'migrate.run' };
@@ -90,9 +82,8 @@ export const COMMAND_SCHEMAS: Record<CommandKind, PayloadSchema> = {
   'cache.get': cacheKeySchema,
   'cache.set': cacheSetSchema,
   'cache.clear': emptySchema,
-  'settings.save': z.strictObject({ settings: settingsSchema }),
   'settings.patch': z.strictObject({ patch: settingsPatchSchema }),
-  'key.save': keySaveSchema,
+  'key.persist': keyPersistSchema,
   'key.clear': providerSchema,
   'key.setMode': keyModeSchema,
   'migrate.run': emptySchema,

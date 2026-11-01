@@ -1,6 +1,5 @@
-import { getActiveProvider, ProviderError, type ExtensionSettings } from './providers/index';
-import { saveKey, setKeyMode } from './key_vault';
-import { saveSettings } from './settings_store';
+import { getProvider, ProviderError, type ExtensionSettings } from './providers/index';
+import { persistKey, setKeyMode } from './key_vault';
 
 export type SaveKeyFailure = 'keyErrorRejected' | 'keyErrorNetwork' | 'keyErrorRetry';
 
@@ -12,7 +11,7 @@ export const validateAndSaveKey = async (
   key: string,
   sessionOnly: boolean
 ): Promise<SaveKeyOutcome> => {
-  const { provider, settings } = await getActiveProvider();
+  const provider = getProvider();
 
   try {
     await provider.testKey(key);
@@ -28,34 +27,28 @@ export const validateAndSaveKey = async (
     return { ok: false, failure: 'keyErrorRetry' };
   }
 
-  const next = { ...settings, sessionOnly };
-
   try {
-    await saveKey(provider.id, key, sessionOnly);
-    await saveSettings(next);
+    const settings = await persistKey(provider.id, key, sessionOnly);
+
+    return { ok: true, settings };
   } catch {
     return { ok: false, failure: 'keyErrorRetry' };
   }
-
-  return { ok: true, settings: next };
 };
 
 export interface KeyModeOutcome {
-  settings: ExtensionSettings;
+  sessionOnly: boolean;
   failed: boolean;
 }
 
 export const applyKeyMode = async (checked: boolean): Promise<KeyModeOutcome> => {
-  const { provider, settings } = await getActiveProvider();
+  const provider = getProvider();
 
   try {
     const result = await setKeyMode(provider.id, checked);
 
-    return {
-      settings: { ...settings, sessionOnly: result.sessionOnly },
-      failed: result.error !== undefined,
-    };
+    return { sessionOnly: result.sessionOnly, failed: result.error !== undefined };
   } catch {
-    return { settings, failed: true };
+    return { sessionOnly: !checked, failed: true };
   }
 };

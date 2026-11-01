@@ -14,7 +14,7 @@ import {
   type CacheEntry,
   type CacheRecord,
 } from './result_cache';
-import { loadSettings, writeSettingsRecord } from './settings_store';
+import { readSettingsStrict, writeSettingsRecord } from './settings_store';
 import { runUpdateMigrations } from './migrations';
 import {
   COMMAND_SCHEMAS,
@@ -61,7 +61,7 @@ const cacheExpired = (record: CacheRecord, ttlMs: number): boolean =>
 
 const readCacheTtlMs = async (): Promise<number> => {
   try {
-    return (await loadSettings()).cacheTtlDays * 24 * 60 * 60 * 1000;
+    return (await readSettingsStrict()).settings.cacheTtlDays * 24 * 60 * 60 * 1000;
   } catch {
     return CACHE_TTL_MS;
   }
@@ -221,11 +221,11 @@ const setKeyMode = async (providerId: string, sessionOnly: boolean): Promise<Com
       }
     }
 
-    const current = await loadSettings();
+    const current = (await readSettingsStrict()).settings;
 
     await writeSettingsRecord({ ...current, sessionOnly });
 
-    const verified = await loadSettings();
+    const verified = (await readSettingsStrict()).settings;
 
     if (verified.sessionOnly !== sessionOnly) {
       throw new Error('settings write failed verification');
@@ -248,7 +248,7 @@ const setKeyMode = async (providerId: string, sessionOnly: boolean): Promise<Com
 
       const hasRecord = placement.sessionHas || placement.localHas;
 
-      const settings = await loadSettings();
+      const settings = (await readSettingsStrict()).settings;
 
       actual = settings.sessionOnly === true && placementSatisfies(placement, hasRecord, true);
     } catch {
@@ -277,11 +277,6 @@ const execute = async (command: StorageCommand): Promise<CommandResult> => {
     case 'cache.clear':
       return { ok: true, value: await cacheClear() };
 
-    case 'settings.save':
-      await writeSettingsRecord(command.settings);
-
-      return { ok: true, value: undefined };
-
     case 'settings.patch': {
       const ttl = command.patch.cacheTtlDays;
 
@@ -289,14 +284,14 @@ const execute = async (command: StorageCommand): Promise<CommandResult> => {
         return invalid('invalid retention');
       }
 
-      const current = await loadSettings();
+      const current = (await readSettingsStrict()).settings;
 
       await writeSettingsRecord({ ...current, ...command.patch });
 
       return { ok: true, value: undefined };
     }
 
-    case 'key.save': {
+    case 'key.persist': {
       if (!command.providerId) {
         return invalid('unknown provider');
       }
@@ -304,6 +299,8 @@ const execute = async (command: StorageCommand): Promise<CommandResult> => {
       if (!command.key) {
         return invalid('cannot save an empty key');
       }
+
+      const current = (await readSettingsStrict()).settings;
 
       const record = await encryptKeyRecord(command.key);
 
@@ -329,7 +326,17 @@ const execute = async (command: StorageCommand): Promise<CommandResult> => {
         return invalid('key save failed verification');
       }
 
-      return { ok: true, value: undefined };
+      const next = { ...current, sessionOnly: command.sessionOnly };
+
+      await writeSettingsRecord(next);
+
+      const verified = (await readSettingsStrict()).settings;
+
+      if (verified.sessionOnly !== command.sessionOnly) {
+        return invalid('key save failed verification');
+      }
+
+      return { ok: true, value: next };
     }
 
     case 'key.clear': {

@@ -758,5 +758,17 @@
   "linksEmpty": {
     "message": "Links appear here once a place is found.",
     "description": "Empty state for the links section."
+  },
+  "settingsReadTitle": {
+    "message": "Could not load settings",
+    "description": "Error card title when privacy settings fail to load."
+  },
+  "settingsReadBody": {
+    "message": "Take Me There could not load your privacy settings, so nothing was sent. Retry to try again.",
+    "description": "Error card body when privacy settings fail to load."
+  },
+  "settingsLoadFailed": {
+    "message": "Could not load privacy settings - retry to try again.",
+    "description": "Settings section error when privacy settings fail to load."
   }
 }

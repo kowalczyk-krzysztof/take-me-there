@@ -215,10 +215,10 @@ export const groundedResponse = (json: unknown): Response =>
 
 export const plantKeyAndConsent = async (): Promise<void> => {
   await act(async () => {
-    const { saveKey } = await import('../key_vault');
+    const { persistKey } = await import('../key_vault');
 
     const { setConsented } = await import('../providers/index');
-    await saveKey('muse', 'LLM_x', false);
+    await persistKey('muse', 'LLM_x', false);
     await setConsented();
 
     for (let i = 0; i < 200; i++) {

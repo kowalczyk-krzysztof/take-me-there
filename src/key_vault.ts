@@ -1,5 +1,6 @@
 // API keys rest in chrome.storage only as {iv, ciphertext} under a non-extractable IndexedDB key.
 import { createStore, get, set } from 'idb-keyval';
+import type { ExtensionSettings } from './settings_store';
 import { sendCommand, sendCommandResult } from './storage_client';
 import { decodeBase64, encodeBase64 } from './utils/base64';
 
@@ -56,16 +57,18 @@ export const encryptKeyRecord = async (key: string): Promise<KeyRecord> => {
   };
 };
 
-export const saveKey = async (
+// Worker-owned persist: the key and the sessionOnly patch commit together,
+// so concurrent edits made during validation survive.
+export const persistKey = async (
   providerId: string,
   key: string,
   sessionOnly: boolean
-): Promise<void> => {
+): Promise<ExtensionSettings> => {
   if (!key) {
     throw new Error('cannot save an empty key');
   }
 
-  await sendCommand<void>({ kind: 'key.save', providerId, key, sessionOnly });
+  return sendCommand<ExtensionSettings>({ kind: 'key.persist', providerId, key, sessionOnly });
 };
 
 export const loadKey = async (providerId: string): Promise<KeyStatus> => {

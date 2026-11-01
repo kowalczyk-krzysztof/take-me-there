@@ -31,7 +31,7 @@ vi.mock('idb-keyval', () => {
 });
 
 import * as idbKeyval from 'idb-keyval';
-import { loadKey, saveKey, setKeyMode } from './key_vault';
+import { loadKey, persistKey, setKeyMode } from './key_vault';
 import { readMonthSpend, recordMonthSpend } from './pricing';
 import { clearCacheEntries, getCacheEntry, setCacheEntry, type CacheEntry } from './result_cache';
 import { loadSettings } from './settings_store';
@@ -243,7 +243,10 @@ describe('storage service concurrency', () => {
   });
 
   it('creates one wrapping key for simultaneous first saves', async () => {
-    await Promise.all([saveKey('muse', 'LLM_key-a', false), saveKey('muse', 'LLM_key-b', false)]);
+    await Promise.all([
+      persistKey('muse', 'LLM_key-a', false),
+      persistKey('muse', 'LLM_key-b', false),
+    ]);
 
     const loaded = await loadKey('muse');
     expect(loaded.state).toBe('ok');
@@ -257,7 +260,7 @@ describe('storage service concurrency', () => {
 
 describe('storage service key modes', () => {
   it('moves the key and verifies placement in both directions', async () => {
-    await saveKey('muse', 'LLM_secret', false);
+    await persistKey('muse', 'LLM_secret', false);
 
     const toSession = await setKeyMode('muse', true);
     expect(toSession).toEqual({ sessionOnly: true });
@@ -282,6 +285,31 @@ describe('storage service key modes', () => {
     expect((await loadSettings()).sessionOnly).toBe(false);
   });
 
+  it('key.persist patches only the retention flag', async () => {
+    await mock.local.set({
+      settings: {
+        v: 1,
+        settings: {
+          imageOnly: true,
+          sessionOnly: false,
+          skipWebSearch: true,
+          cacheTtlDays: 30,
+        },
+      },
+    });
+
+    const settings = await persistKey('muse', 'LLM_secret', true);
+
+    expect(settings).toEqual({
+      imageOnly: true,
+      sessionOnly: true,
+      skipWebSearch: true,
+      cacheTtlDays: 30,
+    });
+    expect(await loadKey('muse')).toEqual({ state: 'ok', key: 'LLM_secret' });
+    expect(mock.session.data.has('apiKey:muse')).toBe(true);
+  });
+
   it.each([
     ['session write', 'session', 'set', 1, true],
     ['session verify read', 'session', 'get', 2, true],
@@ -292,7 +320,7 @@ describe('storage service key modes', () => {
     ['session remove', 'session', 'remove', 1, false],
     ['settings write persisted', 'local', 'set', 2, false],
   ])('reconciles after a failed %s moving to %s', async (_label, area, op, nth, want) => {
-    await saveKey('muse', 'LLM_secret', !want);
+    await persistKey('muse', 'LLM_secret', !want);
 
     if (!want) {
       await mock.local.set({ settings: { v: 1, settings: { sessionOnly: true } } });

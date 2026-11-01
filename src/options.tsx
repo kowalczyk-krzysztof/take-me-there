@@ -5,11 +5,12 @@ import { KeySetup } from './components/key_setup/key_setup';
 import { ModesSection } from './components/settings/modes_section';
 import { DataSection } from './components/settings/data_section';
 import { CostSection } from './components/settings/cost_section';
-import { attachSettingsInputs, clearResultCache, setCacheTtlDays, setMode } from './settings_ops';
+import { clearResultCache, setCacheTtlDays, setMode } from './settings_ops';
+import { refreshSettings, subscribeSettings } from './settings_store';
 import { clearKey, loadKey } from './key_vault';
 import { applyKeyMode, validateAndSaveKey } from './key_ops';
 import { formatUsd, readMonthSpend } from './pricing';
-import { ProviderError, getActiveProvider, loadSettings } from './providers/index';
+import { ProviderError, getProvider } from './providers/index';
 import { ErrorBoundary } from './components/error_boundary/error_boundary';
 import { msg } from './utils/i18n';
 import { createStore } from './utils/store';
@@ -28,6 +29,7 @@ interface OptionsState {
     skipWebSearch: boolean;
     cacheTtlDays: number;
   } | null;
+  settingsFailed: boolean;
   cachePending: boolean;
   cacheResult: string | null;
 }
@@ -40,6 +42,7 @@ const store = createStore<OptionsState>({
   sessionOnly: false,
   keyReset: 0,
   settings: null,
+  settingsFailed: false,
   cachePending: false,
   cacheResult: null,
 });
@@ -82,7 +85,7 @@ const onSaveKey = (key: string): void => {
 
 const onTestKey = (): void => {
   void (async () => {
-    const { provider } = await getActiveProvider();
+    const provider = getProvider();
 
     const draft = inputValue('key-input').trim();
 
@@ -133,7 +136,7 @@ const showKeyCleared = (): void => {
 
 const onClearKey = (): void => {
   void (async () => {
-    const { provider } = await getActiveProvider();
+    const provider = getProvider();
 
     try {
       await clearKey(provider.id);
@@ -147,14 +150,19 @@ const onClearKey = (): void => {
   })();
 };
 
-const onRetention = (days: number, select: HTMLSelectElement): void => {
-  const settings = store.get().settings;
+const onMode = (mode: 'imageOnly' | 'skipWebSearch', checked: boolean): void => {
+  void (async () => {
+    try {
+      await setMode(mode, checked);
+    } catch {
+      await refreshSettings();
+      store.set({ status: msg('settingsSaveFailed') });
+    }
+  })();
+};
 
-  const current = settings?.cacheTtlDays ?? 7;
-
+const onRetention = (days: number): void => {
   if (days !== 1 && days !== 7 && days !== 30) {
-    select.value = String(current);
-
     return;
   }
 
@@ -162,14 +170,8 @@ const onRetention = (days: number, select: HTMLSelectElement): void => {
     try {
       await setCacheTtlDays(days as 1 | 7 | 30);
     } catch {
-      select.value = String(current);
+      await refreshSettings();
       store.set({ status: msg('settingsSaveFailed') });
-
-      return;
-    }
-
-    if (settings) {
-      store.set({ settings: { ...settings, cacheTtlDays: days } });
     }
   })();
 };
@@ -202,31 +204,8 @@ const onClearCache = (): void => {
 const OptionsApp = () => {
   const state = useSyncExternalStore(store.subscribe, store.get);
   const settings = state.settings;
-  // Native listener: React's change tracking drops programmatic checked
-  // sets, which callers use.
-  const attach = (el: HTMLElement | null): (() => void) | void => {
-    if (!el) {
-      return;
-    }
-
-    return attachSettingsInputs(el, {
-      onMode: (mode, box) => {
-        const checked = box.checked;
-
-        void (async () => {
-          try {
-            await setMode(mode, checked);
-          } catch {
-            box.checked = !checked;
-            store.set({ status: msg('settingsSaveFailed') });
-          }
-        })();
-      },
-      onRetention,
-    });
-  };
   return (
-    <main ref={attach}>
+    <main>
       <h1 id="title">{msg('appName')}</h1>
       <h2 id="key-heading">{msg('optionsKeyHeading')}</h2>
       <div id="key-host">
@@ -244,7 +223,7 @@ const OptionsApp = () => {
               void (async () => {
                 const outcome = await applyKeyMode(checked);
 
-                store.set({ sessionOnly: outcome.settings.sessionOnly });
+                store.set({ sessionOnly: outcome.sessionOnly });
 
                 if (outcome.failed) {
                   store.set({ status: msg('settingsSaveFailed') });
@@ -263,17 +242,22 @@ const OptionsApp = () => {
           {msg('clearKeyButton')}
         </button>
       </div>
-      <div key={settings === null ? 'loading' : 'ready'}>
+      <div>
         <ModesSection
           heading={msg('optionsModesHeading')}
           imageOnly={settings?.imageOnly ?? false}
           skipWebSearch={settings?.skipWebSearch ?? false}
+          failed={state.settingsFailed}
+          onMode={onMode}
+          onRetry={() => void refreshSettings()}
         />
         <DataSection
           heading={msg('optionsDataHeading')}
           ttlDays={settings?.cacheTtlDays ?? 7}
+          disabled={state.settingsFailed}
           cachePending={state.cachePending}
           cacheResult={state.cacheResult}
+          onRetention={onRetention}
           onClearCache={onClearCache}
         />
       </div>
@@ -336,13 +320,16 @@ export const initOptions = (): void => {
       </ErrorBoundary>
     );
   });
-  void loadSettings().then((settings) => {
+  subscribeSettings((snapshot) => {
+    const current = snapshot.settings;
+
     store.set({
-      sessionOnly: settings.sessionOnly,
+      sessionOnly: current.sessionOnly,
+      settingsFailed: snapshot.failed,
       settings: {
-        imageOnly: settings.imageOnly,
-        skipWebSearch: settings.skipWebSearch,
-        cacheTtlDays: settings.cacheTtlDays,
+        imageOnly: current.imageOnly,
+        skipWebSearch: current.skipWebSearch,
+        cacheTtlDays: current.cacheTtlDays,
       },
     });
   });

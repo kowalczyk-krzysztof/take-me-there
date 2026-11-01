@@ -76,8 +76,8 @@ describe('onboarding', () => {
   it('reports the verified mode when the session-only move fails', async () => {
     const mock = await setup();
 
-    const { saveKey, loadKey } = await settleWrite(import('./key_vault'));
-    await settleWrite(saveKey('muse', 'LLM_x', false));
+    const { persistKey, loadKey } = await settleWrite(import('./key_vault'));
+    await settleWrite(persistKey('muse', 'LLM_x', false));
 
     mock.session.fault = (op) => {
       if (op === 'set') {

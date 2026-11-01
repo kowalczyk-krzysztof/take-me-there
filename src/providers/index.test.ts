@@ -10,7 +10,8 @@ import {
   extractResponsesStructured,
   extractResponsesText,
   formatSignalsForPrompt,
-  getActiveProvider,
+  getActiveProviderStrict,
+  getProvider,
   hasConsented,
   loadSettings,
   parseAlternatesContent,
@@ -21,7 +22,6 @@ import {
   readChatUsage,
   fetchChatCompletion,
   responseError,
-  saveSettings,
   sanitizePromptHint,
   setConsented,
   testModelsEndpoint,
@@ -481,7 +481,8 @@ describe('settings and registry', () => {
   });
 
   it('merges stored settings over defaults', async () => {
-    await saveSettings({ ...DEFAULTS, imageOnly: true });
+    const { local } = installChromeMock();
+    await local.set({ settings: { v: 1, settings: { imageOnly: true } } });
     expect(await loadSettings()).toEqual({
       ...DEFAULTS,
       imageOnly: true,
@@ -499,8 +500,12 @@ describe('settings and registry', () => {
     expect((await loadSettings()).skipWebSearch).toBe(false);
   });
 
-  it('resolves the Muse provider', async () => {
-    const active = await getActiveProvider();
+  it('resolves the Muse provider without reading settings', () => {
+    expect(getProvider().id).toBe('muse');
+  });
+
+  it('strictly resolves the provider with verified settings', async () => {
+    const active = await getActiveProviderStrict();
     expect(active.provider.id).toBe('muse');
     expect(active.settings).toEqual(DEFAULTS);
   });

@@ -670,8 +670,8 @@ describe('sidepanel', () => {
   it('keeps the consent gate for re-click when the flag write fails', async () => {
     const mock = await setup();
 
-    const { saveKey } = await settleWrite(import('./key_vault'));
-    await settleWrite(saveKey('muse', 'LLM_x', false));
+    const { persistKey } = await settleWrite(import('./key_vault'));
+    await settleWrite(persistKey('muse', 'LLM_x', false));
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitFor(() => {
@@ -702,8 +702,8 @@ describe('sidepanel', () => {
   it('shows the consent gate without any network call', async () => {
     const mock = await setup();
 
-    const { saveKey } = await settleWrite(import('./key_vault'));
-    await settleWrite(saveKey('muse', 'LLM_x', false));
+    const { persistKey } = await settleWrite(import('./key_vault'));
+    await settleWrite(persistKey('muse', 'LLM_x', false));
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitFor(() => {
       expect(document.querySelector('#result-slot h2')?.textContent).toBe('consentTitle');
@@ -715,10 +715,10 @@ describe('sidepanel', () => {
   it('runs exactly once after consent is granted', async () => {
     const mock = await setup();
 
-    const { saveKey } = await settleWrite(import('./key_vault'));
+    const { persistKey } = await settleWrite(import('./key_vault'));
 
     const { hasConsented } = await settleWrite(import('./providers/index'));
-    await settleWrite(saveKey('muse', 'LLM_x', false));
+    await settleWrite(persistKey('muse', 'LLM_x', false));
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitFor(() => {
@@ -737,10 +737,10 @@ describe('sidepanel', () => {
   it('leaves consent unset when declined', async () => {
     const mock = await setup();
 
-    const { saveKey } = await settleWrite(import('./key_vault'));
+    const { persistKey } = await settleWrite(import('./key_vault'));
 
     const { hasConsented } = await settleWrite(import('./providers/index'));
-    await settleWrite(saveKey('muse', 'LLM_x', false));
+    await settleWrite(persistKey('muse', 'LLM_x', false));
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitFor(() => {
       expect(document.querySelector('#result-slot h2')?.textContent).toBe('consentTitle');
@@ -1621,8 +1621,7 @@ describe('sidepanel', () => {
 
     const box = document.querySelector('#image-only') as HTMLInputElement;
     expect(box.checked).toBe(false);
-    box.checked = true;
-    dispatchEl(box, new Event('change', { bubbles: true }));
+    clickEl(box);
 
     await waitFor(() => {
       const record = mock.local.data.get('settings') as { settings: { imageOnly: boolean } };
@@ -1631,8 +1630,7 @@ describe('sidepanel', () => {
     });
 
     const skip = document.querySelector('#skip-search') as HTMLInputElement;
-    skip.checked = true;
-    dispatchEl(skip, new Event('change', { bubbles: true }));
+    clickEl(skip);
 
     await waitFor(() => {
       const record = mock.local.data.get('settings') as {
@@ -1655,8 +1653,7 @@ describe('sidepanel', () => {
     };
 
     const box = document.querySelector('#image-only') as HTMLInputElement;
-    box.checked = true;
-    dispatchEl(box, new Event('change', { bubbles: true }));
+    clickEl(box);
 
     await waitFor(() => {
       expect(document.querySelector('#alert-region')?.textContent).toBe('settingsSaveFailed');
@@ -1666,11 +1663,110 @@ describe('sidepanel', () => {
     mock.local.fault = () => undefined;
   });
 
+  it('reflects settings changed in another surface without a reload', async () => {
+    const mock = await setup();
+    selectSettingsTab();
+    await waitForSettings();
+
+    expect((document.querySelector('#image-only') as HTMLInputElement).checked).toBe(false);
+
+    await settleWrite(
+      mock.local.set({
+        settings: {
+          v: 1,
+          settings: {
+            imageOnly: true,
+            sessionOnly: false,
+            skipWebSearch: true,
+            cacheTtlDays: 7,
+          },
+        },
+      })
+    );
+
+    await waitFor(() => {
+      expect((document.querySelector('#image-only') as HTMLInputElement).checked).toBe(true);
+      expect((document.querySelector('#skip-search') as HTMLInputElement).checked).toBe(true);
+    });
+  });
+
+  it('shows a retryable error when modes fail to load', async () => {
+    const mock = await setup();
+    selectSettingsTab();
+    await waitForSettings();
+
+    mock.local.fault = (op) => {
+      if (op === 'get') {
+        throw new Error('locked');
+      }
+    };
+
+    await settleWrite(
+      mock.local.set({
+        settings: {
+          v: 1,
+          settings: {
+            imageOnly: false,
+            sessionOnly: false,
+            skipWebSearch: false,
+            cacheTtlDays: 7,
+          },
+        },
+      })
+    );
+
+    await waitFor(() => {
+      expect(document.querySelector('#modes-error')?.textContent).toBe('settingsLoadFailed');
+    });
+    expect(document.querySelector('#image-only')).toBeNull();
+
+    mock.local.fault = () => undefined;
+
+    clickEl(
+      document.querySelector('section[aria-labelledby="modes-heading"] button') as HTMLButtonElement
+    );
+
+    await waitFor(() => {
+      expect(document.querySelector('#image-only')).not.toBeNull();
+    });
+  });
+
+  it('refuses remote work when privacy settings fail to load', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+
+    fetchMock.mockResolvedValue(chatResponse(VALID_PLACE));
+
+    mock.local.fault = (op) => {
+      if (op === 'get') {
+        throw new Error('locked');
+      }
+    };
+
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
+
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot h2')?.textContent).toBe('settingsReadTitle');
+    });
+    expect(document.querySelector('#alert-region')?.textContent).toBe('settingsReadBody');
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    mock.local.fault = () => undefined;
+
+    const retry = [...document.querySelectorAll('#result-slot button')].find(
+      (button) => button.textContent === 'retryButton'
+    ) as HTMLButtonElement;
+    clickEl(retry);
+
+    await waitForHeading('Oia');
+    expect(fetchMock).toHaveBeenCalled();
+  });
+
   it('re-announces a repeated status', async () => {
     const mock = await setup();
 
-    const { saveKey } = await settleWrite(import('./key_vault'));
-    await settleWrite(saveKey('muse', 'LLM_x', false));
+    const { persistKey } = await settleWrite(import('./key_vault'));
+    await settleWrite(persistKey('muse', 'LLM_x', false));
 
     const declineConsent = async (): Promise<void> => {
       await settleWrite(mock.session.set({ [SLOT]: READY() }));
@@ -1700,13 +1796,17 @@ describe('sidepanel', () => {
 
   it('explains image-only implications in the video confirm', async () => {
     const mock = await setup();
-    const { saveSettings } = await settleWrite(import('./providers/index'));
     await settleWrite(
-      saveSettings({
-        imageOnly: true,
-        sessionOnly: false,
-        skipWebSearch: false,
-        cacheTtlDays: 7,
+      mock.local.set({
+        settings: {
+          v: 1,
+          settings: {
+            imageOnly: true,
+            sessionOnly: false,
+            skipWebSearch: false,
+            cacheTtlDays: 7,
+          },
+        },
       })
     );
     await plantKeyAndConsent();

@@ -8,7 +8,8 @@ import { KeySetup } from './components/key_setup/key_setup';
 import type { LoadingPhase } from './components/trip_card/trip_card';
 import { ModesSection } from './components/settings/modes_section';
 import { CostSection } from './components/settings/cost_section';
-import { attachSettingsInputs, setMode } from './settings_ops';
+import { setMode } from './settings_ops';
+import { refreshSettings, subscribeSettings, type SettingsSnapshot } from './settings_store';
 import { prefersReducedMotion } from './utils/dom';
 import { buildDestination } from './deep_links';
 import {
@@ -44,9 +45,9 @@ import {
 import {
   ProviderError,
   formatSignalsForPrompt,
-  getActiveProvider,
+  getActiveProviderStrict,
+  getProvider,
   hasConsented,
-  loadSettings,
   setConsented,
   SETTINGS_STORAGE_KEY,
   type AlternateIntent,
@@ -141,6 +142,7 @@ interface PanelSettingsState {
   loaded: boolean;
   imageOnly: boolean;
   skipWebSearch: boolean;
+  modesFailed: boolean;
   costText: string;
 }
 
@@ -175,6 +177,7 @@ const store = createStore<PanelState>({
     loaded: false,
     imageOnly: false,
     skipWebSearch: false,
+    modesFailed: false,
     costText: '',
   },
   keySaved: false,
@@ -214,7 +217,7 @@ const selectTab = (tab: PanelTab): void => {
   store.set({ tab });
 
   if (tab === 'settings') {
-    void refreshPanelSettings();
+    void refreshPanelCost();
   }
 
   const active = document.activeElement as HTMLElement | null;
@@ -234,7 +237,7 @@ const refreshKeyState = async (): Promise<void> => {
   const epoch = ++lockEpoch;
 
   try {
-    const { provider } = await getActiveProvider();
+    const provider = getProvider();
 
     const keyStatus = await loadKey(provider.id);
 
@@ -260,56 +263,49 @@ const setKeyForm = (patch: Partial<KeyFormState>): void => {
   store.set({ keyForm: { ...store.get().keyForm, ...patch } });
 };
 
-let panelSettingsEpoch = 0;
-
-const refreshPanelSettings = async (): Promise<void> => {
-  const epoch = ++panelSettingsEpoch;
-
+const refreshPanelCost = async (): Promise<void> => {
   try {
-    const settings = await loadSettings();
-
     const spend = await readMonthSpend();
-
-    if (epoch !== panelSettingsEpoch) {
-      return;
-    }
 
     const prev = store.get().panelSettings;
 
     store.set({
       panelSettings: {
         ...prev,
-        loaded: true,
-        imageOnly: settings.imageOnly,
-        skipWebSearch: settings.skipWebSearch,
         costText: msg('optionsCostMonth', formatUsd(spend)),
       },
     });
   } catch {
-    // Keep the previous settings form on storage failure.
+    // Keep the previous cost line on storage failure.
   }
 };
 
-const onSettingsMode = (mode: 'imageOnly' | 'skipWebSearch', box: HTMLInputElement): void => {
-  const checked = box.checked;
-
+// The toggles render from the shared snapshot; a failed write re-pulls the
+// truth instead of reverting a guess.
+const onSettingsMode = (mode: 'imageOnly' | 'skipWebSearch', checked: boolean): void => {
   void (async () => {
     try {
       await setMode(mode, checked);
     } catch {
-      box.checked = !checked;
+      await refreshSettings();
       announceAlert('settingsSaveFailed');
     }
   })();
 };
 
-const attachSettings = (el: HTMLElement | null): (() => void) | void => {
-  if (!el) {
-    return;
-  }
+const applyPanelSettings = (snapshot: SettingsSnapshot): void => {
+  runSettings = snapshot.settings;
 
-  return attachSettingsInputs(el, {
-    onMode: onSettingsMode,
+  const prev = store.get().panelSettings;
+
+  store.set({
+    panelSettings: {
+      ...prev,
+      loaded: true,
+      imageOnly: snapshot.settings.imageOnly,
+      skipWebSearch: snapshot.settings.skipWebSearch,
+      modesFailed: snapshot.failed,
+    },
   });
 };
 
@@ -615,10 +611,22 @@ const onVideoConfirmCancel = (): void => {
 
 type GateResult =
   | { ready: true; provider: Provider; settings: ExtensionSettings; key: string }
-  | { ready: false; reason: 'key' | 'consent' };
+  | { ready: false; reason: 'key' | 'consent' | 'settings' };
 
 const gateRun = async (pending: PendingRun | null): Promise<GateResult> => {
-  const { provider, settings } = await getActiveProvider();
+  let provider: Provider;
+  let settings: ExtensionSettings;
+
+  try {
+    ({ provider, settings } = await getActiveProviderStrict());
+  } catch {
+    if (pending) {
+      pendingRun = pending;
+    }
+
+    return { ready: false, reason: 'settings' };
+  }
+
   runSettings = settings;
 
   const keyStatus = await loadKey(provider.id);
@@ -644,7 +652,16 @@ const gateRun = async (pending: PendingRun | null): Promise<GateResult> => {
   return { ready: true, provider, settings, key: keyStatus.key };
 };
 
-const announceGate = (reason: 'key' | 'consent'): void => {
+const announceGate = (reason: 'key' | 'consent' | 'settings'): void => {
+  if (reason === 'settings') {
+    selectTab('main');
+    renderErrorCard('settingsReadTitle', 'settingsReadBody', true, false);
+    announceAlert('settingsReadBody');
+    updatePrivacy('idle');
+
+    return;
+  }
+
   announceStatus(reason === 'key' ? 'statusKeyNeeded' : 'statusConsentNeeded');
 };
 
@@ -2015,7 +2032,7 @@ const showKeyCleared = (): void => {
 
 const onRemoveKey = (): void => {
   void (async () => {
-    const { provider } = await getActiveProvider();
+    const provider = getProvider();
 
     try {
       await clearKey(provider.id);
@@ -2053,16 +2070,14 @@ const onSessionOnlyChange = async (checked: boolean): Promise<void> => {
 
   const outcome = await applyKeyMode(checked);
 
-  runSettings = { ...outcome.settings };
-
   if (outcome.failed) {
-    setKeyForm({ sessionOnly: outcome.settings.sessionOnly, error: msg('settingsSaveFailed') });
+    setKeyForm({ sessionOnly: outcome.sessionOnly, error: msg('settingsSaveFailed') });
     announceStatus('settingsSaveFailed');
 
     return;
   }
 
-  setKeyForm({ sessionOnly: outcome.settings.sessionOnly, error: null });
+  setKeyForm({ sessionOnly: outcome.sessionOnly, error: null });
 };
 
 interface PreviewFrameProps {
@@ -2148,7 +2163,7 @@ const SidepanelApp = () => {
   const main = state.tab === 'main';
   const selected = (tab: PanelTab): boolean => state.tab === tab;
   return (
-    <main ref={attachSettings}>
+    <main>
       <h1 id="page-title" className="visually-hidden">
         {msg('appName')}
       </h1>
@@ -2296,10 +2311,12 @@ const SidepanelApp = () => {
         </section>
         <section aria-labelledby="modes-heading" className="panel-card">
           <ModesSection
-            key={state.panelSettings.loaded ? 'modes-ready' : 'modes-loading'}
             heading={msg('settingsModesHeading')}
             imageOnly={state.panelSettings.imageOnly}
             skipWebSearch={state.panelSettings.skipWebSearch}
+            failed={state.panelSettings.modesFailed}
+            onMode={onSettingsMode}
+            onRetry={() => void refreshSettings()}
           />
         </section>
         <section aria-labelledby="settings-cost-heading" className="panel-card">
@@ -2379,7 +2396,8 @@ export const initPanel = (): void => {
   chrome.storage.local.onChanged.addListener(onKeyAreaChanged);
   chrome.storage.session.onChanged.addListener(onKeyAreaChanged);
 
-  void refreshPanelSettings();
+  subscribeSettings(applyPanelSettings);
+  void refreshPanelCost();
   void watchOwnHandoffSlot();
 };
 

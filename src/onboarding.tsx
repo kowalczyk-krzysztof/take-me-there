@@ -4,7 +4,7 @@ import { flushSync } from 'react-dom';
 import { KeySetup } from './components/key_setup/key_setup';
 import { clearKey } from './key_vault';
 import { applyKeyMode, validateAndSaveKey } from './key_ops';
-import { loadSettings } from './providers/index';
+import { subscribeSettings } from './settings_store';
 import { ErrorBoundary } from './components/error_boundary/error_boundary';
 import { msg } from './utils/i18n';
 import { createStore } from './utils/store';
@@ -102,7 +102,7 @@ const OnboardingApp = () => {
                 void (async () => {
                   const outcome = await applyKeyMode(checked);
 
-                  store.set({ sessionOnly: outcome.settings.sessionOnly });
+                  store.set({ sessionOnly: outcome.sessionOnly });
 
                   if (outcome.failed) {
                     store.set({ status: msg('settingsSaveFailed') });
@@ -186,10 +186,8 @@ export const initOnboarding = (): void => {
     );
   });
 
-  void loadSettings().then((settings) => {
-    store.set({
-      sessionOnly: settings.sessionOnly,
-    });
+  subscribeSettings((snapshot) => {
+    store.set({ sessionOnly: snapshot.settings.sessionOnly });
   });
 };
 
