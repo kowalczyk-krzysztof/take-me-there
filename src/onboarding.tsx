@@ -108,48 +108,51 @@ const OnboardingApp = () => {
         <p id="howto">{msg('onboardingHowto')}</p>
       </div>
       <div id="key-host">
-        <h2>{msg('settingsKeyHeading')}</h2>
         {!state.keySaved ? (
-          <KeySetup
-            mode="setup"
-            pending={state.keyPending}
-            error={state.keyError}
-            sessionOnly={state.sessionOnly}
-            resetKey={state.keyReset}
-            laterNote={msg('onboardingKeyLater')}
-            callbacks={{
-              onSave: onSaveKey,
-              onError: (text) => store.set({ keyError: text }),
-              onSessionOnlyChange: (checked) => {
-                store.set({ sessionOnly: checked });
-                void (async () => {
-                  const { provider, settings } = await getActiveProvider();
-
-                  let result;
-
-                  try {
-                    result = await setKeyMode(provider.id, checked);
-                  } catch {
-                    store.set({
-                      sessionOnly: settings.sessionOnly,
-                      status: msg('settingsSaveFailed'),
-                    });
-
-                    return;
-                  }
-
-                  store.set({ sessionOnly: result.sessionOnly });
-
-                  if (result.error) {
-                    store.set({ status: msg('settingsSaveFailed') });
-                  }
-                })();
-              },
-              onConsentDecision: () => {},
-            }}
-          />
-        ) : (
           <>
+            <h2>{msg('settingsKeyHeading')}</h2>
+            <KeySetup
+              mode="setup"
+              pending={state.keyPending}
+              error={state.keyError}
+              sessionOnly={state.sessionOnly}
+              resetKey={state.keyReset}
+              laterNote={msg('onboardingKeyLater')}
+              callbacks={{
+                onSave: onSaveKey,
+                onError: (text) => store.set({ keyError: text }),
+                onSessionOnlyChange: (checked) => {
+                  store.set({ sessionOnly: checked });
+                  void (async () => {
+                    const { provider, settings } = await getActiveProvider();
+
+                    let result;
+
+                    try {
+                      result = await setKeyMode(provider.id, checked);
+                    } catch {
+                      store.set({
+                        sessionOnly: settings.sessionOnly,
+                        status: msg('settingsSaveFailed'),
+                      });
+
+                      return;
+                    }
+
+                    store.set({ sessionOnly: result.sessionOnly });
+
+                    if (result.error) {
+                      store.set({ status: msg('settingsSaveFailed') });
+                    }
+                  })();
+                },
+                onConsentDecision: () => {},
+              }}
+            />
+          </>
+        ) : (
+          <section className="panel-card" aria-labelledby="key-saved-heading">
+            <h2 id="key-saved-heading">{msg('settingsKeyHeading')}</h2>
             <p id="key-saved-status">{msg('keySavedStatus')}</p>
             {state.keyError === null ? null : <p id="key-saved-error">{state.keyError}</p>}
             <div className="confirm-actions">
@@ -169,7 +172,7 @@ const OnboardingApp = () => {
                 {msg('clearKeyButton')}
               </button>
             </div>
-          </>
+          </section>
         )}
       </div>
       <div id="status-region" role="status" className="visually-hidden">
