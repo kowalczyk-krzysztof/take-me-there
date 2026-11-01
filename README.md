@@ -49,11 +49,11 @@ calls above:
 
 - Muse API key: AES-GCM encrypted in this browser profile (or memory
   only, in session-only mode).
-- Cost totals: monthly spend per provider.
+- Cost totals: monthly spend.
 - Result cache: recent results keyed by image and page, kept 7 days
   by default (1 or 30 days in Settings), at most 10 entries and
   2 MB, with a Clear control.
-- Settings and consent flags: provider choice, toggles, Agree state.
+- Settings and consent flags: search modes, cache retention, Agree state.
 
 ## Architecture
 

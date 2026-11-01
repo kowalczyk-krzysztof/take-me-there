@@ -256,7 +256,7 @@
     "description": "Consent gate heading."
   },
   "consentBody": {
-    "message": "Analyzing sends the clicked image (its web address or, for inline images, captured frames, and on-demand retries, its pixels), nearby page text (title, captions, metadata), and the page's address to Meta's Muse API using your key. For private images, the image's address itself can grant access to it. Meta may run web searches while identifying the place and its alternatives. Per Meta's API terms, standard (non-contributor) models are not trained on your content.",
+    "message": "Analyzing sends the clicked image (its web address or, for inline images, captured frames, and on-demand retries, its pixels), nearby page text (title, captions, metadata) to Meta's Muse API using your key. For private images, the image's address itself can grant access to it. Meta may run web searches while identifying the place and its alternatives. Per Meta's API terms, standard (non-contributor) models are not trained on your content.",
     "description": "Canonical data-transmission disclosure."
   },
   "onboardingHowto": {
@@ -360,7 +360,7 @@
     }
   },
   "privacyImage": {
-    "message": "Your search is sent to $1 with your key: this image's address, nearby page text, and the page address",
+    "message": "Your search is sent to $1 with your key: this image's address and nearby page text",
     "description": "Privacy footer for image analyses.",
     "placeholders": {
       "destination": {
@@ -480,7 +480,7 @@
     "description": "Alert announcement for video failures."
   },
   "privacyVideoFrame": {
-    "message": "Your search is sent to $1 with your key: this captured video frame, nearby page text, and the page address.",
+    "message": "Your search is sent to $1 with your key: this captured video frame and nearby page text.",
     "description": "Privacy footer for frame analysis.",
     "placeholders": {
       "destination": {
@@ -490,7 +490,7 @@
     }
   },
   "privacyVideoUrl": {
-    "message": "Your search is sent to $1 with your key: this video and its soundtrack, nearby page text, and the page address.",
+    "message": "Your search is sent to $1 with your key: this video, its soundtrack, and nearby page text.",
     "description": "Privacy footer for full-video analysis.",
     "placeholders": {
       "destination": {
@@ -610,7 +610,7 @@
     "description": "Settings button revealing the key form for replacement."
   },
   "privacyImagePixels": {
-    "message": "Your search is sent to $1 with your key: this image's pixels, nearby page text, and the page address.",
+    "message": "Your search is sent to $1 with your key: this image's pixels and nearby page text.",
     "description": "Privacy footer when image bytes are uploaded.",
     "placeholders": {
       "destination": {
