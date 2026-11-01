@@ -36,8 +36,6 @@ export const CACHE_ENTRY_SCHEMA = z.strictObject({
   }),
 });
 
-export type CacheEntryData = z.infer<typeof CACHE_ENTRY_SCHEMA>;
-
 // Payload for the Muse response_format json_schema. toJSONSchema always adds
 // a top-level $schema key, which the strict subset forbids, so drop it here.
 // $ref/$defs must never appear: the unit test fails the build if a later
@@ -111,7 +109,7 @@ export const TRIP_REQUEST_SCHEMA = z.strictObject({
   at: z.number(),
   reason: z.optional(z.string()),
   signals: z.optional(PAGE_SIGNALS_SCHEMA),
-  mediaType: z.optional(z.enum(['image', 'video'])),
+  mediaType: z.optional(z.enum(['video'])),
   frame: z.optional(
     z.strictObject({
       dataUrl: z.string(),

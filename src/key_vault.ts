@@ -138,9 +138,6 @@ export const clearKey = async (providerId: string): Promise<void> => {
   await sendCommand<void>({ kind: 'key.clear', providerId });
 };
 
-export const clearAllKeys = async (): Promise<string[]> =>
-  sendCommand<string[]>({ kind: 'key.clearAll' });
-
 export interface KeyModeResult {
   sessionOnly: boolean;
   error?: string;

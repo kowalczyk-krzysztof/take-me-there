@@ -31,7 +31,7 @@ vi.mock('idb-keyval', () => {
 });
 
 import * as idbKeyval from 'idb-keyval';
-import { clearAllKeys, loadKey, saveKey, setKeyMode } from './key_vault';
+import { loadKey, saveKey, setKeyMode } from './key_vault';
 import { readMonthSpend, recordMonthSpend } from './pricing';
 import { clearCacheEntries, getCacheEntry, setCacheEntry, type CacheEntry } from './result_cache';
 import { loadSettings } from './settings_store';
@@ -256,19 +256,6 @@ describe('storage service concurrency', () => {
 
     const names = [...mock.local.data.keys()].filter((key) => key.startsWith('apiKey:'));
     expect(names).toEqual(['apiKey:muse']);
-  });
-
-  it('clears every provider key from both areas', async () => {
-    await saveKey('muse', 'LLM_key-a', false);
-    await saveKey('openai_compat', 'LLM_key-b', true);
-
-    const cleared = await clearAllKeys();
-    expect(cleared.sort()).toEqual(['muse', 'openai_compat']);
-
-    expect([...mock.local.data.keys()].filter((key) => key.startsWith('apiKey:'))).toEqual([]);
-    expect([...mock.session.data.keys()].filter((key) => key.startsWith('apiKey:'))).toEqual([]);
-    expect((await loadKey('muse')).state).toBe('missing');
-    expect((await loadKey('openai_compat')).state).toBe('missing');
   });
 });
 

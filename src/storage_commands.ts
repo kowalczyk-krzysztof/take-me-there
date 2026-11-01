@@ -72,7 +72,6 @@ export type StorageCommand =
   | { kind: 'settings.patch'; patch: z.infer<typeof settingsPatchSchema> }
   | { kind: 'key.save'; providerId: string; key: string; sessionOnly: boolean }
   | { kind: 'key.clear'; providerId: string }
-  | { kind: 'key.clearAll' }
   | { kind: 'key.setMode'; providerId: string; sessionOnly: boolean }
   | { kind: 'migrate.run' };
 
@@ -99,7 +98,6 @@ export const COMMAND_SCHEMAS: Record<CommandKind, PayloadSchema> = {
   'settings.patch': z.strictObject({ patch: settingsPatchSchema }),
   'key.save': keySaveSchema,
   'key.clear': providerSchema,
-  'key.clearAll': emptySchema,
   'key.setMode': keyModeSchema,
   'migrate.run': emptySchema,
 };

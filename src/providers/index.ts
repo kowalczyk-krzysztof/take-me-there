@@ -868,26 +868,6 @@ export const tryParsePlace = (data: unknown): PlaceResult | undefined => {
   return tryParsePlaceJson(json);
 };
 
-// Serialize chat messages to flat text for APIs without a chat transport.
-// Image and video parts are skipped: the caller attaches pixels separately
-// or runs text-only.
-export const chatToText = (messages: ChatMessage[]): string =>
-  messages
-    .map((message) => {
-      const content = message.content;
-
-      const text =
-        typeof content === 'string'
-          ? content
-          : content
-              .map((part) => (part.type === 'text' ? part.text : ''))
-              .filter((part) => part)
-              .join('\n');
-
-      return `${message.role}: ${text}`;
-    })
-    .join('\n\n');
-
 export const invalidResponse = (usage: Usage, message: string): ProviderError => {
   const err = new ProviderError('invalid_response', message, true);
   err.usage = { ...usage };

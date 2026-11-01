@@ -7,8 +7,6 @@ import {
   cancelActiveRun,
   cancelRun,
   createEphemeralRun,
-  displayedRun,
-  markDisplayed,
   ownsUi,
   settleStage,
   startRun,
@@ -125,14 +123,6 @@ describe('run lifecycle', () => {
     expect(activeRun()).toBe(live);
     expect(ownsUi(bucket)).toBe(false);
     expect(bucket.runId).toContain('ephemeral:alternates:');
-  });
-
-  it('tracks the displayed run for late alternates checks', () => {
-    expect(displayedRun()).toBeNull();
-    markDisplayed('run-a');
-    expect(displayedRun()).toBe('run-a');
-    markDisplayed(null);
-    expect(displayedRun()).toBeNull();
   });
 });
 

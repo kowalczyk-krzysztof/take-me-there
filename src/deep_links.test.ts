@@ -1,11 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  MAX_DESTINATION_CHARS,
-  UNVERIFIED_PORTALS_ENABLED,
-  buildDestination,
-  buildLinks,
-  capDestination,
-} from './deep_links';
+import { MAX_DESTINATION_CHARS, buildDestination, buildLinks, capDestination } from './deep_links';
 
 describe('deep_links', () => {
   it('builds a deduped destination from place parts', () => {
@@ -70,8 +64,7 @@ describe('deep_links', () => {
     expect(query.length).toBeLessThanOrEqual(MAX_DESTINATION_CHARS);
   });
 
-  it('ships only the click-verified portals until the rest are proven', () => {
-    expect(UNVERIFIED_PORTALS_ENABLED).toBe(false);
+  it('links maps and hotels for the destination', () => {
     expect(buildLinks('Oia, Greece').map((link) => link.id)).toEqual(['maps', 'hotels']);
   });
 });

@@ -37,7 +37,6 @@ import {
   activeRun,
   cancelActiveRun,
   createEphemeralRun,
-  markDisplayed,
   ownsUi,
   settleStage,
   startRun,
@@ -765,7 +764,6 @@ const commitDisplayed = (run: RunContext, view: string): void => {
   currentDestination = run.destination;
   currentCacheKey = run.cacheKey;
   displayedRequest = run.request;
-  markDisplayed(run.runId);
   currentView = view;
 };
 
@@ -1800,12 +1798,10 @@ const fetchRetry = async (signal?: AbortSignal): Promise<boolean> => {
     return false;
   }
 
-  const controller = new AbortController();
-
   // The caller's signal aborts in-flight fetches. The replacement
   // runAnalysis owns the takeover (cancel, timers, run ticket), so this
   // retry never cancels the calling run itself.
-  const stop = signal ?? controller.signal;
+  const stop = signal ?? new AbortController().signal;
 
   const ticket = runTicket;
 

@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   MUSE_SPARK_RATES,
-  estimateCachedSavingUsd,
   estimateCostUsd,
   formatUsd,
   readMonthSpend,
@@ -81,18 +80,6 @@ describe('pricing', () => {
         rates
       )
     ).toBeCloseTo(0.15 + 4.25, 10);
-    expect(
-      estimateCachedSavingUsd(
-        {
-          inputTokens: 1_000_000,
-          outputTokens: 0,
-          searchCount: 0,
-          flatFeesUsd: 0,
-          cachedInputTokens: 1_000_000,
-        },
-        rates
-      )
-    ).toBeCloseTo(1.1, 10);
   });
 
   it('clamps cached tokens to the reported input', () => {
@@ -106,7 +93,6 @@ describe('pricing', () => {
       cachedInputTokens: 999,
     };
     expect(estimateCostUsd(usage, rates)).toBeCloseTo((100 * 0.15) / 1_000_000, 12);
-    expect(estimateCachedSavingUsd(usage, rates)).toBeCloseTo((100 * 1.1) / 1_000_000, 12);
   });
 
   it('bills uncached input at full rate without a configured discount', () => {
@@ -119,7 +105,6 @@ describe('pricing', () => {
       cachedInputTokens: 1_000_000,
     };
     expect(estimateCostUsd(usage, rates)).toBeCloseTo(2, 10);
-    expect(estimateCachedSavingUsd(usage, rates)).toBe(0);
   });
 
   it('honors a configured cached rate', () => {
@@ -132,7 +117,6 @@ describe('pricing', () => {
       cachedInputTokens: 1_000_000,
     };
     expect(estimateCostUsd(usage, rates)).toBeCloseTo(0.5, 10);
-    expect(estimateCachedSavingUsd(usage, rates)).toBeCloseTo(1.5, 10);
   });
 
   it('keeps zero-rate providers at zero cost', () => {

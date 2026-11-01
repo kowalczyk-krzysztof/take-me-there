@@ -3,7 +3,7 @@
 // strictly one at a time, and answers with a serializable result. A failed
 // command resolves its caller with an error and never breaks the queue.
 // Page-local mutexes cannot coordinate two windows; this queue can.
-import { encryptKeyRecord, isVaultKey, vaultStorageKey } from './key_vault';
+import { encryptKeyRecord, vaultStorageKey } from './key_vault';
 import { monthKey, readTotals, writeTotals } from './pricing';
 import {
   CACHE_ENTRY_VERSION,
@@ -161,31 +161,6 @@ const cacheClear = async (): Promise<number> => {
   await chrome.storage.session.remove([...names, CACHE_INDEX_KEY]);
 
   return names.length;
-};
-
-const vaultNames = async (): Promise<string[]> => {
-  const session = (await chrome.storage.session.get()) as Record<string, unknown>;
-
-  const local = (await chrome.storage.local.get()) as Record<string, unknown>;
-
-  const names = new Set<string>();
-
-  for (const name of [...Object.keys(session), ...Object.keys(local)]) {
-    if (isVaultKey(name)) {
-      names.add(name);
-    }
-  }
-
-  return [...names];
-};
-
-const clearAllKeys = async (): Promise<string[]> => {
-  const names = await vaultNames();
-
-  await chrome.storage.session.remove(names);
-  await chrome.storage.local.remove(names);
-
-  return names.map((name) => name.slice('apiKey:'.length));
 };
 
 interface KeyPlacement {
@@ -378,9 +353,6 @@ const execute = async (command: StorageCommand): Promise<CommandResult> => {
 
       return { ok: true, value: undefined };
     }
-
-    case 'key.clearAll':
-      return { ok: true, value: await clearAllKeys() };
 
     case 'key.setMode':
       return setKeyMode(command.providerId, command.sessionOnly);

@@ -317,22 +317,6 @@
     "message": "Google Hotels",
     "description": "Booking tile label."
   },
-  "bookingLink_booking": {
-    "message": "Booking.com",
-    "description": "Booking tile label."
-  },
-  "bookingLink_getyourguide": {
-    "message": "GetYourGuide",
-    "description": "Booking tile label."
-  },
-  "bookingLink_tripadvisor": {
-    "message": "TripAdvisor",
-    "description": "Booking tile label."
-  },
-  "bookingLink_expedia": {
-    "message": "Expedia",
-    "description": "Booking tile label."
-  },
   "linksHeading": {
     "message": "Links",
     "description": "Links section heading."

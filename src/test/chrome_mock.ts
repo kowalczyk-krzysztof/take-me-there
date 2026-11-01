@@ -205,15 +205,7 @@ export const installChromeMock = (): ChromeMock => {
     panelBehaviors: [],
     tabsCreated: [],
     scriptingCalls: [],
-    scriptingImpl: async (call: ScriptingCall) => {
-      const name = (call.func as { name?: string })?.name ?? '';
-
-      if (name === 'collectPageImages') {
-        return [{ result: [] }];
-      }
-
-      return [{ result: null }];
-    },
+    scriptingImpl: async () => [{ result: null }],
   };
   (globalThis as unknown as { chrome: unknown }).chrome = {
     storage: {

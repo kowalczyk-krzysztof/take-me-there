@@ -47,9 +47,6 @@ export const estimateCostUsd = (usage: Usage, rates: ModelRates): number => {
   return tokens + usage.searchCount * WEB_SEARCH_COST_USD + usage.flatFeesUsd;
 };
 
-export const estimateCachedSavingUsd = (usage: Usage, rates: ModelRates): number =>
-  (cachedInputTokensOf(usage) * (rates.inputUsdPerMTok - cachedRateOf(rates))) / 1_000_000;
-
 const COST_TOTALS_KEY = 'costTotals';
 
 const MAX_MONTHS_KEPT = 24;

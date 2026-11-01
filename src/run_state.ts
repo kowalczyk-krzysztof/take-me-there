@@ -54,17 +54,9 @@ export interface RunInit {
 
 let active: RunContext | null = null;
 
-let displayedRunId: string | null = null;
-
 let ephemeralCounter = 0;
 
 export const activeRun = (): RunContext | null => active;
-
-export const displayedRun = (): string | null => displayedRunId;
-
-export const markDisplayed = (runId: string | null): void => {
-  displayedRunId = runId;
-};
 
 export const ownsUi = (run: RunContext): boolean => active === run && !run.cancelled;
 
