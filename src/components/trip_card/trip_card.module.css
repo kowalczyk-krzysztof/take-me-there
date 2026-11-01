@@ -105,11 +105,19 @@
 .root a {
   color: var(--link);
 }
-.root .pin-button {
-  margin: 4px 0 0;
+.root .result-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: stretch;
+  margin: 8px 0 0;
+}
+.root .result-actions .pin-button,
+.root .result-actions .plan-trip-button,
+.root .result-actions .cancel-button {
+  margin: 0;
 }
 .root .plan-trip-button {
-  margin: 8px 0 0;
   background: var(--action);
   color: var(--on-action);
   border-color: transparent;
@@ -130,6 +138,9 @@
 .root .cancel-button {
   margin-top: 8px;
   margin-inline-start: 8px;
+}
+.root .result-actions .cancel-button {
+  margin: 0;
 }
 .root .retry-cost {
   margin-inline-start: 8px;
@@ -236,6 +247,10 @@
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  align-items: stretch;
+}
+.root .alternate-actions .pin-button {
+  margin: 0;
 }
 .root .alternate-name {
   margin: 0;
