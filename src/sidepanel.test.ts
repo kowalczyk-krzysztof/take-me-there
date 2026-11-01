@@ -168,16 +168,19 @@ describe('sidepanel', () => {
     expect(document.querySelector('#result-slot .hint')?.textContent).toBe('panelIdle');
   });
 
-  it('keeps settings in key, modes, and cost cards', async () => {
+  it('keeps settings in key, modes, data, and cost cards', async () => {
     await setup();
     await waitForSettings();
     expect(document.querySelector('#main-panel #modes-heading')).toBeNull();
     expect(document.querySelector('#settings-panel #modes-heading')?.textContent).toBe(
       'settingsModesHeading'
     );
-    expect(document.querySelectorAll('#settings-panel .panel-card')).toHaveLength(3);
+    expect(document.querySelectorAll('#settings-panel .panel-card')).toHaveLength(4);
     expect(document.querySelector('#settings-panel #settings-cost-heading')).not.toBeNull();
-    expect(document.querySelector('#settings-panel #retention-select')).toBeNull();
+    expect(document.querySelector('#settings-panel #data-heading')?.textContent).toBe(
+      'settingsDataHeading'
+    );
+    expect(document.querySelector('#settings-panel #retention-select')).not.toBeNull();
     expect(document.querySelector('#page-footer #privacy-line')).not.toBeNull();
     expect(document.querySelector('#page-footer #settings-run-line')).toBeNull();
   });
@@ -772,6 +775,9 @@ describe('sidepanel', () => {
       expect(document.querySelector('#alert-region')?.textContent).toBe('settingsSaveFailed');
     });
     expect(document.querySelector('#result-slot h2')?.textContent).toBe('consentTitle');
+    expect(document.querySelector('#result-slot [role="alert"]')?.textContent).toBe(
+      'settingsSaveFailed'
+    );
     expect(fetchMock).not.toHaveBeenCalled();
     fail.mockRestore();
 
@@ -926,6 +932,7 @@ describe('sidepanel', () => {
       expect(document.querySelector('#alert-region')?.textContent).toBe('settingsSaveFailed');
     });
     expect(document.querySelector('#result-slot h2')?.textContent).toBe('videoConfirmTitle');
+    expect(document.querySelector('#video-confirm-error')?.textContent).toBe('settingsSaveFailed');
     expect(fetchMock).not.toHaveBeenCalled();
     fail.mockRestore();
     clickEl(document.querySelector('#result-slot .confirm-actions .primary') as HTMLButtonElement);
@@ -2115,6 +2122,132 @@ describe('sidepanel', () => {
     });
   });
 
+  it('persists cache retention and clears cached results from the settings tab', async () => {
+    const mock = await setup();
+    selectSettingsTab();
+    await waitForSettings();
+
+    const select = document.querySelector('#retention-select') as HTMLSelectElement;
+    expect(select.value).toBe('7');
+    select.value = '30';
+    dispatchEl(select, new Event('change', { bubbles: true }));
+
+    await waitFor(() => {
+      const record = mock.local.data.get('settings') as {
+        settings: { cacheTtlDays: number };
+      };
+
+      expect(record.settings.cacheTtlDays).toBe(30);
+    });
+
+    const { hashIdentifyKey, setCacheEntry } = await settleWrite(import('./result_cache'));
+
+    const identify = await settleWrite(
+      hashIdentifyKey({
+        mediaSeed: 'https://cdn.example.com/oia.jpg',
+        pageUrl: 'https://example.com/guide',
+        imageOnly: false,
+      })
+    );
+    await settleWrite(
+      setCacheEntry(identify, {
+        place: VALID_PLACE,
+        usage: { inputTokens: 0, outputTokens: 0, searchCount: 0, flatFeesUsd: 0 },
+      })
+    );
+
+    clickEl(document.querySelector('#clear-cache') as HTMLButtonElement);
+
+    await waitFor(() => {
+      expect(document.querySelector('#cache-result')?.textContent).toBe('cacheClearedOne');
+    });
+  });
+
+  it('changes key storage without replacing the key', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    selectSettingsTab();
+    await waitForSettings();
+
+    expect(document.querySelector('#key-saved-status')?.textContent).toBe('keySavedStatus');
+    expect(document.querySelector('#key-storage-mode')?.textContent).toBe('keyStorageSaved');
+
+    clickEl(document.querySelector('#session-only-saved') as HTMLInputElement);
+
+    await waitFor(() => {
+      expect(document.querySelector('#key-storage-mode')?.textContent).toBe('keyStorageSession');
+    });
+    expect(document.querySelector('#settings-panel #key-input')).toBeNull();
+
+    await waitFor(() => {
+      const record = mock.local.data.get('settings') as {
+        settings: { sessionOnly: boolean };
+      };
+
+      expect(record.settings.sessionOnly).toBe(true);
+    });
+  });
+
+  it('keeps staged context visible through setup and consent', async () => {
+    const mock = await setup();
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
+    await waitFor(() => {
+      expect(document.querySelector('#settings-panel #key-input')).not.toBeNull();
+    });
+    expect(
+      [...document.querySelectorAll('#settings-panel .context')].map((el) => el.textContent)
+    ).toEqual(['setupContextImage(oia.jpg)', 'setupContextPage(example.com)']);
+
+    fetchMock.mockResolvedValueOnce(new Response('[]', { status: 200 }));
+    (document.querySelector('#settings-panel #key-input') as HTMLInputElement).value = 'LLM_x';
+    dispatchEl(
+      document.querySelector('#settings-panel form') as HTMLFormElement,
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot h2')?.textContent).toBe('consentTitle');
+    });
+    expect(
+      [...document.querySelectorAll('#result-slot .context')].map((el) => el.textContent)
+    ).toEqual(['setupContextImage(oia.jpg)', 'setupContextPage(example.com)']);
+  });
+
+  it('completes first use by keyboard to the map link', async () => {
+    const mock = await setup();
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
+    await waitFor(() => {
+      expect(document.querySelector('#settings-panel #key-input')).not.toBeNull();
+    });
+
+    const input = document.querySelector('#settings-panel #key-input') as HTMLInputElement;
+    focusEl(input);
+    expect(document.activeElement).toBe(input);
+    input.value = 'LLM_x';
+
+    fetchMock.mockResolvedValueOnce(new Response('[]', { status: 200 }));
+    dispatchEl(
+      document.querySelector('#settings-panel form') as HTMLFormElement,
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot h2')?.textContent).toBe('consentTitle');
+    });
+
+    const agree = document.querySelector('#result-slot button') as HTMLButtonElement;
+    focusEl(agree);
+    expect(document.activeElement).toBe(agree);
+
+    fetchMock.mockResolvedValueOnce(previewMiss());
+    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
+    clickEl(agree);
+    await waitForHeading('Oia');
+
+    const tile = document.querySelector('#result-slot a.tile') as HTMLAnchorElement;
+    focusEl(tile);
+    expect(document.activeElement).toBe(tile);
+    expect(tile.href).toContain('https://www.google.com/maps/search/');
+  });
+
   it('reports settings save failures from the settings tab', async () => {
     const mock = await setup();
     selectSettingsTab();
@@ -2355,12 +2488,15 @@ describe('sidepanel', () => {
       'loadingPhaseIdentifying'
     );
 
-    clickEl(document.querySelector('#result-slot .cancel-button') as HTMLButtonElement);
+    const cancel = document.querySelector('#result-slot .cancel-button') as HTMLButtonElement;
+    focusEl(cancel);
+    clickEl(cancel);
 
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusCanceled');
     });
     expect(document.querySelector('#result-slot .hint')?.textContent).toBe('panelIdle');
+    expect(document.activeElement).toBe(document.querySelector('#preview-heading'));
   });
 
   it('discards a late ready after canceling collection', async () => {

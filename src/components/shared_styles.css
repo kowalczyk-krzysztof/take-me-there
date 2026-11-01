@@ -87,7 +87,8 @@ input:disabled {
   flex-wrap: wrap;
 }
 
-#key-saved-error {
+#key-saved-error,
+#video-confirm-error {
   margin: 0 0 8px;
   font-size: 0.75rem;
   line-height: 1.5;

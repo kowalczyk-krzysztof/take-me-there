@@ -1,6 +1,6 @@
 import { clickEl, dispatchEl, focusEl } from '../../test/helpers';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { KeySetup, type KeySetupCallbacks } from './key_setup';
+import { KeySetup, type KeySetupCallbacks, type SetupContext } from './key_setup';
 import { installChromeMock, uninstallChromeMock } from '../../test/chrome_mock';
 import { renderSync, type Rendered } from '../../test/render_sync';
 
@@ -11,6 +11,7 @@ interface SetupProps {
   sessionOnly?: boolean;
   resetKey?: number;
   laterNote?: string;
+  context?: SetupContext | null;
 }
 
 const noop = () => {};
@@ -27,6 +28,7 @@ const renderSetup = (
       sessionOnly={props.sessionOnly ?? false}
       resetKey={props.resetKey ?? 0}
       laterNote={props.laterNote}
+      context={props.context}
       callbacks={{
         onSave: callbacks.onSave ?? noop,
         onError: callbacks.onError ?? noop,
@@ -50,6 +52,7 @@ const rerenderSetup = (
       sessionOnly={props.sessionOnly ?? false}
       resetKey={props.resetKey ?? 0}
       laterNote={props.laterNote}
+      context={props.context}
       callbacks={{
         onSave: callbacks.onSave ?? noop,
         onError: callbacks.onError ?? noop,
@@ -78,18 +81,42 @@ describe('key-setup', () => {
     expect(root.querySelector('#key-hint')?.textContent).toBe(
       'keyHintPrefixkeyHintDashboardnewTabSuffix.'
     );
-    expect(root.querySelector('.notice')?.textContent).toBe('securityNotice');
-    expect(root.querySelector('.hygiene')?.textContent).toBe(
-      'keyHygienePrefixkeyHintDashboardnewTabSuffix.'
-    );
+    expect(root.querySelector('.notice')?.textContent).toBe('securityShort');
+    expect(root.querySelector('details summary')?.textContent).toBe('securityDetailsLabel');
 
-    const links = [...root.querySelectorAll('#key-hint a, .hygiene a')] as HTMLAnchorElement[];
+    const disclosures = [...root.querySelectorAll('details .hygiene')].map((el) => el.textContent);
+    expect(disclosures).toEqual([
+      'securityNotice',
+      'keyHygienePrefixkeyHintDashboardnewTabSuffix.',
+    ]);
+
+    const links = [
+      ...root.querySelectorAll('#key-hint a, details .hygiene a'),
+    ] as HTMLAnchorElement[];
     expect(links).toHaveLength(2);
 
     for (const link of links) {
       expect(link.getAttribute('href')).toBe('https://dev.meta.ai');
       expect(link.target).toBe('_blank');
     }
+  });
+
+  it('shows staged context during setup and consent', () => {
+    const context = { media: 'Selected image: oia.jpg', page: 'Page: example.com' };
+
+    const setup = renderSetup({ context }).container;
+    expect([...setup.querySelectorAll('.context')].map((el) => el.textContent)).toEqual([
+      'Selected image: oia.jpg',
+      'Page: example.com',
+    ]);
+
+    const consent = renderSetup({ mode: 'consent', context }).container;
+    expect([...consent.querySelectorAll('.context')].map((el) => el.textContent)).toEqual([
+      'Selected image: oia.jpg',
+      'Page: example.com',
+    ]);
+
+    expect(renderSetup().container.querySelector('.context')).toBeNull();
   });
 
   it('renders the later note between the session toggle and save', () => {

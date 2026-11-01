@@ -73,6 +73,19 @@ const onClearKey = (): void => {
   })();
 };
 
+const onSessionOnlyChange = (checked: boolean): void => {
+  store.set({ sessionOnly: checked });
+  void (async () => {
+    const outcome = await applyKeyMode(checked);
+
+    store.set({ sessionOnly: outcome.sessionOnly });
+
+    if (outcome.failed) {
+      store.set({ status: msg('settingsSaveFailed') });
+    }
+  })();
+};
+
 const OnboardingApp = () => {
   const state = useSyncExternalStore(store.subscribe, store.get);
 
@@ -97,18 +110,7 @@ const OnboardingApp = () => {
             callbacks={{
               onSave: onSaveKey,
               onError: (text) => store.set({ keyError: text }),
-              onSessionOnlyChange: (checked) => {
-                store.set({ sessionOnly: checked });
-                void (async () => {
-                  const outcome = await applyKeyMode(checked);
-
-                  store.set({ sessionOnly: outcome.sessionOnly });
-
-                  if (outcome.failed) {
-                    store.set({ status: msg('settingsSaveFailed') });
-                  }
-                })();
-              },
+              onSessionOnlyChange,
               onConsentDecision: () => {},
             }}
           />
@@ -116,7 +118,20 @@ const OnboardingApp = () => {
           <section className="panel-card" aria-labelledby="key-saved-heading">
             <h2 id="key-saved-heading">{msg('settingsKeyHeading')}</h2>
             <p id="key-saved-status">{msg('keySavedStatus')}</p>
+            <p id="key-storage-mode">
+              {msg(state.sessionOnly ? 'keyStorageSession' : 'keyStorageSaved')}
+            </p>
+            <p id="onboarding-next">{msg('onboardingNext')}</p>
             {state.keyError === null ? null : <p id="key-saved-error">{state.keyError}</p>}
+            <label className="checkbox-row">
+              <input
+                type="checkbox"
+                id="session-only-saved"
+                checked={state.sessionOnly}
+                onChange={(event) => onSessionOnlyChange(event.currentTarget.checked)}
+              />
+              <span>{msg('sessionOnlyLabel')}</span>
+            </label>
             <div className="confirm-actions">
               <button
                 type="button"

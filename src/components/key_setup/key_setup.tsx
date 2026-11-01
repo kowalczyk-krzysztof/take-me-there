@@ -14,6 +14,11 @@ export interface KeySetupCallbacks {
   onDraftChange?: (draft: string) => void;
 }
 
+export interface SetupContext {
+  media: string | null;
+  page: string | null;
+}
+
 interface Props {
   mode: 'setup' | 'consent';
   pending: boolean;
@@ -21,6 +26,7 @@ interface Props {
   sessionOnly: boolean;
   resetKey: number;
   laterNote?: string;
+  context?: SetupContext | null;
   callbacks: KeySetupCallbacks;
 }
 
@@ -31,6 +37,7 @@ export const KeySetup = ({
   sessionOnly,
   resetKey,
   laterNote,
+  context,
   callbacks,
 }: Props) => {
   const [revealed, setRevealed] = useState(false);
@@ -67,7 +74,14 @@ export const KeySetup = ({
       {mode === 'consent' ? (
         <>
           <h2 tabIndex={-1}>{msg('consentTitle')}</h2>
+          {context?.media ? <p className={styles.context}>{context.media}</p> : null}
+          {context?.page ? <p className={styles.context}>{context.page}</p> : null}
           <p className={styles['consent-body']}>{msg('consentBody')}</p>
+          {error === null ? null : (
+            <p className={styles.error} role="alert">
+              {error}
+            </p>
+          )}
           <div className={styles['button-row']}>
             <button
               type="button"
@@ -106,6 +120,8 @@ export const KeySetup = ({
             callbacks.onSave(key);
           }}
         >
+          {context?.media ? <p className={styles.context}>{context.media}</p> : null}
+          {context?.page ? <p className={styles.context}>{context.page}</p> : null}
           <label className={styles['field-label']} htmlFor="key-input">
             {msg('keyLabel')}
           </label>
@@ -163,11 +179,15 @@ export const KeySetup = ({
               {msg(pending ? 'validatingButton' : 'saveKeyButton')}
             </button>
           </div>
-          <p className={styles.notice}>{msg('securityNotice')}</p>
-          <p className={styles.hygiene}>
-            {msg('keyHygienePrefix')}
-            <ExternalLink href={DASHBOARD_URL}>{msg('keyHintDashboard')}</ExternalLink>.
-          </p>
+          <p className={styles.notice}>{msg('securityShort')}</p>
+          <details className={styles.details}>
+            <summary>{msg('securityDetailsLabel')}</summary>
+            <p className={styles.hygiene}>{msg('securityNotice')}</p>
+            <p className={styles.hygiene}>
+              {msg('keyHygienePrefix')}
+              <ExternalLink href={DASHBOARD_URL}>{msg('keyHintDashboard')}</ExternalLink>.
+            </p>
+          </details>
         </form>
       )}
     </div>

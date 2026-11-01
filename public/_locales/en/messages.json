@@ -814,5 +814,59 @@
   "alternatesSources": {
     "message": "Sources",
     "description": "Alternates sources label."
+  },
+  "settingsDataHeading": {
+    "message": "Saved results",
+    "description": "Panel data section heading."
+  },
+  "keyStorageSession": {
+    "message": "Key storage: session only",
+    "description": "Session-only storage mode line."
+  },
+  "keyStorageSaved": {
+    "message": "Key storage: saved on this device",
+    "description": "Saved storage mode line."
+  },
+  "securityShort": {
+    "message": "Your key is encrypted on this device and only unlocks requests to the Muse API.",
+    "description": "Concise key security line."
+  },
+  "securityDetailsLabel": {
+    "message": "How key storage works",
+    "description": "Security disclosure toggle."
+  },
+  "onboardingNext": {
+    "message": "Next: right-click any image on any page and choose Take me there.",
+    "description": "Post-save next step."
+  },
+  "setupContextImage": {
+    "message": "Selected image: $1",
+    "description": "Staged image context during setup.",
+    "placeholders": {
+      "label": {
+        "content": "$1",
+        "example": "oia.jpg"
+      }
+    }
+  },
+  "setupContextVideo": {
+    "message": "Selected video: $1",
+    "description": "Staged video context during setup.",
+    "placeholders": {
+      "label": {
+        "content": "$1",
+        "example": "clip.mp4"
+      }
+    }
+  },
+  "setupContextPage": {
+    "message": "Page: $1",
+    "description": "Staged page context during setup.",
+    "placeholders": {
+      "host": {
+        "content": "$1",
+        "example": "example.com"
+      }
+    }
   }
 }

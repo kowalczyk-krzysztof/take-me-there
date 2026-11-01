@@ -108,3 +108,23 @@
 .root .consent-body {
   margin: 0 0 12px;
 }
+.root .context {
+  margin: 0 0 4px;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.root .details {
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--muted);
+  margin: 8px 0 0;
+}
+.root .details summary {
+  cursor: pointer;
+  color: var(--link);
+}
+.root .details .hygiene {
+  margin: 4px 0 0;
+}

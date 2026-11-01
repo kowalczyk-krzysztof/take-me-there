@@ -125,6 +125,16 @@ describe('onboarding', () => {
       expect(document.querySelector('#key-saved-status')?.textContent).toBe('keySavedStatus');
     });
     expect(document.querySelector('#key-host form')).toBeNull();
+    expect(document.querySelector('#onboarding-next')?.textContent).toBe('onboardingNext');
+    expect(document.querySelector('#key-storage-mode')?.textContent).toBe('keyStorageSaved');
+
+    const toggle = document.querySelector('#session-only-saved') as HTMLInputElement;
+    clickEl(toggle);
+
+    await waitFor(() => {
+      expect(document.querySelector('#key-storage-mode')?.textContent).toBe('keyStorageSession');
+    });
+    expect(document.querySelector('#key-host form')).toBeNull();
 
     const actions = [...document.querySelectorAll('#key-host .confirm-actions button')];
     expect(actions.map((button) => button.textContent)).toEqual([

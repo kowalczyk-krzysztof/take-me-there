@@ -6,8 +6,9 @@ import { TripCard } from './components/trip_card/trip_card';
 import { KeySetup } from './components/key_setup/key_setup';
 import type { LoadingPhase } from './components/trip_card/trip_card';
 import { ModesSection } from './components/settings/modes_section';
+import { DataSection } from './components/settings/data_section';
 import { CostSection } from './components/settings/cost_section';
-import { setMode } from './settings_ops';
+import { clearResultCache, setCacheTtlDays, setMode } from './settings_ops';
 import { refreshSettings, subscribeSettings, type SettingsSnapshot } from './settings_store';
 import { prefersReducedMotion } from './utils/dom';
 import { buildDestination } from './deep_links';
@@ -150,6 +151,9 @@ interface PanelSettingsState {
   imageOnly: boolean;
   skipWebSearch: boolean;
   modesFailed: boolean;
+  cacheTtlDays: number;
+  cachePending: boolean;
+  cacheResult: string | null;
   costText: string;
 }
 
@@ -184,6 +188,9 @@ const store = createStore<PanelState>({
     imageOnly: false,
     skipWebSearch: false,
     modesFailed: false,
+    cacheTtlDays: 7,
+    cachePending: false,
+    cacheResult: null,
     costText: '',
   },
   keySaved: false,
@@ -310,8 +317,94 @@ const applyPanelSettings = (snapshot: SettingsSnapshot): void => {
       imageOnly: snapshot.settings.imageOnly,
       skipWebSearch: snapshot.settings.skipWebSearch,
       modesFailed: snapshot.failed,
+      cacheTtlDays: snapshot.settings.cacheTtlDays,
     },
   });
+  setKeyForm({ sessionOnly: snapshot.settings.sessionOnly });
+};
+
+const onRetention = (days: number): void => {
+  if (days !== 1 && days !== 7 && days !== 30) {
+    return;
+  }
+
+  void (async () => {
+    try {
+      await setCacheTtlDays(days as 1 | 7 | 30);
+    } catch {
+      await refreshSettings();
+      announceAlert('settingsSaveFailed');
+    }
+  })();
+};
+
+const onClearCache = (): void => {
+  void (async () => {
+    const prev = store.get().panelSettings;
+
+    store.set({ panelSettings: { ...prev, cachePending: true, cacheResult: null } });
+
+    let cleared = 0;
+
+    try {
+      cleared = await clearResultCache();
+    } catch {
+      const failed = store.get().panelSettings;
+
+      store.set({
+        panelSettings: { ...failed, cachePending: false, cacheResult: msg('cacheClearFailed') },
+      });
+
+      return;
+    }
+
+    const result =
+      cleared === 0
+        ? msg('cacheClearedNone')
+        : cleared === 1
+          ? msg('cacheClearedOne')
+          : msg('cacheClearedMany', String(cleared));
+
+    const done = store.get().panelSettings;
+
+    store.set({ panelSettings: { ...done, cachePending: false, cacheResult: result } });
+  })();
+};
+
+const setupContextLines = (): { media: string | null; page: string | null } => {
+  const request = pendingRun?.kind === 'request' ? pendingRun.request : null;
+
+  if (!request) {
+    return { media: null, page: null };
+  }
+
+  const host = sourceHostFor(request);
+
+  let label = '';
+
+  try {
+    const parsed = new URL(request.srcUrl);
+
+    if (parsed.protocol === 'https:' || parsed.protocol === 'http:') {
+      const tail =
+        parsed.pathname
+          .split('/')
+          .filter((part) => part !== '')
+          .pop() ?? '';
+
+      label = (tail === '' ? parsed.host : tail).slice(0, 60);
+    }
+  } catch {
+    label = '';
+  }
+
+  return {
+    media:
+      label === ''
+        ? null
+        : msg(request.mediaType === 'video' ? 'setupContextVideo' : 'setupContextImage', label),
+    page: host === '' ? null : msg('setupContextPage', host),
+  };
 };
 
 // Worker sequence orders records; rank lets a terminal write supersede the collecting write of the same click.
@@ -639,6 +732,7 @@ const showOnboarding = (orphaned: boolean): void => {
 const showConsent = (focusGate: boolean): void => {
   cancelSkeleton();
   currentView = 'consent';
+  setKeyForm({ error: null });
   selectTab('main');
   swapResultSlot(() => {
     store.set({ result: { ...blankResultSlot(), consent: true } });
@@ -652,6 +746,7 @@ const showConsent = (focusGate: boolean): void => {
 const showVideoConfirm = (rung2: boolean, imageOnly: boolean, focusGate: boolean): void => {
   cancelSkeleton();
   currentView = 'video-confirm';
+  setKeyForm({ error: null });
   swapResultSlot(() => {
     store.set({ result: { ...blankResultSlot(), video: { rung2, imageOnly } } });
   });
@@ -665,6 +760,7 @@ const onVideoConfirmAgree = async (): Promise<void> => {
   try {
     await setVideoConsented();
   } catch {
+    setKeyForm({ error: msg('settingsSaveFailed') });
     announceAlert('settingsSaveFailed');
 
     return;
@@ -2407,6 +2503,7 @@ const onConsentDecision = async (agreed: boolean): Promise<void> => {
   try {
     await setConsented();
   } catch {
+    setKeyForm({ error: msg('settingsSaveFailed') });
     announceAlert('settingsSaveFailed');
     return;
   }
@@ -2583,6 +2680,7 @@ const SidepanelApp = () => {
               error={keyForm.error}
               sessionOnly={keyForm.sessionOnly}
               resetKey={keyForm.resetKey}
+              context={setupContextLines()}
               callbacks={{
                 onSave: (key) => void onKeySave(key),
                 onError: (text) => setKeyForm({ error: text }),
@@ -2595,6 +2693,11 @@ const SidepanelApp = () => {
             <>
               <h2 tabIndex={-1}>{msg('videoConfirmTitle')}</h2>
               <p>{msg('videoConfirmBody')}</p>
+              {keyForm.error === null ? null : (
+                <p id="video-confirm-error" role="alert">
+                  {keyForm.error}
+                </p>
+              )}
               {state.result.video.rung2 ? <p>{msg('videoConfirmRung2Note')}</p> : null}
               {state.result.video.imageOnly ? <p>{msg('videoConfirmImageOnly')}</p> : null}
               <div className="confirm-actions">
@@ -2629,6 +2732,7 @@ const SidepanelApp = () => {
               error={keyForm.error}
               sessionOnly={keyForm.sessionOnly}
               resetKey={keyForm.resetKey}
+              context={setupContextLines()}
               callbacks={{
                 onSave: (key) => void onKeySave(key),
                 onError: (text) => setKeyForm({ error: text }),
@@ -2639,7 +2743,19 @@ const SidepanelApp = () => {
           ) : (
             <>
               <p id="key-saved-status">{msg('keySavedStatus')}</p>
+              <p id="key-storage-mode">
+                {msg(keyForm.sessionOnly ? 'keyStorageSession' : 'keyStorageSaved')}
+              </p>
               {keyForm.error === null ? null : <p id="key-saved-error">{keyForm.error}</p>}
+              <label className="checkbox-row">
+                <input
+                  type="checkbox"
+                  id="session-only-saved"
+                  checked={keyForm.sessionOnly}
+                  onChange={(event) => void onSessionOnlyChange(event.currentTarget.checked)}
+                />
+                <span>{msg('sessionOnlyLabel')}</span>
+              </label>
               <div className="confirm-actions">
                 <button type="button" onClick={() => store.set({ replacing: true })}>
                   {msg('keyReplaceButton')}
@@ -2659,6 +2775,17 @@ const SidepanelApp = () => {
             failed={state.panelSettings.modesFailed}
             onMode={onSettingsMode}
             onRetry={() => void refreshSettings()}
+          />
+        </section>
+        <section aria-labelledby="data-heading" className="panel-card">
+          <DataSection
+            heading={msg('settingsDataHeading')}
+            ttlDays={state.panelSettings.cacheTtlDays}
+            disabled={state.panelSettings.modesFailed}
+            cachePending={state.panelSettings.cachePending}
+            cacheResult={state.panelSettings.cacheResult}
+            onRetention={onRetention}
+            onClearCache={onClearCache}
           />
         </section>
         <section aria-labelledby="settings-cost-heading" className="panel-card">
