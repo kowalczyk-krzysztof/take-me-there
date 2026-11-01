@@ -1,8 +1,3 @@
-// Build config for the MV3 extension. Four entries in, four self-contained
-// bundles out. No shared runtime chunk, no code splitting: the service worker
-// must load its bundle with zero extra requests. Source maps are inline in
-// dev and off in prod. No eval-based devtool, ever: the MV3 content security
-// policy blocks eval.
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from '@rspack/cli';
@@ -63,8 +58,6 @@ export default defineConfig((_env, argv) => {
     optimization: {
       splitChunks: false,
       runtimeChunk: false,
-      // JS minify only: the CSS minifier silently truncates multi-module
-      // output, and 14 KB of unminified local CSS is fine.
       minimizer: [new SwcJsMinimizerRspackPlugin()],
     },
     devtool: isProd ? false : 'inline-source-map',

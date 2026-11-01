@@ -4,8 +4,6 @@ on:
   push:
   pull_request:
 
-# NOTE: actions are pinned to major tags; resolve these to commit SHAs for a
-# fully hermetic supply chain.
 jobs:
   gate:
     runs-on: ubuntu-latest
