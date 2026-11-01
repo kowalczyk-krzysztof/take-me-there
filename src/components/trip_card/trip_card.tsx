@@ -63,13 +63,29 @@ interface Props {
   callbacks: TripCardCallbacks;
 }
 
+// Remount identity: result cards keep their subtree across alternates
+// transitions (same place, new props) so the focused chip survives;
+// every other view remounts per card so one-shot buttons reset.
+const cardIdentity = (card: CardState): unknown =>
+  card.view === 'result'
+    ? [
+        card.place.placeName,
+        card.place.city,
+        card.place.country,
+        card.place.confidence,
+        card.place.oneLiner,
+      ].join('\0')
+    : card;
+
 export const TripCard = ({ card, callbacks }: Props) => {
   const [epoch, setEpoch] = useState(0);
 
-  const prevCard = useRef(card);
+  const identity = cardIdentity(card);
 
-  if (prevCard.current !== card) {
-    prevCard.current = card;
+  const prevIdentity = useRef<unknown>(identity);
+
+  if (prevIdentity.current !== identity) {
+    prevIdentity.current = identity;
     setEpoch((current) => current + 1);
   }
 

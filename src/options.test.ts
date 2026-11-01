@@ -106,6 +106,7 @@ describe('options', () => {
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusKeySaved');
     });
+    expect(document.querySelector('#status-region')?.hasAttribute('hidden')).toBe(false);
     expect(mock.local.data.has('apiKey:muse')).toBe(true);
   });
 

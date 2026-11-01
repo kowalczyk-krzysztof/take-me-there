@@ -60,6 +60,10 @@ p {
   margin: 0 0 8px;
 }
 
+.key-result {
+  color: var(--muted);
+}
+
 #key-saved-error {
   color: var(--error);
 }

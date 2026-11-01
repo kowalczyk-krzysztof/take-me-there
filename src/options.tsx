@@ -322,7 +322,12 @@ const OptionsApp = () => {
       />
       <h2 id="privacy-heading">{msg('optionsPrivacyHeading')}</h2>
       <p id="privacy-body">{msg('optionsPrivacyBody')}</p>
-      <div id="status-region" role="status" className="visually-hidden">
+      <div
+        id="status-region"
+        role="status"
+        className="key-result"
+        hidden={state.status === '' || undefined}
+      >
         {state.status}
       </div>
     </main>

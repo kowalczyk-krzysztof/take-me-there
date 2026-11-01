@@ -56,6 +56,52 @@ describe('trip-card', () => {
     expect(root.querySelector('.hint')?.textContent).toBe('hint');
   });
 
+  it('keeps chip focus across alternates transitions', () => {
+    const rendered = renderCard({
+      view: 'result',
+      place: PLACE,
+      lowConfidence: false,
+      canReanalyze: true,
+      confidence: CONF,
+      sourceHost: null,
+      alternates: { state: 'loading', intent: 'cheaper' },
+    });
+
+    const chip = rendered.container.querySelector('.chips-row .chip') as HTMLButtonElement;
+    focusEl(chip);
+    expect(document.activeElement).toBe(chip);
+
+    rerenderCard(rendered, {
+      view: 'result',
+      place: PLACE,
+      lowConfidence: false,
+      canReanalyze: true,
+      confidence: CONF,
+      sourceHost: null,
+      alternates: {
+        state: 'ready',
+        intent: 'cheaper',
+        cards: [{ name: 'Fira, Greece', why: 'Same caldera.', bestMonth: 'May' }],
+      },
+    });
+    expect(document.activeElement?.textContent).toBe('alternatesCheaper');
+    expect(rendered.container.querySelectorAll('.alternate-card')).toHaveLength(1);
+  });
+
+  it('resets one-shot buttons on a fresh error card', () => {
+    const rendered = renderCard({
+      view: 'error',
+      title: 't',
+      body: 'b',
+      showRetry: true,
+    });
+    clickEl(rendered.container.querySelector('.primary') as HTMLButtonElement);
+    expect(rendered.container.querySelector('.primary')?.textContent).toBe('retryingButton');
+
+    rerenderCard(rendered, { view: 'error', title: 't', body: 'b', showRetry: true });
+    expect(rendered.container.querySelector('.primary')?.textContent).toBe('retryButton');
+  });
+
   it('renders an aria-hidden skeleton while loading', () => {
     const root = renderCard({ view: 'loading', phase: 'identifying' }).container;
 
