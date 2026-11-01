@@ -2,9 +2,9 @@
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
 
-See a photo of a place you love? Right-click it, choose "Take me
-there", and the extension identifies the place, right in Chrome's
-side panel.
+Take me there is a Chrome extension. See a photo of a place you
+love? Right-click it, choose "Take me there", and the extension
+identifies the place, right in Chrome's side panel.
 
 ## Features
 
@@ -55,17 +55,6 @@ calls above:
   2 MB, with a Clear control.
 - Settings and consent flags: search modes, cache retention, Agree state.
 
-## Architecture
-
-```mermaid
-flowchart LR
-    user(["Right-click a photo"]) --> worker["Service worker"]
-    worker --> panel["Side panel"]
-    worker --> readers["Page readers"]
-    readers --> panel
-    panel --> muse["Meta Muse API"]
-```
-
 ## How Muse is used
 
 The extension talks to exactly one website: Meta's Muse API at
@@ -82,6 +71,5 @@ repeats are free, and the panel shows the exact figure every time.
 - `npm test` - the full suite (happy-dom, no browser needed).
 - `npm run typecheck` - strict TypeScript, unused code flagged.
 - `npm run format` - Prettier across the repo.
-- `node scripts/verify-bundle.mjs` - confirms the bundles carry no
-  `eval`-style code (Manifest V3 forbids it) and that the page
-  readers ship inside the worker bundle.
+- `node scripts/verify-bundle.mjs` - sanity-checks the built bundles
+  (no forbidden code, page readers included).
