@@ -90,6 +90,9 @@
   line-height: 1.5;
   color: var(--muted);
 }
+.root .fallback span {
+  margin-inline-end: 4px;
+}
 .root a {
   color: var(--link);
 }

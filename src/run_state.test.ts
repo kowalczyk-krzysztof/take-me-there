@@ -149,7 +149,7 @@ describe('run accounting', () => {
     expect(await readMonthSpend()).toBeCloseTo(0.001, 9);
 
     absorbRunUsage(run, usage(1000));
-    await expect(settleStage(run, 'guide')).resolves.toBeCloseTo(0.002, 9);
+    await expect(settleStage(run, 'alternates')).resolves.toBeCloseTo(0.002, 9);
     expect(run.recordedUsd).toBeCloseTo(0.002, 9);
   });
 

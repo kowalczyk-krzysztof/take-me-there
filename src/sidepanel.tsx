@@ -29,7 +29,7 @@ import {
   type PlaceResult,
   type TripRequest,
 } from './types';
-import { frameCacheSeed, hasVideoConsented, isMp4RungUsable, setVideoConsented } from './video';
+import { frameCacheSeed, hasVideoConsented, isRung2Usable, setVideoConsented } from './video';
 import { HANDOFF_TTL_MS, ackRequest, handoffSlotKey } from './handoff';
 import { withTempGrant } from './grants';
 import {
@@ -799,7 +799,7 @@ const videoUrlForRequest = (request: TripRequest, provider: Provider): string | 
   request.mediaType === 'video' &&
   !request.frame &&
   provider.capabilities.video &&
-  isMp4RungUsable(request.srcUrl)
+  isRung2Usable(request.srcUrl)
     ? request.srcUrl
     : undefined;
 
@@ -1227,7 +1227,7 @@ const routeVideoRequest = (request: TripRequest, provider: Provider): VideoRoute
   if (request.frameError === 'drm') {
     return { kind: 'error', titleKey: 'errorVideoTitle', bodyKey: 'errorVideoBody' };
   }
-  if (isMp4RungUsable(request.srcUrl)) {
+  if (isRung2Usable(request.srcUrl)) {
     if (provider.capabilities.video) {
       return { kind: 'rung2' };
     }
@@ -1601,7 +1601,6 @@ const lookAgain = async (): Promise<void> => {
   const cacheKey = currentCacheKey;
   const rejectedPlace = currentPlace?.placeName || undefined;
   const ticket = ++runTicket;
-  lookAgainUsed.add(cacheKey);
   store.set({ resultBusy: true });
   announceStatus('statusAnalyzing');
   try {
@@ -1667,7 +1666,18 @@ const netLookAgain = async (
         : samCrop
           ? { ...request, srcUrl: samCrop.dataUrl }
           : request;
-    await runIdentify({ run, origin: 'panel', rejectedPlace, requestOverride: identifyRequest });
+    const outcome = await runIdentify({
+      run,
+      origin: 'panel',
+      rejectedPlace,
+      requestOverride: identifyRequest,
+    });
+
+    // One shot per image, spent only on a completed look: failures and
+    // cancels leave the button for another attempt.
+    if (outcome === 'result' || outcome === 'no-place') {
+      lookAgainUsed.add(cacheKey);
+    }
   } catch (err) {
     if (ticket !== runTicket) {
       return;

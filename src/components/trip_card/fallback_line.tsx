@@ -8,7 +8,7 @@ interface Props {
 
 export const FallbackLine = ({ fallback }: Props) => (
   <p className={styles.fallback}>
-    <span>{`${msg('fallbackPrefix')} `}</span>
+    <span>{msg('fallbackPrefix')}</span>
     <ExternalLink href={fallback.href}>{fallback.label}</ExternalLink>
   </p>
 );

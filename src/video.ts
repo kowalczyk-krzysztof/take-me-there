@@ -38,7 +38,7 @@ export const setVideoConsented = async (): Promise<void> => {
 // Rung 2 carries full motion plus the soundtrack, so the URL bar is high:
 // public https only (server-fetched), manifests and blobs rejected, inline
 // data: video capped at 50 MB.
-export const isMp4RungUsable = (srcUrl: string): boolean => {
+export const isRung2Usable = (srcUrl: string): boolean => {
   if (!srcUrl || srcUrl.startsWith('blob:')) {
     return false;
   }

@@ -12,7 +12,7 @@ export const BookingGrid = ({ destination }: Props) => (
     {destination
       ? buildLinks(destination).map((link) => (
           <ExternalLink key={link.id} href={link.href} className={styles.tile}>
-            {msg(`bookingLink_${link.id}`)}
+            {msg(`bookingLink_${link.id}`) || link.id}
           </ExternalLink>
         ))
       : null}

@@ -499,6 +499,8 @@ export const parseAlternatesContent = (json: unknown): PlaceAlternate[] | undefi
 
   const alternatives: PlaceAlternate[] = [];
 
+  const seen = new Set<string>();
+
   for (const entry of raw.alternatives) {
     const candidate = entry as Partial<PlaceAlternate> | null;
 
@@ -515,6 +517,13 @@ export const parseAlternatesContent = (json: unknown): PlaceAlternate[] | undefi
     ) {
       continue;
     }
+
+    const key = `${candidate.placeName.trim().toLowerCase()}|${candidate.country.trim().toLowerCase()}`;
+
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
     alternatives.push({
       placeName: candidate.placeName.slice(0, 100),
       country: candidate.country.slice(0, 100),
@@ -751,6 +760,11 @@ const identifyAttempt = async (
     // The image failed (unreachable, hotlink-protected, undecodable): one
     // text-only retry from the page signals, flagged lower confidence.
     // Video 400s skip this: the provider owns the two-step video fallback.
+    try {
+      await res.body?.cancel();
+    } catch {
+      // Best effort: the connection just misses keep-alive reuse.
+    }
     try {
       const result = await identifyAttempt(input, key, usage, buildRequest, true, strictReminder);
 

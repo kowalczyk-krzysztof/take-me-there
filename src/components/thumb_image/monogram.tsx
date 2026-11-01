@@ -4,6 +4,6 @@ interface Props {
 
 export const Monogram = ({ name }: Props) => (
   <div className="thumb-monogram" aria-hidden="true">
-    {name.trim().charAt(0)}
+    {[...name.trim()][0] ?? ''}
   </div>
 );

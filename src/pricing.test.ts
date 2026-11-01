@@ -109,7 +109,7 @@ describe('pricing', () => {
     expect(estimateCachedSavingUsd(usage, rates)).toBeCloseTo((100 * 1.1) / 1_000_000, 12);
   });
 
-  it('bills custom cached input at full rate without a configured discount', () => {
+  it('bills uncached input at full rate without a configured discount', () => {
     const rates = { inputUsdPerMTok: 2, outputUsdPerMTok: 6 };
     const usage = {
       inputTokens: 1_000_000,
@@ -122,7 +122,7 @@ describe('pricing', () => {
     expect(estimateCachedSavingUsd(usage, rates)).toBe(0);
   });
 
-  it('honors a configured custom cached rate', () => {
+  it('honors a configured cached rate', () => {
     const rates = { inputUsdPerMTok: 2, outputUsdPerMTok: 6, cachedInputUsdPerMTok: 0.5 };
     const usage = {
       inputTokens: 1_000_000,
