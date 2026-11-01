@@ -2588,12 +2588,12 @@ const SidepanelApp = () => {
             </>
           ) : null}
         </div>
-        <section id="links-slot" aria-labelledby="booking-heading" className="panel-card">
-          <h2 id="booking-heading">{msg('bookingHeading')}</h2>
+        <section id="links-slot" aria-labelledby="links-heading" className="panel-card">
+          <h2 id="links-heading">{msg('linksHeading')}</h2>
           {state.links !== null ? (
             <BookingGrid destination={state.links} />
           ) : (
-            <p className="slot-empty">{msg('bookingEmpty')}</p>
+            <p className="slot-empty">{msg('linksEmpty')}</p>
           )}
         </section>
       </section>

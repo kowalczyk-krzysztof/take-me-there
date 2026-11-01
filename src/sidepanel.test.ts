@@ -162,8 +162,8 @@ describe('sidepanel', () => {
 
   it('keeps every Explore section visible with empty states', async () => {
     await setup();
-    expect(document.querySelector('#booking-heading')?.textContent).toBe('bookingHeading');
-    expect(document.querySelector('#links-slot .slot-empty')?.textContent).toBe('bookingEmpty');
+    expect(document.querySelector('#links-heading')?.textContent).toBe('linksHeading');
+    expect(document.querySelector('#links-slot .slot-empty')?.textContent).toBe('linksEmpty');
     expect(document.querySelector('#links-slot')?.className).toContain('panel-card');
   });
 
@@ -512,9 +512,9 @@ describe('sidepanel', () => {
     for (const shell of shells) {
       expect(shell).toContain('<html lang="en">');
     }
-    expect(shells[0]).toContain('<title>Take Me There</title>');
-    expect(shells[1]).toContain('<title>Take Me There - Options</title>');
-    expect(shells[2]).toContain('<title>Welcome to Take Me There</title>');
+    expect(shells[0]).toContain('<title>Take me there</title>');
+    expect(shells[1]).toContain('<title>Take me there - Options</title>');
+    expect(shells[2]).toContain('<title>Welcome to Take me there</title>');
   });
 
   it('re-identifies after an image-only switch', async () => {

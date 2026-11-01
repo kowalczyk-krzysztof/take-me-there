@@ -341,9 +341,9 @@
     "message": "Expedia",
     "description": "Booking tile label."
   },
-  "bookingHeading": {
-    "message": "Book your trip",
-    "description": "Booking links section heading."
+  "linksHeading": {
+    "message": "Links",
+    "description": "Links section heading."
   },
   "noPlaceTitle": {
     "message": "Couldn't spot a specific place in this photo",
@@ -943,8 +943,8 @@
     "message": "Tip: right-click any page and choose “Scan page for places” to find every place pictured on it.",
     "description": "Idle hint exposing page scan."
   },
-  "bookingEmpty": {
-    "message": "Booking links appear here once a place is found.",
-    "description": "Empty state for the booking section."
+  "linksEmpty": {
+    "message": "Links appear here once a place is found.",
+    "description": "Empty state for the links section."
   }
 }

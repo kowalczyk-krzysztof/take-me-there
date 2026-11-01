@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Take Me There",
+  "name": "Take me there",
   "version": "1.0.0",
   "description": "Right-click any image to identify the place with Muse AI.",
   "default_locale": "en",
@@ -13,7 +13,7 @@
   "side_panel": { "default_path": "sidepanel.html" },
   "options_ui": { "page": "options.html", "open_in_tab": false },
   "action": {
-    "default_title": "Take Me There",
+    "default_title": "Take me there",
     "default_icon": { "16": "icons/16.png", "48": "icons/48.png" }
   }
 }
