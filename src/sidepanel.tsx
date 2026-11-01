@@ -2442,7 +2442,7 @@ const resumePending = async (): Promise<void> => {
 
 const onKeySave = async (key: string): Promise<void> => {
   const sessionOnly = store.get().keyForm.sessionOnly;
-  setKeyForm({ pending: true });
+  setKeyForm({ pending: true, error: null });
   announceStatus('statusValidatingKey');
   const outcome = await validateAndSaveKey(key, sessionOnly);
 

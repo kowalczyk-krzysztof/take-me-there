@@ -611,6 +611,47 @@ describe('sidepanel', () => {
     await waitForHeading('Oia');
   });
 
+  it('clears a stale key rejection when a new save starts', async () => {
+    await setup();
+    fetchMock.mockResolvedValueOnce(new Response('nope', { status: 401 }));
+    (document.querySelector('#key-input') as HTMLInputElement).value = 'LLM_bad';
+    dispatchEl(
+      document.querySelector('#settings-panel form') as HTMLFormElement,
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
+    await waitFor(() => {
+      expect(document.querySelector('#settings-panel #key-error')?.textContent).toBe(
+        'keyErrorRejected'
+      );
+    });
+
+    let release!: (value: Response) => void;
+    fetchMock.mockImplementationOnce(
+      () =>
+        new Promise<Response>((resolve) => {
+          release = resolve;
+        })
+    );
+    (document.querySelector('#key-input') as HTMLInputElement).value = 'LLM_good';
+    dispatchEl(
+      document.querySelector('#settings-panel form') as HTMLFormElement,
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
+    await waitFor(() => {
+      expect(document.querySelector('#settings-panel #key-error')?.hasAttribute('hidden')).toBe(
+        true
+      );
+    });
+    expect(document.querySelector('#settings-panel button.primary')?.textContent).toBe(
+      'validatingButton'
+    );
+
+    release(new Response('[]', { status: 200 }));
+    await waitFor(() => {
+      expect(document.querySelector('#key-saved-status')).not.toBeNull();
+    });
+  });
+
   it('gates low-confidence guesses behind the no-place card', async () => {
     const mock = await setup();
     await plantKeyAndConsent();

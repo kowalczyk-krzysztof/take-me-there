@@ -286,7 +286,7 @@ describe('storage service key modes', () => {
     expect((await loadSettings()).sessionOnly).toBe(false);
   });
 
-  it('key.persist patches only the retention flag', async () => {
+  it('key.persist patches only the session flag', async () => {
     await mock.local.set({
       settings: {
         v: 1,
