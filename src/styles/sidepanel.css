@@ -242,6 +242,10 @@ main {
   margin: 0 0 8px;
 }
 
+#page-footer p:last-child {
+  margin-bottom: 0;
+}
+
 .confirm-actions {
   display: flex;
   gap: 8px;

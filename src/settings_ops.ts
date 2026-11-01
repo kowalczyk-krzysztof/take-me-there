@@ -103,6 +103,29 @@ const parseRate = (raw: string): number | undefined => {
   return Number.isFinite(value) && value >= 0 ? value : NaN;
 };
 
+// The server form only edits the endpoint and model: structured output
+// and rates keep their stored values across saves.
+export const storedCompatAdvanced = async (): Promise<
+  Pick<CompatFormValues, 'structured' | 'inputRate' | 'outputRate' | 'cachedRate'>
+> => {
+  let settings: ExtensionSettings | null = null;
+
+  try {
+    settings = await loadSettings();
+  } catch {
+    settings = null;
+  }
+
+  const compat = settings?.openaiCompat;
+
+  return {
+    structured: compat?.structuredOutput ?? 'json_schema',
+    inputRate: compat?.inputRatePerM === undefined ? '' : String(compat.inputRatePerM),
+    outputRate: compat?.outputRatePerM === undefined ? '' : String(compat.outputRatePerM),
+    cachedRate: compat?.cachedRatePerM === undefined ? '' : String(compat.cachedRatePerM),
+  };
+};
+
 export const saveCompatProvider = async (
   values: CompatFormValues,
   confirmHost: string | null

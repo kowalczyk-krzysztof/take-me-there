@@ -27,16 +27,14 @@ import type { LoadingPhase } from './components/trip_card/trip_card';
 import { TripBoard } from './components/trip_board/trip_board';
 import { ProviderSection } from './components/settings/provider_section';
 import { ModesSection } from './components/settings/modes_section';
-import { DataSection } from './components/settings/data_section';
 import { CostSection } from './components/settings/cost_section';
 import {
   EMPTY_COMPAT_FORM,
   attachSettingsInputs,
-  clearResultCache,
   compatErrorKey,
   saveCompatProvider,
-  setCacheTtlDays,
   setMode,
+  storedCompatAdvanced,
   switchToClaude,
   type CompatFormValues,
 } from './settings_ops';
@@ -239,9 +237,6 @@ interface PanelSettingsState {
   compat: CompatFormValues;
   compatError: string | null;
   compatConfirmHost: string | null;
-  cacheTtlDays: number;
-  cachePending: boolean;
-  cacheResult: string | null;
   costText: string;
 }
 
@@ -292,9 +287,6 @@ const store = createStore<PanelState>({
     compat: EMPTY_COMPAT_FORM,
     compatError: null,
     compatConfirmHost: null,
-    cacheTtlDays: 7,
-    cachePending: false,
-    cacheResult: null,
     costText: '',
   },
   keySaved: false,
@@ -446,7 +438,6 @@ const refreshPanelSettings = async (): Promise<void> => {
               ? ''
               : String(settings.openaiCompat.cachedRatePerM),
         },
-        cacheTtlDays: settings.cacheTtlDays,
         costText: msg('optionsCostMonth', formatUsd(spend)),
       },
     });
@@ -501,10 +492,7 @@ const onSettingsCompatSave = (): void => {
       {
         baseURL: settingsInputValue('compat-base-url'),
         model: settingsInputValue('compat-model'),
-        structured: settingsInputValue('compat-structured'),
-        inputRate: settingsInputValue('compat-input-rate'),
-        outputRate: settingsInputValue('compat-output-rate'),
-        cachedRate: settingsInputValue('compat-cached-rate'),
+        ...(await storedCompatAdvanced()),
       },
       store.get().panelSettings.compatConfirmHost
     );
@@ -530,54 +518,6 @@ const onSettingsCompatSave = (): void => {
   })();
 };
 
-const onSettingsRetention = (days: number, select: HTMLSelectElement): void => {
-  const current = store.get().panelSettings.cacheTtlDays;
-
-  if (days !== 1 && days !== 7 && days !== 30) {
-    select.value = String(current);
-
-    return;
-  }
-
-  void (async () => {
-    try {
-      await setCacheTtlDays(days as 1 | 7 | 30);
-    } catch {
-      select.value = String(current);
-      announceAlert('settingsSaveFailed');
-
-      return;
-    }
-
-    setPanelSettings({ cacheTtlDays: days });
-  })();
-};
-
-const onSettingsClearCache = (): void => {
-  void (async () => {
-    setPanelSettings({ cachePending: true, cacheResult: null });
-
-    let cleared = 0;
-
-    try {
-      cleared = await clearResultCache();
-    } catch {
-      setPanelSettings({ cachePending: false, cacheResult: msg('cacheClearFailed') });
-
-      return;
-    }
-
-    const result =
-      cleared === 0
-        ? msg('cacheClearedNone')
-        : cleared === 1
-          ? msg('cacheClearedOne')
-          : msg('cacheClearedMany', String(cleared));
-
-    setPanelSettings({ cachePending: false, cacheResult: result });
-  })();
-};
-
 const onSettingsResetCost = (): void => {
   void (async () => {
     try {
@@ -593,7 +533,7 @@ const onSettingsResetCost = (): void => {
   })();
 };
 
-const attachPanelSettings = (el: HTMLElement | null): (() => void) | void => {
+const attachSettings = (el: HTMLElement | null): (() => void) | void => {
   if (!el) {
     return;
   }
@@ -604,7 +544,6 @@ const attachPanelSettings = (el: HTMLElement | null): (() => void) | void => {
     onCompat: () => {
       setPanelSettings({ compatOpen: true });
     },
-    onRetention: onSettingsRetention,
   });
 };
 
@@ -4115,7 +4054,7 @@ const SidepanelApp = () => {
   const main = state.tab === 'main';
   const selected = (tab: PanelTab): boolean => state.tab === tab;
   return (
-    <main>
+    <main ref={attachSettings}>
       <h1 id="page-title" className="visually-hidden">
         {msg('appName')}
       </h1>
@@ -4174,6 +4113,12 @@ const SidepanelApp = () => {
             <PreviewFrame preview={state.preview} />
           </div>
         </header>
+        <ModesSection
+          key={state.panelSettings.loaded ? 'modes-ready' : 'modes-loading'}
+          heading={msg('settingsModesHeading')}
+          imageOnly={state.panelSettings.imageOnly}
+          skipWebSearch={state.panelSettings.skipWebSearch}
+        />
         <div id="result-slot" aria-busy={state.resultBusy || undefined}>
           {state.result.card ? (
             <TripCard
@@ -4318,81 +4263,73 @@ const SidepanelApp = () => {
         role="tabpanel"
         aria-labelledby="tab-settings"
         hidden={selected('settings') ? undefined : true}
-        ref={attachPanelSettings}
       >
-        <h2 id="settings-heading">{msg('settingsKeyHeading')}</h2>
-        {state.showOrphaned ? <p className="key-notice">{msg('keyReenterNotice')}</p> : null}
-        {!state.keySaved || state.replacing ? (
-          <KeySetup
-            mode="setup"
-            pending={keyForm.pending}
-            error={keyForm.error}
-            sessionOnly={keyForm.sessionOnly}
-            resetKey={keyForm.resetKey}
-            customHost={state.customHost}
-            callbacks={{
-              onSave: (key) => void onKeySave(key),
-              onError: (text) => setKeyForm({ error: text }),
-              onSessionOnlyChange: (checked) => void onSessionOnlyChange(checked),
-              onConsentDecision: (agreed) => void onConsentDecision(agreed),
-            }}
-          />
-        ) : (
-          <>
-            <p id="key-saved-status">{msg('keySavedStatus')}</p>
-            {keyForm.error === null ? null : <p id="key-saved-error">{keyForm.error}</p>}
-            <div className="confirm-actions">
-              <button type="button" onClick={() => store.set({ replacing: true })}>
-                {msg('keyReplaceButton')}
-              </button>
-              <button type="button" onClick={() => onRemoveKey()}>
-                {msg('clearKeyButton')}
-              </button>
-              <button type="button" onClick={() => onRemoveAllKeys()}>
-                {msg('clearAllKeysButton')}
-              </button>
-            </div>
-          </>
-        )}
-        <div
-          key={state.panelSettings.loaded ? 'settings-ready' : 'settings-loading'}
-          id="panel-settings-sections"
-        >
-          <ModesSection
-            heading={msg('settingsModesHeading')}
-            imageOnly={state.panelSettings.imageOnly}
-            skipWebSearch={state.panelSettings.skipWebSearch}
-          />
-          <ProviderSection
-            heading={msg('settingsProviderHeading')}
-            ready={state.panelSettings.loaded}
-            providerMuse={state.panelSettings.providerMuse}
-            compatOpen={state.panelSettings.compatOpen}
-            compat={state.panelSettings.compat}
-            compatError={state.panelSettings.compatError}
-            confirmHost={state.panelSettings.compatConfirmHost}
-            onSave={onSettingsCompatSave}
-          />
-          <DataSection
-            heading={msg('settingsDataHeading')}
-            ttlDays={state.panelSettings.cacheTtlDays}
-            cachePending={state.panelSettings.cachePending}
-            cacheResult={state.panelSettings.cacheResult}
-            onClearCache={onSettingsClearCache}
-          />
+        <section aria-labelledby="settings-heading">
+          <h2 id="settings-heading">{msg('settingsKeyHeading')}</h2>
+          {state.showOrphaned ? <p className="key-notice">{msg('keyReenterNotice')}</p> : null}
+          {!state.keySaved || state.replacing ? (
+            <KeySetup
+              mode="setup"
+              pending={keyForm.pending}
+              error={keyForm.error}
+              sessionOnly={keyForm.sessionOnly}
+              resetKey={keyForm.resetKey}
+              customHost={state.customHost}
+              callbacks={{
+                onSave: (key) => void onKeySave(key),
+                onError: (text) => setKeyForm({ error: text }),
+                onSessionOnlyChange: (checked) => void onSessionOnlyChange(checked),
+                onConsentDecision: (agreed) => void onConsentDecision(agreed),
+              }}
+            />
+          ) : (
+            <>
+              <p id="key-saved-status">{msg('keySavedStatus')}</p>
+              {keyForm.error === null ? null : <p id="key-saved-error">{keyForm.error}</p>}
+              <div className="confirm-actions">
+                <button type="button" onClick={() => store.set({ replacing: true })}>
+                  {msg('keyReplaceButton')}
+                </button>
+                <button type="button" onClick={() => onRemoveKey()}>
+                  {msg('clearKeyButton')}
+                </button>
+                <button type="button" onClick={() => onRemoveAllKeys()}>
+                  {msg('clearAllKeysButton')}
+                </button>
+              </div>
+            </>
+          )}
+          <div
+            key={state.panelSettings.loaded ? 'settings-ready' : 'settings-loading'}
+            id="panel-settings-sections"
+          >
+            <ProviderSection
+              heading={msg('settingsProviderHeading')}
+              ready={state.panelSettings.loaded}
+              providerMuse={state.panelSettings.providerMuse}
+              compatOpen={state.panelSettings.compatOpen}
+              compat={state.panelSettings.compat}
+              compatError={state.panelSettings.compatError}
+              confirmHost={state.panelSettings.compatConfirmHost}
+              onSave={onSettingsCompatSave}
+            />
+          </div>
+        </section>
+        <section aria-labelledby="settings-cost-heading">
           <CostSection
             heading={msg('settingsCostHeading')}
             headingId="settings-cost-heading"
             lineId="settings-cost-line"
             buttonId="settings-reset-cost"
             costText={state.panelSettings.costText}
+            runText={state.cost}
+            runLineId="settings-run-line"
             onReset={onSettingsResetCost}
           />
-        </div>
+        </section>
       </section>
       <footer id="page-footer">
         <p id="privacy-line">{state.privacy}</p>
-        <p id="cost-line">{state.cost}</p>
       </footer>
     </main>
   );

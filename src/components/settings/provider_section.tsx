@@ -66,50 +66,6 @@ export const ProviderSection = ({
           defaultValue={compat?.model ?? ''}
         />
       </label>
-      <details id="compat-advanced">
-        <summary>{msg('compatAdvanced')}</summary>
-        <label className="field-row">
-          <span id="compat-structured-label">{msg('compatStructured')}</span>
-          <select id="compat-structured" defaultValue={compat?.structured || 'json_schema'}>
-            <option value="json_schema" id="compat-structured-schema">
-              {msg('compatStructuredSchema')}
-            </option>
-            <option value="json_object" id="compat-structured-object">
-              {msg('compatStructuredObject')}
-            </option>
-          </select>
-        </label>
-        <label className="field-row">
-          <span id="compat-input-rate-label">{msg('compatInputRate')}</span>
-          <input
-            type="number"
-            id="compat-input-rate"
-            min="0"
-            step="any"
-            defaultValue={compat?.inputRate ?? ''}
-          />
-        </label>
-        <label className="field-row">
-          <span id="compat-output-rate-label">{msg('compatOutputRate')}</span>
-          <input
-            type="number"
-            id="compat-output-rate"
-            min="0"
-            step="any"
-            defaultValue={compat?.outputRate ?? ''}
-          />
-        </label>
-        <label className="field-row">
-          <span id="compat-cached-rate-label">{msg('compatCachedRate')}</span>
-          <input
-            type="number"
-            id="compat-cached-rate"
-            min="0"
-            step="any"
-            defaultValue={compat?.cachedRate ?? ''}
-          />
-        </label>
-      </details>
       <div className="button-row">
         <button id="compat-save" type="button" onClick={onSave}>
           {msg(confirmHost ? 'compatSaveAnyway' : 'compatSave')}

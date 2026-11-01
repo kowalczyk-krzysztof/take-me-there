@@ -121,7 +121,6 @@ export const ResultView = ({
             <button type="button" onClick={callbacks.onReanalyze}>
               {msg('reanalyzeButton')}
             </button>
-            <span className={styles['retry-cost']}>{msg('reanalyzeCost')}</span>
           </div>
         ) : null}
       </section>

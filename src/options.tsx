@@ -13,6 +13,7 @@ import {
   saveCompatProvider,
   setCacheTtlDays,
   setMode,
+  storedCompatAdvanced,
   switchToClaude,
   type CompatFormValues,
 } from './settings_ops';
@@ -207,10 +208,7 @@ const onCompatSave = (): void => {
       {
         baseURL: inputValue('compat-base-url'),
         model: inputValue('compat-model'),
-        structured: inputValue('compat-structured'),
-        inputRate: inputValue('compat-input-rate'),
-        outputRate: inputValue('compat-output-rate'),
-        cachedRate: inputValue('compat-cached-rate'),
+        ...(await storedCompatAdvanced()),
       },
       store.get().compatConfirmHost
     );
@@ -446,6 +444,8 @@ const OptionsApp = () => {
         lineId="cost-line"
         buttonId="reset-cost"
         costText={state.costText}
+        runText=""
+        runLineId="options-run-line"
         onReset={onResetCost}
       />
       <h2 id="privacy-heading">{msg('optionsPrivacyHeading')}</h2>

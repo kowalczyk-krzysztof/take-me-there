@@ -228,7 +228,29 @@ describe('options', () => {
   });
 
   it('saves a custom server after the origin grant', async () => {
-    const mock = await setup();
+    const mock = await setup(async (inner) => {
+      await settleWrite(
+        inner.local.set({
+          settings: {
+            v: 1,
+            settings: {
+              activeProviderId: 'muse',
+              openaiCompat: {
+                baseURL: '',
+                model: '',
+                structuredOutput: 'json_schema',
+                inputRatePerM: 1.5,
+                cachedRatePerM: 0.2,
+              },
+              imageOnly: false,
+              sessionOnly: false,
+              skipWebSearch: false,
+              cacheTtlDays: 7,
+            },
+          },
+        })
+      );
+    });
 
     const permsRequest = vi.fn().mockResolvedValue(true);
     (chrome as unknown as { permissions: unknown }).permissions = { request: permsRequest };
@@ -240,9 +262,6 @@ describe('options', () => {
     (document.querySelector('#compat-base-url') as HTMLInputElement).value =
       'https://llm.example.com/v1/';
     (document.querySelector('#compat-model') as HTMLInputElement).value = 'test-model';
-    (document.querySelector('#compat-structured') as HTMLSelectElement).value = 'json_schema';
-    (document.querySelector('#compat-input-rate') as HTMLInputElement).value = '1.5';
-    (document.querySelector('#compat-cached-rate') as HTMLInputElement).value = '0.2';
     clickEl(document.querySelector('#compat-save') as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#compat-error')?.textContent).toBe(
@@ -251,7 +270,10 @@ describe('options', () => {
     });
     expect(document.querySelector('#compat-save')?.textContent).toBe('compatSaveAnyway');
     expect(permsRequest).not.toHaveBeenCalled();
-    expect(mock.local.data.get('settings')).toBeUndefined();
+    expect(
+      (mock.local.data.get('settings') as { settings: { activeProviderId: string } }).settings
+        .activeProviderId
+    ).toBe('muse');
     clickEl(document.querySelector('#compat-save') as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusProviderSaved');
@@ -276,7 +298,7 @@ describe('options', () => {
     });
   });
 
-  it('rejects bad server URLs, models, rates, and denials', async () => {
+  it('rejects bad server URLs, models, and denials', async () => {
     const mock = await setup();
     const permsRequest = vi.fn().mockResolvedValue(false);
     (chrome as unknown as { permissions: unknown }).permissions = { request: permsRequest };
@@ -304,12 +326,6 @@ describe('options', () => {
       expect(error()).toBe('providerErrorUrl');
     });
     baseUrl.value = 'http://localhost:11434/v1';
-    (document.querySelector('#compat-input-rate') as HTMLInputElement).value = '-2';
-    clickEl(save);
-    await waitFor(() => {
-      expect(error()).toBe('providerErrorRates');
-    });
-    (document.querySelector('#compat-input-rate') as HTMLInputElement).value = '';
     clickEl(save);
     await waitFor(() => {
       expect(error()).toBe('compatHostWarning(localhost:11434)');
@@ -510,18 +526,18 @@ describe('options', () => {
     expect(permsRemove).toHaveBeenCalledWith({ origins: ['https://llm.example.com/*'] });
   });
 
-  it('keeps advanced server fields in a disclosure', async () => {
+  it('offers no advanced server fields', async () => {
     await setup();
 
-    const advanced = document.querySelector('#compat-advanced');
-
-    expect(advanced?.tagName).toBe('DETAILS');
-    expect(advanced?.querySelector('#compat-structured')).not.toBeNull();
-    expect(advanced?.querySelector('#compat-input-rate')).not.toBeNull();
-    expect(advanced?.querySelector('#compat-output-rate')).not.toBeNull();
-    expect(advanced?.querySelector('#compat-cached-rate')).not.toBeNull();
-    expect(document.querySelector('#compat-advanced #compat-save')).toBeNull();
-    expect(document.querySelector('#compat-advanced #compat-error')).toBeNull();
+    const compat = document.querySelector('#provider-compat') as HTMLInputElement;
+    compat.checked = true;
+    dispatchEl(compat, new Event('change', { bubbles: true }));
+    expect(document.querySelector('#compat-fields')?.hasAttribute('hidden')).toBe(false);
+    expect(document.querySelector('#compat-advanced')).toBeNull();
+    expect(document.querySelector('#compat-structured')).toBeNull();
+    expect(document.querySelector('#compat-input-rate')).toBeNull();
+    expect(document.querySelector('#compat-output-rate')).toBeNull();
+    expect(document.querySelector('#compat-cached-rate')).toBeNull();
   });
 
   it('changes retention and clears cached results', async () => {

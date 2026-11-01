@@ -933,26 +933,6 @@
     "message": "Model",
     "description": "Custom server model label."
   },
-  "compatStructured": {
-    "message": "Structured output",
-    "description": "Custom server structured-output label."
-  },
-  "compatStructuredSchema": {
-    "message": "JSON schema",
-    "description": "Structured-output schema option."
-  },
-  "compatStructuredObject": {
-    "message": "JSON object",
-    "description": "Structured-output object option."
-  },
-  "compatInputRate": {
-    "message": "Input price in USD per 1M tokens (optional)",
-    "description": "Custom server input rate label."
-  },
-  "compatOutputRate": {
-    "message": "Output price in USD per 1M tokens (optional)",
-    "description": "Custom server output rate label."
-  },
   "compatSave": {
     "message": "Save server",
     "description": "Custom server save button."
@@ -1209,10 +1189,6 @@
     "message": "Created in your provider's dashboard.",
     "description": "Key hint for custom servers."
   },
-  "compatCachedRate": {
-    "message": "Cached input $/1M tokens (optional)",
-    "description": "Custom provider cached-input rate field."
-  },
   "compatHostWarning": {
     "message": "Keys, images, and page text will be sent to $1 instead of api.meta.ai. Click Save again to confirm.",
     "description": "One-time warning before saving a new custom server.",
@@ -1234,10 +1210,6 @@
   "statusCanceled": {
     "message": "Canceled.",
     "description": "Status announcement after canceling a run."
-  },
-  "compatAdvanced": {
-    "message": "Advanced",
-    "description": "Disclosure label for custom server advanced fields."
   },
   "optionsModesHeading": {
     "message": "Search modes",
@@ -1372,10 +1344,6 @@
   "loadingPhaseWriting": {
     "message": "Writing…",
     "description": "Loading phase while the itinerary is written."
-  },
-  "reanalyzeCost": {
-    "message": "Runs a new analysis (billed again).",
-    "description": "Retry-cost note beside Analyze again."
   },
   "confidenceHigh": {
     "message": "High",

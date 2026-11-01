@@ -230,6 +230,20 @@ describe('sidepanel', () => {
     expect(document.querySelector('#sources-slot .slot-empty')?.textContent).toBe('sourcesEmpty');
   });
 
+  it('keeps settings to key and costs with modes on Explore', async () => {
+    await setup();
+    await waitForSettings();
+    expect(document.querySelector('#main-panel #modes-heading')?.textContent).toBe(
+      'settingsModesHeading'
+    );
+    expect(document.querySelector('#settings-panel #modes-heading')).toBeNull();
+    expect(document.querySelector('#settings-panel #retention-select')).toBeNull();
+    expect(document.querySelector('#settings-panel #provider-group')).not.toBeNull();
+    expect(document.querySelector('#settings-panel #settings-cost-heading')).not.toBeNull();
+    expect(document.querySelector('#page-footer #privacy-line')).not.toBeNull();
+    expect(document.querySelector('#page-footer #settings-run-line')).toBeNull();
+  });
+
   it('switches tabs with roving focus, counts pins, and surfaces runs', async () => {
     const mock = await setup();
 
@@ -582,7 +596,9 @@ describe('sidepanel', () => {
     expect(document.querySelector('#privacy-line')?.textContent).toBe(
       "privacyGuideSearch(Meta's Muse API)"
     );
-    expect(document.querySelector('#cost-line')?.textContent).toBe('costLine($0.004 | $0.004)');
+    expect(document.querySelector('#settings-run-line')?.textContent).toBe(
+      'costLine($0.004 | $0.004)'
+    );
     expect(document.querySelector('#status-region')?.textContent).toBe(
       'statusGuideReadySources(1)'
     );
@@ -649,7 +665,7 @@ describe('sidepanel', () => {
     await waitForHeading('Oia');
     await clickPlanTrip();
     await waitFor(() => {
-      expect(document.querySelector('#cost-line')?.textContent).toBe(
+      expect(document.querySelector('#settings-run-line')?.textContent).toBe(
         'costLineCached($0.004 | $0.004 | $0.001)'
       );
     });
@@ -671,7 +687,9 @@ describe('sidepanel', () => {
 
     const button = document.querySelector('#result-slot .plan-trip-button') as HTMLButtonElement;
     expect(button.textContent).toBe('planTripButton');
-    expect(document.querySelector('#cost-line')?.textContent).toBe('costLine($0.000 | $0.000)');
+    expect(document.querySelector('#settings-run-line')?.textContent).toBe(
+      'costLine($0.000 | $0.000)'
+    );
   });
 
   it('shows the plan button for cached results without a guide', async () => {
@@ -924,7 +942,7 @@ describe('sidepanel', () => {
     );
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitFor(() => {
-      expect(document.querySelector('#cost-line')?.textContent).toBe('costLineCache');
+      expect(document.querySelector('#settings-run-line')?.textContent).toBe('costLineCache');
     });
     expect(document.querySelector('#guide-content')?.textContent).toContain('Cached guide text.');
     expect(document.querySelector('#status-region')?.textContent).toBe('statusCacheHit(Oia)');
@@ -1044,7 +1062,9 @@ describe('sidepanel', () => {
     );
     expect(document.querySelector('#alert-region')?.textContent).toBe('guideInterrupted');
     // The failed stream reported no usage, so the run cannot claim a cost.
-    expect(document.querySelector('#cost-line')?.textContent).toBe('costIncomplete($0.000)');
+    expect(document.querySelector('#settings-run-line')?.textContent).toBe(
+      'costIncomplete($0.000)'
+    );
 
     // The partial text stays on screen only: the cache keeps no guide.
     const cached = [...mock.session.data.entries()].filter(([key]) => key.startsWith('cache:'));
@@ -2055,7 +2075,9 @@ describe('sidepanel', () => {
     expect(document.querySelector('#privacy-line')?.textContent).toBe(
       "privacyBoard(Meta's Muse API)"
     );
-    expect(document.querySelector('#cost-line')?.textContent).toBe('costLine($0.004 | $0.004)');
+    expect(document.querySelector('#settings-run-line')?.textContent).toBe(
+      'costLine($0.004 | $0.004)'
+    );
     expect((document.activeElement as HTMLElement)?.tagName).toBe('H2');
 
     const [, , structure] = fetchMock.mock.calls.map((call) => {
@@ -3125,7 +3147,9 @@ describe('sidepanel', () => {
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
-    expect(document.querySelector('#cost-line')?.textContent).toBe('costLine($0.00 | $0.00)');
+    expect(document.querySelector('#settings-run-line')?.textContent).toBe(
+      'costLine($0.00 | $0.00)'
+    );
   });
 
   it('keeps the provider grant when the image origin is the provider origin', async () => {
@@ -3617,43 +3641,6 @@ describe('sidepanel', () => {
     expect(document.querySelector('#compat-fields')?.hasAttribute('hidden')).toBe(true);
   });
 
-  it('changes retention and clears cached results from the settings tab', async () => {
-    const mock = await setup(async (inner) => {
-      await settleWrite(
-        inner.session.set({
-          'cache:a': {
-            v: 2,
-            createdAt: Date.now(),
-            entry: { place: null, guide: '# A', sources: [], usage: null, searchedWeb: false },
-          },
-          cacheKeys: ['a'],
-        })
-      );
-    });
-    selectSettingsTab();
-    await waitForSettings();
-
-    const retention = document.querySelector('#retention-select') as HTMLSelectElement;
-    expect(retention.value).toBe('7');
-    retention.value = '1';
-    dispatchEl(retention, new Event('change', { bubbles: true }));
-
-    await waitFor(() => {
-      const record = mock.local.data.get('settings') as {
-        settings: { cacheTtlDays: number };
-      };
-
-      expect(record.settings.cacheTtlDays).toBe(1);
-    });
-
-    clickEl(document.querySelector('#settings-panel #clear-cache') as HTMLButtonElement);
-
-    await waitFor(() => {
-      expect(document.querySelector('#cache-result')?.textContent).toBe('cacheClearedOne');
-    });
-    expect(mock.session.data.has('cache:a')).toBe(false);
-  });
-
   it('resets the monthly cost from the settings tab', async () => {
     const mock = await setup(async (inner) => {
       await settleWrite(inner.local.set({ costTotals: { [monthKey()]: 2.5 } }));
@@ -4095,7 +4082,6 @@ describe('sidepanel', () => {
     >;
     expect(catalog.noPlaceBody.message).not.toContain('type a destination');
     expect(catalog.noPlaceBody.message).toContain('paid analysis');
-    expect(catalog.reanalyzeCost.message).toContain('billed again');
   });
 
   it('shows confidence, source, and the save and guide actions', async () => {

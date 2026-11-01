@@ -142,12 +142,6 @@
 .root .result-actions .cancel-button {
   margin: 0;
 }
-.root .retry-cost {
-  margin-inline-start: 8px;
-  font-size: 0.75rem;
-  line-height: 1.5;
-  color: var(--muted);
-}
 .root .confidence {
   margin: 4px 0 0;
 }
