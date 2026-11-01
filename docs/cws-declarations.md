@@ -10,8 +10,7 @@ Identify travel places in photos, videos, and page images.
 ## Data sent off the device
 
 Only after the user clicks "Agree & analyze" (or "Scan page",
-alternatives for those runs), to `https://api.meta.ai` by default,
-or to a user-configured custom server instead:
+alternatives for those runs), to `https://api.meta.ai`:
 
 - The API key, to authenticate each call. Saving a key also sends
   the key alone to `GET /v1/models` to validate it.
@@ -25,9 +24,6 @@ or to a user-configured custom server instead:
 - Video frame captures (data URLs) for video identify runs.
 - The user's own inputs for that run: corrections ("not X") and
   alternative intents.
-
-The custom server receives the same payloads. The options page
-warns that a custom server has its own data handling.
 
 ## Data stored on the device only
 

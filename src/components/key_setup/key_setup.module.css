@@ -97,11 +97,6 @@
   color: var(--muted);
   margin: 0;
 }
-.root .dashboard {
-  font-size: 0.75rem;
-  line-height: 1.5;
-  margin: 0;
-}
 .root a {
   color: var(--link);
 }

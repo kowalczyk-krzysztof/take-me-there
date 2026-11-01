@@ -53,8 +53,7 @@ summary {
   min-width: 24px;
 }
 
-button.primary,
-.plan-trip-button {
+button.primary {
   min-height: 40px;
 }
 
@@ -101,13 +100,6 @@ input:disabled {
 }
 
 .checkbox-row {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  margin: 8px 0;
-}
-
-.radio-row {
   display: flex;
   gap: 8px;
   align-items: center;
@@ -191,9 +183,5 @@ input:disabled {
   *::after {
     transition: none !important;
     animation: none !important;
-  }
-
-  .typing-caret {
-    display: none;
   }
 }

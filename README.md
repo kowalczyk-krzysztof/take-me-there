@@ -40,10 +40,8 @@ mode keeps it in memory and forgets it when the browser closes.
 
 - Saving a key sends only the key itself to validate it. Nothing
   else leaves your machine until you click "Agree & analyze".
-- Analysis requests go to Meta's Muse API, or to your custom server
-  if you configured one on the Settings tab or the Options page.
-  Your key, images, and page text are used only to produce the
-  result you asked for.
+- Analysis requests go to Meta's Muse API. Your key, images, and
+  page text are used only to produce the result you asked for.
 - Page images are downloaded only when needed, without your cookies,
   and the one-time permission is removed right after.
 - No analytics, no tracking, no ads.
@@ -71,13 +69,11 @@ flowchart TB
 
     subgraph Panel ["Side panel - two tabs"]
         direction TB
-        main["Main<br/>identify, alternatives, scan, booking links"]
-        settingsTab["Settings<br/>key, provider, modes, cache, cost"]
+        main["Main<br/>identify, alternatives, scan, links"]
+        settingsTab["Settings<br/>key, modes, cache, cost"]
     end
 
-    panel --> providers["Provider layer (one interface)"]
-    providers --> muse["Meta Muse<br/>(muse-spark-1.3)"]
-    providers --> compat["Custom server<br/>(any OpenAI-style API)"]
+    panel --> muse["Meta Muse<br/>(muse-spark-1.3)"]
     muse --> identify["chat/completions<br/>names the place as strict JSON"]
     muse --> grounded["responses + web search<br/>grounds alternatives in live results"]
     settingsTab --> vault["Key vault<br/>(AES-GCM encrypted)"]
@@ -87,7 +83,7 @@ flowchart TB
 
 All Muse calls go to `https://api.meta.ai`, model `muse-spark-1.3`
 (plus `sam-3.1` for look-again crops). It is the only website the
-extension talks to by default.
+extension talks to.
 
 | Call                        | What it does                                               | What is sent                                 |
 | --------------------------- | ---------------------------------------------------------- | -------------------------------------------- |
@@ -96,9 +92,9 @@ extension talks to by default.
 | `POST /v1/responses`        | Grounds alternatives with live web search, crops landmarks | Place name plus your question                |
 
 A typical analysis costs a few cents: tokens plus about $0.0025 per
-web search. The panel shows the exact figure after every run, and a
-monthly total on the Settings tab. Prefer another backend? Point the
-custom server option at any OpenAI-style endpoint instead.
+web search or landmark crop, and nothing for cached repeats. The
+panel shows the exact figure after every run, and a monthly total
+on the Settings tab.
 
 ## Develop
 

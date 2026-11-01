@@ -135,22 +135,11 @@ main {
   margin: 4px 0 8px;
 }
 
-#panel-settings-sections {
-  margin-top: 16px;
-}
-
 .slot-empty {
   margin: 0;
   font-size: 0.75rem;
   line-height: 1.5;
   color: var(--muted);
-}
-
-#search-line {
-  color: var(--muted);
-  font-size: 0.75rem;
-  line-height: 1.5;
-  margin: 0 0 8px;
 }
 
 .key-notice {
