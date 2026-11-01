@@ -91,23 +91,17 @@ input:disabled {
 .checkbox-row {
   display: flex;
   gap: 8px;
-  align-items: flex-start;
+  align-items: center;
+  justify-content: center;
   margin: 8px 0;
-}
-
-.checkbox-row input {
-  margin-top: 2px;
 }
 
 .radio-row {
   display: flex;
   gap: 8px;
-  align-items: flex-start;
+  align-items: center;
+  justify-content: center;
   margin: 8px 0;
-}
-
-.radio-row input {
-  margin-top: 2px;
 }
 
 .field-row {

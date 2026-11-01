@@ -45,12 +45,9 @@
 .root .checkbox-row {
   display: flex;
   gap: 8px;
-  align-items: flex-start;
+  align-items: center;
   font-size: 0.75rem;
   line-height: 1.5;
-}
-.root .checkbox-row input {
-  margin-top: 2px;
 }
 .root .button-row {
   display: flex;
