@@ -1,9 +1,10 @@
 # Browser smoke checklist
 
 `npm run smoke:chrome` covers the keyless boundary (both pages boot
-without errors, settings renders, 320px layout, dark theme, reduced
-motion). Everything below needs a real key and a human; run it before
-each release against a production `dist/`.
+without errors, settings renders, a mode toggle persists through the
+worker, empty-key validation shows inline, 320px layout, dark theme,
+reduced motion). Everything below needs a real key and a human; run it
+before each release against a production `dist/`.
 
 ## Setup
 

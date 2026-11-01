@@ -1,7 +1,8 @@
 // Real-Chrome execution-boundary smoke: boots the built extension pages in
-// headless Chrome, fails on console/page errors, and checks narrow, dark,
-// and reduced-motion rendering. No API key needed; keyed flows stay manual
-// in docs/browser-smoke.md. Zero dependencies: raw CDP over fetch/WebSocket.
+// headless Chrome, fails on console/page errors, and checks keyless
+// interactions plus narrow, dark, and reduced-motion rendering. No API key
+// needed; keyed flows stay manual in docs/browser-smoke.md. Zero
+// dependencies: raw CDP over fetch/WebSocket.
 import { spawn } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -244,6 +245,16 @@ const main = async () => {
       await waitFor(panel, `document.querySelectorAll('#settings-panel .panel-card').length === 4`)
     );
 
+    const imageOnlyBefore = await evaluate(panel, `document.querySelector('#image-only').checked`);
+    await evaluate(panel, `document.querySelector('#image-only').click()`);
+    check(
+      'settings mode toggle persists through the worker',
+      await waitFor(
+        panel,
+        `document.querySelector('#image-only').checked === ${String(!imageOnlyBefore)} && document.querySelector('#modes-error') === null`
+      )
+    );
+
     await panel.send('Emulation.setDeviceMetricsOverride', {
       width: 320,
       height: 600,
@@ -294,6 +305,15 @@ const main = async () => {
       await waitFor(
         onboard,
         `document.querySelector('#key-host #key-input') !== null && document.querySelector('#key-host button[type="submit"]') !== null`
+      )
+    );
+
+    await evaluate(onboard, `document.querySelector('#key-host form').requestSubmit()`);
+    check(
+      'onboarding rejects an empty key inline',
+      await waitFor(
+        onboard,
+        `document.querySelector('#key-host #key-error') !== null && !document.querySelector('#key-host #key-error').hasAttribute('hidden')`
       )
     );
     onboard.close();
