@@ -421,6 +421,8 @@ const OptionsApp = () => {
         />
       </div>
       <CostSection
+        heading={msg('costHeading')}
+        headingId="cost-heading"
         lineId="cost-line"
         costText={state.costText}
         runText=""

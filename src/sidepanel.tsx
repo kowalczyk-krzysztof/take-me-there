@@ -2662,8 +2662,10 @@ const SidepanelApp = () => {
             skipWebSearch={state.panelSettings.skipWebSearch}
           />
         </section>
-        <section aria-labelledby="settings-cost-line" className="panel-card">
+        <section aria-labelledby="settings-cost-heading" className="panel-card">
           <CostSection
+            heading={msg('costHeading')}
+            headingId="settings-cost-heading"
             lineId="settings-cost-line"
             costText={state.panelSettings.costText}
             runText={state.cost}

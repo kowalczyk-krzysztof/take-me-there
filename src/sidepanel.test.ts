@@ -175,6 +175,7 @@ describe('sidepanel', () => {
       'settingsModesHeading'
     );
     expect(document.querySelectorAll('#settings-panel .panel-card')).toHaveLength(3);
+    expect(document.querySelector('#settings-panel #settings-cost-heading')).not.toBeNull();
     expect(document.querySelector('#settings-panel #retention-select')).toBeNull();
     expect(document.querySelector('#settings-panel #provider-group')).not.toBeNull();
     expect(document.querySelector('#page-footer #privacy-line')).not.toBeNull();

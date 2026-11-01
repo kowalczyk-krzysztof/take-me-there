@@ -285,6 +285,10 @@
       }
     }
   },
+  "costHeading": {
+    "message": "API cost",
+    "description": "Heading for the cost section."
+  },
   "imageOnlyLabel": {
     "message": "Send the image only - no page text",
     "description": "Image-only toggle label."
