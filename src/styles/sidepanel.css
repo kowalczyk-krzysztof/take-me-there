@@ -216,8 +216,12 @@ main {
 }
 
 #page-footer {
+  position: sticky;
+  bottom: 0;
+  margin: 0 -16px -16px;
+  padding: 8px 16px 16px;
   border-top: 1px solid var(--border);
-  padding-top: 8px;
+  background: var(--background);
   font-size: 0.75rem;
   line-height: 1.5;
   color: var(--muted);

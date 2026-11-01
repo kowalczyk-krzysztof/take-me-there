@@ -566,6 +566,9 @@ describe('sidepanel', () => {
 
     const chips = document.querySelector('#sources-slot');
     expect(chips?.querySelectorAll('a.chip')).toHaveLength(1);
+    expect(document.querySelector('#privacy-line')?.textContent).toBe(
+      "privacyGuideSearch(Meta's Muse API)"
+    );
     expect(document.querySelector('#cost-line')?.textContent).toBe('costLine($0.004 | $0.004)');
     expect(document.querySelector('#status-region')?.textContent).toBe(
       'statusGuideReadySources(1)'
@@ -601,6 +604,9 @@ describe('sidepanel', () => {
 
     const guideUrl = fetchMock.mock.calls[1][0] as string;
     expect(guideUrl).toContain('/chat/completions');
+    expect(document.querySelector('#privacy-line')?.textContent).toBe(
+      "privacyGuide(Meta's Muse API)"
+    );
     expect(document.querySelector('#status-region')?.textContent).toBe('statusGuideReady');
     expect(document.querySelector('#sources-slot')?.querySelectorAll('a.chip')).toHaveLength(0);
   });

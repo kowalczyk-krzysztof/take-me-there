@@ -783,7 +783,9 @@ type PrivacyMode =
   | 'video-url'
   | 'video-url-only'
   | 'board'
-  | 'names';
+  | 'names'
+  | 'guide'
+  | 'guide-search';
 
 const privacyDestination = (): string => {
   if (runSettings?.activeProviderId === 'openai_compat') {
@@ -811,6 +813,8 @@ const PRIVACY_KEYS: Record<PrivacyMode, string> = {
   'video-url-only': 'privacyVideoUrlOnly',
   board: 'privacyBoard',
   names: 'privacyNames',
+  guide: 'privacyGuide',
+  'guide-search': 'privacyGuideSearch',
 };
 
 const updatePrivacy = (mode: PrivacyMode): void => {
@@ -1868,7 +1872,7 @@ const runGuidePlan = async (): Promise<void> => {
   selectTab('main');
   showSources([]);
   announceStatus('statusPlanningTrip');
-  const privacy = run.request ? privacyForRequest(run.request, settings, provider) : 'image';
+  const privacy: PrivacyMode = settings.skipWebSearch ? 'guide' : 'guide-search';
   let outcome: RunOutcome = 'error';
   try {
     outcome = await runGuide({ run, privacy, origin: 'panel' });
@@ -2315,7 +2319,7 @@ const runScanGuide = async (
     },
     { inheritFrom: pickInherit(request.requestId, provider, key), abortSiblings }
   );
-  const privacy: PrivacyMode = settings.imageOnly ? 'image-only' : 'image';
+  const privacy: PrivacyMode = settings.skipWebSearch ? 'guide' : 'guide-search';
   run.cacheKey = await identifyKeyFor(run, thumb ?? `scan:${result.placeName},${result.country}`);
 
   if (!ownsUi(run)) {
