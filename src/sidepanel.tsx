@@ -1,26 +1,15 @@
 // Panel state machine: handoff intake, key and consent gates, cached or live
-// analysis with streamed guides, disagree flows, and the cost footer.
+// analysis, disagree flows, and the cost footer.
 import { useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import { BookingGrid } from './components/booking_grid/booking_grid';
 import type { ScanItemView } from './components/scan_list/scan_list';
 import { ScanList } from './components/scan_list/scan_list';
-import type {
-  AlternateCardView,
-  AlternatesView,
-  CardState,
-  ConfidenceView,
-} from './components/trip_card/trip_card';
+import type { AlternatesView, CardState, ConfidenceView } from './components/trip_card/trip_card';
 import { TripCard } from './components/trip_card/trip_card';
 import { KeySetup } from './components/key_setup/key_setup';
-import type {
-  BoardItemView,
-  TripMovePinDetail,
-  TripRemovePinDetail,
-} from './components/trip_board/trip_board';
 import type { LoadingPhase } from './components/trip_card/trip_card';
-import { TripBoard } from './components/trip_board/trip_board';
 import { ProviderSection } from './components/settings/provider_section';
 import { ModesSection } from './components/settings/modes_section';
 import { CostSection } from './components/settings/cost_section';
@@ -34,21 +23,7 @@ import {
   type CompatFormValues,
 } from './settings_ops';
 import { prefersReducedMotion } from './utils/dom';
-import {
-  BOARD_STORAGE_KEY,
-  clearBoard,
-  dedupeKeyFor,
-  itineraryStatus,
-  listPins,
-  loadItinerary,
-  makeThumbnail,
-  pinPlace,
-  movePin,
-  removePin,
-  type BoardPin,
-} from './board_store';
-import { buildDestination, buildLinks, mapsDirUrl } from './deep_links';
-import { TRIP_EXPORT_FILENAME, formatTripMarkdown } from './trip_export';
+import { buildDestination } from './deep_links';
 import {
   dataUrlToBytes,
   downscaleToJpegDataUrl,
@@ -66,7 +41,6 @@ import {
 } from './pricing';
 import {
   TRIP_REQUEST_SCHEMA,
-  type ItineraryPlan,
   type PageSignals,
   type PlaceAlternate,
   type PlaceResult,
@@ -143,7 +117,7 @@ const EMPTY_SIGNALS: PageSignals = {
   jsonLd: [],
 };
 
-type PendingRun = { kind: 'request'; request: TripRequest } | { kind: 'itinerary' };
+type PendingRun = { kind: 'request'; request: TripRequest };
 
 let initialized = false;
 
@@ -158,12 +132,6 @@ let alternatesLoading: AlternateIntent | null = null;
 let alternatesRunId = 0;
 
 let alternatesController: AbortController | null = null;
-
-let failedPin: Omit<BoardPin, 'addedAt'> | null = null;
-
-let failedRemove: TripRemovePinDetail | null = null;
-
-let removedPin: BoardPin | null = null;
 
 interface PreviewOverlay {
   left: number;
@@ -210,7 +178,7 @@ interface PanelSettingsState {
 }
 
 interface PanelState {
-  tab: 'main' | 'board' | 'settings';
+  tab: 'main' | 'settings';
   panelSettings: PanelSettingsState;
   keySaved: boolean;
   replacing: boolean;
@@ -223,10 +191,6 @@ interface PanelState {
   result: ResultSlotState;
   resultBusy: boolean;
   links: string | null;
-  boardItems: BoardItemView[];
-  boardCanPlan: boolean;
-  boardPlanStale: boolean;
-  boardNotice: { text: string | null; retryLabel: string | null };
   privacy: string;
   cost: string;
   customHost: string | null;
@@ -264,10 +228,6 @@ const store = createStore<PanelState>({
   result: blankResultSlot(),
   resultBusy: false,
   links: null,
-  boardItems: [],
-  boardCanPlan: false,
-  boardPlanStale: false,
-  boardNotice: { text: null, retryLabel: null },
   privacy: '',
   cost: '',
   customHost: null,
@@ -279,11 +239,10 @@ const store = createStore<PanelState>({
   },
 });
 
-type PanelTab = 'main' | 'board' | 'settings';
+type PanelTab = 'main' | 'settings';
 
 const TAB_IDS: Record<PanelTab, string> = {
   main: 'tab-main',
-  board: 'tab-board',
   settings: 'tab-settings',
 };
 
@@ -301,14 +260,14 @@ const selectTab = (tab: PanelTab): void => {
 
   const active = document.activeElement as HTMLElement | null;
 
-  const panel = active?.closest('#main-panel, #board-panel, #settings-panel');
+  const panel = active?.closest('#main-panel, #settings-panel');
 
   if (panel?.hasAttribute('hidden')) {
     document.getElementById(TAB_IDS[tab])?.focus();
   }
 };
 
-const enabledTabs = (): PanelTab[] => ['main', 'board', 'settings'];
+const enabledTabs = (): PanelTab[] => ['main', 'settings'];
 
 let lockEpoch = 0;
 
@@ -336,12 +295,6 @@ const refreshLock = async (): Promise<void> => {
 const onLockAreaChanged = (changes: Record<string, unknown>): void => {
   if (Object.keys(changes).some((key) => isVaultKey(key) || key === SETTINGS_STORAGE_KEY)) {
     void refreshLock();
-  }
-};
-
-const onBoardAreaChanged = (changes: Record<string, unknown>): void => {
-  if (BOARD_STORAGE_KEY in changes) {
-    void renderBoard();
   }
 };
 
@@ -648,7 +601,6 @@ type PrivacyMode =
   | 'video-frame-only'
   | 'video-url'
   | 'video-url-only'
-  | 'board'
   | 'names';
 
 const privacyDestination = (): string => {
@@ -675,7 +627,6 @@ const PRIVACY_KEYS: Record<PrivacyMode, string> = {
   'video-frame-only': 'privacyVideoFrameOnly',
   'video-url': 'privacyVideoUrl',
   'video-url-only': 'privacyVideoUrlOnly',
-  board: 'privacyBoard',
   names: 'privacyNames',
 };
 
@@ -1056,21 +1007,6 @@ const privacyForRequest = (
     return settings.imageOnly ? 'image-pixels-only' : 'image-pixels';
   }
   return settings.imageOnly ? 'image-only' : 'image';
-};
-
-const isPlacePinned = async (place: PlaceResult): Promise<boolean> => {
-  try {
-    const pins = await listPins();
-    const key = await dedupeKeyFor(place.placeName, place.country);
-    for (const pin of pins) {
-      if ((await dedupeKeyFor(pin.place.placeName, pin.place.country)) === key) {
-        return true;
-      }
-    }
-  } catch {
-    // Fail closed: an unreadable board shows the unpinned state.
-  }
-  return false;
 };
 
 const renderResultHeader = async (
@@ -1586,15 +1522,6 @@ const runVideoAnalysis = async (
 
 // ---- Page scan ----
 
-const scanPlaceResult = (place: ScannedPlace): PlaceResult => ({
-  identified: true,
-  placeName: place.placeName,
-  city: place.city,
-  country: place.country,
-  confidence: place.confidence,
-  oneLiner: '',
-});
-
 // Pair a scan guess with its harvest thumbnail. An out-of-range index or a
 // non-previewable URL yields the placeholder, never a wrong image.
 const pairScanThumb = (place: ScannedPlace, images: ScannedImage[]): string | null => {
@@ -1606,22 +1533,13 @@ const pairScanThumb = (place: ScannedPlace, images: ScannedImage[]): string | nu
   return url && isAllowedPreviewUrl(url) ? url : null;
 };
 
-const scanItemViews = async (
-  places: ScannedPlace[],
-  thumbs: Array<string | null>
-): Promise<ScanItemView[]> => {
-  const views: ScanItemView[] = [];
-  for (const [index, place] of places.entries()) {
-    views.push({
-      placeName: place.placeName,
-      country: place.country,
-      title: buildDestination(place.placeName, place.city, place.country),
-      image: thumbs[index] ?? null,
-      pinned: await isPlacePinned(scanPlaceResult(place)),
-    });
-  }
-  return views;
-};
+const scanItemViews = (places: ScannedPlace[], thumbs: Array<string | null>): ScanItemView[] =>
+  places.map((place, index) => ({
+    placeName: place.placeName,
+    country: place.country,
+    title: buildDestination(place.placeName, place.city, place.country),
+    image: thumbs[index] ?? null,
+  }));
 
 const runScan = async (run: RunContext, origin: 'gesture' | 'panel'): Promise<void> => {
   const request = run.request;
@@ -1689,7 +1607,7 @@ const runScan = async (run: RunContext, origin: 'gesture' | 'panel'): Promise<vo
   }
   scanPlaces = result.places;
   scanThumbs = result.places.map((place) => pairScanThumb(place, images));
-  const views = await scanItemViews(scanPlaces, scanThumbs);
+  const views = scanItemViews(scanPlaces, scanThumbs);
 
   if (!ownsUi(run)) {
     return;
@@ -1710,50 +1628,6 @@ const runScan = async (run: RunContext, origin: 'gesture' | 'panel'): Promise<vo
   if (origin === 'panel') {
     document.getElementById('scan-heading')?.focus();
   }
-};
-
-const scanPinFor = (index: number): Omit<BoardPin, 'addedAt'> | null => {
-  const place = scanPlaces[index];
-  if (!place) {
-    return null;
-  }
-  const thumb = scanThumbs[index] ?? null;
-  return {
-    place: scanPlaceResult(place),
-    sourceHost: sourceHostFor(displayedRequest),
-    ...(thumb ? { imageUrl: thumb } : {}),
-  };
-};
-
-const refreshScanPins = async (): Promise<void> => {
-  if (currentView !== 'scan') {
-    return;
-  }
-  store.set({
-    result: {
-      ...blankResultSlot(),
-      scan: { loading: false, items: await scanItemViews(scanPlaces, scanThumbs) },
-    },
-  });
-};
-
-const onScanPin = async (index: number): Promise<void> => {
-  const pin = scanPinFor(index);
-  if (!pin) {
-    return;
-  }
-  await attemptPin(pin);
-  await refreshScanPins();
-};
-
-const onScanPinSelected = async (indices: number[]): Promise<void> => {
-  for (const index of indices) {
-    const pin = scanPinFor(index);
-    if (pin) {
-      await attemptPin(pin);
-    }
-  }
-  await refreshScanPins();
 };
 
 const runAnalysis = async (request: TripRequest, origin: 'gesture' | 'panel'): Promise<void> => {
@@ -2161,11 +2035,7 @@ const retry = async (): Promise<void> => {
     return;
   }
   clearContentSlots();
-  if (target.kind === 'itinerary') {
-    await planTrip();
-  } else {
-    await runAnalysis(target.request, 'panel');
-  }
+  await runAnalysis(target.request, 'panel');
 };
 
 // The model could not fetch the remote image, so the panel downloads the
@@ -2282,30 +2152,20 @@ const FINDING_KEYS: Record<AlternateIntent, string> = {
   similar: 'alternatesFindingSimilar',
 };
 
-const alternatePlaceResult = (alt: PlaceAlternate): PlaceResult => ({
-  identified: true,
-  placeName: alt.placeName,
-  city: '',
-  country: alt.country,
-  confidence: 0,
-  oneLiner: alt.why,
-});
-
-const alternatesView = async (): Promise<AlternatesView> => {
+const alternatesView = (): AlternatesView => {
   if (alternatesLoading) {
     return { state: 'loading', intent: alternatesLoading };
   }
   if (currentAlternates) {
-    const cards: AlternateCardView[] = [];
-    for (const alt of currentAlternates.alternatives) {
-      cards.push({
+    return {
+      state: 'ready',
+      intent: currentAlternates.intent,
+      cards: currentAlternates.alternatives.map((alt) => ({
         name: buildDestination(alt.placeName, '', alt.country),
         why: alt.why,
         bestMonth: alt.bestMonth,
-        pinned: await isPlacePinned(alternatePlaceResult(alt)),
-      });
-    }
-    return { state: 'ready', intent: currentAlternates.intent, cards };
+      })),
+    };
   }
   return { state: 'idle' };
 };
@@ -2324,13 +2184,23 @@ const confidenceView = (place: PlaceResult): ConfidenceView => {
   };
 };
 
+const sourceHostFor = (request: TripRequest | null): string => {
+  if (request?.pageUrl) {
+    try {
+      return new URL(request.pageUrl).host;
+    } catch {
+      // Fall through to the scraped host.
+    }
+  }
+  return request?.signals?.pageHost ?? '';
+};
+
 const resultCardProps = async (
   place: PlaceResult
 ): Promise<{
   view: 'result';
   place: PlaceResult;
   lowConfidence: boolean;
-  pinned: boolean;
   canReanalyze: boolean;
   confidence: ConfidenceView;
   sourceHost: string | null;
@@ -2338,13 +2208,12 @@ const resultCardProps = async (
 }> => {
   const host = sourceHostFor(displayedRequest);
 
-  const [pinned, alternates] = await Promise.all([isPlacePinned(place), alternatesView()]);
+  const alternates = alternatesView();
 
   return {
     view: 'result',
     place,
     lowConfidence: place.confidence < 0.6,
-    pinned,
     canReanalyze: (displayedRequest?.srcUrl ?? '') !== '',
     confidence: confidenceView(place),
     sourceHost: host === '' ? null : host,
@@ -2452,425 +2321,6 @@ const onAlternatesCancel = (): void => {
   announceStatus('statusCanceled');
 };
 
-const onPinAlternate = async (index: number): Promise<void> => {
-  const target = currentAlternates?.alternatives[index];
-  if (!target) {
-    return;
-  }
-  await attemptPin({
-    place: alternatePlaceResult(target),
-    sourceHost: sourceHostFor(displayedRequest),
-  });
-};
-
-// ---- Trip Board ----
-
-const pinDisplayName = (pin: BoardPin): string =>
-  buildDestination(pin.place.placeName, pin.place.city, pin.place.country);
-
-const boardItemViews = (pins: BoardPin[]): BoardItemView[] =>
-  pins.map((pin, index) => {
-    const remoteFallback =
-      !pin.thumbnail && !!pin.imageUrl && isAllowedPreviewUrl(pin.imageUrl) ? pin.imageUrl : null;
-
-    return {
-      placeName: pin.place.placeName,
-      country: pin.place.country,
-      title: pinDisplayName(pin),
-      host: pin.sourceHost,
-      image: pin.thumbnail ?? remoteFallback,
-      remoteImage: !!remoteFallback && !remoteFallback.startsWith('data:'),
-      canMoveUp: index > 0,
-      canMoveDown: index < pins.length - 1,
-    };
-  });
-
-const renderBoard = async (): Promise<BoardPin[]> => {
-  const pins = await listPins();
-  await syncBoardPlan(pins);
-  return pins;
-};
-
-const syncBoardPlan = async (pins: BoardPin[]): Promise<void> => {
-  const stored = await loadItinerary();
-  const status = await itineraryStatus(pins, stored);
-  store.set({
-    boardItems: boardItemViews(pins),
-    boardCanPlan: pins.length >= 2,
-    boardPlanStale: status === 'stale',
-  });
-};
-
-const syncPinButton = async (): Promise<void> => {
-  await refreshResultCard();
-};
-
-const sourceHostFor = (request: TripRequest | null): string => {
-  if (request?.pageUrl) {
-    try {
-      return new URL(request.pageUrl).host;
-    } catch {
-      // Fall through to the scraped host.
-    }
-  }
-  return request?.signals?.pageHost ?? '';
-};
-
-const attemptPin = async (pin: Omit<BoardPin, 'addedAt'>, withoutThumb = false): Promise<void> => {
-  const candidate = withoutThumb ? { ...pin, thumbnail: undefined } : pin;
-  let outcome;
-  try {
-    outcome = await pinPlace(candidate);
-  } catch {
-    failedPin = pin;
-    store.set({
-      boardNotice: {
-        text: msg('boardNoticePinFail', pin.place.placeName),
-        retryLabel: msg('boardRetryNoThumb'),
-      },
-    });
-    announceAlert('alertPinFail', pin.place.placeName);
-    return;
-  }
-  failedPin = null;
-  removedPin = null;
-  store.set({ boardNotice: { text: null, retryLabel: null } });
-  if (outcome.status === 'duplicate') {
-    await syncPinButton();
-    announceStatus('statusPinDuplicate', pin.place.placeName);
-    return;
-  }
-  if (outcome.status === 'full') {
-    store.set({
-      boardNotice: { text: msg('boardNoticeFull'), retryLabel: null },
-    });
-    announceAlert('boardNoticeFull');
-    return;
-  }
-  await syncBoardPlan(outcome.pins);
-  await syncPinButton();
-  announceStatus('statusPinned', [pin.place.placeName, String(outcome.pins.length)]);
-};
-
-const onPinToggle = async (): Promise<void> => {
-  const place = currentPlace;
-  if (!place || !place.identified) {
-    return;
-  }
-  const frame = displayedRequest?.frame?.dataUrl;
-  const src = displayedRequest?.srcUrl ?? '';
-  const held = frame ?? (src.startsWith('data:image/') ? src : undefined);
-  const thumbnail = held ? await makeThumbnail(held) : null;
-  const pin: Omit<BoardPin, 'addedAt'> = {
-    place,
-    sourceHost: sourceHostFor(displayedRequest),
-    ...(thumbnail ? { thumbnail } : {}),
-    ...(src && isAllowedPreviewUrl(src) && !src.startsWith('data:') ? { imageUrl: src } : {}),
-  };
-  await attemptPin(pin);
-};
-
-const onRemovePin = async (detail: TripRemovePinDetail): Promise<void> => {
-  let out: { pins: BoardPin[]; removed: BoardPin | null };
-  try {
-    out = await removePin(detail.placeName, detail.country);
-  } catch {
-    failedRemove = detail;
-    store.set({
-      boardNotice: {
-        text: msg('boardNoticeRemoveFail', detail.placeName),
-        retryLabel: msg('boardRetryRemove'),
-      },
-    });
-    announceAlert('alertRemoveFail', detail.placeName);
-    return;
-  }
-  failedRemove = null;
-  removedPin = out.removed;
-  await syncBoardPlan(out.pins);
-  store.set({
-    boardNotice:
-      out.removed === null
-        ? { text: null, retryLabel: null }
-        : {
-            text: msg('boardRemoved', detail.placeName),
-            retryLabel: msg('boardUndo'),
-          },
-  });
-  await syncPinButton();
-  await refreshScanPins();
-  if (out.removed !== null) {
-    announceStatus('boardRemoved', detail.placeName);
-  }
-};
-
-const undoRemove = async (): Promise<void> => {
-  const pin = removedPin;
-  removedPin = null;
-
-  if (!pin) {
-    return;
-  }
-  let outcome;
-  try {
-    outcome = await pinPlace(pin);
-  } catch {
-    failedPin = pin;
-    store.set({
-      boardNotice: {
-        text: msg('boardNoticePinFail', pin.place.placeName),
-        retryLabel: msg('boardRetryNoThumb'),
-      },
-    });
-    announceAlert('alertPinFail', pin.place.placeName);
-    return;
-  }
-  if (outcome.status === 'full') {
-    // Someone filled the board while the undo was pending: keep the
-    // removed pin so undo retries after the user frees a slot, and never
-    // evict another pin to make room.
-    removedPin = pin;
-    store.set({
-      boardNotice: { text: msg('boardUndoFull'), retryLabel: msg('boardUndo') },
-    });
-    announceAlert('boardUndoFull');
-    return;
-  }
-  await syncBoardPlan(outcome.pins);
-  store.set({ boardNotice: { text: null, retryLabel: null } });
-  await syncPinButton();
-  await refreshScanPins();
-  announceStatus('boardRestored', pin.place.placeName);
-};
-
-const onMovePin = async (detail: TripMovePinDetail): Promise<void> => {
-  let pins: BoardPin[];
-  try {
-    pins = await movePin(detail.placeName, detail.country, detail.direction);
-  } catch {
-    store.set({
-      boardNotice: {
-        text: msg('boardNoticeMoveFail', detail.placeName),
-        retryLabel: null,
-      },
-    });
-    announceAlert('boardNoticeMoveFail', detail.placeName);
-    return;
-  }
-  await syncBoardPlan(pins);
-};
-
-const exportMarkdown = async (): Promise<string | null> => {
-  const pins = await listPins();
-
-  if (pins.length === 0) {
-    return null;
-  }
-
-  const stored = await loadItinerary();
-  const status = await itineraryStatus(pins, stored);
-
-  return formatTripMarkdown({
-    pins,
-    ...(stored ? { itinerary: stored.markdown, itineraryStale: status === 'stale' } : {}),
-  });
-};
-
-const onCopyTrip = async (): Promise<void> => {
-  const markdown = await exportMarkdown();
-
-  if (markdown === null) {
-    return;
-  }
-
-  try {
-    await navigator.clipboard.writeText(markdown);
-  } catch {
-    announceAlert('boardCopyFail');
-    return;
-  }
-
-  announceStatus('boardCopied');
-};
-
-const onDownloadTrip = async (): Promise<void> => {
-  const markdown = await exportMarkdown();
-
-  if (markdown === null) {
-    return;
-  }
-
-  try {
-    const url = URL.createObjectURL(new Blob([markdown], { type: 'text/markdown' }));
-
-    try {
-      const anchor = document.createElement('a');
-      anchor.href = url;
-      anchor.download = TRIP_EXPORT_FILENAME;
-      anchor.click();
-    } finally {
-      URL.revokeObjectURL(url);
-    }
-  } catch {
-    announceAlert('boardDownloadFail');
-    return;
-  }
-
-  announceStatus('boardDownloaded');
-};
-
-const onRetryPin = async (): Promise<void> => {
-  if (failedPin) {
-    const pin = failedPin;
-    failedPin = null;
-    await attemptPin(pin, true);
-  } else if (failedRemove) {
-    const target = failedRemove;
-    failedRemove = null;
-    await onRemovePin(target);
-  } else if (removedPin) {
-    await undoRemove();
-  }
-};
-
-const onClearConfirm = async (): Promise<void> => {
-  try {
-    await clearBoard();
-  } catch {
-    announceAlert('alertBoardClearFail');
-    return;
-  }
-  removedPin = null;
-  store.set({ boardNotice: { text: null, retryLabel: null } });
-  await syncBoardPlan([]);
-  await syncPinButton();
-  await refreshScanPins();
-  focusSelector('#board-heading button');
-  announceStatus('boardCleared');
-};
-
-const renderItineraryCard = (pins: BoardPin[], plan: ItineraryPlan): void => {
-  const byName = new Map(pins.map((pin) => [pinDisplayName(pin), pin]));
-  const nights = new Map(plan.nightsEach.map((entry) => [entry.stop, entry.nights]));
-  const stops = plan.stops.map((stop) => {
-    const pin = byName.get(stop);
-    const name = pin ? pinDisplayName(pin) : stop;
-    return { name, nights: nights.get(stop) ?? null, links: buildLinks(name) };
-  });
-  currentView = 'itinerary';
-  swapResultSlot(() => {
-    store.set({
-      result: {
-        ...blankResultSlot(),
-        card: {
-          view: 'itinerary',
-          title: msg('itineraryTitle', String(stops.length)),
-          stops,
-          mapsUrl: mapsDirUrl(stops.map((stop) => stop.name)),
-          mapsLabel: msg('mapsLink', String(stops.length)),
-        },
-      },
-    });
-  });
-};
-
-const planTrip = async (): Promise<void> => {
-  const ticket = ++runTicket;
-  cancelAllWork();
-  clearStaleTimer();
-  const itinId = `itinerary-${Date.now()}`;
-  lastRun = { kind: 'itinerary' };
-  pendingRun = null;
-  clearCost();
-  const gate = await gateRun({ kind: 'itinerary' });
-
-  if (ticket !== runTicket) {
-    return;
-  }
-
-  if (!gate.ready) {
-    announceGate(gate.reason);
-    return;
-  }
-  const { provider, settings, key } = gate;
-  const pins = await listPins();
-
-  if (ticket !== runTicket) {
-    return;
-  }
-
-  if (pins.length < 2) {
-    // The Plan button guards this, but the board may have changed underneath.
-    await syncBoardPlan(pins);
-    return;
-  }
-  selectTab('main');
-  clearContentSlots();
-  announceStatus('statusPlanning', String(pins.length));
-  showSkeleton(itinId, 'writing');
-  const run = startRun(
-    {
-      runId: nextRunId(itinId),
-      requestId: itinId,
-      kind: 'itinerary',
-      provider,
-      settings,
-      key,
-      request: null,
-    },
-    { abortSiblings }
-  );
-  let result;
-  try {
-    result = await provider.planItinerary(key, {
-      pins: pins.map((pin) => ({
-        name: pinDisplayName(pin),
-        host: pin.sourceHost,
-        thumbnail: pin.thumbnail,
-      })),
-      signal: run.signal,
-    });
-  } catch (err) {
-    if (err instanceof ProviderError && err.code === 'aborted') {
-      recordPartialUsage(run, 'itinerary', err);
-
-      if (activeRun() !== null) {
-        return;
-      }
-
-      cancelSkeleton();
-      showIdle();
-      announceStatus('statusCanceled');
-
-      return;
-    }
-    recordPartialUsage(run, 'itinerary', err);
-    await priceAndRecord(run, 'itinerary');
-
-    if (!ownsUi(run)) {
-      return;
-    }
-
-    showProviderError(err, null, 'board');
-    return;
-  }
-  absorbRunUsage(run, result.usage);
-  await settleSkeleton();
-
-  if (!ownsUi(run)) {
-    await priceAndRecord(run, 'itinerary');
-
-    return;
-  }
-
-  commitDisplayed(run, 'itinerary');
-  renderItineraryCard(pins, result.plan);
-  updatePrivacy('board');
-  focusResultHeading();
-  run.destination = result.plan.stops.join(', ');
-  announceStatus('statusItineraryReady');
-};
-
 const resumePending = async (): Promise<void> => {
   const pending = pendingRun;
   pendingRun = null;
@@ -2878,11 +2328,7 @@ const resumePending = async (): Promise<void> => {
     showIdle();
     return;
   }
-  if (pending.kind === 'itinerary') {
-    await planTrip();
-  } else {
-    await runAnalysis(pending.request, 'panel');
-  }
+  await runAnalysis(pending.request, 'panel');
 };
 
 const onKeySave = async (key: string): Promise<void> => {
@@ -3144,17 +2590,6 @@ const SidepanelApp = () => {
         </button>
         <button
           type="button"
-          id="tab-board"
-          role="tab"
-          aria-selected={selected('board')}
-          aria-controls="board-panel"
-          tabIndex={selected('board') ? 0 : -1}
-          onClick={() => selectTab('board')}
-        >
-          {msg('boardTitle', String(state.boardItems.length))}
-        </button>
-        <button
-          type="button"
           id="tab-settings"
           role="tab"
           aria-selected={selected('settings')}
@@ -3184,12 +2619,10 @@ const SidepanelApp = () => {
             <TripCard
               card={state.result.card}
               callbacks={{
-                onPin: () => void onPinToggle(),
                 onReanalyze: () => void reanalyze(),
                 onRetry: () => void retry(),
                 onLookAgain: () => void lookAgain(),
                 onAlternates: (intent) => void onAlternates(intent),
-                onPinAlternate: (index) => void onPinAlternate(index),
                 onCancelAlternates: onAlternatesCancel,
                 onCancelLoading: () => onCancelLoading(),
                 onDismissError: () => showIdle(),
@@ -3200,8 +2633,6 @@ const SidepanelApp = () => {
             <ScanList
               loading={state.result.scan.loading}
               items={state.result.scan.items}
-              onPin={(index) => void onScanPin(index)}
-              onPinSelected={(indices) => void onScanPinSelected(indices)}
               onCancel={() => onCancelLoading()}
             />
           ) : null}
@@ -3253,28 +2684,6 @@ const SidepanelApp = () => {
           ) : (
             <p className="slot-empty">{msg('bookingEmpty')}</p>
           )}
-        </div>
-      </section>
-      <section
-        id="board-panel"
-        role="tabpanel"
-        aria-labelledby="tab-board"
-        hidden={selected('board') ? undefined : true}
-      >
-        <div id="board-slot">
-          <TripBoard
-            items={state.boardItems}
-            canPlan={state.boardCanPlan}
-            planStale={state.boardPlanStale}
-            notice={state.boardNotice}
-            onRemovePin={(detail) => void onRemovePin(detail)}
-            onMovePin={(detail) => void onMovePin(detail)}
-            onCopyTrip={() => void onCopyTrip()}
-            onDownloadTrip={() => void onDownloadTrip()}
-            onPlan={() => void planTrip()}
-            onClearConfirm={() => void onClearConfirm()}
-            onRetryPin={() => void onRetryPin()}
-          />
         </div>
       </section>
       <section
@@ -3418,10 +2827,8 @@ export const initPanel = (): void => {
   updatePreview(null);
   showIdle();
   void loadShortcutLine();
-  void renderBoard();
   void refreshLock();
   chrome.storage.local.onChanged.addListener(onLockAreaChanged);
-  chrome.storage.local.onChanged.addListener(onBoardAreaChanged);
   chrome.storage.session.onChanged.addListener(onLockAreaChanged);
 
   void refreshPanelSettings();

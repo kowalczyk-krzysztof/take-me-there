@@ -10,9 +10,8 @@ const ITEMS: ScanItemView[] = [
     country: 'Greece',
     title: 'Oia, Greece',
     image: 'https://img/oia.jpg',
-    pinned: false,
   },
-  { placeName: 'Fira', country: 'Greece', title: 'Fira, Greece', image: null, pinned: true },
+  { placeName: 'Fira', country: 'Greece', title: 'Fira, Greece', image: null },
 ];
 
 const noop = () => {};
@@ -29,9 +28,7 @@ afterEach(() => {
 
 describe('scan-list', () => {
   it('renders an aria-hidden skeleton while loading', () => {
-    const root = renderSync(
-      <ScanList loading={true} items={[]} onPin={noop} onPinSelected={noop} onCancel={noop} />
-    ).container;
+    const root = renderSync(<ScanList loading={true} items={[]} onCancel={noop} />).container;
     expect(root.querySelector('h2')?.textContent).toBe('scanTitle');
 
     const grid = root.querySelector('.skeleton-grid');
@@ -44,23 +41,13 @@ describe('scan-list', () => {
   it('offers cancel while loading and hides it with results', () => {
     const onCancel = vi.fn();
 
-    const rendered = renderSync(
-      <ScanList loading={true} items={[]} onPin={noop} onPinSelected={noop} onCancel={onCancel} />
-    );
+    const rendered = renderSync(<ScanList loading={true} items={[]} onCancel={onCancel} />);
     const cancel = rendered.container.querySelector('section > button') as HTMLButtonElement;
     expect(cancel?.textContent).toBe('cancelButton');
     clickEl(cancel);
     expect(onCancel).toHaveBeenCalledTimes(1);
 
-    rendered.rerender(
-      <ScanList
-        loading={false}
-        items={ITEMS}
-        onPin={noop}
-        onPinSelected={noop}
-        onCancel={onCancel}
-      />
-    );
+    rendered.rerender(<ScanList loading={false} items={ITEMS} onCancel={onCancel} />);
     expect(
       [...rendered.container.querySelectorAll('section > button')].some(
         (button) => button.textContent === 'cancelButton'
@@ -68,28 +55,9 @@ describe('scan-list', () => {
     ).toBe(false);
   });
 
-  it('shows saved pins as disabled with pressed state', () => {
-    const root = renderSync(
-      <ScanList loading={false} items={ITEMS} onPin={noop} onPinSelected={noop} onCancel={noop} />
-    ).container;
-
-    const pins = [...root.querySelectorAll('.scan-card .pin-button')] as HTMLButtonElement[];
-    expect(pins).toHaveLength(2);
-    expect(pins[0].textContent).toBe('pinButton(Oia)');
-    expect(pins[0].getAttribute('aria-pressed')).toBe('false');
-    expect(pins[0].disabled).toBe(false);
-    expect(pins[1].textContent).toBe('savedButton(Fira)');
-    expect(pins[1].getAttribute('aria-pressed')).toBe('true');
-    expect(pins[1].disabled).toBe(true);
-  });
-
   it('renders a no-skeleton shadow after results arrive', () => {
-    const rendered = renderSync(
-      <ScanList loading={true} items={[]} onPin={noop} onPinSelected={noop} onCancel={noop} />
-    );
-    rendered.rerender(
-      <ScanList loading={false} items={ITEMS} onPin={noop} onPinSelected={noop} onCancel={noop} />
-    );
+    const rendered = renderSync(<ScanList loading={true} items={[]} onCancel={noop} />);
+    rendered.rerender(<ScanList loading={false} items={ITEMS} onCancel={noop} />);
 
     const root = rendered.container;
     expect(root.querySelector('.skeleton-grid')).toBeNull();
@@ -101,31 +69,20 @@ describe('scan-list', () => {
     expect(list.children[0].tagName).toBe('LI');
   });
 
-  it('renders cards with group labels and a pin control', () => {
-    const root = renderSync(
-      <ScanList loading={false} items={ITEMS} onPin={noop} onPinSelected={noop} onCancel={noop} />
-    ).container;
+  it('renders cards with group labels and titles', () => {
+    const root = renderSync(<ScanList loading={false} items={ITEMS} onCancel={noop} />).container;
 
     const cards = root.querySelectorAll('.scan-card');
     expect(cards[0]?.getAttribute('role')).toBe('group');
     expect(cards[0]?.getAttribute('aria-label')).toBe('Oia, Greece');
-
-    const box = cards[0]?.querySelector('input[type="checkbox"]');
-    expect(box).not.toBeNull();
-    expect(cards[0]?.querySelector('label')?.textContent).toBe('Oia, Greece');
-
-    const buttons = cards[0]?.querySelectorAll('button');
-    expect(buttons?.length).toBe(1);
-    // No card-wide click wrapper: no parent of the controls handles clicks.
+    expect(cards[0]?.querySelector('.scan-title')?.textContent).toBe('Oia, Greece');
+    expect(cards[0]?.querySelectorAll('button')).toHaveLength(0);
+    // No card-wide click wrapper: no parent of the content handles clicks.
     expect((cards[0] as HTMLElement).onclick).toBeNull();
-    expect(cards[0]?.querySelector('.pin-button')?.getAttribute('aria-pressed')).toBe('false');
-    expect(cards[1]?.querySelector('.pin-button')?.getAttribute('aria-pressed')).toBe('true');
   });
 
   it('renders decorative thumbnails with a placeholder fallback', () => {
-    const root = renderSync(
-      <ScanList loading={false} items={ITEMS} onPin={noop} onPinSelected={noop} onCancel={noop} />
-    ).container;
+    const root = renderSync(<ScanList loading={false} items={ITEMS} onCancel={noop} />).container;
 
     const cards = root.querySelectorAll('.scan-card');
 
@@ -136,69 +93,5 @@ describe('scan-list', () => {
 
     const placeholder = cards[1]?.querySelector('.thumb-placeholder');
     expect(placeholder?.getAttribute('aria-hidden')).toBe('true');
-  });
-
-  it('emits pin events per card', () => {
-    const onPin = vi.fn();
-
-    const root = renderSync(
-      <ScanList loading={false} items={ITEMS} onPin={onPin} onPinSelected={noop} onCancel={noop} />
-    ).container;
-
-    const cards = root.querySelectorAll('.scan-card');
-    clickEl(cards[0]?.querySelectorAll('button')[0] as HTMLButtonElement);
-    expect(onPin).toHaveBeenCalledWith(0);
-  });
-
-  it('counts checked cards in pin-selected and survives re-render', () => {
-    const i18n = vi.spyOn(chrome.i18n, 'getMessage');
-
-    const onPinSelected = vi.fn();
-
-    const rendered = renderSync(
-      <ScanList
-        loading={false}
-        items={ITEMS}
-        onPin={noop}
-        onPinSelected={onPinSelected}
-        onCancel={noop}
-      />
-    );
-
-    const root = rendered.container;
-
-    const boxes = root.querySelectorAll('input[type="checkbox"]');
-    clickEl(boxes[0] as HTMLInputElement);
-    clickEl(boxes[1] as HTMLInputElement);
-    expect(i18n).toHaveBeenLastCalledWith('scanPinSelected', '2');
-    // Re-render (e.g. after a single pin) keeps the checked titles.
-    rendered.rerender(
-      <ScanList
-        loading={false}
-        items={[{ ...ITEMS[0]!, pinned: true }, ITEMS[1]!]}
-        onPin={noop}
-        onPinSelected={onPinSelected}
-        onCancel={noop}
-      />
-    );
-    expect(i18n).toHaveBeenLastCalledWith('scanPinSelected', '2');
-    clickEl(root.querySelector('.pin-selected') as HTMLButtonElement);
-    expect(onPinSelected).toHaveBeenCalledWith([0, 1]);
-  });
-
-  it('ignores pin-selected with nothing checked', () => {
-    const onPinSelected = vi.fn();
-
-    const root = renderSync(
-      <ScanList
-        loading={false}
-        items={ITEMS}
-        onPin={noop}
-        onPinSelected={onPinSelected}
-        onCancel={noop}
-      />
-    ).container;
-    clickEl(root.querySelector('.pin-selected') as HTMLButtonElement);
-    expect(onPinSelected).not.toHaveBeenCalled();
   });
 });

@@ -47,29 +47,9 @@
 .root .thumb-placeholder {
   background: var(--border);
 }
-.root .select-row {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
+.root .scan-title {
+  margin: 0;
   font-weight: 600;
-}
-.root .select-row input {
-  width: 1rem;
-  height: 1rem;
-}
-.root .card-actions {
-  display: flex;
-  gap: 0.5rem;
-}
-.root .card-actions button {
-  flex: 1;
-}
-.root .pin-button[aria-pressed='true'] {
-  border-color: var(--link);
-  color: var(--link);
-}
-.root .pin-button:disabled {
-  cursor: default;
 }
 .root button {
   font: inherit;
@@ -93,8 +73,4 @@
 .root button.primary:hover {
   background: var(--action-hover);
   border-color: var(--action-hover);
-}
-.root .pin-selected {
-  margin-top: 0.75rem;
-  width: 100%;
 }

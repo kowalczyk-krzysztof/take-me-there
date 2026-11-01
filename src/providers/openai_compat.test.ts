@@ -147,41 +147,6 @@ describe('openai_compat', () => {
   });
 });
 
-describe('compat planItinerary', () => {
-  const VALID_PLAN = {
-    stops: ['Oia', 'Fira'],
-    days: [],
-    nightsEach: [{ stop: 'Oia', nights: 1 }],
-  };
-
-  const planInput = () => ({
-    pins: [
-      { name: 'Oia', host: 'example.com' },
-      { name: 'Fira', host: 'blog.example' },
-    ],
-    signal: new AbortController().signal,
-  });
-
-  it('uses the schema envelope and validates client-side', async () => {
-    await setConsented();
-    fetchMock.mockResolvedValue(chatResponse(VALID_PLAN));
-
-    const provider = new OpenAiCompatProvider(config());
-
-    const result = await provider.planItinerary('sk_key', planInput());
-    expect(result.plan.stops).toEqual(['Oia', 'Fira']);
-
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe('https://llm.example.com/v1/chat/completions');
-
-    const body = JSON.parse(init.body as string) as Record<string, Record<string, unknown>>;
-    expect((body.response_format as Record<string, string>).type).toBe('json_schema');
-    expect(body.prompt_cache_key).toBe('take-me-there');
-    expect(body.prompt_cache_retention).toBeUndefined();
-    expect(body.max_completion_tokens).toBe(4096);
-  });
-});
-
 describe('compat scanPlaces', () => {
   const VALID_BATCH = {
     places: [{ placeName: 'Oia', city: 'Oia', country: 'Greece', confidence: 0.9, imageIndex: 0 }],

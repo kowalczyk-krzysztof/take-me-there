@@ -55,10 +55,6 @@ const CATALOG_PATH = join(
   '../public/_locales/en/messages.json'
 );
 
-const selectBoardTab = (): void => {
-  clickEl(document.querySelector('#tab-board') as HTMLButtonElement);
-};
-
 const selectSettingsTab = (): void => {
   clickEl(document.querySelector('#tab-settings') as HTMLButtonElement);
 };
@@ -189,61 +185,53 @@ describe('sidepanel', () => {
     expect(document.querySelector('#page-footer #settings-run-line')).toBeNull();
   });
 
-  it('switches tabs with roving focus, counts pins, and surfaces runs', async () => {
+  it('switches tabs with roving focus and surfaces runs', async () => {
     const mock = await setup();
 
     const tabMain = document.querySelector('#tab-main') as HTMLButtonElement;
 
-    const tabBoard = document.querySelector('#tab-board') as HTMLButtonElement;
+    const tabSettings = document.querySelector('#tab-settings') as HTMLButtonElement;
     // Explore is available immediately, key or not.
     expect(tabMain.getAttribute('aria-selected')).toBe('true');
     expect(tabMain.hasAttribute('aria-disabled')).toBe(false);
     await plantKeyAndConsent();
     clickEl(tabMain);
 
-    const i18n = vi.spyOn(chrome.i18n, 'getMessage');
     expect(tabMain.textContent).toBe('mainTab');
     expect(tabMain.getAttribute('aria-selected')).toBe('true');
     expect(tabMain.tabIndex).toBe(0);
-    expect(tabBoard.getAttribute('aria-selected')).toBe('false');
-    expect(tabBoard.tabIndex).toBe(-1);
+    expect(tabSettings.getAttribute('aria-selected')).toBe('false');
+    expect(tabSettings.tabIndex).toBe(-1);
     expect(document.querySelector('#tab-bar')?.getAttribute('aria-label')).toBe('tabsLabel');
     expect(document.querySelector('#main-panel')?.hasAttribute('hidden')).toBe(false);
-    expect(document.querySelector('#board-panel')?.hasAttribute('hidden')).toBe(true);
-    clickEl(tabBoard);
-    expect(tabBoard.getAttribute('aria-selected')).toBe('true');
-    expect(tabBoard.tabIndex).toBe(0);
+    expect(document.querySelector('#settings-panel')?.hasAttribute('hidden')).toBe(true);
+    clickEl(tabSettings);
+    expect(tabSettings.getAttribute('aria-selected')).toBe('true');
+    expect(tabSettings.tabIndex).toBe(0);
     expect(tabMain.tabIndex).toBe(-1);
     expect(document.querySelector('#main-panel')?.hasAttribute('hidden')).toBe(true);
-    expect(document.querySelector('#board-panel')?.hasAttribute('hidden')).toBe(false);
+    expect(document.querySelector('#settings-panel')?.hasAttribute('hidden')).toBe(false);
     focusEl(tabMain);
     dispatchEl(tabMain, new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
-    expect(document.activeElement).toBe(tabBoard);
-    expect(tabBoard.getAttribute('aria-selected')).toBe('true');
-    dispatchEl(tabBoard, new KeyboardEvent('keydown', { key: 'Home', bubbles: true }));
+    expect(document.activeElement).toBe(tabSettings);
+    expect(tabSettings.getAttribute('aria-selected')).toBe('true');
+    dispatchEl(tabSettings, new KeyboardEvent('keydown', { key: 'Home', bubbles: true }));
     expect(document.activeElement).toBe(tabMain);
     expect(tabMain.getAttribute('aria-selected')).toBe('true');
-    // A new run surfaces on the main tab even from the board tab.
-    clickEl(tabBoard);
+    // A new run surfaces on the main tab even from the settings tab.
+    clickEl(tabSettings);
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitFor(() => {
       expect(document.querySelector('#result-slot h2')?.textContent).toBe('Oia');
     });
     expect(tabMain.getAttribute('aria-selected')).toBe('true');
-    clickEl(document.querySelector('#result-slot .pin-button') as HTMLButtonElement);
-    await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned(Oia | 1)');
-    });
-    expect(i18n).toHaveBeenCalledWith('boardTitle', '1');
   });
 
   it('keeps Explore available without a key', async () => {
     await setup();
 
     const tabMain = document.querySelector('#tab-main') as HTMLButtonElement;
-
-    const tabBoard = document.querySelector('#tab-board') as HTMLButtonElement;
 
     const tabSettings = document.querySelector('#tab-settings') as HTMLButtonElement;
     expect(tabMain.getAttribute('aria-selected')).toBe('true');
@@ -255,8 +243,8 @@ describe('sidepanel', () => {
     dispatchEl(tabSettings, new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
     expect(document.activeElement).toBe(tabMain);
     dispatchEl(tabMain, new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
-    expect(document.activeElement).toBe(tabBoard);
-    dispatchEl(tabBoard, new KeyboardEvent('keydown', { key: 'End', bubbles: true }));
+    expect(document.activeElement).toBe(tabSettings);
+    dispatchEl(tabSettings, new KeyboardEvent('keydown', { key: 'End', bubbles: true }));
     expect(document.activeElement).toBe(tabSettings);
     dispatchEl(tabSettings, new KeyboardEvent('keydown', { key: 'Home', bubbles: true }));
     expect(document.activeElement).toBe(tabMain);
@@ -501,7 +489,6 @@ describe('sidepanel', () => {
     expect(document.querySelector('main > #status-region')).not.toBeNull();
     expect(document.querySelector('main > #alert-region')).not.toBeNull();
     expect(document.querySelector('#main-panel #status-region')).toBeNull();
-    expect(document.querySelector('#board-panel #alert-region')).toBeNull();
     clickEl(document.querySelector('#tab-settings') as HTMLButtonElement);
     fetchMock.mockResolvedValue(new Response('[]', { status: 401 }));
     (document.querySelector('#settings-panel #key-input') as HTMLInputElement).value = 'LLM_bad';
@@ -910,490 +897,6 @@ describe('sidepanel', () => {
     );
   });
 
-  it('pins results to the board with announcements', async () => {
-    const mock = await setup();
-    await plantKeyAndConsent();
-    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
-    await settleWrite(mock.session.set({ [SLOT]: READY() }));
-    await waitForHeading('Oia');
-
-    const card = document.querySelector('#result-slot') as HTMLElement;
-
-    const pin = card.querySelector('.pin-button') as HTMLButtonElement;
-    expect(pin.getAttribute('aria-pressed')).toBe('false');
-    clickEl(pin);
-    await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned(Oia | 1)');
-    });
-    expect(
-      (card.querySelector('.pin-button') as HTMLButtonElement).getAttribute('aria-pressed')
-    ).toBe('true');
-    expect(card.querySelector('.pin-button')?.textContent).toBe('savedButton(Oia)');
-
-    const board = document.querySelector('#board-slot') as HTMLElement;
-
-    const items = [...(board.querySelectorAll('li') ?? [])];
-    expect(items).toHaveLength(1);
-    expect(items[0].querySelector('.item-name')?.textContent).toBe('Oia, Greece');
-    expect(items[0].querySelector('.item-host')?.textContent).toBe('example.com');
-    expect(
-      (board.querySelector('.plan-button') as HTMLButtonElement).getAttribute('aria-disabled')
-    ).toBe('true');
-    clickEl(card.querySelector('.pin-button') as HTMLButtonElement);
-    await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe('statusPinDuplicate(Oia)');
-    });
-    expect(board.querySelectorAll('li')).toHaveLength(1);
-
-    const remove = items[0].querySelector('.remove-button') as HTMLButtonElement;
-    clickEl(remove);
-    await waitFor(() => {
-      expect(board.querySelectorAll('li')).toHaveLength(0);
-    });
-    expect(
-      (card.querySelector('.pin-button') as HTMLButtonElement).getAttribute('aria-pressed')
-    ).toBe('false');
-  });
-
-  it('restores a removed pin through undo', async () => {
-    const mock = await setup();
-    await plantKeyAndConsent();
-    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
-    await settleWrite(mock.session.set({ [SLOT]: READY() }));
-    await waitForHeading('Oia');
-    clickEl(document.querySelector('#result-slot .pin-button') as HTMLButtonElement);
-    await waitFor(() => {
-      expect(document.querySelector('#board-slot li')).not.toBeNull();
-    });
-
-    const board = document.querySelector('#board-slot') as HTMLElement;
-
-    clickEl(board.querySelector('li .remove-button') as HTMLButtonElement);
-    await waitFor(() => {
-      expect(board.querySelectorAll('li')).toHaveLength(0);
-    });
-    await waitFor(() => {
-      expect(board.querySelector('.notice span')?.textContent).toBe('boardRemoved(Oia)');
-    });
-
-    const undo = board.querySelector('.notice button') as HTMLButtonElement;
-    expect(undo.textContent).toBe('boardUndo');
-    clickEl(undo);
-    await waitFor(() => {
-      expect(board.querySelectorAll('li')).toHaveLength(1);
-    });
-    await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe('boardRestored(Oia)');
-    });
-    expect(board.querySelector('.notice')?.hasAttribute('hidden')).toBe(true);
-  });
-
-  it('treats an undo after a re-pin as already restored', async () => {
-    const mock = await setup();
-    await plantKeyAndConsent();
-    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
-    await settleWrite(mock.session.set({ [SLOT]: READY() }));
-    await waitForHeading('Oia');
-    clickEl(document.querySelector('#result-slot .pin-button') as HTMLButtonElement);
-    await waitFor(() => {
-      expect(document.querySelector('#board-slot li')).not.toBeNull();
-    });
-
-    const board = document.querySelector('#board-slot') as HTMLElement;
-
-    clickEl(board.querySelector('li .remove-button') as HTMLButtonElement);
-    await waitFor(() => {
-      expect(board.querySelector('.notice span')?.textContent).toBe('boardRemoved(Oia)');
-    });
-
-    const { pinPlace } = await cover(import('./board_store'));
-    const again = await cover(pinPlace({ place: { ...VALID_PLACE }, sourceHost: 'example.com' }));
-    expect(again.status).toBe('pinned');
-
-    clickEl(board.querySelector('.notice button') as HTMLButtonElement);
-    await waitFor(() => {
-      expect(board.querySelectorAll('li')).toHaveLength(1);
-    });
-    await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe('boardRestored(Oia)');
-    });
-    expect(board.querySelector('.notice')?.hasAttribute('hidden')).toBe(true);
-  });
-
-  it('blocks undo on a full board without evicting', async () => {
-    await setup();
-    await plantKeyAndConsent();
-
-    const { pinPlace } = await cover(import('./board_store'));
-
-    for (let i = 0; i < 24; i++) {
-      const out = await cover(
-        pinPlace({
-          place: { ...VALID_PLACE, placeName: `Place ${i}` },
-          sourceHost: 'example.com',
-        })
-      );
-      expect(out.status).toBe('pinned');
-    }
-    await waitFor(() => {
-      expect(document.querySelectorAll('#board-slot li')).toHaveLength(24);
-    });
-
-    const board = document.querySelector('#board-slot') as HTMLElement;
-
-    clickEl(board.querySelector('li .remove-button') as HTMLButtonElement);
-    await waitFor(() => {
-      expect(board.querySelectorAll('li')).toHaveLength(23);
-    });
-
-    const filled = await cover(
-      pinPlace({ place: { ...VALID_PLACE, placeName: 'Newest' }, sourceHost: 'example.com' })
-    );
-    expect(filled.status).toBe('pinned');
-
-    clickEl(board.querySelector('.notice button') as HTMLButtonElement);
-    await waitFor(() => {
-      expect(board.querySelector('.notice span')?.textContent).toBe('boardUndoFull');
-    });
-    await waitFor(() => {
-      expect(board.querySelectorAll('li')).toHaveLength(24);
-    });
-    expect(board.textContent).not.toContain('Place 0');
-    expect(board.textContent).toContain('Newest');
-  });
-
-  it('reorders pins with move up and move down', async () => {
-    await setup();
-    await plantKeyAndConsent();
-
-    const { listPins, pinPlace } = await cover(import('./board_store'));
-    await cover(pinPlace({ place: { ...VALID_PLACE }, sourceHost: 'example.com' }));
-    await cover(
-      pinPlace({
-        place: { ...VALID_PLACE, placeName: 'Fira', city: 'Fira' },
-        sourceHost: 'example.com',
-      })
-    );
-    await cover(
-      pinPlace({
-        place: { ...VALID_PLACE, placeName: 'Imerovigli', city: 'Imerovigli' },
-        sourceHost: 'example.com',
-      })
-    );
-
-    const board = document.querySelector('#board-slot') as HTMLElement;
-
-    const names = () => [...board.querySelectorAll('li .item-name')].map((el) => el.textContent);
-
-    await waitFor(() => {
-      expect(board.querySelectorAll('li')).toHaveLength(3);
-    });
-    expect(names()).toEqual(['Oia, Greece', 'Fira, Greece', 'Imerovigli, Greece']);
-
-    const rows = board.querySelectorAll('li');
-    expect((rows[0].querySelector('.move-up-button') as HTMLButtonElement).disabled).toBe(true);
-    expect((rows[2].querySelector('.move-down-button') as HTMLButtonElement).disabled).toBe(true);
-
-    const down = rows[0].querySelector('.move-down-button') as HTMLButtonElement;
-    focusEl(down);
-    clickEl(down);
-    await waitFor(() => {
-      expect(names()).toEqual(['Fira, Greece', 'Oia, Greece', 'Imerovigli, Greece']);
-    });
-    expect(document.activeElement?.textContent).toBe('boardMoveDownShort');
-    expect(document.activeElement?.getAttribute('aria-label')).toBe('boardMoveDown(Oia)');
-
-    const stored = await cover(listPins());
-    expect(stored.map((pin) => pin.place.placeName)).toEqual(['Fira', 'Oia', 'Imerovigli']);
-  });
-
-  it('copies the trip from stored state without a provider request', async () => {
-    await setup();
-    await plantKeyAndConsent();
-
-    const { pinPlace } = await cover(import('./board_store'));
-    await cover(pinPlace({ place: { ...VALID_PLACE }, sourceHost: 'example.com' }));
-    await cover(
-      pinPlace({
-        place: { ...VALID_PLACE, placeName: 'Fira', city: 'Fira' },
-        sourceHost: 'blog.example',
-      })
-    );
-    await waitFor(() => {
-      expect(document.querySelectorAll('#board-slot li')).toHaveLength(2);
-    });
-
-    const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined);
-
-    clickEl(document.querySelector('#board-slot .copy-trip-button') as HTMLButtonElement);
-    await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe('boardCopied');
-    });
-
-    expect(writeText).toHaveBeenCalledTimes(1);
-
-    const markdown = writeText.mock.calls[0][0] as string;
-    expect(markdown).toContain('**Oia, Greece** - found on example.com');
-    expect(markdown).toContain('**Fira, Greece** - found on blog.example');
-    expect(markdown).toContain('Open the route in Google Maps');
-    expect(markdown).toContain('No itinerary generated yet.');
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it('downloads the trip with a markdown filename', async () => {
-    await setup();
-    await plantKeyAndConsent();
-
-    const { pinPlace } = await cover(import('./board_store'));
-    await cover(pinPlace({ place: { ...VALID_PLACE }, sourceHost: 'example.com' }));
-    await waitFor(() => {
-      expect(document.querySelectorAll('#board-slot li')).toHaveLength(1);
-    });
-
-    const create = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:trip');
-    const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
-
-    let href = '';
-    let download = '';
-    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
-      this: HTMLAnchorElement
-    ) {
-      href = this.href;
-      download = this.download;
-    });
-
-    clickEl(document.querySelector('#board-slot .download-trip-button') as HTMLButtonElement);
-    await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe('boardDownloaded');
-    });
-
-    expect(create).toHaveBeenCalledTimes(1);
-
-    const blob = create.mock.calls[0][0] as Blob;
-    expect(blob.type).toBe('text/markdown');
-    expect(await blob.text()).toContain('**Oia, Greece** - found on example.com');
-    expect(href).toBe('blob:trip');
-    expect(download).toBe('take-me-there-trip.md');
-    expect(revoke).toHaveBeenCalledWith('blob:trip');
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it('discloses remote images and falls back to monograms', async () => {
-    const mock = await setup();
-    await plantKeyAndConsent();
-    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
-    await settleWrite(mock.session.set({ [SLOT]: READY() }));
-    await waitForHeading('Oia');
-    clickEl(document.querySelector('#result-slot .pin-button') as HTMLButtonElement);
-
-    const board = document.querySelector('#board-slot') as HTMLElement;
-    await waitFor(() => {
-      expect(board.querySelectorAll('li')).toHaveLength(1);
-    });
-
-    const remote = board.querySelector('li') as HTMLElement;
-    expect(remote.querySelector('img')?.getAttribute('src')).toBe(
-      'https://cdn.example.com/oia.jpg'
-    );
-    expect(remote.querySelector('.item-remote')?.textContent).toBe('boardRemoteImage');
-
-    const { pinPlace } = await cover(import('./board_store'));
-    await cover(
-      pinPlace({
-        place: { ...VALID_PLACE, placeName: 'Fira', city: 'Fira' },
-        sourceHost: 'blog.example',
-      })
-    );
-    await waitFor(() => {
-      expect(board.querySelectorAll('li')).toHaveLength(2);
-    });
-
-    const mono = board.querySelectorAll('li')[1] as HTMLElement;
-    expect(mono.querySelector('img')).toBeNull();
-    expect(mono.querySelector('.thumb-monogram')?.textContent).toBe('F');
-    expect(mono.querySelector('.item-remote')).toBeNull();
-  });
-
-  it('keeps pins with provenance across a panel restart', async () => {
-    const first = await setup();
-
-    const { pinPlace } = await cover(import('./board_store'));
-    await cover(pinPlace({ place: { ...VALID_PLACE }, sourceHost: 'example.com' }));
-    await cover(
-      pinPlace({
-        place: { ...VALID_PLACE, placeName: 'Fira', city: 'Fira' },
-        sourceHost: 'blog.example',
-      })
-    );
-    await waitFor(() => {
-      expect(document.querySelectorAll('#board-slot li')).toHaveLength(2);
-    });
-
-    const saved = new Map(first.local.data);
-    teardownPage();
-
-    await setup((mock) => {
-      for (const [key, value] of saved) {
-        mock.local.data.set(key, structuredClone(value));
-      }
-    });
-
-    const board = document.querySelector('#board-slot') as HTMLElement;
-    await waitFor(() => {
-      expect(board.querySelectorAll('li')).toHaveLength(2);
-    });
-
-    const hosts = [...board.querySelectorAll('li .item-host')].map((el) => el.textContent);
-    expect(hosts).toEqual(['example.com', 'blog.example']);
-  });
-
-  it('reflects another window’s board edits', async () => {
-    await setup();
-
-    const { pinPlace, removePin } = await cover(import('./board_store'));
-
-    const board = document.querySelector('#board-slot') as HTMLElement;
-    expect(board.querySelectorAll('li')).toHaveLength(0);
-
-    await cover(pinPlace({ place: { ...VALID_PLACE }, sourceHost: 'example.com' }));
-    await waitFor(() => {
-      expect(board.querySelectorAll('li')).toHaveLength(1);
-    });
-    expect(board.querySelector('li .item-host')?.textContent).toBe('example.com');
-
-    await cover(removePin('Oia', 'Greece'));
-    await waitFor(() => {
-      expect(board.querySelectorAll('li')).toHaveLength(0);
-    });
-  });
-
-  it('views, removes, and exports the board without an API key', async () => {
-    await setup();
-
-    const { pinPlace } = await cover(import('./board_store'));
-    await cover(pinPlace({ place: { ...VALID_PLACE }, sourceHost: 'example.com' }));
-    await cover(
-      pinPlace({
-        place: { ...VALID_PLACE, placeName: 'Fira', city: 'Fira' },
-        sourceHost: 'blog.example',
-      })
-    );
-
-    const board = document.querySelector('#board-slot') as HTMLElement;
-    await waitFor(() => {
-      expect(board.querySelectorAll('li')).toHaveLength(2);
-    });
-
-    const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined);
-
-    clickEl(board.querySelector('.copy-trip-button') as HTMLButtonElement);
-    await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe('boardCopied');
-    });
-
-    const markdown = writeText.mock.calls[0][0] as string;
-    expect(markdown).toContain('**Oia, Greece** - found on example.com');
-    expect(markdown).toContain('**Fira, Greece** - found on blog.example');
-    expect(markdown).toContain('Open the route in Google Maps');
-
-    clickEl(board.querySelector('li .remove-button') as HTMLButtonElement);
-    await waitFor(() => {
-      expect(board.querySelectorAll('li')).toHaveLength(1);
-    });
-    await waitFor(() => {
-      expect(board.querySelector('.notice span')?.textContent).toBe('boardRemoved(Oia)');
-    });
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it('labels the board retry for failed removals', async () => {
-    const mock = await setup();
-    await plantKeyAndConsent();
-    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
-    await settleWrite(mock.session.set({ [SLOT]: READY() }));
-    await waitForHeading('Oia');
-    clickEl(document.querySelector('#result-slot .pin-button') as HTMLButtonElement);
-    await waitFor(() => {
-      expect(document.querySelector('#board-slot li')).not.toBeNull();
-    });
-
-    const fail = vi.spyOn(mock.local, 'set').mockRejectedValueOnce(new Error('quota'));
-    clickEl(document.querySelector('#board-slot li .remove-button') as HTMLButtonElement);
-    await waitFor(() => {
-      expect(document.querySelector('#board-slot .notice button')?.textContent).toBe(
-        'boardRetryRemove'
-      );
-    });
-    fail.mockRestore();
-  });
-
-  it('retries failed pins without the thumbnail', async () => {
-    const mock = await setup();
-    await plantKeyAndConsent();
-    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
-    await settleWrite(mock.session.set({ [SLOT]: READY() }));
-    await waitForHeading('Oia');
-
-    const fail = vi.spyOn(mock.local, 'set').mockRejectedValueOnce(new Error('quota'));
-
-    const card = document.querySelector('#result-slot') as HTMLElement;
-    clickEl(card.querySelector('.pin-button') as HTMLButtonElement);
-    await waitFor(() => {
-      expect(document.querySelector('#alert-region')?.textContent).toBe('alertPinFail(Oia)');
-    });
-
-    const board = document.querySelector('#board-slot') as HTMLElement;
-    expect(board.querySelector('.notice')?.textContent).toContain('boardNoticePinFail');
-    fail.mockRestore();
-    selectBoardTab();
-    clickEl(board.querySelector('.notice button') as HTMLButtonElement);
-    await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned(Oia | 1)');
-    });
-
-    const { listPins } = await cover(import('./board_store'));
-
-    const pins = await cover(listPins());
-    expect(pins).toHaveLength(1);
-    expect(pins[0].thumbnail).toBeUndefined();
-  });
-
-  it('clears the board through the inline confirm', async () => {
-    const mock = await setup();
-    await plantKeyAndConsent();
-    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
-    await settleWrite(mock.session.set({ [SLOT]: READY() }));
-    await waitForHeading('Oia');
-
-    const card = document.querySelector('#result-slot') as HTMLElement;
-    clickEl(card.querySelector('.pin-button') as HTMLButtonElement);
-    await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned(Oia | 1)');
-    });
-
-    const board = document.querySelector('#board-slot') as HTMLElement;
-    selectBoardTab();
-    clickEl(board.querySelector('.clear-button') as HTMLButtonElement);
-    expect(board.querySelector('.confirm-heading')?.textContent).toBe('boardClearTitle(1)');
-
-    const [, cancel] = [
-      ...(board.querySelectorAll('.confirm-actions button') ?? []),
-    ] as HTMLButtonElement[];
-    clickEl(cancel);
-    expect(board.querySelectorAll('li')).toHaveLength(1);
-    clickEl(board.querySelector('.clear-button') as HTMLButtonElement);
-
-    const [confirm] = [
-      ...(board.querySelectorAll('.confirm-actions button') ?? []),
-    ] as HTMLButtonElement[];
-    clickEl(confirm);
-    await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe('boardCleared');
-    });
-    expect(board.querySelectorAll('li')).toHaveLength(0);
-    expect(document.activeElement?.className).toContain('disclosure');
-  });
-
   it('renders the scan skeleton while the harvest is collecting', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
@@ -1470,7 +973,6 @@ describe('sidepanel', () => {
     );
     expect(cards?.[1]?.querySelector('img')).toBeNull();
     expect(cards?.[1]?.querySelector('.thumb-placeholder')).not.toBeNull();
-    expect(cards?.[0]?.querySelector('.pin-button')?.getAttribute('aria-pressed')).toBe('false');
     expect(document.querySelector('#privacy-line')?.textContent).toBe(
       "privacyScan(Meta's Muse API)"
     );
@@ -1590,7 +1092,7 @@ describe('sidepanel', () => {
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
     await settleWrite(mock.session.set({ [SLOT]: READY({ requestId: '400-1' }) }));
     await waitForHeading('Oia');
-    focusEl(document.querySelector('#result-slot .pin-button') as HTMLButtonElement);
+    focusEl(document.querySelector('#result-slot .chips-row .chip') as HTMLButtonElement);
     await settleWrite(
       mock.session.set({
         [SLOT]: READY({ requestId: '400-2', dataPending: true, srcUrl: '' }),
@@ -1698,74 +1200,6 @@ describe('sidepanel', () => {
     );
     await waitForHeading('scanNoneTitle');
     expect(fetchMock).toHaveBeenCalledTimes(1);
-  });
-
-  it('pins scan cards singly and in bulk', async () => {
-    const mock = await setup();
-    await plantKeyAndConsent();
-
-    const { listPins } = await cover(import('./board_store'));
-    fetchMock.mockResolvedValueOnce(
-      chatResponse({
-        places: [
-          { placeName: 'Oia', city: 'Oia', country: 'Greece', confidence: 0.9, imageIndex: 0 },
-          { placeName: 'Fira', city: 'Fira', country: 'Greece', confidence: 0.8, imageIndex: 1 },
-        ],
-      })
-    );
-    await settleWrite(
-      mock.session.set({
-        [SLOT]: READY({
-          srcUrl: '',
-          signals: undefined,
-          scanImages: [
-            {
-              url: 'https://img.example.com/a.jpg',
-              caption: '',
-              heading: '',
-              width: 800,
-              height: 600,
-            },
-            {
-              url: 'https://img.example.com/b.jpg',
-              caption: '',
-              heading: '',
-              width: 800,
-              height: 600,
-            },
-          ],
-        }),
-      })
-    );
-    await waitFor(() => {
-      const list = document.querySelector('#result-slot');
-      expect(list?.querySelectorAll('.scan-card')).toHaveLength(2);
-    });
-
-    const list = document.querySelector('#result-slot') as HTMLElement;
-
-    const cards = list.querySelectorAll('.scan-card');
-    clickEl(cards?.[0]?.querySelector('.pin-button') as HTMLButtonElement);
-    await waitFor(async () => {
-      expect(await cover(listPins())).toHaveLength(1);
-    });
-    expect((await cover(listPins()))[0]?.imageUrl).toBe('https://img.example.com/a.jpg');
-    await waitFor(() => {
-      const pressed = document
-        .querySelector('#result-slot')
-        ?.querySelectorAll('.scan-card')[0]
-        ?.querySelector('.pin-button')
-        ?.getAttribute('aria-pressed');
-      expect(pressed).toBe('true');
-    });
-
-    for (const box of list.querySelectorAll('input[type="checkbox"]') ?? []) {
-      clickEl(box as HTMLInputElement);
-    }
-    clickEl(list.querySelector('.pin-selected') as HTMLButtonElement);
-    await waitFor(async () => {
-      expect(await cover(listPins())).toHaveLength(2);
-    });
   });
 
   it('retries a failed scan from the error card', async () => {
@@ -1895,53 +1329,6 @@ describe('sidepanel', () => {
 
     const [altUrl] = fetchMock.mock.calls[1] as [string, RequestInit];
     expect(altUrl).toContain('/chat/completions');
-  });
-
-  it('pins alternates to the board with a monogram tile', async () => {
-    const mock = await setup();
-    await plantKeyAndConsent();
-    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE)).mockResolvedValueOnce(
-      groundedResponse({
-        alternatives: [
-          {
-            placeName: 'Fira',
-            country: 'Greece',
-            why: 'Same caldera, lower prices.',
-            bestMonth: 'May',
-          },
-        ],
-      })
-    );
-    await settleWrite(mock.session.set({ [SLOT]: READY() }));
-    await waitForHeading('Oia');
-
-    const card = document.querySelector('#result-slot') as HTMLElement;
-    clickEl(card.querySelector('.chips-row .chip') as HTMLButtonElement);
-    await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe('alternatesReady(1)');
-    });
-
-    const fresh = document.querySelector('#result-slot') as HTMLElement;
-
-    const pin = fresh.querySelector('.alternate-card .pin-button') as HTMLButtonElement;
-    expect(pin.getAttribute('aria-pressed')).toBe('false');
-    expect(fresh.querySelector('.alternate-card .thumb-monogram')?.textContent).toBe('F');
-    clickEl(pin);
-    await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned(Fira | 1)');
-    });
-
-    const board = document.querySelector('#board-slot') as HTMLElement;
-
-    const entries = board.querySelectorAll('li');
-    expect(entries).toHaveLength(1);
-    expect(entries[0]?.querySelector('.item-name')?.textContent).toContain('Fira');
-    expect(entries[0]?.querySelector('.thumb-monogram')?.textContent).toBe('F');
-
-    const synced = document.querySelector('#result-slot') as HTMLElement;
-    expect(synced.querySelector('.alternate-card .pin-button')?.getAttribute('aria-pressed')).toBe(
-      'true'
-    );
   });
 
   it('recovers from alternates failure with chips intact', async () => {
@@ -2832,59 +2219,6 @@ describe('sidepanel', () => {
     expect(document.querySelector('#result-slot .hint')?.textContent).toBe('panelIdle');
   });
 
-  it('cancels a hanging itinerary from the loading card', async () => {
-    const mock = await setup();
-    await plantKeyAndConsent();
-
-    const FIRA = { ...VALID_PLACE, placeName: 'Fira', city: 'Fira' };
-    fetchMock
-      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
-      .mockResolvedValueOnce(chatResponse(FIRA));
-    await settleWrite(mock.session.set({ [SLOT]: READY() }));
-    await waitForHeading('Oia');
-
-    const card = document.querySelector('#result-slot') as HTMLElement;
-    clickEl(card.querySelector('.pin-button') as HTMLButtonElement);
-    await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned(Oia | 1)');
-    });
-    await settleWrite(
-      mock.session.set({
-        [SLOT]: READY({
-          requestId: '200-2',
-          srcUrl: 'https://cdn.example.com/fira.jpg',
-        }),
-      })
-    );
-    await waitFor(() => {
-      expect(card.querySelector('h2')?.textContent).toBe('Fira');
-    });
-    clickEl(card.querySelector('.pin-button') as HTMLButtonElement);
-    await waitFor(() => {
-      const board = document.querySelector('#board-slot') as HTMLElement;
-      expect(board.querySelectorAll('li')).toHaveLength(2);
-    });
-
-    hangUntilAbort();
-    clickEl(document.querySelector('#board-slot .plan-button') as HTMLButtonElement);
-
-    await waitFor(() => {
-      expect(document.querySelector('#result-slot .cancel-button')?.textContent).toBe(
-        'cancelButton'
-      );
-    });
-    expect(document.querySelector('#result-slot .cosmetic')?.textContent).toBe(
-      'loadingPhaseWriting'
-    );
-
-    clickEl(document.querySelector('#result-slot .cancel-button') as HTMLButtonElement);
-
-    await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe('statusCanceled');
-    });
-    expect(document.querySelector('#result-slot .hint')?.textContent).toBe('panelIdle');
-  });
-
   it('cancels a hanging scan from the scan skeleton', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
@@ -2940,7 +2274,7 @@ describe('sidepanel', () => {
     expect(catalog.noPlaceBody.message).toContain('paid analysis');
   });
 
-  it('shows confidence, source, and the save action', async () => {
+  it('shows confidence and source', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
@@ -2953,61 +2287,7 @@ describe('sidepanel', () => {
     );
     expect(card.querySelector('.confidence-scale')?.textContent).toBe('confidenceScale');
     expect(card.querySelector('.source')?.textContent).toBe('sourceLine(example.com)');
-    expect(card.querySelector('.pin-button')?.textContent).toBe('pinButton(Oia)');
     expect(card.querySelector('section.secondary')).not.toBeNull();
-
-    const catalog = JSON.parse(readFileSync(CATALOG_PATH, 'utf8')) as Record<
-      string,
-      { message: string }
-    >;
-    expect(catalog.pinButton.message).toBe('Save $1 to trip');
-  });
-
-  it('marks scan pins saved with pressed state', async () => {
-    const mock = await setup();
-    await plantKeyAndConsent();
-    fetchMock.mockResolvedValueOnce(
-      chatResponse({
-        places: [
-          { placeName: 'Oia', city: 'Oia', country: 'Greece', confidence: 0.9, imageIndex: 0 },
-        ],
-      })
-    );
-    await settleWrite(
-      mock.session.set({
-        [SLOT]: READY({
-          srcUrl: '',
-          signals: undefined,
-          scanImages: [
-            {
-              url: 'https://img.example.com/a.jpg',
-              caption: '',
-              heading: '',
-              width: 800,
-              height: 600,
-            },
-          ],
-        }),
-      })
-    );
-    await waitFor(() => {
-      expect(document.querySelectorAll('#result-slot .scan-card')).toHaveLength(1);
-    });
-
-    const pin = document.querySelector('#result-slot .scan-card .pin-button') as HTMLButtonElement;
-    expect(pin.textContent).toBe('pinButton(Oia)');
-    clickEl(pin);
-
-    await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned(Oia | 1)');
-    });
-
-    const saved = document.querySelector(
-      '#result-slot .scan-card .pin-button'
-    ) as HTMLButtonElement;
-    expect(saved.textContent).toBe('savedButton(Oia)');
-    expect(saved.getAttribute('aria-pressed')).toBe('true');
-    expect(saved.disabled).toBe(true);
   });
 
   it('retries an empty scan from the error card', async () => {
@@ -3073,8 +2353,9 @@ describe('sidepanel', () => {
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
 
-    focusEl(document.querySelector('#result-slot .pin-button') as HTMLButtonElement);
-    expect(document.activeElement?.className).toContain('pin-button');
+    const chip = document.querySelector('#result-slot .chips-row .chip') as HTMLButtonElement;
+    focusEl(chip);
+    expect(document.activeElement).toBe(chip);
 
     hangUntilAbort();
     await settleWrite(
@@ -3100,13 +2381,6 @@ describe('sidepanel', () => {
     const mock = await setup();
     await plantKeyAndConsent();
 
-    const { pinPlace } = await cover(import('./board_store'));
-    await settleWrite(
-      pinPlace({
-        place: { ...VALID_PLACE, placeName: 'Fira', city: 'Fira', confidence: 0.8 },
-        sourceHost: 'example.com',
-      })
-    );
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE)).mockResolvedValueOnce(
       groundedResponse({
         alternatives: [
@@ -3130,17 +2404,17 @@ describe('sidepanel', () => {
 
     const fresh = document.querySelector('#result-slot') as HTMLElement;
     const controls = [...fresh.querySelectorAll('button, select, input, a[href]')];
-    expect(controls.length).toBeGreaterThan(5);
+    expect(controls.length).toBeGreaterThan(3);
 
     for (const control of controls) {
       expect((control as HTMLElement).tabIndex).toBeGreaterThanOrEqual(0);
     }
 
     expect(fresh.querySelectorAll('[role="button"]')).toHaveLength(0);
-    expect((controls[0] as HTMLElement).className).toContain('pin-button');
+    expect((controls[0] as HTMLElement).className).toContain('chip');
 
-    const pin = fresh.querySelector('.pin-button') as HTMLButtonElement;
-    focusEl(pin);
-    expect(document.activeElement).toBe(pin);
+    const chip = fresh.querySelector('.chips-row .chip') as HTMLButtonElement;
+    focusEl(chip);
+    expect(document.activeElement).toBe(chip);
   });
 });

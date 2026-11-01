@@ -1,12 +1,11 @@
 import type { ModelRates } from '../pricing';
 import { parseEndpointOrigin } from '../settings_store';
-import { alternatesJsonSchema, itineraryJsonSchema, scanBatchJsonSchema } from '../types';
+import { alternatesJsonSchema, scanBatchJsonSchema } from '../types';
 import {
   PROMPT_CACHE_KEY,
   ProviderError,
   assertConsent,
   buildAlternatesMessages,
-  buildItineraryMessages,
   buildScanMessages,
   emptyUsage,
   extractChatJson,
@@ -14,7 +13,6 @@ import {
   filterScanImages,
   invalidResponse,
   parseAlternatesContent,
-  parseItineraryPlan,
   parseScanBatch,
   remapScanPlaces,
   requireKey,
@@ -26,8 +24,6 @@ import {
   type IdentifyInput,
   type IdentifyRequest,
   type IdentifyResult,
-  type ItineraryInput,
-  type ItineraryResult,
   type OpenAiCompatSettings,
   type Provider,
   type ProviderCapabilities,
@@ -42,7 +38,7 @@ const IDENTIFY_MAX_TOKENS = 2048;
 
 // Multi-image batches share the muse output budget: 2048 truncates the
 // JSON mid-array, and the truncated half bills a strict retry for nothing.
-const ITINERARY_MAX_TOKENS = 4096;
+const STRUCTURED_MAX_TOKENS = 4096;
 
 export class OpenAiCompatProvider implements Provider {
   readonly id = 'openai_compat';
@@ -117,48 +113,6 @@ export class OpenAiCompatProvider implements Provider {
     };
   }
 
-  async planItinerary(key: string, input: ItineraryInput): Promise<ItineraryResult> {
-    requireKey(key);
-    await assertConsent();
-
-    const base = this.baseURL();
-
-    const usage = emptyUsage();
-
-    if (input.pins.length === 0) {
-      throw invalidResponse(usage, 'no pins to plan');
-    }
-
-    const stopNames = input.pins.map((pin) => pin.name);
-
-    for (const strictReminder of [false, true]) {
-      const data = await fetchChatCompletion(
-        `${base}/chat/completions`,
-        key,
-        {
-          model: this.config.model,
-          prompt_cache_key: PROMPT_CACHE_KEY,
-          max_completion_tokens: ITINERARY_MAX_TOKENS,
-          messages: buildItineraryMessages(input.pins, strictReminder),
-          response_format: {
-            type: 'json_schema',
-            json_schema: { name: 'itinerary', schema: itineraryJsonSchema(stopNames) },
-          },
-        },
-        input.signal,
-        usage
-      );
-
-      const plan = parseItineraryPlan(data, stopNames);
-
-      if (plan) {
-        return { plan, usage: { ...usage } };
-      }
-    }
-
-    throw invalidResponse(usage, 'model output failed validation');
-  }
-
   async scanPlaces(key: string, input: ScanInput): Promise<ScanResult> {
     requireKey(key);
 
@@ -185,7 +139,7 @@ export class OpenAiCompatProvider implements Provider {
         {
           model: this.config.model,
           prompt_cache_key: PROMPT_CACHE_KEY,
-          max_completion_tokens: ITINERARY_MAX_TOKENS,
+          max_completion_tokens: STRUCTURED_MAX_TOKENS,
           messages: buildScanMessages(kept, strictReminder),
           response_format: {
             type: 'json_schema',

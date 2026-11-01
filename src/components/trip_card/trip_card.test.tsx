@@ -19,12 +19,10 @@ const CONF = { line: 'Confidence: High (0.90).', showScale: true };
 const noop = () => {};
 
 const fullCallbacks = (overrides: Partial<TripCardCallbacks> = {}): TripCardCallbacks => ({
-  onPin: noop,
   onReanalyze: noop,
   onRetry: noop,
   onLookAgain: noop,
   onAlternates: noop,
-  onPinAlternate: noop,
   onCancelAlternates: noop,
   onCancelLoading: noop,
   onDismissError: noop,
@@ -90,7 +88,6 @@ describe('trip-card', () => {
       view: 'result',
       place: PLACE,
       lowConfidence: false,
-      pinned: false,
       canReanalyze: true,
       confidence: { line: 'Confidence: High (0.90).', showScale: true },
       sourceHost: 'example.com',
@@ -123,7 +120,6 @@ describe('trip-card', () => {
       view: 'result',
       place: PLACE,
       lowConfidence: false,
-      pinned: false,
       canReanalyze: false,
       confidence: { line: 'confidenceChosen', showScale: false },
       sourceHost: null,
@@ -138,7 +134,6 @@ describe('trip-card', () => {
       view: 'result',
       place: PLACE,
       lowConfidence: false,
-      pinned: false,
       canReanalyze: false,
       confidence: CONF,
       sourceHost: 'example.com',
@@ -155,7 +150,6 @@ describe('trip-card', () => {
         view: 'result',
         place: PLACE,
         lowConfidence: false,
-        pinned: false,
         canReanalyze: true,
         confidence: CONF,
         sourceHost: 'example.com',
@@ -173,7 +167,6 @@ describe('trip-card', () => {
         view: 'result',
         place: { ...PLACE, confidence: 0.2 },
         lowConfidence: true,
-        pinned: false,
         canReanalyze: true,
         confidence: CONF,
         sourceHost: 'example.com',
@@ -196,7 +189,6 @@ describe('trip-card', () => {
       view: 'result',
       place: { ...PLACE, city: '', country: '', oneLiner: '' },
       lowConfidence: false,
-      pinned: false,
       canReanalyze: true,
       confidence: CONF,
       sourceHost: 'example.com',
@@ -212,7 +204,6 @@ describe('trip-card', () => {
       view: 'result',
       place: { ...PLACE, oneLiner },
       lowConfidence: false,
-      pinned: false,
       canReanalyze: true,
       confidence: CONF,
       sourceHost: 'example.com',
@@ -231,7 +222,6 @@ describe('trip-card', () => {
         view: 'result',
         place: PLACE,
         lowConfidence: false,
-        pinned: false,
         canReanalyze: true,
         confidence: CONF,
         sourceHost: 'example.com',
@@ -256,7 +246,6 @@ describe('trip-card', () => {
         view: 'result',
         place: PLACE,
         lowConfidence: false,
-        pinned: false,
         canReanalyze: true,
         confidence: CONF,
         sourceHost: 'example.com',
@@ -282,7 +271,6 @@ describe('trip-card', () => {
       view: 'result',
       place: PLACE,
       lowConfidence: false,
-      pinned: false,
       canReanalyze: true,
       confidence: CONF,
       sourceHost: 'example.com',
@@ -294,7 +282,6 @@ describe('trip-card', () => {
             name: 'Fira, Greece',
             why: 'Same caldera, lower prices.',
             bestMonth: 'May',
-            pinned: false,
           },
         ],
       },
@@ -303,50 +290,6 @@ describe('trip-card', () => {
     expect(root.querySelector('.alternate-name')?.textContent).toBe('Fira, Greece');
     expect(root.querySelector('.alternate-why')?.textContent).toBe('Same caldera, lower prices.');
     expect(root.querySelector('.alternate-month')?.textContent).toBe('alternatesBestMonth(May)');
-  });
-
-  it('pins alternate cards with a monogram tile', () => {
-    const onPinAlternate = vi.fn();
-
-    const root = renderCard(
-      {
-        view: 'result',
-        place: PLACE,
-        lowConfidence: false,
-        pinned: false,
-        canReanalyze: true,
-        confidence: CONF,
-        sourceHost: 'example.com',
-        alternates: {
-          state: 'ready',
-          intent: 'cheaper',
-          cards: [
-            {
-              name: 'Fira, Greece',
-              why: 'Same caldera, lower prices.',
-              bestMonth: 'May',
-              pinned: false,
-            },
-            { name: 'Oia, Greece', why: 'Same island.', bestMonth: 'June', pinned: true },
-          ],
-        },
-      },
-      { onPinAlternate }
-    ).container;
-
-    const tiles = root.querySelectorAll('.alternate-card .thumb-monogram');
-    expect(tiles).toHaveLength(2);
-    expect(tiles[0]?.textContent).toBe('F');
-    expect(tiles[0]?.getAttribute('aria-hidden')).toBe('true');
-
-    const pins = root.querySelectorAll(
-      '.alternate-card .pin-button'
-    ) as NodeListOf<HTMLButtonElement>;
-    expect(pins).toHaveLength(2);
-    expect(pins[0]?.getAttribute('aria-pressed')).toBe('false');
-    expect(pins[1]?.getAttribute('aria-pressed')).toBe('true');
-    clickEl(pins[0]);
-    expect(onPinAlternate).toHaveBeenCalledWith(0);
   });
 
   it('renders no-place cards with escapes', () => {
@@ -418,7 +361,6 @@ describe('trip-card', () => {
       view: 'result',
       place: PLACE,
       lowConfidence: false,
-      pinned: false,
       canReanalyze: true,
       confidence: CONF,
       sourceHost: 'example.com',
@@ -427,90 +369,6 @@ describe('trip-card', () => {
     const heading = root.querySelector('h2') as HTMLHeadingElement;
     focusEl(heading);
     expect(document.activeElement?.tagName).toBe('H2');
-  });
-
-  it('renders the pin toggle with pressed state and event', () => {
-    const onPin = vi.fn();
-
-    const rendered = renderCard(
-      {
-        view: 'result',
-        place: PLACE,
-        lowConfidence: false,
-        pinned: false,
-        canReanalyze: true,
-        confidence: CONF,
-        sourceHost: 'example.com',
-      },
-      { onPin }
-    );
-
-    const root = rendered.container;
-
-    const pin = root.querySelector('.pin-button') as HTMLButtonElement;
-    expect(pin.textContent).toBe('pinButton(Oia)');
-    expect(pin.getAttribute('aria-pressed')).toBe('false');
-    clickEl(pin);
-    expect(onPin).toHaveBeenCalledTimes(1);
-    rerenderCard(
-      rendered,
-      {
-        view: 'result',
-        place: PLACE,
-        lowConfidence: false,
-        pinned: true,
-        canReanalyze: true,
-        confidence: CONF,
-        sourceHost: 'example.com',
-      },
-      { onPin }
-    );
-    expect(root.querySelector('.pin-button')?.getAttribute('aria-pressed')).toBe('true');
-    expect(root.querySelector('.pin-button')?.textContent).toBe('savedButton(Oia)');
-  });
-
-  it('renders itineraries with stops, nights, links, and the Maps route', () => {
-    const root = renderCard({
-      view: 'itinerary',
-      title: 'Trip plan - 2 stops',
-      stops: [
-        {
-          name: 'Oia, Greece',
-          nights: 2,
-          links: [{ id: 'maps', href: 'https://maps.example/q' }],
-        },
-        { name: 'Fira, Greece', nights: null, links: [] },
-      ],
-      mapsUrl: 'https://maps.example/dir',
-      mapsLabel: 'Open route in Google Maps (2 stops)',
-    }).container;
-    expect(root.querySelector('h2')?.textContent).toBe('Trip plan - 2 stops');
-
-    const entries = [...root.querySelectorAll('.stop-list li')];
-    expect(entries).toHaveLength(2);
-    expect(entries[0].querySelector('.stop-name')?.textContent).toBe('Oia, Greece');
-    expect(entries[0].querySelector('.stop-nights')?.textContent).toBe('itineraryNights(2)');
-    expect(entries[1].querySelector('.stop-nights')).toBeNull();
-
-    const stopLink = entries[0].querySelector('.stop-links a') as HTMLAnchorElement;
-    expect(stopLink.href).toBe('https://maps.example/q');
-    expect(stopLink.target).toBe('_blank');
-    expect(stopLink.querySelector('.visually-hidden')?.textContent).toBe('newTabSuffix');
-
-    const maps = root.querySelector('.maps-link') as HTMLAnchorElement;
-    expect(maps.textContent).toContain('Open route in Google Maps (2 stops)');
-    expect(maps.querySelector('.visually-hidden')?.textContent).toBe('newTabSuffix');
-  });
-
-  it('omits the Maps link when no route exists', () => {
-    const root = renderCard({
-      view: 'itinerary',
-      title: 'Trip plan - 1 stop',
-      stops: [{ name: 'Oia', nights: null, links: [] }],
-      mapsUrl: null,
-      mapsLabel: '',
-    }).container;
-    expect(root.querySelector('.maps-link')).toBeNull();
   });
 
   it('fires retry once with a loading state', () => {

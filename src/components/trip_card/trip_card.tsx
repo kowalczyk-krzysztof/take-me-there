@@ -4,15 +4,8 @@ import styles from './trip_card.module.css';
 import { IdleView } from './idle_view';
 import { LoadingView } from './loading_view';
 import { ResultView } from './result_view';
-import { ItineraryView } from './itinerary_view';
 import { NoPlaceView } from './no_place_view';
 import { ErrorView } from './error_view';
-
-export interface ItineraryStopView {
-  name: string;
-  nights: number | null;
-  links: Array<{ id: string; href: string }>;
-}
 
 export interface ConfidenceView {
   line: string;
@@ -25,11 +18,6 @@ export interface AlternateCardView {
   name: string;
   why: string;
   bestMonth: string;
-  pinned: boolean;
-}
-
-export interface TripPinAlternateDetail {
-  index: number;
 }
 
 export type AlternatesView =
@@ -37,27 +25,13 @@ export type AlternatesView =
   | { state: 'loading'; intent: AlternateIntentView }
   | { state: 'ready'; intent: AlternateIntentView; cards: AlternateCardView[] };
 
-export interface TripCompareDetail {
-  value: string;
-}
-
-export interface TripAlternatesDetail {
-  intent: AlternateIntentView;
-}
-
-export interface TripPlanInsteadDetail {
-  index: number;
-}
-
-export type LoadingPhase = 'collecting' | 'identifying' | 'writing';
+export type LoadingPhase = 'collecting' | 'identifying';
 
 export interface TripCardCallbacks {
-  onPin: () => void;
   onReanalyze: () => void;
   onRetry: () => void;
   onLookAgain: () => void;
   onAlternates: (intent: AlternateIntentView) => void;
-  onPinAlternate: (index: number) => void;
   onCancelAlternates: () => void;
   onCancelLoading: () => void;
   onDismissError: () => void;
@@ -70,7 +44,6 @@ export type CardState =
       view: 'result';
       place: PlaceResult;
       lowConfidence: boolean;
-      pinned: boolean;
       canReanalyze: boolean;
       confidence: ConfidenceView;
       sourceHost: string | null;
@@ -83,13 +56,6 @@ export type CardState =
       body: string;
       showRetry: boolean;
       fallback?: { label: string; href: string } | null;
-    }
-  | {
-      view: 'itinerary';
-      title: string;
-      stops: ItineraryStopView[];
-      mapsUrl: string | null;
-      mapsLabel: string;
     };
 
 interface Props {
@@ -123,7 +89,6 @@ export const TripCard = ({ card, callbacks }: Props) => {
         <ResultView
           place={card.place}
           lowConfidence={card.lowConfidence}
-          pinned={card.pinned}
           canReanalyze={card.canReanalyze}
           confidence={card.confidence}
           sourceHost={card.sourceHost}
@@ -151,17 +116,6 @@ export const TripCard = ({ card, callbacks }: Props) => {
           showRetry={card.showRetry}
           fallback={card.fallback ?? null}
           callbacks={callbacks}
-        />
-      );
-
-      break;
-    case 'itinerary':
-      view = (
-        <ItineraryView
-          title={card.title}
-          stops={card.stops}
-          mapsUrl={card.mapsUrl}
-          mapsLabel={card.mapsLabel}
         />
       );
 

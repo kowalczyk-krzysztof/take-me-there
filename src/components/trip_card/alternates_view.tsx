@@ -5,11 +5,10 @@ import type { AlternatesView as AlternatesState } from './trip_card';
 
 interface Props {
   alternates: AlternatesState;
-  onPinAlternate: (index: number) => void;
   onCancel: () => void;
 }
 
-export const AlternatesView = ({ alternates, onPinAlternate, onCancel }: Props) => {
+export const AlternatesView = ({ alternates, onCancel }: Props) => {
   if (alternates.state === 'idle') {
     return <div className={styles.alternates} hidden />;
   }
@@ -31,26 +30,14 @@ export const AlternatesView = ({ alternates, onPinAlternate, onCancel }: Props) 
 
   return (
     <div className={styles.alternates} aria-busy="false">
-      {alternates.cards.map((card, index) => (
-        <div key={index} className={styles['alternate-card']}>
+      {alternates.cards.map((card) => (
+        <div key={card.name} className={styles['alternate-card']}>
           <div className={styles['alternate-head']}>
             <Monogram name={card.name} />
             <p className={styles['alternate-name']}>{card.name}</p>
           </div>
           <p className={styles['alternate-why']}>{card.why}</p>
           <p className={styles['alternate-month']}>{msg('alternatesBestMonth', card.bestMonth)}</p>
-          <div className={styles['alternate-actions']}>
-            <button
-              type="button"
-              className={styles['pin-button']}
-              aria-pressed={card.pinned}
-              onClick={() => {
-                onPinAlternate(index);
-              }}
-            >
-              {card.pinned ? msg('savedButton', card.name) : msg('pinButton', card.name)}
-            </button>
-          </div>
         </div>
       ))}
     </div>

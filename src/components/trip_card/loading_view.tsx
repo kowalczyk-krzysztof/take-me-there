@@ -5,7 +5,6 @@ import type { LoadingPhase } from './trip_card';
 const PHASE_KEYS: Record<LoadingPhase, string> = {
   collecting: 'loadingPhaseCollecting',
   identifying: 'loadingPhaseIdentifying',
-  writing: 'loadingPhaseWriting',
 };
 
 interface Props {

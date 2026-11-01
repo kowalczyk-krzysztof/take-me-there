@@ -102,20 +102,6 @@ describe('service-worker', () => {
     const mock = await setup();
     await mock.local.set({
       settings: { activeProviderId: 'muse' },
-      tripBoard: [
-        {
-          place: {
-            identified: true,
-            placeName: 'Oia',
-            city: 'Oia',
-            country: 'Greece',
-            confidence: 0.9,
-            oneLiner: 'Blue domes.',
-          },
-          sourceHost: 'example.com',
-          addedAt: 42,
-        },
-      ],
       costTotals: { '2026-03': 1.5 },
     });
 
@@ -127,7 +113,6 @@ describe('service-worker', () => {
       v: 1,
       settings: { activeProviderId: 'muse' },
     });
-    expect(mock.local.data.get('tripBoard')).toMatchObject({ v: 1 });
     expect(mock.local.data.get('costTotals')).toEqual({ v: 1, months: { '2026-03': 1.5 } });
   });
 

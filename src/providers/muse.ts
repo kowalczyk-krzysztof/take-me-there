@@ -1,7 +1,6 @@
 import { MUSE_SPARK_RATES, SAM_IMAGE_COST_USD, type ModelRates } from '../pricing';
 import {
   alternatesJsonSchema,
-  itineraryJsonSchema,
   placeJsonSchema,
   scanBatchJsonSchema,
   type PlaceResult,
@@ -15,7 +14,6 @@ import {
   assertConsent,
   buildAlternatesMessages,
   buildAlternatesPrompt,
-  buildItineraryMessages,
   buildScanMessages,
   emptyUsage,
   extractChatJson,
@@ -25,7 +23,6 @@ import {
   filterScanImages,
   invalidResponse,
   parseAlternatesContent,
-  parseItineraryPlan,
   parseScanBatch,
   readBoundedJson,
   remapScanPlaces,
@@ -45,8 +42,6 @@ import {
   type IdentifyInput,
   type IdentifyRequest,
   type IdentifyResult,
-  type ItineraryInput,
-  type ItineraryResult,
   type Provider,
   type ProviderCapabilities,
   type ScanInput,
@@ -62,7 +57,7 @@ const MODEL = 'muse-spark-1.3';
 
 const IDENTIFY_MAX_TOKENS = 2048;
 
-const ITINERARY_MAX_TOKENS = 4096;
+const STRUCTURED_MAX_TOKENS = 4096;
 
 export class MuseProvider implements Provider {
   readonly id = 'muse';
@@ -270,51 +265,6 @@ export class MuseProvider implements Provider {
     };
   }
 
-  async planItinerary(key: string, input: ItineraryInput): Promise<ItineraryResult> {
-    requireKey(key);
-    await assertConsent();
-
-    const usage = emptyUsage();
-
-    if (input.pins.length === 0) {
-      throw invalidResponse(usage, 'no pins to plan');
-    }
-
-    const stopNames = input.pins.map((pin) => pin.name);
-
-    for (const strictReminder of [false, true]) {
-      const data = await fetchChatCompletion(
-        `${API_BASE}/chat/completions`,
-        key,
-        {
-          model: MODEL,
-          prompt_cache_key: PROMPT_CACHE_KEY,
-          reasoning_effort: 'low',
-          max_completion_tokens: ITINERARY_MAX_TOKENS,
-          messages: buildItineraryMessages(input.pins, strictReminder),
-          response_format: {
-            type: 'json_schema',
-            json_schema: {
-              name: 'itinerary',
-              strict: true,
-              schema: itineraryJsonSchema(stopNames),
-            },
-          },
-        },
-        input.signal,
-        usage
-      );
-
-      const plan = parseItineraryPlan(data, stopNames);
-
-      if (plan) {
-        return { plan, usage: { ...usage } };
-      }
-    }
-
-    throw invalidResponse(usage, 'model output failed validation');
-  }
-
   async scanPlaces(key: string, input: ScanInput): Promise<ScanResult> {
     requireKey(key);
     await assertConsent();
@@ -339,7 +289,7 @@ export class MuseProvider implements Provider {
           model: MODEL,
           prompt_cache_key: PROMPT_CACHE_KEY,
           reasoning_effort: 'low',
-          max_completion_tokens: ITINERARY_MAX_TOKENS,
+          max_completion_tokens: STRUCTURED_MAX_TOKENS,
           messages: buildScanMessages(kept, strictReminder),
           response_format: {
             type: 'json_schema',
@@ -394,7 +344,7 @@ export class MuseProvider implements Provider {
           text: {
             format: { type: 'json_schema', name, strict: true, schema },
           },
-          max_output_tokens: ITINERARY_MAX_TOKENS,
+          max_output_tokens: STRUCTURED_MAX_TOKENS,
           stream: false,
         }),
         signal: fetchTimeout(signal),
@@ -445,7 +395,7 @@ export class MuseProvider implements Provider {
           model: MODEL,
           prompt_cache_key: PROMPT_CACHE_KEY,
           reasoning_effort: 'low',
-          max_completion_tokens: ITINERARY_MAX_TOKENS,
+          max_completion_tokens: STRUCTURED_MAX_TOKENS,
           messages: messages(strictReminder),
           response_format: {
             type: 'json_schema',

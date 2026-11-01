@@ -31,7 +31,6 @@ vi.mock('idb-keyval', () => {
 });
 
 import * as idbKeyval from 'idb-keyval';
-import { listPins, pinPlace } from './board_store';
 import { clearAllKeys, loadKey, saveKey, setKeyMode } from './key_vault';
 import { readMonthSpend, recordMonthSpend, resetMonthSpend } from './pricing';
 import { clearCacheEntries, getCacheEntry, setCacheEntry, type CacheEntry } from './result_cache';
@@ -112,13 +111,6 @@ describe('storage service protocol', () => {
 
     await expect(
       handleStorageMessage(
-        { scope: STORAGE_MESSAGE_SCOPE, command: { kind: 'board.add', pin: { nope: true } } },
-        PAGE_SENDER
-      )
-    ).resolves.toEqual({ ok: false, error: 'invalid payload' });
-
-    await expect(
-      handleStorageMessage(
         { scope: STORAGE_MESSAGE_SCOPE, command: { kind: 'spend.record', amountUsd: NaN, at: 1 } },
         PAGE_SENDER
       )
@@ -130,23 +122,12 @@ describe('storage service protocol', () => {
     ).resolves.toEqual({ ok: false, error: 'invalid spend amount' });
 
     // The queue still serves after rejections.
-    await pinPlace({ place: place('Oia'), sourceHost: 'example.com' });
-    expect((await listPins()).map((pin) => pin.place.placeName)).toEqual(['Oia']);
+    await setCacheEntry('after', entry('Oia'));
+    expect((await getCacheEntry('after'))?.place.placeName).toBe('Oia');
   });
 });
 
 describe('storage service concurrency', () => {
-  it('keeps every pin when two panels add concurrently', async () => {
-    const [a, b] = await Promise.all([
-      pinPlace({ place: place('Oia'), sourceHost: 'a.example.com' }),
-      pinPlace({ place: place('Fira'), sourceHost: 'b.example.com' }),
-    ]);
-
-    expect(a.status).toBe('pinned');
-    expect(b.status).toBe('pinned');
-    expect((await listPins()).map((pin) => pin.place.placeName).sort()).toEqual(['Fira', 'Oia']);
-  });
-
   it('sums concurrent spend records without lost updates', async () => {
     const date = new Date('2026-03-15T12:00:00Z');
 
@@ -165,29 +146,27 @@ describe('storage service concurrency', () => {
 
   it('converges when a migration races a write', async () => {
     await mock.local.set({
-      tripBoard: [{ place: place('Oia'), sourceHost: 'example.com', addedAt: 1 }],
+      settings: { activeProviderId: 'muse' },
     });
 
-    const [migration, added] = await Promise.all([
+    const [migration] = await Promise.all([
       handleStorageMessage(
         { scope: STORAGE_MESSAGE_SCOPE, command: { kind: 'migrate.run' } },
         PAGE_SENDER
       ),
-      pinPlace({ place: place('Fira'), sourceHost: 'example.com' }),
+      setCacheEntry('race', entry('Fira')),
     ]);
 
     expect(migration?.ok).toBe(true);
-    expect(added.status).toBe('pinned');
 
-    const stored = mock.local.data.get('tripBoard') as { v: number; pins: unknown[] };
+    const stored = mock.local.data.get('settings') as { v: number };
     expect(stored.v).toBe(1);
-    expect((await listPins()).map((pin) => pin.place.placeName).sort()).toEqual(['Fira', 'Oia']);
+    expect((await getCacheEntry('race'))?.place.placeName).toBe('Fira');
   });
 
   it('converges after a worker restart interrupts a migration', async () => {
     await mock.local.set({
       settings: { activeProviderId: 'muse' },
-      tripBoard: [{ place: place('Oia'), sourceHost: 'example.com', addedAt: 1 }],
       costTotals: { '2026-03': 1.5 },
     });
 
@@ -215,7 +194,6 @@ describe('storage service concurrency', () => {
 
       const steps = (partial as { ok: true; value: Array<{ name: string; ok: boolean }> }).value;
       expect(steps.find((step) => step.name === 'settings')?.ok).toBe(false);
-      expect(steps.find((step) => step.name === 'board')?.ok).toBe(true);
 
       // Restart: a fresh service instance holds no migration progress.
       mock.local.fault = () => undefined;
@@ -240,7 +218,6 @@ describe('storage service concurrency', () => {
 
     const settings = mock.local.data.get('settings') as { v: number };
     expect(settings.v).toBe(1);
-    expect((await listPins()).map((pin) => pin.place.placeName)).toEqual(['Oia']);
     expect(await readMonthSpend(new Date('2026-03-15T12:00:00Z'))).toBe(1.5);
   });
 

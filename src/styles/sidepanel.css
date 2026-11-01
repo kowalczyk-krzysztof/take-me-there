@@ -67,7 +67,6 @@ main {
 }
 
 #main-panel,
-#board-panel,
 #settings-panel {
   display: flex;
   flex-direction: column;

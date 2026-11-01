@@ -8,7 +8,6 @@ import { AlternatesView as AlternatesList } from './alternates_view';
 interface Props {
   place: PlaceResult;
   lowConfidence: boolean;
-  pinned: boolean;
   canReanalyze: boolean;
   confidence: ConfidenceView;
   sourceHost: string | null;
@@ -19,7 +18,6 @@ interface Props {
 export const ResultView = ({
   place,
   lowConfidence,
-  pinned,
   canReanalyze,
   confidence,
   sourceHost,
@@ -50,23 +48,9 @@ export const ResultView = ({
           {place.oneLiner}
         </p>
       ) : null}
-      <div className={styles['result-actions']}>
-        <button
-          type="button"
-          className={styles['pin-button']}
-          aria-pressed={pinned}
-          onClick={callbacks.onPin}
-        >
-          {pinned ? msg('savedButton', place.placeName) : msg('pinButton', place.placeName)}
-        </button>
-      </div>
       <section className={styles.secondary} aria-label={msg('secondaryHeading')}>
         <ChipsRow alternates={alternates} onAlternates={callbacks.onAlternates} />
-        <AlternatesList
-          alternates={alternates}
-          onPinAlternate={callbacks.onPinAlternate}
-          onCancel={callbacks.onCancelAlternates}
-        />
+        <AlternatesList alternates={alternates} onCancel={callbacks.onCancelAlternates} />
         {canReanalyze ? (
           <div className={styles['disagree-row']}>
             <span>{msg('notThisPlace')}</span>

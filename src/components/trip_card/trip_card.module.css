@@ -105,27 +105,9 @@
 .root a {
   color: var(--link);
 }
-.root .result-actions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  align-items: stretch;
-  margin: 8px 0 0;
-}
-.root .result-actions .pin-button,
-.root .result-actions .cancel-button {
-  margin: 0;
-}
-.root .pin-button[aria-pressed='true'] {
-  border-color: var(--link);
-  color: var(--link);
-}
 .root .cancel-button {
   margin-top: 8px;
   margin-inline-start: 8px;
-}
-.root .result-actions .cancel-button {
-  margin: 0;
 }
 .root .confidence {
   margin: 4px 0 0;
@@ -146,33 +128,6 @@
   margin: 12px 0 0;
   padding: 8px 0 0;
   border-top: 1px solid var(--border);
-}
-.root .stop-list {
-  margin: 8px 0;
-  padding-inline-start: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.root .stop-name {
-  margin: 0;
-  font-weight: 600;
-}
-.root .stop-nights {
-  margin: 0;
-  font-size: 0.75rem;
-  line-height: 1.5;
-  color: var(--muted);
-}
-.root .stop-links {
-  margin: 4px 0 0;
-  font-size: 0.75rem;
-  line-height: 1.5;
-}
-.root .maps-link {
-  display: inline-block;
-  margin-top: 8px;
-  font-weight: 600;
 }
 .root .chips-row {
   display: flex;
@@ -222,15 +177,6 @@
   align-items: center;
   margin: 0 0 4px;
 }
-.root .alternate-actions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  align-items: stretch;
-}
-.root .alternate-actions .pin-button {
-  margin: 0;
-}
 .root .alternate-name {
   margin: 0;
   font-weight: 600;
@@ -242,7 +188,7 @@
   line-height: 1.5;
 }
 .root .alternate-month {
-  margin: 0 0 8px;
+  margin: 0;
   font-size: 0.75rem;
   line-height: 1.5;
   color: var(--muted);

@@ -19,41 +19,24 @@ const LEGACY_SETTINGS = {
   sessionOnly: false,
 };
 
-const LEGACY_PIN = {
-  place: {
-    identified: true,
-    placeName: 'Oia',
-    city: 'Oia',
-    country: 'Greece',
-    confidence: 0.9,
-    oneLiner: 'Blue domes.',
-  },
-  sourceHost: 'example.com',
-  addedAt: 42,
-};
-
 describe('runUpdateMigrations', () => {
   it('wraps legacy bare records in versioned envelopes', async () => {
     await mock.local.set({
       settings: LEGACY_SETTINGS,
-      tripBoard: [LEGACY_PIN],
       costTotals: { '2026-03': 1.5 },
     });
     await runUpdateMigrations();
     expect(mock.local.data.get('settings')).toEqual({ v: 1, settings: LEGACY_SETTINGS });
-    expect(mock.local.data.get('tripBoard')).toEqual({ v: 1, pins: [LEGACY_PIN] });
     expect(mock.local.data.get('costTotals')).toEqual({ v: 1, months: { '2026-03': 1.5 } });
   });
 
   it('leaves versioned records, garbage, and absent keys alone', async () => {
     await mock.local.set({
       settings: { v: 1, settings: LEGACY_SETTINGS },
-      tripBoard: 'garbage',
       costTotals: [1, 2],
     });
     await runUpdateMigrations();
     expect(mock.local.data.get('settings')).toEqual({ v: 1, settings: LEGACY_SETTINGS });
-    expect(mock.local.data.get('tripBoard')).toBe('garbage');
     expect(mock.local.data.get('costTotals')).toEqual([1, 2]);
     await runUpdateMigrations();
     expect(mock.local.data.get('settings')).toEqual({ v: 1, settings: LEGACY_SETTINGS });
@@ -65,7 +48,6 @@ describe('runUpdateMigrations', () => {
     try {
       await mock.local.set({
         settings: LEGACY_SETTINGS,
-        tripBoard: [LEGACY_PIN],
         costTotals: { '2026-03': 1.5 },
       });
 
@@ -74,7 +56,7 @@ describe('runUpdateMigrations', () => {
       const fail = vi
         .spyOn(mock.local, 'set')
         .mockImplementation(async (items: Record<string, unknown>) => {
-          if ('tripBoard' in items) {
+          if ('costTotals' in items) {
             throw new Error('quota');
           }
 
@@ -87,9 +69,8 @@ describe('runUpdateMigrations', () => {
         fail.mockRestore();
       }
       expect(mock.local.data.get('settings')).toEqual({ v: 1, settings: LEGACY_SETTINGS });
-      expect(mock.local.data.get('costTotals')).toEqual({ v: 1, months: { '2026-03': 1.5 } });
-      expect(mock.local.data.get('tripBoard')).toEqual([LEGACY_PIN]);
-      expect(warn).toHaveBeenCalledWith('migration board failed', expect.any(Error));
+      expect(mock.local.data.get('costTotals')).toEqual({ '2026-03': 1.5 });
+      expect(warn).toHaveBeenCalledWith('migration spend failed', expect.any(Error));
     } finally {
       warn.mockRestore();
     }
@@ -98,7 +79,6 @@ describe('runUpdateMigrations', () => {
   it('purges legacy local cache records and preserves everything else', async () => {
     await mock.local.set({
       settings: LEGACY_SETTINGS,
-      tripBoard: [LEGACY_PIN],
       costTotals: { '2026-03': 1.5 },
       'vault:muse': { iv: 'x', ciphertext: 'y' },
       cacheKeys: ['a', 'b'],
@@ -113,7 +93,6 @@ describe('runUpdateMigrations', () => {
     expect(mock.local.data.has('cache:b')).toBe(false);
     expect(mock.local.data.has('cacheKeys')).toBe(false);
     expect(mock.local.data.get('settings')).toEqual({ v: 1, settings: LEGACY_SETTINGS });
-    expect(mock.local.data.get('tripBoard')).toEqual({ v: 1, pins: [LEGACY_PIN] });
     expect(mock.local.data.get('costTotals')).toEqual({ v: 1, months: { '2026-03': 1.5 } });
     expect(mock.local.data.get('vault:muse')).toEqual({ iv: 'x', ciphertext: 'y' });
   });

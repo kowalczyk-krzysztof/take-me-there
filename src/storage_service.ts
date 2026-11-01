@@ -3,17 +3,6 @@
 // strictly one at a time, and answers with a serializable result. A failed
 // command resolves its caller with an error and never breaks the queue.
 // Page-local mutexes cannot coordinate two windows; this queue can.
-import {
-  BOARD_CAP,
-  BOARD_STORAGE_KEY,
-  ITINERARY_STORAGE_KEY,
-  dedupeKeyFor,
-  readBoard,
-  stripUrlEphemera,
-  writeBoard,
-  type BoardPin,
-  type PinOutcome,
-} from './board_store';
 import { encryptKeyRecord, isVaultKey, vaultStorageKey } from './key_vault';
 import { monthKey, readTotals, writeTotals } from './pricing';
 import {
@@ -49,125 +38,6 @@ const getAllSession = async (): Promise<Record<string, unknown>> =>
     string,
     unknown
   >;
-
-const boardAdd = async (
-  pin: Omit<BoardPin, 'addedAt'> & { addedAt?: number }
-): Promise<PinOutcome> => {
-  const { pins, carried, writable } = await readBoard();
-
-  if (!writable) {
-    throw new Error('unwritable board record');
-  }
-
-  const key = await dedupeKeyFor(pin.place.placeName, pin.place.country);
-
-  const keys = await Promise.all(
-    pins.map((entry) => dedupeKeyFor(entry.place.placeName, entry.place.country))
-  );
-
-  if (keys.includes(key)) {
-    return { status: 'duplicate', pins };
-  }
-
-  if (pins.length >= BOARD_CAP) {
-    return { status: 'full', pins };
-  }
-
-  const entry: BoardPin = {
-    ...pin,
-    ...(pin.imageUrl ? { imageUrl: stripUrlEphemera(pin.imageUrl) } : {}),
-    addedAt: pin.addedAt ?? Date.now(),
-  };
-
-  const next = [...pins, entry].sort((a, b) => a.addedAt - b.addedAt);
-
-  await writeBoard([...next, ...carried]);
-
-  return { status: 'pinned', pins: next };
-};
-
-const boardRemove = async (
-  placeName: string,
-  country: string
-): Promise<{ pins: BoardPin[]; removed: BoardPin | null }> => {
-  const { pins, carried, writable } = await readBoard();
-
-  if (!writable) {
-    throw new Error('unwritable board record');
-  }
-
-  const key = await dedupeKeyFor(placeName, country);
-
-  const keys = await Promise.all(
-    pins.map((entry) => dedupeKeyFor(entry.place.placeName, entry.place.country))
-  );
-
-  const removed = pins.find((_, index) => keys[index] === key) ?? null;
-
-  const next = pins.filter((_, index) => keys[index] !== key);
-
-  if (next.length !== pins.length) {
-    await writeBoard([...next, ...carried]);
-  }
-
-  return { pins: next, removed };
-};
-
-// User ordering rides on addedAt: moving swaps timestamps with the
-// neighbor so the read-path sort stays the single source of order.
-const boardMove = async (
-  placeName: string,
-  country: string,
-  direction: 'up' | 'down'
-): Promise<BoardPin[]> => {
-  const { pins, carried, writable } = await readBoard();
-
-  if (!writable) {
-    throw new Error('unwritable board record');
-  }
-
-  const key = await dedupeKeyFor(placeName, country);
-
-  const keys = await Promise.all(
-    pins.map((entry) => dedupeKeyFor(entry.place.placeName, entry.place.country))
-  );
-
-  const at = keys.indexOf(key);
-
-  const swapWith = direction === 'up' ? at - 1 : at + 1;
-
-  if (at < 0 || swapWith < 0 || swapWith >= pins.length) {
-    return pins;
-  }
-
-  const next = [...pins];
-
-  const moving = next[at];
-
-  const neighbor = next[swapWith];
-
-  next[at] = { ...neighbor, addedAt: moving.addedAt };
-  next[swapWith] = { ...moving, addedAt: neighbor.addedAt };
-
-  const ordered = next.sort((a, b) => a.addedAt - b.addedAt);
-
-  await writeBoard([...ordered, ...carried]);
-
-  return ordered;
-};
-
-const itinerarySave = async (pinIds: string[], markdown: string): Promise<void> => {
-  if (pinIds.length < 2) {
-    throw new Error('itinerary needs two pins');
-  }
-
-  const record = { v: 1, pinIds: [...pinIds], markdown, plannedAt: Date.now() };
-  await chrome.storage.local.set({ [ITINERARY_STORAGE_KEY]: record });
-};
-
-const itineraryClear = async (): Promise<void> => {
-  await chrome.storage.local.remove(ITINERARY_STORAGE_KEY);
-};
 
 const spendRecord = async (amountUsd: number, at: number): Promise<number> => {
   if (!Number.isFinite(amountUsd)) {
@@ -439,34 +309,6 @@ const setKeyMode = async (providerId: string, sessionOnly: boolean): Promise<Com
 
 const execute = async (command: StorageCommand): Promise<CommandResult> => {
   switch (command.kind) {
-    case 'board.add':
-      return { ok: true, value: await boardAdd(command.pin) };
-
-    case 'board.remove':
-      return { ok: true, value: await boardRemove(command.placeName, command.country) };
-
-    case 'board.move':
-      return {
-        ok: true,
-        value: await boardMove(command.placeName, command.country, command.direction),
-      };
-
-    case 'board.clear':
-      await chrome.storage.local.remove(BOARD_STORAGE_KEY);
-      await itineraryClear();
-
-      return { ok: true, value: undefined };
-
-    case 'itinerary.save':
-      await itinerarySave(command.pinIds, command.markdown);
-
-      return { ok: true, value: undefined };
-
-    case 'itinerary.clear':
-      await itineraryClear();
-
-      return { ok: true, value: undefined };
-
     case 'spend.record':
       return { ok: true, value: await spendRecord(command.amountUsd, command.at) };
 
