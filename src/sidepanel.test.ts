@@ -3054,16 +3054,6 @@ describe('sidepanel', () => {
       .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitFor(() => {
-      const card = document.querySelector('#result-slot');
-      expect(card?.querySelectorAll('button')).toHaveLength(2);
-    });
-
-    const card = document.querySelector('#result-slot') as HTMLElement;
-
-    const buttons = card.querySelectorAll('button');
-    expect(buttons?.[1]?.textContent).toBe('fetchRetryButton');
-    clickEl(buttons?.[1] as HTMLButtonElement);
-    await waitFor(() => {
       const retried = document.querySelector('#result-slot');
       expect(retried?.querySelector('h2')?.textContent).toBe('Oia');
     });
@@ -3172,13 +3162,6 @@ describe('sidepanel', () => {
       .mockResolvedValueOnce(chatResponse(VALID_PLACE));
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitFor(() => {
-      const card = document.querySelector('#result-slot');
-      expect(card?.querySelectorAll('button')).toHaveLength(2);
-    });
-
-    const buttons = document.querySelector('#result-slot')?.querySelectorAll('button');
-    clickEl(buttons?.[1] as HTMLButtonElement);
-    await waitFor(() => {
       expect(document.querySelector('#result-slot h2')?.textContent).toBe('Oia');
     });
     expect(permsRequest).toHaveBeenCalledWith({ origins: ['https://cdn.example.com/*'] });
@@ -3218,13 +3201,6 @@ describe('sidepanel', () => {
       .mockResolvedValueOnce(chatResponse(VALID_PLACE));
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitFor(() => {
-      const card = document.querySelector('#result-slot');
-      expect(card?.querySelectorAll('button')).toHaveLength(2);
-    });
-
-    const buttons = document.querySelector('#result-slot')?.querySelectorAll('button');
-    clickEl(buttons?.[1] as HTMLButtonElement);
-    await waitFor(() => {
       expect(document.querySelector('#result-slot h2')?.textContent).toBe('Oia');
     });
     expect(permsRequest).not.toHaveBeenCalled();
@@ -3249,14 +3225,10 @@ describe('sidepanel', () => {
       .mockRejectedValueOnce(new Error('network down'));
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitFor(() => {
-      const card = document.querySelector('#result-slot');
-      expect(card?.querySelectorAll('button')).toHaveLength(2);
-    });
-    const card = document.querySelector('#result-slot') as HTMLElement;
-    clickEl(card.querySelectorAll('button')?.[1] as HTMLButtonElement);
-    await waitFor(() => {
       expect(document.querySelector('#alert-region')?.textContent).toBe('fetchFailed');
+      expect(document.querySelector('#result-slot h2')?.textContent).toBe('errorServerTitle');
     });
+    expect(document.querySelector('#result-slot')?.querySelectorAll('button')).toHaveLength(1);
     expect(permsRemove).toHaveBeenCalledWith({ origins: ['https://cdn.example.com/*'] });
   });
 
@@ -3295,13 +3267,6 @@ describe('sidepanel', () => {
       })
     );
     await waitFor(() => {
-      const card = document.querySelector('#result-slot');
-      expect(card?.querySelectorAll('button')).toHaveLength(2);
-    });
-    const card = document.querySelector('#result-slot') as HTMLElement;
-    expect(card.querySelectorAll('button')?.[1]?.textContent).toBe('fetchRetryButton');
-    clickEl(card.querySelectorAll('button')?.[1] as HTMLButtonElement);
-    await waitFor(() => {
       expect(document.querySelector('#result-slot')?.querySelector('h2')?.textContent).toBe('Oia');
     });
     expect(permsRequest).not.toHaveBeenCalled();
@@ -3309,7 +3274,7 @@ describe('sidepanel', () => {
     expect(fetchMock.mock.calls[2][0]).toBe('http://localhost:8000/oia.jpg');
   });
 
-  it('announces denial and hides the fetch button on non-400 errors', async () => {
+  it('announces denial and shows a single retry on non-400 errors', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
     const permsRequest = vi.fn().mockResolvedValue(false);
@@ -3323,15 +3288,10 @@ describe('sidepanel', () => {
       .mockResolvedValueOnce(new Response('boom', { status: 500 }));
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitFor(() => {
-      const card = document.querySelector('#result-slot');
-      expect(card?.querySelectorAll('button')).toHaveLength(2);
-    });
-    const card = document.querySelector('#result-slot') as HTMLElement;
-    const buttons = card.querySelectorAll('button');
-    clickEl(buttons?.[1] as HTMLButtonElement);
-    await waitFor(() => {
       expect(document.querySelector('#alert-region')?.textContent).toBe('fetchDenied');
+      expect(document.querySelector('#result-slot h2')?.textContent).toBe('errorServerTitle');
     });
+    expect(document.querySelector('#result-slot')?.querySelectorAll('button')).toHaveLength(1);
     expect(permsRemove).not.toHaveBeenCalled();
     expect(fetchMock).toHaveBeenCalledTimes(2);
     fetchMock.mockReset();

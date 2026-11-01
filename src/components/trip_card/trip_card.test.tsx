@@ -23,7 +23,6 @@ const fullCallbacks = (overrides: Partial<TripCardCallbacks> = {}): TripCardCall
   onPlanTrip: noop,
   onReanalyze: noop,
   onRetry: noop,
-  onFetchRetry: noop,
   onLookAgain: noop,
   onAlternates: noop,
   onCompare: noop,
@@ -482,27 +481,6 @@ describe('trip-card', () => {
     expect(buttons[0]?.textContent).toBe('dismissErrorButton');
     clickEl(buttons[0] as HTMLButtonElement);
     expect(onDismissError).toHaveBeenCalledTimes(1);
-  });
-
-  it('renders the byte-fetch retry alongside the plain retry', () => {
-    const onRetry = vi.fn();
-
-    const onFetchRetry = vi.fn();
-
-    const root = renderCard(
-      { view: 'error', title: 'T', body: 'B', showRetry: true, showFetchRetry: true },
-      { onRetry, onFetchRetry }
-    ).container;
-
-    const buttons = root.querySelectorAll('button');
-    expect(buttons).toHaveLength(2);
-    expect(buttons[1]?.textContent).toBe('fetchRetryButton');
-    clickEl(buttons[1] as HTMLButtonElement);
-    expect(buttons[1]?.textContent).toBe('fetchRetryLoading');
-    expect(onFetchRetry).toHaveBeenCalledTimes(1);
-    expect(onRetry).not.toHaveBeenCalled();
-    clickEl(buttons[1] as HTMLButtonElement);
-    expect(onFetchRetry).toHaveBeenCalledTimes(1);
   });
 
   it('renders a focusable result heading', () => {

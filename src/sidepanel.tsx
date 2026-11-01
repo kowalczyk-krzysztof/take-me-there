@@ -1292,8 +1292,7 @@ const renderErrorCard = (
   bodyKey: string,
   showRetry: boolean,
   withKeySetup: boolean,
-  fallback: { label: string; href: string } | null = null,
-  showFetchRetry = false
+  fallback: { label: string; href: string } | null = null
 ): void => {
   cancelSkeleton();
   currentView = 'error';
@@ -1308,7 +1307,6 @@ const renderErrorCard = (
           body: msg(bodyKey),
           showRetry,
           fallback,
-          showFetchRetry,
         },
       },
     });
@@ -1350,23 +1348,19 @@ const showProviderError = (
   err: unknown,
   request: TripRequest | null,
   privacyOverride?: PrivacyMode,
-  fetchRetryAvailable = false
+  skipAlert = false
 ): void => {
   const privacy = privacyOverride ?? errorPrivacy(request);
-  // A 400 on the image-bearing identify means the model could not fetch
-  // the remote image, so the card offers the byte-fetch retry.
-  const fetchRetry =
-    fetchRetryAvailable &&
-    err instanceof ProviderError &&
-    err.status === 400 &&
-    !!request &&
-    !request.mediaType &&
-    !request.scanImages &&
-    !request.dataPending &&
-    (request.srcUrl.startsWith('https://') || isLoopbackHttp(request.srcUrl));
+
+  const alert = (key: string): void => {
+    if (!skipAlert) {
+      announceAlert(key);
+    }
+  };
+
   if (!(err instanceof ProviderError)) {
     renderErrorCard('errorServerTitle', 'errorServerBody', true, false);
-    announceAlert('alertServer');
+    alert('alertServer');
     updatePrivacy(privacy);
     return;
   }
@@ -1388,20 +1382,20 @@ const showProviderError = (
   if (err.code === 'auth') {
     pendingRun = request != null ? { kind: 'request', request } : pendingRun;
     renderErrorCard('errorAuthTitle', 'errorAuthBody', false, true);
-    announceAlert('alertAuth');
+    alert('alertAuth');
     updatePrivacy(privacy);
     return;
   }
   if (err.code === 'not_configured') {
     pendingRun = request != null ? { kind: 'request', request } : pendingRun;
     renderErrorCard('errorServerTitle', 'alertNotConfigured', true, true);
-    announceAlert('alertNotConfigured');
+    alert('alertNotConfigured');
     updatePrivacy(privacy);
     return;
   }
   const [titleKey, bodyKey, alertKey] = ERROR_CARD_KEYS[err.code] ?? ERROR_CARD_FALLBACK;
-  renderErrorCard(titleKey, bodyKey, true, false, null, fetchRetry);
-  announceAlert(alertKey);
+  renderErrorCard(titleKey, bodyKey, true, false);
+  alert(alertKey);
   updatePrivacy(privacy);
 };
 
@@ -1665,12 +1659,30 @@ const runIdentify = async (args: IdentifyArgs): Promise<RunOutcome> => {
       return 'error';
     }
 
-    showProviderError(
-      err,
-      request,
-      undefined,
-      !request.mediaType && !request.scanImages && !request.frame
-    );
+    // A 400 on the image-bearing identify means the model could not fetch
+    // the remote image, so the panel retries automatically with downloaded
+    // bytes instead of asking the user to press a button.
+    if (
+      err instanceof ProviderError &&
+      err.status === 400 &&
+      !request.mediaType &&
+      !request.scanImages &&
+      !request.frame &&
+      !request.dataPending &&
+      (request.srcUrl.startsWith('https://') || isLoopbackHttp(request.srcUrl))
+    ) {
+      const retried = await fetchRetry(run.signal);
+
+      if (retried || run.signal.aborted) {
+        return 'aborted';
+      }
+
+      showProviderError(err, request, undefined, true);
+
+      return 'error';
+    }
+
+    showProviderError(err, request);
     return 'error';
   }
   absorbRunUsage(run, identify.usage);
@@ -2835,10 +2847,12 @@ const retry = async (): Promise<void> => {
 };
 
 // The model could not fetch the remote image, so the panel downloads the
-// bytes itself (per-origin grant, credentials omitted) and retries with a
-// data: URL. The grant is removed in the finally so it never outlives the
-// click.
-const fetchRetry = async (): Promise<void> => {
+// bytes itself and retries with a data: URL. The tab fetch runs first with
+// no permission prompt; only its failure falls back to the
+// permission-gated direct fetch. The grant is removed in the finally so it
+// never outlives the attempt. Resolves true when a replacement run
+// started.
+const fetchRetry = async (signal?: AbortSignal): Promise<boolean> => {
   const target =
     lastRun?.kind === 'request'
       ? lastRun.request
@@ -2846,7 +2860,9 @@ const fetchRetry = async (): Promise<void> => {
         ? displayedRequest
         : null;
   const srcUrl = target?.srcUrl ?? '';
+
   const loopback = isLoopbackHttp(srcUrl);
+
   if (
     !target ||
     target.mediaType ||
@@ -2854,64 +2870,88 @@ const fetchRetry = async (): Promise<void> => {
     target.dataPending ||
     (!srcUrl.startsWith('https://') && !loopback)
   ) {
-    return;
+    return false;
   }
+
   let origin: string;
+
   try {
     origin = new URL(srcUrl).origin;
   } catch {
-    return;
+    return false;
   }
+
   const controller = new AbortController();
-  const runWithBytes = async (bytes: Uint8Array): Promise<void> => {
+
+  // The caller's signal aborts in-flight fetches. The replacement
+  // runAnalysis owns the takeover (cancel, timers, run ticket), so this
+  // retry never cancels the calling run itself.
+  const stop = signal ?? controller.signal;
+
+  const ticket = runTicket;
+
+  // A cancel or a newer run that lands during the downscale must not
+  // resurrect as a replacement run.
+  const runWithBytes = async (bytes: Uint8Array): Promise<boolean> => {
     const dataUrl = await downscaleToJpegDataUrl(bytes);
-    if (!controller.signal.aborted) {
+
+    if (!stop.aborted && runTicket === ticket) {
+      announceStatus('statusAnalyzing');
       await runAnalysis({ ...target, srcUrl: dataUrl, dataPending: false }, 'panel');
+
+      return true;
     }
+
+    return false;
   };
+
   // Prompt-free first: fetch inside the page tab, where CORS-open image
-  // hosts need no extension permission. The attempt is fast, so the click
-  // gesture usually survives for the fallback prompt below.
+  // hosts need no extension permission.
   try {
-    const bytes = await fetchImageBytesViaTab(
-      target.tabId,
-      target.frameId ?? 0,
-      srcUrl,
-      controller.signal
-    );
-    cancelAllWork();
-    clearStaleTimer();
-    announceStatus('statusAnalyzing');
-    try {
-      await runWithBytes(bytes);
-    } catch {
-      if (!controller.signal.aborted) {
-        announceAlert('fetchFailed');
-      }
+    const bytes = await fetchImageBytesViaTab(target.tabId, target.frameId ?? 0, srcUrl, stop);
+
+    if (stop.aborted) {
+      return false;
     }
-    return;
+
+    try {
+      return await runWithBytes(bytes);
+    } catch {
+      announceAlert('fetchFailed');
+
+      return false;
+    }
   } catch {
-    if (controller.signal.aborted) {
-      return;
+    if (stop.aborted) {
+      return false;
     }
     // The tab is gone, unscriptable, or the host rejects page fetches:
     // fall through to the permission-gated direct fetch.
   }
+
+  if (stop.aborted) {
+    return false;
+  }
+
+  let started = false;
+
   const outcome = await withTempGrant(origin, loopback, async () => {
-    cancelAllWork();
-    clearStaleTimer();
-    announceStatus('statusAnalyzing');
+    if (stop.aborted) {
+      return;
+    }
+
     try {
-      await runWithBytes(await fetchImageBytes(srcUrl, controller.signal));
+      started = await runWithBytes(await fetchImageBytes(srcUrl, stop));
     } catch {
-      if (!controller.signal.aborted) {
-        announceAlert('fetchFailed');
-      }
+      announceAlert('fetchFailed');
     }
   });
+
   if (!outcome.granted) {
     announceAlert('fetchDenied');
   }
+
+  return started;
 };
 
 // ---- Destination duel + alternates ----
@@ -4138,7 +4178,6 @@ const SidepanelApp = () => {
                 onPlanTrip: () => void runGuidePlan(),
                 onReanalyze: () => void reanalyze(),
                 onRetry: () => void retry(),
-                onFetchRetry: () => void fetchRetry(),
                 onLookAgain: () => void lookAgain(),
                 onAlternates: (intent) => void onAlternates(intent),
                 onCompare: (value) => void onCompare(value),

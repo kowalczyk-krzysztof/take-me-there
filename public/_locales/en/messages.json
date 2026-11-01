@@ -909,14 +909,6 @@
       }
     }
   },
-  "fetchRetryButton": {
-    "message": "Download image and retry",
-    "description": "Byte-fetch retry button."
-  },
-  "fetchRetryLoading": {
-    "message": "Downloading image...",
-    "description": "Byte-fetch retry loading label."
-  },
   "fetchDenied": {
     "message": "Image download permission was denied.",
     "description": "Byte-fetch denial announcement."

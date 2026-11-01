@@ -63,7 +63,6 @@ export interface TripCardCallbacks {
   onPlanTrip: () => void;
   onReanalyze: () => void;
   onRetry: () => void;
-  onFetchRetry: () => void;
   onLookAgain: () => void;
   onAlternates: (intent: AlternateIntentView) => void;
   onCompare: (value: string) => void;
@@ -96,7 +95,6 @@ export type CardState =
       body: string;
       showRetry: boolean;
       fallback?: { label: string; href: string } | null;
-      showFetchRetry?: boolean;
     }
   | {
       view: 'itinerary';
@@ -166,7 +164,6 @@ export const TripCard = ({ card, callbacks }: Props) => {
           body={card.body}
           showRetry={card.showRetry}
           fallback={card.fallback ?? null}
-          showFetchRetry={card.showFetchRetry ?? false}
           callbacks={callbacks}
         />
       );

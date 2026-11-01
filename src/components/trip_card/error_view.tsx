@@ -8,19 +8,11 @@ interface Props {
   body: string;
   showRetry: boolean;
   fallback: { label: string; href: string } | null;
-  showFetchRetry: boolean;
-  callbacks: Pick<TripCardCallbacks, 'onRetry' | 'onFetchRetry' | 'onDismissError'>;
+  callbacks: Pick<TripCardCallbacks, 'onRetry' | 'onDismissError'>;
 }
 
-export const ErrorView = ({
-  title,
-  body,
-  showRetry,
-  fallback,
-  showFetchRetry,
-  callbacks,
-}: Props) => {
-  const hasAction = showRetry || showFetchRetry || fallback !== null;
+export const ErrorView = ({ title, body, showRetry, fallback, callbacks }: Props) => {
+  const hasAction = showRetry || fallback !== null;
 
   return (
     <>
@@ -31,13 +23,6 @@ export const ErrorView = ({
           label={msg('retryButton')}
           loadingLabel={msg('retryingButton')}
           onFire={callbacks.onRetry}
-        />
-      ) : null}
-      {showFetchRetry ? (
-        <OneShotButton
-          label={msg('fetchRetryButton')}
-          loadingLabel={msg('fetchRetryLoading')}
-          onFire={callbacks.onFetchRetry}
         />
       ) : null}
       {fallback ? <FallbackLine fallback={fallback} /> : null}
