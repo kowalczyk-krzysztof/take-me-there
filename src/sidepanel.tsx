@@ -1333,6 +1333,11 @@ const runIdentify = async (args: IdentifyArgs): Promise<RunOutcome> => {
     updatePrivacy(privacy);
     return 'no-place';
   }
+  run.destination = buildDestination(
+    identify.place.placeName,
+    identify.place.city,
+    identify.place.country
+  );
   commitDisplayed(run, 'result');
   await renderResultHeader(run, identify.place, true);
 
@@ -2651,14 +2656,14 @@ const SidepanelApp = () => {
             </>
           ) : null}
         </div>
-        <div id="links-slot">
+        <section id="links-slot" aria-labelledby="booking-heading" className="panel-card">
           <h2 id="booking-heading">{msg('bookingHeading')}</h2>
           {state.links !== null ? (
             <BookingGrid destination={state.links} />
           ) : (
             <p className="slot-empty">{msg('bookingEmpty')}</p>
           )}
-        </div>
+        </section>
       </section>
       <section
         id="settings-panel"
@@ -2666,7 +2671,7 @@ const SidepanelApp = () => {
         aria-labelledby="tab-settings"
         hidden={selected('settings') ? undefined : true}
       >
-        <section aria-labelledby="settings-heading" className="settings-card">
+        <section aria-labelledby="settings-heading" className="panel-card">
           <h2 id="settings-heading">{msg('settingsKeyHeading')}</h2>
           {state.showOrphaned ? <p className="key-notice">{msg('keyReenterNotice')}</p> : null}
           {!state.keySaved || state.replacing ? (
@@ -2717,7 +2722,7 @@ const SidepanelApp = () => {
             />
           </div>
         </section>
-        <section aria-labelledby="modes-heading" className="settings-card">
+        <section aria-labelledby="modes-heading" className="panel-card">
           <ModesSection
             key={state.panelSettings.loaded ? 'modes-ready' : 'modes-loading'}
             heading={msg('settingsModesHeading')}
@@ -2725,7 +2730,7 @@ const SidepanelApp = () => {
             skipWebSearch={state.panelSettings.skipWebSearch}
           />
         </section>
-        <section aria-labelledby="settings-cost-heading" className="settings-card">
+        <section aria-labelledby="settings-cost-heading" className="panel-card">
           <CostSection
             heading={msg('settingsCostHeading')}
             headingId="settings-cost-heading"

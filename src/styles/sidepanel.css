@@ -132,7 +132,7 @@ main {
   margin: 4px 0 8px;
 }
 
-.settings-card {
+.panel-card {
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -140,7 +140,7 @@ main {
   padding: 12px;
 }
 
-.settings-card > h2:first-child {
+.panel-card > h2:first-child {
   margin-top: 0;
 }
 

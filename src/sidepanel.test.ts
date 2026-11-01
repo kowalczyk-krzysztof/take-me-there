@@ -165,6 +165,7 @@ describe('sidepanel', () => {
     await setup();
     expect(document.querySelector('#booking-heading')?.textContent).toBe('bookingHeading');
     expect(document.querySelector('#links-slot .slot-empty')?.textContent).toBe('bookingEmpty');
+    expect(document.querySelector('#links-slot')?.className).toContain('panel-card');
   });
 
   it('keeps settings in key, modes, and cost cards', async () => {
@@ -174,7 +175,7 @@ describe('sidepanel', () => {
     expect(document.querySelector('#settings-panel #modes-heading')?.textContent).toBe(
       'settingsModesHeading'
     );
-    expect(document.querySelectorAll('#settings-panel .settings-card')).toHaveLength(3);
+    expect(document.querySelectorAll('#settings-panel .panel-card')).toHaveLength(3);
     expect(document.querySelector('#settings-panel #retention-select')).toBeNull();
     expect(document.querySelector('#settings-panel #provider-group')).not.toBeNull();
     expect(document.querySelector('#settings-panel #settings-cost-heading')).not.toBeNull();
@@ -2285,6 +2286,19 @@ describe('sidepanel', () => {
     expect(card.querySelector('.confidence-scale')?.textContent).toBe('confidenceScale');
     expect(card.querySelector('.source')?.textContent).toBe('sourceLine(example.com)');
     expect(card.querySelector('section.secondary')).not.toBeNull();
+  });
+
+  it('shows booking tiles for the identified place', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
+    await waitForHeading('Oia');
+    await waitFor(() => {
+      expect(document.querySelectorAll('#links-slot a.tile')).toHaveLength(2);
+    });
+    const tiles = document.querySelectorAll('#links-slot a.tile');
+    expect((tiles[0] as HTMLAnchorElement).href).toContain(encodeURIComponent('Oia, Greece'));
   });
 
   it('retries an empty scan from the error card', async () => {
