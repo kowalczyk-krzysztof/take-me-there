@@ -45,15 +45,7 @@ export const buildLinks = (destination: string): BookingLink[] => {
 
   const links: BookingLink[] = [
     { id: 'maps', href: `https://www.google.com/maps/search/?api=1&query=${query}` },
-    {
-      id: 'flights',
-      href: `https://www.google.com/travel/flights?q=Flights%20to%20${query}&hl=en`,
-    },
     { id: 'hotels', href: `https://www.google.com/travel/hotels?q=${query}&hl=en` },
-    {
-      id: 'airbnb',
-      href: `https://www.airbnb.com/s/${encodeURIComponent(capped.replace(/[/?#]/g, ''))}/homes`,
-    },
   ];
 
   if (UNVERIFIED_PORTALS_ENABLED) {

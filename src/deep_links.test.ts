@@ -54,13 +54,6 @@ describe('deep_links', () => {
     }
   });
 
-  it('strips path-breaking characters for the Airbnb segment', () => {
-    const links = buildLinks('a/b?c#d e');
-
-    const airbnb = links.find((link) => link.id === 'airbnb');
-    expect(airbnb?.href).toBe('https://www.airbnb.com/s/abcd%20e/homes');
-  });
-
   it('survives astral names cut at the character limit', () => {
     const links = buildLinks(`${'x'.repeat(MAX_DESTINATION_CHARS - 1)}😀tail`);
 
@@ -83,12 +76,7 @@ describe('deep_links', () => {
 
   it('ships only the click-verified portals until the rest are proven', () => {
     expect(UNVERIFIED_PORTALS_ENABLED).toBe(false);
-    expect(buildLinks('Oia, Greece').map((link) => link.id)).toEqual([
-      'maps',
-      'flights',
-      'hotels',
-      'airbnb',
-    ]);
+    expect(buildLinks('Oia, Greece').map((link) => link.id)).toEqual(['maps', 'hotels']);
   });
 });
 

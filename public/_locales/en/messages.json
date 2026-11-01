@@ -395,16 +395,8 @@
     "message": "Google Maps",
     "description": "Booking tile label."
   },
-  "bookingLink_flights": {
-    "message": "Google Flights",
-    "description": "Booking tile label."
-  },
   "bookingLink_hotels": {
     "message": "Google Hotels",
-    "description": "Booking tile label."
-  },
-  "bookingLink_airbnb": {
-    "message": "Airbnb",
     "description": "Booking tile label."
   },
   "bookingLink_booking": {

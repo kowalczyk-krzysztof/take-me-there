@@ -27,9 +27,9 @@ Exported 2 places.
 ## Places
 
 1. **Oia, Greece** - found on example.com
-   [Maps](https://www.google.com/maps/search/?api=1&query=Oia%2C%20Greece) · [Flights](https://www.google.com/travel/flights?q=Flights%20to%20Oia%2C%20Greece&hl=en) · [Hotels](https://www.google.com/travel/hotels?q=Oia%2C%20Greece&hl=en) · [Airbnb](https://www.airbnb.com/s/Oia%2C%20Greece/homes)
+   [Maps](https://www.google.com/maps/search/?api=1&query=Oia%2C%20Greece) · [Hotels](https://www.google.com/travel/hotels?q=Oia%2C%20Greece&hl=en)
 2. **Fira, Greece** - found on blog.example
-   [Maps](https://www.google.com/maps/search/?api=1&query=Fira%2C%20Greece) · [Flights](https://www.google.com/travel/flights?q=Flights%20to%20Fira%2C%20Greece&hl=en) · [Hotels](https://www.google.com/travel/hotels?q=Fira%2C%20Greece&hl=en) · [Airbnb](https://www.airbnb.com/s/Fira%2C%20Greece/homes)
+   [Maps](https://www.google.com/maps/search/?api=1&query=Fira%2C%20Greece) · [Hotels](https://www.google.com/travel/hotels?q=Fira%2C%20Greece&hl=en)
 
 ## Route
 

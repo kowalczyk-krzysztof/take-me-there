@@ -562,7 +562,7 @@ describe('sidepanel', () => {
     });
 
     const grid = document.querySelector('#links-slot');
-    expect(grid?.querySelectorAll('a.tile')).toHaveLength(4);
+    expect(grid?.querySelectorAll('a.tile')).toHaveLength(2);
 
     const chips = document.querySelector('#sources-slot');
     expect(chips?.querySelectorAll('a.chip')).toHaveLength(1);

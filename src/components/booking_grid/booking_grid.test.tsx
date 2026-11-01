@@ -18,12 +18,10 @@ describe('booking-grid', () => {
     const root = renderSync(<BookingGrid destination="Oia, Greece" />).container;
 
     const tiles = [...root.querySelectorAll('a.tile')] as HTMLAnchorElement[];
-    expect(tiles).toHaveLength(4);
+    expect(tiles).toHaveLength(2);
     expect(tiles.map((tile) => tile.textContent?.replace('newTabSuffix', ''))).toEqual([
       'bookingLink_maps',
-      'bookingLink_flights',
       'bookingLink_hotels',
-      'bookingLink_airbnb',
     ]);
     expect(tiles[0].href).toContain('https://www.google.com/maps/search/');
     expect(tiles[0].href).toContain(encodeURIComponent('Oia, Greece'));
@@ -39,7 +37,7 @@ describe('booking-grid', () => {
     const rendered = renderSync(<BookingGrid destination="" />);
     expect(rendered.container.querySelectorAll('a.tile')).toHaveLength(0);
     rendered.rerender(<BookingGrid destination="Oia, Greece" />);
-    expect(rendered.container.querySelectorAll('a.tile')).toHaveLength(4);
+    expect(rendered.container.querySelectorAll('a.tile')).toHaveLength(2);
     rendered.rerender(<BookingGrid destination="" />);
     expect(rendered.container.querySelectorAll('a.tile')).toHaveLength(0);
   });
