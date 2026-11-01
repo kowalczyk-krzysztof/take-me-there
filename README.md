@@ -58,41 +58,23 @@ calls above:
 ## Architecture
 
 ```mermaid
-flowchart TB
-    user(["You right-click a photo or video"]) --> worker["Service worker"]
-    worker -->|"1. opens the panel at once"| panel["Side panel"]
-    worker -->|"2. reads the page"| readers["Page readers<br/>(captions, headings, video frame)"]
-    readers --> handoff[("Request handoff<br/>(short-lived tab storage)")]
-    handoff --> panel
-
-    subgraph Panel ["Side panel - two tabs"]
-        direction TB
-        main["Main<br/>identify, alternatives, links"]
-        settingsTab["Settings<br/>key, modes, cache, cost"]
-    end
-
-    panel --> muse["Meta Muse<br/>(muse-spark-1.3)"]
-    muse --> identify["chat/completions<br/>names the place as strict JSON"]
-    muse --> grounded["responses + web search<br/>grounds alternatives in live results"]
-    settingsTab --> vault["Key vault<br/>(AES-GCM encrypted)"]
+flowchart LR
+    user(["Right-click a photo"]) --> worker["Service worker"]
+    worker --> panel["Side panel"]
+    worker --> readers["Page readers"]
+    readers --> panel
+    panel --> muse["Meta Muse API"]
 ```
 
 ## How Muse is used
 
-All Muse calls go to `https://api.meta.ai`, model `muse-spark-1.3`
-(plus `sam-3.1` for look-again crops). It is the only website the
-extension talks to.
-
-| Call                        | What it does                                               | What is sent                                 |
-| --------------------------- | ---------------------------------------------------------- | -------------------------------------------- |
-| `GET /v1/models`            | Checks your key when you save it                           | Key only, nothing else                       |
-| `POST /v1/chat/completions` | Identifies the place and suggests alternatives             | Image plus page text (never without consent) |
-| `POST /v1/responses`        | Grounds alternatives with live web search, crops landmarks | Place name plus your question                |
-
-A typical analysis costs a few cents: tokens plus about $0.0025 per
-web search or landmark crop, and nothing for cached repeats. The
-panel shows the exact figure after every run, and a monthly total
-on the Settings tab.
+The extension talks to exactly one website: Meta's Muse API at
+`https://api.meta.ai`. Saving a key checks it with `GET /v1/models`
+and sends nothing else. Analysis uses `POST /v1/chat/completions`
+to name the place and suggest alternatives, plus `POST /v1/responses`
+for web-grounded alternatives and second looks. A typical run costs
+a few cents (about $0.0025 per web search or second look); cached
+repeats are free, and the panel shows the exact figure every time.
 
 ## Develop
 
@@ -103,9 +85,3 @@ on the Settings tab.
 - `node scripts/verify-bundle.mjs` - confirms the bundles carry no
   `eval`-style code (Manifest V3 forbids it) and that the page
   readers ship inside the worker bundle.
-
-## License
-
-MIT, Copyright (c) 2026 Krzysztof Kowalczyk. See `LICENSE`.
-Bundled open-source libraries are attributed in
-`THIRD_PARTY_NOTICES`.
