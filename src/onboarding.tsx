@@ -109,47 +109,44 @@ const OnboardingApp = () => {
       </div>
       <div id="key-host">
         {!state.keySaved ? (
-          <>
-            <h2>{msg('settingsKeyHeading')}</h2>
-            <KeySetup
-              mode="setup"
-              pending={state.keyPending}
-              error={state.keyError}
-              sessionOnly={state.sessionOnly}
-              resetKey={state.keyReset}
-              laterNote={msg('onboardingKeyLater')}
-              callbacks={{
-                onSave: onSaveKey,
-                onError: (text) => store.set({ keyError: text }),
-                onSessionOnlyChange: (checked) => {
-                  store.set({ sessionOnly: checked });
-                  void (async () => {
-                    const { provider, settings } = await getActiveProvider();
+          <KeySetup
+            mode="setup"
+            pending={state.keyPending}
+            error={state.keyError}
+            sessionOnly={state.sessionOnly}
+            resetKey={state.keyReset}
+            laterNote={msg('onboardingKeyLater')}
+            callbacks={{
+              onSave: onSaveKey,
+              onError: (text) => store.set({ keyError: text }),
+              onSessionOnlyChange: (checked) => {
+                store.set({ sessionOnly: checked });
+                void (async () => {
+                  const { provider, settings } = await getActiveProvider();
 
-                    let result;
+                  let result;
 
-                    try {
-                      result = await setKeyMode(provider.id, checked);
-                    } catch {
-                      store.set({
-                        sessionOnly: settings.sessionOnly,
-                        status: msg('settingsSaveFailed'),
-                      });
+                  try {
+                    result = await setKeyMode(provider.id, checked);
+                  } catch {
+                    store.set({
+                      sessionOnly: settings.sessionOnly,
+                      status: msg('settingsSaveFailed'),
+                    });
 
-                      return;
-                    }
+                    return;
+                  }
 
-                    store.set({ sessionOnly: result.sessionOnly });
+                  store.set({ sessionOnly: result.sessionOnly });
 
-                    if (result.error) {
-                      store.set({ status: msg('settingsSaveFailed') });
-                    }
-                  })();
-                },
-                onConsentDecision: () => {},
-              }}
-            />
-          </>
+                  if (result.error) {
+                    store.set({ status: msg('settingsSaveFailed') });
+                  }
+                })();
+              },
+              onConsentDecision: () => {},
+            }}
+          />
         ) : (
           <section className="panel-card" aria-labelledby="key-saved-heading">
             <h2 id="key-saved-heading">{msg('settingsKeyHeading')}</h2>
