@@ -14,7 +14,6 @@ export default defineConfig((_env, argv) => {
     entry: {
       'service-worker': './src/service-worker.ts',
       sidepanel: './src/sidepanel.tsx',
-      options: './src/options.tsx',
       onboarding: './src/onboarding.tsx',
     },
     output: {

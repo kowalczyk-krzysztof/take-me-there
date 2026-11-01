@@ -11,7 +11,6 @@
   "host_permissions": ["https://api.meta.ai/*"],
   "optional_host_permissions": ["https://*/*", "http://127.0.0.1/*", "http://localhost/*"],
   "side_panel": { "default_path": "sidepanel.html" },
-  "options_ui": { "page": "options.html", "open_in_tab": false },
   "action": {
     "default_title": "Take me there",
     "default_icon": { "16": "icons/16.png", "48": "icons/48.png" }

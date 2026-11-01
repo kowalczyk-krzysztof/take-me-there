@@ -67,10 +67,6 @@
     "message": "Key cleared.",
     "description": "Status announcement when a key is cleared."
   },
-  "statusKeyWorks": {
-    "message": "Key works.",
-    "description": "Status announcement when a tested key is accepted."
-  },
   "alertAuth": {
     "message": "Your Muse API key was rejected. Check the key and try again.",
     "description": "Alert for authentication failures."
@@ -199,10 +195,6 @@
     "message": "Clear key",
     "description": "Options clear-key button."
   },
-  "testKeyButton": {
-    "message": "Test key",
-    "description": "Options test-key button."
-  },
   "keyLabel": {
     "message": "Muse API key",
     "description": "Key field label."
@@ -267,10 +259,6 @@
     "message": "You can change your key and key settings later in the Settings tab.",
     "description": "Onboarding note about changing the key later."
   },
-  "optionsKeyHeading": {
-    "message": "Muse API key",
-    "description": "Options key section heading."
-  },
   "optionsCostMonth": {
     "message": "Estimated API cost this month: $1",
     "description": "Options monthly total label.",
@@ -292,14 +280,6 @@
   "skipSearchLabel": {
     "message": "Skip web search - cheaper but less current",
     "description": "Cheap-mode toggle label."
-  },
-  "optionsPrivacyHeading": {
-    "message": "Storage and privacy",
-    "description": "Options privacy section heading."
-  },
-  "optionsPrivacyBody": {
-    "message": "Your key is stored encrypted on this device. Page text and image addresses are sent to api.meta.ai only when you analyze something. Cost totals stay on this device. Nothing is sent anywhere else. After you agree, the panel loads a small preview of the image from its host without cookies.",
-    "description": "Options privacy disclosure."
   },
   "bestGuessBadge": {
     "message": "Best guess",
@@ -603,17 +583,9 @@
     "message": "Canceled.",
     "description": "Status announcement after canceling a run."
   },
-  "optionsModesHeading": {
-    "message": "Search modes",
-    "description": "Options search-mode toggles heading."
-  },
   "settingsModesHeading": {
     "message": "Search modes",
     "description": "Panel settings search-mode toggles heading."
-  },
-  "optionsDataHeading": {
-    "message": "Result cache",
-    "description": "Options result-cache section heading."
   },
   "retentionLabel": {
     "message": "Keep cached results for",

@@ -486,14 +486,13 @@ describe('sidepanel', () => {
     expect(document.documentElement.lang).toBe('');
     expect(document.documentElement.dir).toBe('');
 
-    const shells = ['sidepanel', 'options', 'onboarding'].map(readShell);
+    const shells = ['sidepanel', 'onboarding'].map(readShell);
 
     for (const shell of shells) {
       expect(shell).toContain('<html lang="en">');
     }
     expect(shells[0]).toContain('<title>Take me there</title>');
-    expect(shells[1]).toContain('<title>Take me there - Options</title>');
-    expect(shells[2]).toContain('<title>Welcome to Take me there</title>');
+    expect(shells[1]).toContain('<title>Welcome to Take me there</title>');
   });
 
   it('re-identifies after an image-only switch', async () => {
