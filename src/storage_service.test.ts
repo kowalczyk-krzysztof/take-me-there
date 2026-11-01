@@ -32,7 +32,7 @@ vi.mock('idb-keyval', () => {
 
 import * as idbKeyval from 'idb-keyval';
 import { clearAllKeys, loadKey, saveKey, setKeyMode } from './key_vault';
-import { readMonthSpend, recordMonthSpend, resetMonthSpend } from './pricing';
+import { readMonthSpend, recordMonthSpend } from './pricing';
 import { clearCacheEntries, getCacheEntry, setCacheEntry, type CacheEntry } from './result_cache';
 import { loadSettings } from './settings_store';
 import { enqueueLocalCommand, handleStorageMessage } from './storage_service';
@@ -134,14 +134,6 @@ describe('storage service concurrency', () => {
     await Promise.all(Array.from({ length: 20 }, () => recordMonthSpend(1, date)));
 
     expect(await readMonthSpend(date)).toBe(20);
-  });
-
-  it('serializes an increment racing a reset to a valid outcome', async () => {
-    const date = new Date('2026-03-15T12:00:00Z');
-
-    await Promise.all([recordMonthSpend(5, date), resetMonthSpend(date)]);
-
-    expect([0, 5]).toContain(await readMonthSpend(date));
   });
 
   it('converges when a migration races a write', async () => {

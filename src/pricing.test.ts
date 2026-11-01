@@ -6,7 +6,6 @@ import {
   formatUsd,
   readMonthSpend,
   recordMonthSpend,
-  resetMonthSpend,
 } from './pricing';
 import { installChromeMock, uninstallChromeMock, type ChromeMock } from './test/chrome_mock';
 import { routeWorkerMessages } from './test/helpers';
@@ -152,14 +151,12 @@ describe('pricing', () => {
     ).toBeNull();
   });
 
-  it('accumulates, reads, and resets the monthly total', async () => {
+  it('accumulates and reads the monthly total', async () => {
     const day = new Date('2026-03-15T12:00:00Z');
     expect(await recordMonthSpend(0.5, day)).toBeCloseTo(0.5, 10);
     expect(await recordMonthSpend(0.25, day)).toBeCloseTo(0.75, 10);
     expect(await readMonthSpend(day)).toBeCloseTo(0.75, 10);
     expect(await readMonthSpend(new Date('2026-04-15T12:00:00Z'))).toBe(0);
-    await resetMonthSpend(day);
-    expect(await readMonthSpend(day)).toBe(0);
   });
 
   it('prunes totals to the most recent 24 months', async () => {

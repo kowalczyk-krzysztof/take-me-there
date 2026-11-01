@@ -71,10 +71,6 @@
     "message": "Key works.",
     "description": "Status announcement when a tested key is accepted."
   },
-  "statusMonthlyReset": {
-    "message": "Monthly total reset",
-    "description": "Status announcement when the cost total is reset."
-  },
   "alertAuth": {
     "message": "Your API key was rejected. Check the key and try again.",
     "description": "Alert for authentication failures."
@@ -211,10 +207,6 @@
     "message": "Test key",
     "description": "Options test-key button."
   },
-  "resetCostButton": {
-    "message": "Reset monthly cost total",
-    "description": "Options cost reset button."
-  },
   "keyLabel": {
     "message": "Muse API key",
     "description": "Key field label."
@@ -282,10 +274,6 @@
   "optionsKeyHeading": {
     "message": "API key",
     "description": "Options key section heading."
-  },
-  "optionsCostHeading": {
-    "message": "API cost",
-    "description": "Options cost section heading."
   },
   "optionsCostMonth": {
     "message": "Estimated API cost this month: $1",
@@ -366,62 +354,12 @@
     "description": "Prefix for the page-signal fallback link."
   },
   "costLine": {
-    "message": "This analysis ≈ $1 · this month ≈ $2",
+    "message": "Recent analysis ≈ $1",
     "description": "Per-run and monthly cost readout.",
     "placeholders": {
       "run": {
         "content": "$1",
         "example": "$0.01"
-      },
-      "month": {
-        "content": "$2",
-        "example": "$1.23"
-      }
-    }
-  },
-  "costLineCached": {
-    "message": "This analysis ≈ $1 · this month ≈ $2 · cache saved $3",
-    "description": "Cost readout when prompt caching discounted the run.",
-    "placeholders": {
-      "run": {
-        "content": "$1",
-        "example": "$0.01"
-      },
-      "month": {
-        "content": "$2",
-        "example": "$1.23"
-      },
-      "saved": {
-        "content": "$3",
-        "example": "$0.00"
-      }
-    }
-  },
-  "costLineTokens": {
-    "message": "Tokens this run: $1 in, $2 out",
-    "description": "Token readout without rates.",
-    "placeholders": {
-      "in": {
-        "content": "$1",
-        "example": "1200"
-      },
-      "out": {
-        "content": "$2",
-        "example": "300"
-      }
-    }
-  },
-  "costLineCache": {
-    "message": "from cache - no API cost",
-    "description": "Cache-hit cost line."
-  },
-  "costIncomplete": {
-    "message": "Cost incomplete · this month ≈ $1",
-    "description": "Cost line when a run's billed usage is unavailable.",
-    "placeholders": {
-      "month": {
-        "content": "$1",
-        "example": "$1.23"
       }
     }
   },
@@ -838,10 +776,6 @@
   "optionsDataHeading": {
     "message": "Result cache",
     "description": "Options result-cache section heading."
-  },
-  "settingsCostHeading": {
-    "message": "API cost",
-    "description": "Panel settings cost heading."
   },
   "retentionLabel": {
     "message": "Keep cached results for",

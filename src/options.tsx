@@ -17,7 +17,7 @@ import {
   type CompatFormValues,
 } from './settings_ops';
 import { clearAllKeys, clearKey, loadKey, saveKey, setKeyMode } from './key_vault';
-import { formatUsd, readMonthSpend, resetMonthSpend } from './pricing';
+import { formatUsd, readMonthSpend } from './pricing';
 import {
   ProviderError,
   customHostOf,
@@ -286,22 +286,6 @@ const onClearCache = (): void => {
   })();
 };
 
-const onResetCost = (): void => {
-  void (async () => {
-    try {
-      await resetMonthSpend();
-    } catch {
-      store.set({ status: msg('settingsSaveFailed') });
-
-      return;
-    }
-
-    await refreshCost();
-
-    store.set({ status: msg('statusMonthlyReset') });
-  })();
-};
-
 const OptionsApp = () => {
   const state = useSyncExternalStore(store.subscribe, store.get);
   const settings = state.settings;
@@ -437,14 +421,10 @@ const OptionsApp = () => {
         />
       </div>
       <CostSection
-        heading={msg('optionsCostHeading')}
-        headingId="cost-heading"
         lineId="cost-line"
-        buttonId="reset-cost"
         costText={state.costText}
         runText=""
         runLineId="options-run-line"
-        onReset={onResetCost}
       />
       <h2 id="privacy-heading">{msg('optionsPrivacyHeading')}</h2>
       <p id="privacy-body">{msg('optionsPrivacyBody')}</p>

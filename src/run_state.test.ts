@@ -120,18 +120,6 @@ describe('run lifecycle', () => {
     expect(ownsUi(second)).toBe(true);
   });
 
-  it('inherits cost completeness with the usage snapshot', () => {
-    const first = startRun(init({ runId: 'run-a' }));
-    expect(first.costComplete).toBe(true);
-    first.costComplete = false;
-
-    const second = startRun(init({ runId: 'run-b' }), { inheritFrom: first });
-    expect(second.costComplete).toBe(false);
-
-    const fresh = startRun(init({ runId: 'run-c' }));
-    expect(fresh.costComplete).toBe(true);
-  });
-
   it('builds ephemeral buckets that never own UI', () => {
     const live = startRun(init({ runId: 'run-a' }));
 

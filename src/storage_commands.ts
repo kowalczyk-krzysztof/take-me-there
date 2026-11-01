@@ -22,10 +22,6 @@ const spendRecordSchema = z.strictObject({
   at: z.number(),
 });
 
-const spendResetSchema = z.strictObject({
-  at: z.number(),
-});
-
 const cacheEntrySchema = CACHE_ENTRY_SCHEMA;
 
 const cacheKeySchema = z.strictObject({
@@ -68,7 +64,6 @@ const emptySchema = z.strictObject({});
 
 export type StorageCommand =
   | { kind: 'spend.record'; amountUsd: number; at: number }
-  | { kind: 'spend.reset'; at: number }
   | { kind: 'cache.get'; hash: string }
   | { kind: 'cache.set'; hash: string; entry: z.infer<typeof cacheEntrySchema> }
   | { kind: 'cache.clear' }
@@ -95,7 +90,6 @@ interface PayloadSchema {
 
 export const COMMAND_SCHEMAS: Record<CommandKind, PayloadSchema> = {
   'spend.record': spendRecordSchema,
-  'spend.reset': spendResetSchema,
   'cache.get': cacheKeySchema,
   'cache.set': cacheSetSchema,
   'cache.clear': emptySchema,

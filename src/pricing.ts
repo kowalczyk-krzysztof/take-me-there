@@ -167,6 +167,3 @@ export const readMonthSpend = async (date: Date = new Date()): Promise<number> =
 
   return typeof value === 'number' ? value : 0;
 };
-
-export const resetMonthSpend = async (date: Date = new Date()): Promise<void> =>
-  sendCommand<void>({ kind: 'spend.reset', at: date.getTime() });

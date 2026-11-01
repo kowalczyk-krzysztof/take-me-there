@@ -59,17 +59,6 @@ const spendRecord = async (amountUsd: number, at: number): Promise<number> => {
   return next;
 };
 
-const spendReset = async (at: number): Promise<void> => {
-  if (!Number.isFinite(at)) {
-    throw new Error('invalid spend timestamp');
-  }
-
-  const totals = await readTotals();
-
-  delete totals[monthKey(new Date(at))];
-  await writeTotals(totals);
-};
-
 const cacheExpired = (record: CacheRecord, ttlMs: number): boolean =>
   Date.now() - record.createdAt > ttlMs;
 
@@ -311,11 +300,6 @@ const execute = async (command: StorageCommand): Promise<CommandResult> => {
   switch (command.kind) {
     case 'spend.record':
       return { ok: true, value: await spendRecord(command.amountUsd, command.at) };
-
-    case 'spend.reset':
-      await spendReset(command.at);
-
-      return { ok: true, value: undefined };
 
     case 'cache.get':
       return { ok: true, value: (await cacheGet(command.hash)) ?? undefined };

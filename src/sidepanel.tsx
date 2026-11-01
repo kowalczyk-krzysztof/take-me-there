@@ -32,13 +32,7 @@ import {
 } from './image_fetch';
 import { clearAllKeys, clearKey, isVaultKey, loadKey, saveKey, setKeyMode } from './key_vault';
 import { cropToSamBox, parseSamBoxes, selectSamBox, type SamPixelBox } from './sam';
-import {
-  estimateCachedSavingUsd,
-  estimateCostUsd,
-  formatUsd,
-  readMonthSpend,
-  resetMonthSpend,
-} from './pricing';
+import { estimateCostUsd, formatUsd, readMonthSpend } from './pricing';
 import {
   TRIP_REQUEST_SCHEMA,
   type PageSignals,
@@ -345,14 +339,6 @@ const refreshPanelSettings = async (): Promise<void> => {
   }
 };
 
-const refreshPanelCost = async (): Promise<void> => {
-  try {
-    setPanelSettings({ costText: msg('optionsCostMonth', formatUsd(await readMonthSpend())) });
-  } catch {
-    setPanelSettings({ costText: msg('optionsCostMonth', formatUsd(0)) });
-  }
-};
-
 const onSettingsMode = (mode: 'imageOnly' | 'skipWebSearch', box: HTMLInputElement): void => {
   const checked = box.checked;
 
@@ -413,21 +399,6 @@ const onSettingsCompatSave = (): void => {
     }
 
     setPanelSettings({ compatError: msg(compatErrorKey(outcome.error)) });
-  })();
-};
-
-const onSettingsResetCost = (): void => {
-  void (async () => {
-    try {
-      await resetMonthSpend();
-    } catch {
-      announceAlert('settingsSaveFailed');
-
-      return;
-    }
-
-    await refreshPanelCost();
-    announceStatus('statusMonthlyReset');
   })();
 };
 
@@ -644,29 +615,16 @@ const priceAndRecord = async (run: RunContext, stage: string): Promise<void> => 
   const usd = estimateCostUsd(run.usage, rates);
 
   if (usd === null) {
+    // Custom servers report no rates: show no figure rather than invent one.
     if (ownsUi(run)) {
-      let monthTotal = 0;
-
-      try {
-        monthTotal = await readMonthSpend();
-      } catch {
-        // The total is stale; the incomplete flag still renders.
-      }
-
-      store.set({
-        cost: run.costComplete
-          ? msg('costLineTokens', [String(run.usage.inputTokens), String(run.usage.outputTokens)])
-          : msg('costIncomplete', [formatUsd(monthTotal)]),
-      });
+      clearCost();
     }
 
     return;
   }
 
-  let monthTotal = usd;
-
   try {
-    monthTotal = await settleStage(run, stage);
+    await settleStage(run, stage);
   } catch {
     // The run figure still renders; only the monthly total is stale.
   }
@@ -674,19 +632,8 @@ const priceAndRecord = async (run: RunContext, stage: string): Promise<void> => 
   if (!ownsUi(run)) {
     return;
   }
-
-  if (!run.costComplete) {
-    store.set({ cost: msg('costIncomplete', [formatUsd(monthTotal)]) });
-
-    return;
-  }
-
-  const saved = rates ? estimateCachedSavingUsd(run.usage, rates) : 0;
   store.set({
-    cost:
-      saved > 0
-        ? msg('costLineCached', [formatUsd(usd), formatUsd(monthTotal), formatUsd(saved)])
-        : msg('costLine', [formatUsd(usd), formatUsd(monthTotal)]),
+    cost: msg('costLine', [formatUsd(usd)]),
   });
 };
 
@@ -1186,8 +1133,6 @@ const showProviderError = (
 // caller aborts) carry no usage honestly: the run figure stays exact.
 // Any other failure without usage means billed tokens went unreported,
 // so the run stops claiming a complete cost.
-const PRE_BILLING_CODES = new Set(['auth', 'no_key', 'consent_required', 'not_configured']);
-
 // An all-zero usage report means the failure carried no billing signal:
 // absorbing it would let the run claim a complete cost it cannot prove.
 const usageIsEmpty = (usage: Usage): boolean =>
@@ -1200,19 +1145,6 @@ const usageIsEmpty = (usage: Usage): boolean =>
 const recordPartialUsage = (run: RunContext, stage: string, err: unknown): void => {
   if (err instanceof ProviderError && err.usage && !usageIsEmpty(err.usage)) {
     absorbRunUsage(run, err.usage);
-    void priceAndRecord(run, stage);
-
-    return;
-  }
-
-  if (err instanceof ProviderError && err.code === 'aborted') {
-    void priceAndRecord(run, stage);
-
-    return;
-  }
-
-  if (!(err instanceof ProviderError) || !PRE_BILLING_CODES.has(err.code)) {
-    run.costComplete = false;
   }
 
   void priceAndRecord(run, stage);
@@ -1395,7 +1327,7 @@ const renderCached = async (
       });
     });
     clearContentSlots();
-    store.set({ cost: msg('costLineCache') });
+    store.set({ cost: msg('costLine', [formatUsd(0)]) });
     updatePrivacy('cache');
     announceStatus('statusNoPlace');
     if (origin === 'panel') {
@@ -1417,7 +1349,7 @@ const renderCached = async (
   });
   showLinks(currentDestination);
   setPreviewIdentified(entry.place.placeName);
-  store.set({ cost: msg('costLineCache') });
+  store.set({ cost: msg('costLine', [formatUsd(0)]) });
   updatePrivacy('cache');
   announceStatus('statusCacheHit', entry.place.placeName);
   if (origin === 'panel') {
@@ -2730,16 +2662,12 @@ const SidepanelApp = () => {
             skipWebSearch={state.panelSettings.skipWebSearch}
           />
         </section>
-        <section aria-labelledby="settings-cost-heading" className="panel-card">
+        <section aria-labelledby="settings-cost-line" className="panel-card">
           <CostSection
-            heading={msg('settingsCostHeading')}
-            headingId="settings-cost-heading"
             lineId="settings-cost-line"
-            buttonId="settings-reset-cost"
             costText={state.panelSettings.costText}
             runText={state.cost}
             runLineId="settings-run-line"
-            onReset={onSettingsResetCost}
           />
         </section>
       </section>

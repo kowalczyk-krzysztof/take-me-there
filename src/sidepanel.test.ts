@@ -29,7 +29,6 @@ vi.mock('idb-keyval', () => {
   };
 });
 
-import { monthKey } from './pricing';
 import type { ChromeMock } from './test/chrome_mock';
 import {
   chatResponse,
@@ -178,7 +177,6 @@ describe('sidepanel', () => {
     expect(document.querySelectorAll('#settings-panel .panel-card')).toHaveLength(3);
     expect(document.querySelector('#settings-panel #retention-select')).toBeNull();
     expect(document.querySelector('#settings-panel #provider-group')).not.toBeNull();
-    expect(document.querySelector('#settings-panel #settings-cost-heading')).not.toBeNull();
     expect(document.querySelector('#page-footer #privacy-line')).not.toBeNull();
     expect(document.querySelector('#page-footer #settings-run-line')).toBeNull();
   });
@@ -566,7 +564,7 @@ describe('sidepanel', () => {
     );
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitFor(() => {
-      expect(document.querySelector('#settings-run-line')?.textContent).toBe('costLineCache');
+      expect(document.querySelector('#settings-run-line')?.textContent).toBe('costLine($0.00)');
     });
     expect(document.querySelector('#status-region')?.textContent).toBe('statusCacheHit(Oia)');
     expect(fetchMock).not.toHaveBeenCalled();
@@ -1421,7 +1419,7 @@ describe('sidepanel', () => {
     expect(imagePart?.image_url?.url.startsWith('data:image/jpeg;base64,')).toBe(true);
   });
 
-  it('shows token counts without dollar figures for custom servers', async () => {
+  it('shows no run figure for custom servers', async () => {
     const mock = await setup(async (seed) => {
       await settleWrite(
         seed.local.set({
@@ -1448,9 +1446,7 @@ describe('sidepanel', () => {
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
-    expect(document.querySelector('#settings-run-line')?.textContent).toBe(
-      'costLineTokens(100 | 50)'
-    );
+    expect(document.querySelector('#settings-run-line')).toBeNull();
   });
 
   it('keeps the provider grant when the image origin is the provider origin', async () => {
@@ -1941,48 +1937,36 @@ describe('sidepanel', () => {
     expect(document.querySelector('#compat-fields')?.hasAttribute('hidden')).toBe(true);
   });
 
-  it('resets the monthly cost from the settings tab', async () => {
-    const mock = await setup(async (inner) => {
-      await settleWrite(inner.local.set({ costTotals: { [monthKey()]: 2.5 } }));
-    });
-    selectSettingsTab();
-
-    await waitFor(() => {
-      expect(document.querySelector('#settings-cost-line')?.textContent).toBe(
-        'optionsCostMonth($2.50)'
-      );
-    });
-
-    clickEl(document.querySelector('#settings-reset-cost') as HTMLButtonElement);
-
-    await waitFor(() => {
-      expect(document.querySelector('#settings-cost-line')?.textContent).toBe(
-        'optionsCostMonth($0.00)'
-      );
-    });
-    expect(document.querySelector('#status-region')?.textContent).toBe('statusMonthlyReset');
-    expect(mock.local.data.get('costTotals')).toEqual({ v: 1, months: {} });
-  });
-
   it('re-announces a repeated status', async () => {
-    await setup();
-    selectSettingsTab();
-    await waitForSettings();
+    const mock = await setup();
 
-    const reset = document.querySelector('#settings-reset-cost') as HTMLButtonElement;
-    clickEl(reset);
+    const { saveKey } = await cover(import('./key_vault'));
+    await settleWrite(saveKey('muse', 'LLM_x', false));
 
-    await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe('statusMonthlyReset');
-    });
+    const declineConsent = async (): Promise<void> => {
+      await settleWrite(mock.session.set({ [SLOT]: READY() }));
+      await waitFor(() => {
+        expect(document.querySelector('#result-slot h2')?.textContent).toBe('consentTitle');
+      });
+
+      const decline = [...document.querySelectorAll('#result-slot button')].find(
+        (button) => button.textContent === 'declineButton'
+      ) as HTMLButtonElement;
+      clickEl(decline);
+      await waitFor(() => {
+        expect(document.querySelector('#status-region')?.textContent).toBe('statusConsentDeclined');
+      });
+    };
+
+    await declineConsent();
 
     const first = document.querySelector('#status-region span');
-    clickEl(reset);
+    await declineConsent();
 
     await waitFor(() => {
       expect(document.querySelector('#status-region span')).not.toBe(first);
     });
-    expect(document.querySelector('#status-region')?.textContent).toBe('statusMonthlyReset');
+    expect(document.querySelector('#status-region')?.textContent).toBe('statusConsentDeclined');
   });
 
   it('names the custom server in the video confirm', async () => {

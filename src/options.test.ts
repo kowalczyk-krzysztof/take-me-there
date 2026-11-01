@@ -62,21 +62,9 @@ describe('options', () => {
     });
     expect(document.querySelector('#key-heading')?.textContent).toBe('optionsKeyHeading');
     expect(document.querySelector('#privacy-body')?.textContent).toBe('optionsPrivacyBody');
-    expect(document.querySelector('#reset-cost')?.textContent).toBe('resetCostButton');
     await waitFor(() => {
       expect(document.querySelector('#cost-line')?.textContent).toBe('optionsCostMonth:$1.50');
     });
-  });
-
-  it('resets the monthly total', async () => {
-    const mock = await setup(async (inner) => {
-      await settleWrite(inner.local.set({ costTotals: { [monthKey()]: 2 } }));
-    });
-    clickEl(document.querySelector('#reset-cost') as HTMLButtonElement);
-    await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe('statusMonthlyReset');
-    });
-    expect(mock.local.data.get('costTotals')).toEqual({ v: 1, months: {} });
   });
 
   it('persists the image-only toggle', async () => {
