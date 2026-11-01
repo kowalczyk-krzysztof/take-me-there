@@ -119,7 +119,7 @@ const getAllLocal = async (): Promise<Record<string, unknown>> =>
 
 // Upgrade purge: legacy result-cache records lived in local storage; the
 // session-default cache starts empty. Restricted to the cache namespace:
-// pins, keys, settings, and cost history are never touched. Throws on
+// keys, settings, and cost history are never touched. Throws on
 // failure so the migration framework reports and retries it.
 export const migrateCache = async (): Promise<void> => {
   const stored = await getAllLocal();

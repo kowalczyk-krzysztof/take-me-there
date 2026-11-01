@@ -4,6 +4,7 @@
 // ciphertext in storage.session (memory-only, wiped on exit) instead.
 import { createStore, get, set } from 'idb-keyval';
 import { sendCommand, sendCommandResult } from './storage_client';
+import { decodeBase64, encodeBase64 } from './utils/base64';
 
 const WRAPPING_KEY_ID = 'wrapping-key-v1';
 
@@ -22,28 +23,6 @@ export type KeyStatus = { state: 'ok'; key: string } | { state: 'missing'; orpha
 export const vaultStorageKey = (providerId: string): string => `apiKey:${providerId}`;
 
 export const isVaultKey = (key: string): boolean => key.startsWith('apiKey:');
-
-const toBase64 = (bytes: Uint8Array): string => {
-  let binary = '';
-
-  for (let i = 0; i < bytes.length; i += 0x8000) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-  }
-
-  return btoa(binary);
-};
-
-const fromBase64 = (text: string): Uint8Array<ArrayBuffer> => {
-  const binary = atob(text);
-
-  const bytes = new Uint8Array(binary.length);
-
-  for (let i = 0; i < binary.length; i += 1) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-
-  return bytes;
-};
 
 const getOrCreateWrappingKey = async (): Promise<CryptoKey> => {
   const existing = (await get(WRAPPING_KEY_ID, vaultStore)) as CryptoKey | undefined;
@@ -75,8 +54,8 @@ export const encryptKeyRecord = async (key: string): Promise<KeyRecord> => {
 
   return {
     v: VAULT_VERSION,
-    iv: toBase64(iv),
-    ciphertext: toBase64(new Uint8Array(encrypted)),
+    iv: encodeBase64(iv),
+    ciphertext: encodeBase64(new Uint8Array(encrypted)),
   };
 };
 
@@ -120,9 +99,9 @@ export const loadKey = async (providerId: string): Promise<KeyStatus> => {
 
   try {
     const decrypted = await crypto.subtle.decrypt(
-      { name: 'AES-GCM', iv: fromBase64(record.iv) },
+      { name: 'AES-GCM', iv: decodeBase64(record.iv) },
       wrap,
-      fromBase64(record.ciphertext)
+      decodeBase64(record.ciphertext)
     );
 
     return { state: 'ok', key: new TextDecoder().decode(decrypted) };

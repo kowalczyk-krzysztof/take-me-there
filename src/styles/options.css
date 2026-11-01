@@ -63,14 +63,3 @@ p {
 .key-result {
   color: var(--muted);
 }
-
-#key-saved-error {
-  color: var(--error);
-}
-
-.confirm-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 12px;
-  flex-wrap: wrap;
-}

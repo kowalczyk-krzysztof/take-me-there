@@ -144,9 +144,6 @@
   gap: 8px;
   margin-top: 8px;
 }
-.root .alternates[hidden] {
-  display: none;
-}
 .root .alternates-skeletons {
   display: flex;
   flex-direction: column;

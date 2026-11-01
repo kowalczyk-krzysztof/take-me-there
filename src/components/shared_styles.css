@@ -87,6 +87,30 @@ input:disabled {
   flex-wrap: wrap;
 }
 
+#key-saved-error {
+  margin: 0 0 8px;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--error);
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
+.confirm-actions button.primary {
+  background: var(--action);
+  color: var(--on-action);
+  border-color: transparent;
+}
+
+.confirm-actions button.primary:hover {
+  background: var(--action-hover);
+}
+
 .panel-card {
   background: var(--card);
   border: 1px solid var(--border);

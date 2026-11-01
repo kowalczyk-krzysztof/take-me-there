@@ -33,7 +33,6 @@ import type { ChromeMock } from './test/chrome_mock';
 import {
   chatResponse,
   clickEl,
-  cover,
   dispatchEl,
   drainStragglers,
   focusEl,
@@ -279,8 +278,8 @@ describe('sidepanel', () => {
       expect(tabMain.getAttribute('aria-selected')).toBe('true');
     });
 
-    const { loadKey } = await cover(import('./key_vault'));
-    expect(await cover(loadKey('muse'))).toEqual({ state: 'ok', key: 'LLM_new' });
+    const { loadKey } = await settleWrite(import('./key_vault'));
+    expect(await settleWrite(loadKey('muse'))).toEqual({ state: 'ok', key: 'LLM_new' });
   });
 
   it('clears the key from settings and keeps Explore available', async () => {
@@ -301,8 +300,8 @@ describe('sidepanel', () => {
     expect(tabMain.hasAttribute('aria-disabled')).toBe(false);
     expect(document.querySelector('#tab-settings')?.getAttribute('aria-selected')).toBe('true');
 
-    const { loadKey } = await cover(import('./key_vault'));
-    expect((await cover(loadKey('muse'))).state).toBe('missing');
+    const { loadKey } = await settleWrite(import('./key_vault'));
+    expect((await settleWrite(loadKey('muse'))).state).toBe('missing');
   });
 
   it('stages a keyless request and resumes it exactly once after connect', async () => {
@@ -365,20 +364,24 @@ describe('sidepanel', () => {
       (document.querySelector('#settings-panel #session-only') as HTMLInputElement).checked
     ).toBe(false);
 
-    const { loadSettings } = await cover(import('./providers/index'));
-    expect((await cover(loadSettings())).sessionOnly).toBe(false);
+    const { loadSettings } = await settleWrite(import('./providers/index'));
+    expect((await settleWrite(loadSettings())).sessionOnly).toBe(false);
     fail.mockRestore();
 
     const retry = document.querySelector('#settings-panel #session-only') as HTMLInputElement;
     retry.checked = true;
     dispatchEl(retry, new Event('change', { bubbles: true }));
     await waitFor(async () => {
-      expect((await cover(loadSettings())).sessionOnly).toBe(true);
+      expect((await settleWrite(loadSettings())).sessionOnly).toBe(true);
     });
     expect(
       (document.querySelector('#settings-panel #session-only') as HTMLInputElement).checked
     ).toBe(true);
-    expect(document.querySelector('#settings-panel #key-error')?.hasAttribute('hidden')).toBe(true);
+    await waitFor(() => {
+      expect(document.querySelector('#settings-panel #key-error')?.hasAttribute('hidden')).toBe(
+        true
+      );
+    });
   });
 
   it('keeps a usable key when the mode move fails mid-write', async () => {
@@ -416,13 +419,13 @@ describe('sidepanel', () => {
 
     mock.session.fault = () => undefined;
 
-    const { loadKey } = await cover(import('./key_vault'));
-    expect(await cover(loadKey('muse'))).toEqual({ state: 'ok', key: 'LLM_x' });
+    const { loadKey } = await settleWrite(import('./key_vault'));
+    expect(await settleWrite(loadKey('muse'))).toEqual({ state: 'ok', key: 'LLM_x' });
     expect(mock.local.data.has('apiKey:muse')).toBe(true);
     expect(mock.session.data.has('apiKey:muse')).toBe(false);
 
-    const { loadSettings } = await cover(import('./providers/index'));
-    expect((await cover(loadSettings())).sessionOnly).toBe(false);
+    const { loadSettings } = await settleWrite(import('./providers/index'));
+    expect((await settleWrite(loadSettings())).sessionOnly).toBe(false);
   });
 
   it('shows a visible error when key clear fails', async () => {
@@ -451,8 +454,8 @@ describe('sidepanel', () => {
     mock.session.fault = () => undefined;
     mock.local.fault = () => undefined;
 
-    const { loadKey } = await cover(import('./key_vault'));
-    expect(await cover(loadKey('muse'))).toEqual({ state: 'ok', key: 'LLM_x' });
+    const { loadKey } = await settleWrite(import('./key_vault'));
+    expect(await settleWrite(loadKey('muse'))).toEqual({ state: 'ok', key: 'LLM_x' });
     expect(document.querySelector('#key-saved-status')).not.toBeNull();
   });
 
@@ -517,9 +520,9 @@ describe('sidepanel', () => {
     const mock = await setup();
     await plantKeyAndConsent();
 
-    const { hashIdentifyKey, setCacheEntry } = await cover(import('./result_cache'));
+    const { hashIdentifyKey, setCacheEntry } = await settleWrite(import('./result_cache'));
 
-    const identify = await cover(
+    const identify = await settleWrite(
       hashIdentifyKey({
         mediaSeed: 'https://cdn.example.com/oia.jpg',
         pageUrl: 'https://example.com/guide',
@@ -597,7 +600,7 @@ describe('sidepanel', () => {
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
 
-    const { monthKey } = await cover(import('./pricing'));
+    const { monthKey } = await settleWrite(import('./pricing'));
 
     await waitFor(() => {
       const record = mock.local.data.get('costTotals') as {
@@ -658,7 +661,7 @@ describe('sidepanel', () => {
       expect(fetchMock).toHaveBeenCalledTimes(3);
     });
 
-    const { monthKey } = await cover(import('./pricing'));
+    const { monthKey } = await settleWrite(import('./pricing'));
 
     await waitFor(() => {
       const record = mock.local.data.get('costTotals') as {
@@ -673,7 +676,7 @@ describe('sidepanel', () => {
   it('keeps the consent gate for re-click when the flag write fails', async () => {
     const mock = await setup();
 
-    const { saveKey } = await cover(import('./key_vault'));
+    const { saveKey } = await settleWrite(import('./key_vault'));
     await settleWrite(saveKey('muse', 'LLM_x', false));
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
@@ -705,7 +708,7 @@ describe('sidepanel', () => {
   it('shows the consent gate without any network call', async () => {
     const mock = await setup();
 
-    const { saveKey } = await cover(import('./key_vault'));
+    const { saveKey } = await settleWrite(import('./key_vault'));
     await settleWrite(saveKey('muse', 'LLM_x', false));
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitFor(() => {
@@ -718,9 +721,9 @@ describe('sidepanel', () => {
   it('runs exactly once after consent is granted', async () => {
     const mock = await setup();
 
-    const { saveKey } = await cover(import('./key_vault'));
+    const { saveKey } = await settleWrite(import('./key_vault'));
 
-    const { hasConsented } = await cover(import('./providers/index'));
+    const { hasConsented } = await settleWrite(import('./providers/index'));
     await settleWrite(saveKey('muse', 'LLM_x', false));
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
@@ -733,16 +736,16 @@ describe('sidepanel', () => {
     ) as HTMLButtonElement;
     clickEl(agree);
     await waitForHeading('Oia');
-    expect(await cover(hasConsented())).toBe(true);
+    expect(await settleWrite(hasConsented())).toBe(true);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('leaves consent unset when declined', async () => {
     const mock = await setup();
 
-    const { saveKey } = await cover(import('./key_vault'));
+    const { saveKey } = await settleWrite(import('./key_vault'));
 
-    const { hasConsented } = await cover(import('./providers/index'));
+    const { hasConsented } = await settleWrite(import('./providers/index'));
     await settleWrite(saveKey('muse', 'LLM_x', false));
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitFor(() => {
@@ -756,7 +759,7 @@ describe('sidepanel', () => {
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusConsentDeclined');
     });
-    expect(await cover(hasConsented())).toBe(false);
+    expect(await settleWrite(hasConsented())).toBe(false);
     expect(fetchMock).not.toHaveBeenCalled();
     expect(document.querySelector('#result-slot .hint')?.textContent).toBe('panelIdle');
     expect(document.querySelector('#result-slot button')).toBeNull();
@@ -900,7 +903,7 @@ describe('sidepanel', () => {
     const mock = await setup();
     await plantKeyAndConsent();
 
-    const { setVideoConsented } = await cover(import('./video'));
+    const { setVideoConsented } = await settleWrite(import('./video'));
     await settleWrite(setVideoConsented());
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
     await settleWrite(
@@ -1135,7 +1138,7 @@ describe('sidepanel', () => {
     });
     clickEl(card.querySelector('.alternates button') as HTMLButtonElement);
     await waitFor(() => {
-      expect(card.querySelector('.alternates')?.hasAttribute('hidden')).toBe(true);
+      expect(card.querySelector('.alternates')).toBeNull();
     });
     expect(document.querySelector('#status-region')?.textContent).toBe('statusCanceled');
     expect(card.querySelectorAll('.chips-row .chip')).toHaveLength(chips.length);
@@ -1677,7 +1680,7 @@ describe('sidepanel', () => {
   it('re-announces a repeated status', async () => {
     const mock = await setup();
 
-    const { saveKey } = await cover(import('./key_vault'));
+    const { saveKey } = await settleWrite(import('./key_vault'));
     await settleWrite(saveKey('muse', 'LLM_x', false));
 
     const declineConsent = async (): Promise<void> => {
@@ -1708,7 +1711,7 @@ describe('sidepanel', () => {
 
   it('explains image-only implications in the video confirm', async () => {
     const mock = await setup();
-    const { saveSettings } = await cover(import('./providers/index'));
+    const { saveSettings } = await settleWrite(import('./providers/index'));
     await settleWrite(
       saveSettings({
         imageOnly: true,

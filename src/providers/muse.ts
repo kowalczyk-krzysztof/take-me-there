@@ -1,4 +1,4 @@
-import { MUSE_SPARK_RATES, SAM_IMAGE_COST_USD, type ModelRates } from '../pricing';
+import { MUSE_SPARK_RATE, SAM_IMAGE_COST_USD, type ModelRates } from '../pricing';
 import { alternatesJsonSchema, placeJsonSchema, type PlaceResult } from '../types';
 import {
   ProviderError,
@@ -11,6 +11,7 @@ import {
   buildAlternatesPrompt,
   emptyUsage,
   extractChatJson,
+  extractChatText,
   extractResponsesStructured,
   extractResponsesText,
   fetchChatCompletion,
@@ -59,7 +60,7 @@ export class MuseProvider implements Provider {
   };
 
   getRates(): ModelRates {
-    return MUSE_SPARK_RATES[MODEL];
+    return MUSE_SPARK_RATE;
   }
 
   async testKey(key: string): Promise<void> {
@@ -156,10 +157,9 @@ export class MuseProvider implements Provider {
       absorbUsage(usage, tokens);
     }
 
-    const content = (data as { choices?: Array<{ message?: { content?: unknown } }> })?.choices?.[0]
-      ?.message?.content;
+    const content = extractChatText(data);
 
-    if (typeof content !== 'string' || !content.trim()) {
+    if (content === undefined || !content.trim()) {
       throw invalidResponse(usage, 'video description is empty');
     }
 
@@ -255,9 +255,9 @@ export class MuseProvider implements Provider {
   }
 
   // One web-grounded structured call: the Responses shape carries the schema
-  // plus search citations. Null (transport rejection or unparseable output)
-  // falls through to the proven structured chat path; aborts and network
-  // failures propagate so a cancelled or offline run never double-calls.
+  // plus search citations. An HTTP rejection or unparseable output returns
+  // null and falls through to the structured chat path; aborts and network
+  // failures throw instead so a cancelled or offline run never double-calls.
   private async groundedStructured<T>(
     key: string,
     signal: AbortSignal,

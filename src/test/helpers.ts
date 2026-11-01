@@ -90,23 +90,6 @@ export const settleWrite = async <T>(write: Promise<T>): Promise<T> => {
   return result;
 };
 
-// Attribution window for cascade-free awaits (reads, imports, hashes):
-// parallel product cascades can still complete while they yield, so
-// drain after the work resolves the way settleWrite does.
-export const cover = async <T>(work: Promise<T>): Promise<T> => {
-  let result!: T;
-
-  await act(async () => {
-    result = await work;
-
-    for (let i = 0; i < 200; i++) {
-      await Promise.resolve();
-    }
-  });
-
-  return result;
-};
-
 // End-of-test drain for sync-tailed tests: DOM events kick
 // fire-and-forget product chains, and a test whose last lines are pure
 // sync events and asserts has no later scope for those aftershocks to
@@ -183,7 +166,7 @@ export const setupPage = async (
   vi.stubGlobal('fetch', fetchMock);
   await act(async () => {
     mountedPage = (await runEntry()) as MountedPage | null;
-    // initPanel kicks fire-and-forget chains (lock, board, settings,
+    // initPanel kicks fire-and-forget chains (key state, settings,
     // handoff watch): settle them before returning so no test await
     // observes their unattributed updates. Microtask rounds (no timer
     // advancement): nothing is due this early, and advancing zero would

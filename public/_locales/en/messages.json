@@ -537,7 +537,7 @@
   },
   "privacyNames": {
     "message": "Your search is sent to $1 with your key: place names only.",
-    "description": "Privacy footer for duels and alternates.",
+    "description": "Privacy footer for alternates.",
     "placeholders": {
       "destination": {
         "content": "$1",

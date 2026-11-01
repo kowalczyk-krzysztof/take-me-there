@@ -12,7 +12,7 @@ interface Props {
 
 export const AlternatesView = ({ alternates, onCancel }: Props) => {
   if (alternates.state === 'idle') {
-    return <div className={styles.alternates} hidden />;
+    return null;
   }
 
   if (alternates.state === 'loading') {
@@ -31,7 +31,7 @@ export const AlternatesView = ({ alternates, onCancel }: Props) => {
   }
 
   return (
-    <div className={styles.alternates} aria-busy="false">
+    <div className={styles.alternates}>
       {alternates.cards.map((card) => (
         <div key={card.name} className={styles['alternate-card']}>
           <div className={styles['alternate-head']}>

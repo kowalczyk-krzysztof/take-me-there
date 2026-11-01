@@ -1,5 +1,7 @@
 import { fetchImageAsDataUrl } from './injected/fetch_image_bytes';
 import { fetchTimeout } from './providers/index';
+import { decodeBase64, encodeBase64 } from './utils/base64';
+import { CapExceededError, readCappedBytes } from './utils/stream';
 
 export const FETCH_MAX_BYTES = 10000000;
 
@@ -13,9 +15,7 @@ export const dataUrlToBytes = (dataUrl: string): Uint8Array | null => {
   }
 
   try {
-    const binary = atob(dataUrl.slice(at + marker.length));
-
-    return Uint8Array.from(binary, (ch) => ch.charCodeAt(0));
+    return decodeBase64(dataUrl.slice(at + marker.length));
   } catch {
     return null;
   }
@@ -46,39 +46,20 @@ export const fetchImageBytes = async (url: string, signal: AbortSignal): Promise
     throw new Error('image fetch returned no body');
   }
 
-  const reader = res.body.getReader();
+  let bytes: Uint8Array;
 
-  const chunks: Uint8Array[] = [];
-
-  let total = 0;
-
-  for (;;) {
-    const { done, value } = await reader.read();
-
-    if (done) {
-      break;
-    }
-    total += value.byteLength;
-
-    if (total > FETCH_MAX_BYTES) {
-      await reader.cancel().catch(() => undefined);
-
+  try {
+    bytes = await readCappedBytes(res.body, FETCH_MAX_BYTES);
+  } catch (err) {
+    if (err instanceof CapExceededError) {
       throw new Error('image exceeds the fetch size cap');
     }
-    chunks.push(value);
+
+    throw err;
   }
 
-  if (total === 0) {
+  if (bytes.byteLength === 0) {
     throw new Error('image fetch returned no bytes');
-  }
-
-  const bytes = new Uint8Array(total);
-
-  let offset = 0;
-
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
   }
 
   return bytes;
@@ -177,22 +158,4 @@ export const downscaleToJpegDataUrl = async (bytes: Uint8Array): Promise<string>
   } finally {
     bitmap.close();
   }
-};
-
-export const encodeBase64 = (bytes: Uint8Array): string => {
-  const toBase64 = (Uint8Array.prototype as unknown as { toBase64?: unknown }).toBase64;
-
-  if (typeof toBase64 === 'function') {
-    return (toBase64 as (this: Uint8Array) => string).call(bytes);
-  }
-
-  let binary = '';
-
-  const CHUNK = 0x8000;
-
-  for (let i = 0; i < bytes.length; i += CHUNK) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
-  }
-
-  return btoa(binary);
 };

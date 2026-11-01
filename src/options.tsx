@@ -6,9 +6,10 @@ import { ModesSection } from './components/settings/modes_section';
 import { DataSection } from './components/settings/data_section';
 import { CostSection } from './components/settings/cost_section';
 import { attachSettingsInputs, clearResultCache, setCacheTtlDays, setMode } from './settings_ops';
-import { clearKey, loadKey, saveKey, setKeyMode } from './key_vault';
+import { clearKey, loadKey } from './key_vault';
+import { applyKeyMode, validateAndSaveKey } from './key_ops';
 import { formatUsd, readMonthSpend } from './pricing';
-import { ProviderError, getActiveProvider, loadSettings, saveSettings } from './providers/index';
+import { ProviderError, getActiveProvider, loadSettings } from './providers/index';
 import { ErrorBoundary } from './components/error_boundary/error_boundary';
 import { msg } from './utils/i18n';
 import { createStore } from './utils/store';
@@ -58,36 +59,13 @@ const onSaveKey = (key: string): void => {
   void (async () => {
     store.set({ keyPending: true, keyError: null, status: msg('statusValidatingKey') });
 
-    const { provider, settings } = await getActiveProvider();
+    const outcome = await validateAndSaveKey(key, store.get().sessionOnly);
 
-    try {
-      await provider.testKey(key);
-    } catch (err) {
-      const failureKey =
-        err instanceof ProviderError && err.code === 'auth'
-          ? 'keyErrorRejected'
-          : err instanceof ProviderError && err.code === 'network'
-            ? 'keyErrorNetwork'
-            : 'keyErrorRetry';
+    if (!outcome.ok) {
       store.set({
         keyPending: false,
-        keyError: msg(failureKey),
-        status: msg(failureKey),
-      });
-
-      return;
-    }
-
-    const sessionOnly = store.get().sessionOnly;
-
-    try {
-      await saveKey(provider.id, key, sessionOnly);
-      await saveSettings({ ...settings, sessionOnly });
-    } catch {
-      store.set({
-        keyPending: false,
-        keyError: msg('keyErrorRetry'),
-        status: msg('keyErrorRetry'),
+        keyError: msg(outcome.failure),
+        status: msg(outcome.failure),
       });
 
       return;
@@ -264,24 +242,11 @@ const OptionsApp = () => {
             onSessionOnlyChange: (checked) => {
               store.set({ sessionOnly: checked });
               void (async () => {
-                const { provider, settings } = await getActiveProvider();
+                const outcome = await applyKeyMode(checked);
 
-                let result;
+                store.set({ sessionOnly: outcome.settings.sessionOnly });
 
-                try {
-                  result = await setKeyMode(provider.id, checked);
-                } catch {
-                  store.set({
-                    sessionOnly: settings.sessionOnly,
-                    status: msg('settingsSaveFailed'),
-                  });
-
-                  return;
-                }
-
-                store.set({ sessionOnly: result.sessionOnly });
-
-                if (result.error) {
+                if (outcome.failed) {
                   store.set({ status: msg('settingsSaveFailed') });
                 }
               })();

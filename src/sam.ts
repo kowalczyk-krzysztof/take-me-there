@@ -1,4 +1,5 @@
-import { encodeBase64, FETCH_JPEG_QUALITY, FETCH_MAX_SIDE } from './image_fetch';
+import { FETCH_JPEG_QUALITY, FETCH_MAX_SIDE } from './image_fetch';
+import { encodeBase64 } from './utils/base64';
 
 export interface SamTokenBox {
   x1: number;

@@ -3,6 +3,7 @@
 // and the consent chokepoint. The UI branches on capabilities, never on
 // provider names.
 import type { ModelRates } from '../pricing';
+import { CapExceededError, readCappedBytes } from '../utils/stream';
 import { truncateCodePoints } from '../utils/text';
 import {
   ALTERNATES_MAX_COUNT,
@@ -133,37 +134,17 @@ export const readBoundedJson = async (
     throw invalidResponse(usage, `${label} is not JSON`);
   }
 
-  const reader = res.body.getReader();
+  let bytes: Uint8Array;
 
-  const chunks: Uint8Array[] = [];
-
-  let total = 0;
-
-  for (;;) {
-    const { done, value } = await reader.read();
-
-    if (done) {
-      break;
-    }
-    total += value.byteLength;
-
-    if (total > JSON_MAX_BYTES) {
-      await reader.cancel().catch(() => undefined);
-
+  try {
+    bytes = await readCappedBytes(res.body, JSON_MAX_BYTES);
+  } catch (err) {
+    if (err instanceof CapExceededError) {
       throw invalidResponse(usage, `${label} exceeds the size cap`);
     }
-    chunks.push(value);
-  }
 
-  reader.releaseLock();
-
-  const bytes = new Uint8Array(total);
-
-  let offset = 0;
-
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
+    // Reader failures propagate raw: the caller's catch maps aborts.
+    throw err;
   }
 
   try {
@@ -541,11 +522,17 @@ export const parseAlternatesContent = (json: unknown): PlaceAlternate[] | undefi
 
 // Pull parsed JSON out of a chat-completions envelope. Undefined covers the
 // malformed shapes so callers can fall through to their next attempt.
-export const extractChatJson = (data: unknown): unknown => {
+export const extractChatText = (data: unknown): string | undefined => {
   const content = (data as { choices?: Array<{ message?: { content?: unknown } }> })?.choices?.[0]
     ?.message?.content;
 
-  if (typeof content !== 'string') {
+  return typeof content === 'string' ? content : undefined;
+};
+
+export const extractChatJson = (data: unknown): unknown => {
+  const content = extractChatText(data);
+
+  if (content === undefined) {
     return undefined;
   }
 
@@ -850,10 +837,9 @@ export const tryParsePlaceJson = (json: unknown): PlaceResult | undefined => {
 };
 
 export const tryParsePlace = (data: unknown): PlaceResult | undefined => {
-  const content = (data as { choices?: Array<{ message?: { content?: unknown } }> })?.choices?.[0]
-    ?.message?.content;
+  const content = extractChatText(data);
 
-  if (typeof content !== 'string') {
+  if (content === undefined) {
     return undefined;
   }
 
@@ -918,10 +904,11 @@ export const CONSENT_STORAGE_KEY = 'consentGiven';
 // grants below this version stop counting and the gate re-appears.
 export const CONSENT_VERSION: number = 2;
 
-export { loadSettings, saveSettings } from '../settings_store';
-export type { ExtensionSettings } from '../settings_store';
-import { loadSettings } from '../settings_store';
+import { loadSettings, saveSettings } from '../settings_store';
 import type { ExtensionSettings } from '../settings_store';
+
+export { loadSettings, saveSettings };
+export type { ExtensionSettings };
 
 export const hasConsented = async (): Promise<boolean> => {
   try {

@@ -17,9 +17,7 @@ export const PLACE_SCHEMA = z.strictObject({
 
 export type PlaceResult = z.infer<typeof PLACE_SCHEMA>;
 
-// Transport/cache bound for total guide text. The renderer caps display
-// separately; this caps memory and stored bytes.
-// Cache identity input: bump when identify/guide prompts change meaning
+// Cache identity input: bump when identify prompts change meaning
 // so stale entries from older prompts stop matching.
 export const PROMPT_VERSION = 1;
 

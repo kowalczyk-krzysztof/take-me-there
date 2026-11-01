@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  MUSE_SPARK_RATES,
+  MUSE_SPARK_RATE,
   estimateCostUsd,
   formatUsd,
   readMonthSpend,
@@ -22,7 +22,7 @@ afterEach(() => {
 
 describe('pricing', () => {
   it('prices tokens, searches, and flat fees', () => {
-    const rates = MUSE_SPARK_RATES['muse-spark-1.3'];
+    const rates = MUSE_SPARK_RATE;
     expect(
       estimateCostUsd(
         { inputTokens: 1_000_000, outputTokens: 1_000_000, searchCount: 0, flatFeesUsd: 0 },
@@ -67,7 +67,7 @@ describe('pricing', () => {
   });
 
   it('bills cached input below the full input rate', () => {
-    const rates = MUSE_SPARK_RATES['muse-spark-1.3'];
+    const rates = MUSE_SPARK_RATE;
     expect(
       estimateCostUsd(
         {
@@ -83,7 +83,7 @@ describe('pricing', () => {
   });
 
   it('clamps cached tokens to the reported input', () => {
-    const rates = MUSE_SPARK_RATES['muse-spark-1.3'];
+    const rates = MUSE_SPARK_RATE;
 
     const usage = {
       inputTokens: 100,

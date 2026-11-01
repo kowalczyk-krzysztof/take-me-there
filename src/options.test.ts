@@ -30,7 +30,6 @@ import { monthKey } from './pricing';
 import type { ChromeMock } from './test/chrome_mock';
 import {
   clickEl,
-  cover,
   dispatchEl,
   readShell,
   settleWrite,
@@ -127,7 +126,7 @@ describe('options', () => {
   it('tests the saved key and clears it', async () => {
     const mock = await setup();
 
-    const { saveKey, loadKey } = await cover(import('./key_vault'));
+    const { saveKey, loadKey } = await settleWrite(import('./key_vault'));
     await settleWrite(saveKey('muse', 'LLM_x', false));
     fetchMock.mockResolvedValue(new Response('[]', { status: 200 }));
     clickEl(document.querySelector('#test-key') as HTMLButtonElement);
@@ -138,14 +137,14 @@ describe('options', () => {
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusKeyCleared');
     });
-    expect(await cover(loadKey('muse'))).toEqual({ state: 'missing', orphaned: false });
+    expect(await settleWrite(loadKey('muse'))).toEqual({ state: 'missing', orphaned: false });
     expect(mock.local.data.has('apiKey:muse')).toBe(false);
   });
 
   it('reports the verified mode when the session-only move fails', async () => {
     const mock = await setup();
 
-    const { saveKey, loadKey } = await cover(import('./key_vault'));
+    const { saveKey, loadKey } = await settleWrite(import('./key_vault'));
     await settleWrite(saveKey('muse', 'LLM_x', false));
 
     mock.session.fault = (op) => {
@@ -164,7 +163,7 @@ describe('options', () => {
 
     mock.session.fault = () => undefined;
 
-    expect(await cover(loadKey('muse'))).toEqual({ state: 'ok', key: 'LLM_x' });
+    expect(await settleWrite(loadKey('muse'))).toEqual({ state: 'ok', key: 'LLM_x' });
     expect(mock.local.data.has('apiKey:muse')).toBe(true);
     expect(mock.session.data.has('apiKey:muse')).toBe(false);
   });
@@ -172,7 +171,7 @@ describe('options', () => {
   it('shows clear failures instead of claiming success', async () => {
     const mock = await setup();
 
-    const { saveKey, loadKey } = await cover(import('./key_vault'));
+    const { saveKey, loadKey } = await settleWrite(import('./key_vault'));
     await settleWrite(saveKey('muse', 'LLM_x', false));
 
     const fail = (): void => {
@@ -189,7 +188,7 @@ describe('options', () => {
     mock.session.fault = () => undefined;
     mock.local.fault = () => undefined;
 
-    expect(await cover(loadKey('muse'))).toEqual({ state: 'ok', key: 'LLM_x' });
+    expect(await settleWrite(loadKey('muse'))).toEqual({ state: 'ok', key: 'LLM_x' });
   });
 
   it('changes retention and clears cached results', async () => {
@@ -278,7 +277,7 @@ describe('options', () => {
   it('keeps retention and key mode independent', async () => {
     const mock = await setup();
 
-    const { saveKey, loadKey } = await cover(import('./key_vault'));
+    const { saveKey, loadKey } = await settleWrite(import('./key_vault'));
     await settleWrite(saveKey('muse', 'LLM_x', false));
 
     await waitFor(() => {
@@ -290,7 +289,7 @@ describe('options', () => {
     dispatchEl(sessionOnly, new Event('change', { bubbles: true }));
 
     await waitFor(async () => {
-      expect((await cover(loadKey('muse'))).state).toBe('ok');
+      expect((await settleWrite(loadKey('muse'))).state).toBe('ok');
     });
 
     const retention = document.querySelector('#retention-select') as HTMLSelectElement;
@@ -306,7 +305,7 @@ describe('options', () => {
       expect(record.settings.sessionOnly).toBe(true);
     });
 
-    expect(await cover(loadKey('muse'))).toEqual({ state: 'ok', key: 'LLM_x' });
+    expect(await settleWrite(loadKey('muse'))).toEqual({ state: 'ok', key: 'LLM_x' });
     expect(mock.session.data.has('apiKey:muse')).toBe(true);
   });
 });

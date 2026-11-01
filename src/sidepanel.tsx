@@ -19,7 +19,8 @@ import {
   fetchImageBytes,
   fetchImageBytesViaTab,
 } from './image_fetch';
-import { clearKey, isVaultKey, loadKey, saveKey, setKeyMode } from './key_vault';
+import { clearKey, isVaultKey, loadKey } from './key_vault';
+import { applyKeyMode, validateAndSaveKey } from './key_ops';
 import { cropToSamBox, parseSamBoxes, selectSamBox, type SamPixelBox } from './sam';
 import { estimateCostUsd, formatUsd, readMonthSpend } from './pricing';
 import {
@@ -48,7 +49,6 @@ import {
   getActiveProvider,
   hasConsented,
   loadSettings,
-  saveSettings,
   setConsented,
   SETTINGS_STORAGE_KEY,
   type AlternateIntent,
@@ -66,6 +66,7 @@ import {
 import { ErrorBoundary } from './components/error_boundary/error_boundary';
 import { msg } from './utils/i18n';
 import { truncateCodePoints } from './utils/text';
+import { isLoopbackHttp } from './utils/url';
 import { createStore } from './utils/store';
 import './styles/sidepanel.css';
 import './components/shared_styles.css';
@@ -227,11 +228,11 @@ const selectTab = (tab: PanelTab): void => {
   }
 };
 
-const enabledTabs = (): PanelTab[] => ['main', 'settings'];
+const ENABLED_TABS: PanelTab[] = ['main', 'settings'];
 
 let lockEpoch = 0;
 
-const refreshLock = async (): Promise<void> => {
+const refreshKeyState = async (): Promise<void> => {
   const epoch = ++lockEpoch;
 
   try {
@@ -251,9 +252,9 @@ const refreshLock = async (): Promise<void> => {
   }
 };
 
-const onLockAreaChanged = (changes: Record<string, unknown>): void => {
+const onKeyAreaChanged = (changes: Record<string, unknown>): void => {
   if (Object.keys(changes).some((key) => isVaultKey(key) || key === SETTINGS_STORAGE_KEY)) {
-    void refreshLock();
+    void refreshKeyState();
   }
 };
 
@@ -446,7 +447,7 @@ const setPreviewIdentified = (placeName: string): void => {
   }
 };
 
-const clearContentSlots = (): void => {
+const clearLinks = (): void => {
   store.set({
     links: null,
   });
@@ -562,7 +563,7 @@ const showIdle = (): void => {
       },
     });
   });
-  clearContentSlots();
+  clearLinks();
   updatePrivacy('idle');
   clearCost();
 };
@@ -570,7 +571,7 @@ const showIdle = (): void => {
 const showOnboarding = (orphaned: boolean): void => {
   cancelSkeleton();
   currentView = 'onboarding';
-  clearContentSlots();
+  clearLinks();
   selectTab('settings');
   setKeyForm({ sessionOnly: runSettings?.sessionOnly ?? false });
   store.set({ showOrphaned: orphaned, replacing: false, keySaved: false });
@@ -581,7 +582,7 @@ const showOnboarding = (orphaned: boolean): void => {
 const showConsent = (focusGate: boolean): void => {
   cancelSkeleton();
   currentView = 'consent';
-  clearContentSlots();
+  clearLinks();
   selectTab('main');
   swapResultSlot(() => {
     store.set({ result: { ...blankResultSlot(), consent: true } });
@@ -598,7 +599,7 @@ const showConsent = (focusGate: boolean): void => {
 const showVideoConfirm = (rung2: boolean, imageOnly: boolean, focusGate: boolean): void => {
   cancelSkeleton();
   currentView = 'video-confirm';
-  clearContentSlots();
+  clearLinks();
   swapResultSlot(() => {
     store.set({ result: { ...blankResultSlot(), video: { rung2, imageOnly } } });
   });
@@ -664,21 +665,6 @@ const announceGate = (reason: 'key' | 'consent'): void => {
   announceStatus(reason === 'key' ? 'statusKeyNeeded' : 'statusConsentNeeded');
 };
 
-export const isLoopbackHttp = (srcUrl: string): boolean => {
-  try {
-    const parsed = new URL(srcUrl);
-
-    return (
-      parsed.protocol === 'http:' &&
-      (parsed.hostname === 'localhost' ||
-        parsed.hostname === '127.0.0.1' ||
-        parsed.hostname === '[::1]')
-    );
-  } catch {
-    return false;
-  }
-};
-
 // Alternates belong to the displayed result: a new analysis run aborts
 // their controller alongside the previous analysis. Ready alternate
 // cards survive (their indices stay valid); only the in-flight marker
@@ -697,7 +683,7 @@ const cancelAllWork = (): void => {
 };
 
 // The visible Cancel beside every paid phase: runs in flight abort
-// through their own paths (partial guide kept, spend settled, announced);
+// through their own paths (spend settled, announced);
 // with nothing in flight (still collecting), the panel idles directly.
 const onCancelLoading = (): void => {
   const hadRun = cancelActiveRun() !== null;
@@ -712,7 +698,7 @@ const onCancelLoading = (): void => {
   }
 };
 
-// Follow-up stages of one request (guide after identify, look-again)
+// Follow-up stages of one request (re-analyze, look-again)
 // inherit the live run's usage snapshot so the run figure stays cumulative
 // while each stage still settles exactly once. Anything else (a new
 // request, a replaced key, a switched provider or model) starts clean.
@@ -835,7 +821,7 @@ const renderResultHeader = async (
   cancelSkeleton();
   currentView = 'result';
   currentAlternates = null;
-  const props = await resultCardProps(place);
+  const props = resultCardProps(place);
 
   if (!ownsUi(run)) {
     return;
@@ -854,9 +840,13 @@ const renderResultHeader = async (
 const renderNoPlace = async (
   request: TripRequest,
   origin: 'gesture' | 'panel',
-  run: RunContext
+  run: RunContext,
+  cached: boolean
 ): Promise<void> => {
-  await settleSkeleton();
+  // Live runs honor the skeleton dwell; cache hits render immediately.
+  if (!cached) {
+    await settleSkeleton();
+  }
 
   if (!ownsUi(run)) {
     return;
@@ -878,7 +868,12 @@ const renderNoPlace = async (
       },
     });
   });
-  clearContentSlots();
+  clearLinks();
+
+  if (cached) {
+    store.set({ cost: msg('costLine', [formatUsd(0)]) });
+    updatePrivacy('cache');
+  }
   announceStatus('statusNoPlace');
   if (origin === 'panel') {
     focusResultHeading();
@@ -989,12 +984,8 @@ const showProviderError = (
   updatePrivacy(privacy);
 };
 
-// Failures before any billable work (auth, missing key, consent, setup,
-// caller aborts) carry no usage honestly: the run figure stays exact.
-// Any other failure without usage means billed tokens went unreported,
-// so the run stops claiming a complete cost.
-// An all-zero usage report means the failure carried no billing signal:
-// absorbing it would let the run claim a complete cost it cannot prove.
+// An all-zero usage report carries no billing signal, so there is
+// nothing to absorb into the run figure.
 const usageIsEmpty = (usage: Usage): boolean =>
   usage.inputTokens <= 0 &&
   usage.outputTokens <= 0 &&
@@ -1002,12 +993,12 @@ const usageIsEmpty = (usage: Usage): boolean =>
   usage.searchCount <= 0 &&
   usage.flatFeesUsd <= 0;
 
-const recordPartialUsage = (run: RunContext, stage: string, err: unknown): void => {
+const recordPartialUsage = async (run: RunContext, stage: string, err: unknown): Promise<void> => {
   if (err instanceof ProviderError && err.usage && !usageIsEmpty(err.usage)) {
     absorbRunUsage(run, err.usage);
   }
 
-  void priceAndRecord(run, stage);
+  await priceAndRecord(run, stage);
 };
 
 interface IdentifyArgs {
@@ -1018,8 +1009,8 @@ interface IdentifyArgs {
 }
 
 // Guesses below this confidence render the no-place card instead of a
-// guide: the model was told to guess rather than refuse, so the panel owns
-// the refusal line. Tune against live traffic.
+// result: the model was told to guess rather than refuse, so the panel
+// owns the refusal line. Tune against live traffic.
 const NO_PLACE_MIN_CONFIDENCE = 0.35;
 
 const runIdentify = async (args: IdentifyArgs): Promise<RunOutcome> => {
@@ -1044,7 +1035,7 @@ const runIdentify = async (args: IdentifyArgs): Promise<RunOutcome> => {
     });
   } catch (err) {
     if (err instanceof ProviderError && err.code === 'aborted') {
-      recordPartialUsage(run, 'identify', err);
+      void recordPartialUsage(run, 'identify', err);
 
       if (activeRun() !== null) {
         return 'aborted';
@@ -1056,8 +1047,7 @@ const runIdentify = async (args: IdentifyArgs): Promise<RunOutcome> => {
 
       return 'aborted';
     }
-    recordPartialUsage(run, 'identify', err);
-    await priceAndRecord(run, 'identify');
+    await recordPartialUsage(run, 'identify', err);
 
     if (!ownsUi(run)) {
       return 'error';
@@ -1109,7 +1099,7 @@ const runIdentify = async (args: IdentifyArgs): Promise<RunOutcome> => {
   if (!identify.place.identified || identify.place.confidence < NO_PLACE_MIN_CONFIDENCE) {
     // Stash the guess: look-again rejects it to force a different candidate.
     commitDisplayed(run, 'no-place');
-    await renderNoPlace(request, origin, run);
+    await renderNoPlace(request, origin, run, false);
 
     if (!ownsUi(run)) {
       return 'aborted';
@@ -1168,35 +1158,25 @@ const renderCached = async (
 
   cancelSkeleton();
   run.place = entry.place;
+
+  const request = run.request;
+
+  if (!request) {
+    return;
+  }
+
   // Same refusal line as a live run: a cached low-confidence guess shows
   // the no-place card instead of flipping to a result on revisit.
   if (!entry.place.identified || entry.place.confidence < NO_PLACE_MIN_CONFIDENCE) {
     commitDisplayed(run, 'no-place');
-    swapResultSlot(() => {
-      store.set({
-        result: {
-          ...blankResultSlot(),
-          card: {
-            view: 'no-place',
-            showLookAgain: !lookAgainUsed.has(run.cacheKey),
-            fallback: run.request ? fallbackFor(run.request.signals ?? EMPTY_SIGNALS) : null,
-          },
-        },
-      });
-    });
-    clearContentSlots();
-    store.set({ cost: msg('costLine', [formatUsd(0)]) });
-    updatePrivacy('cache');
-    announceStatus('statusNoPlace');
-    if (origin === 'panel') {
-      focusResultHeading();
-    }
+    await renderNoPlace(request, origin, run, true);
+
     return;
   }
   run.destination = buildDestination(entry.place.placeName, entry.place.city, entry.place.country);
   currentAlternates = null;
   commitDisplayed(run, 'result');
-  const props = await resultCardProps(entry.place);
+  const props = resultCardProps(entry.place);
 
   if (!ownsUi(run)) {
     return;
@@ -1608,6 +1588,45 @@ const lookAgain = async (): Promise<void> => {
   }
 };
 
+// Gate-ticket-start shared by look-again and re-analyze: null when a
+// newer flow won the ticket or the key/consent gate is not ready.
+const startPanelRun = async (
+  request: TripRequest,
+  ticket: number,
+  runId: string,
+  cacheKey: string
+): Promise<{ run: RunContext; provider: Provider } | null> => {
+  const gate = await gateRun({ kind: 'request', request });
+
+  if (ticket !== runTicket) {
+    return null;
+  }
+
+  if (!gate.ready) {
+    announceGate(gate.reason);
+
+    return null;
+  }
+
+  const { provider, settings, key } = gate;
+
+  const run = startRun(
+    {
+      runId,
+      requestId: request.requestId,
+      kind: 'identify',
+      provider,
+      settings,
+      key,
+      request,
+      cacheKey,
+    },
+    { inheritFrom: pickInherit(request.requestId, provider, key), abortSiblings }
+  );
+
+  return { run, provider };
+};
+
 const netLookAgain = async (
   request: TripRequest,
   ticket: number,
@@ -1615,30 +1634,18 @@ const netLookAgain = async (
   rejectedPlace: string | undefined
 ): Promise<void> => {
   try {
-    const gate = await gateRun({ kind: 'request', request });
-
-    if (ticket !== runTicket) {
-      return;
-    }
-
-    if (!gate.ready) {
-      announceGate(gate.reason);
-      return;
-    }
-    const { provider, settings, key } = gate;
-    const run = startRun(
-      {
-        runId: nextRunId(`${request.requestId}-look-again`),
-        requestId: request.requestId,
-        kind: 'identify',
-        provider,
-        settings,
-        key,
-        request,
-        cacheKey,
-      },
-      { inheritFrom: pickInherit(request.requestId, provider, key), abortSiblings }
+    const started = await startPanelRun(
+      request,
+      ticket,
+      nextRunId(`${request.requestId}-look-again`),
+      cacheKey
     );
+
+    if (!started) {
+      return;
+    }
+
+    const { run, provider } = started;
     showSkeleton(request.requestId, 'identifying');
     let samCrop: SamCrop | null = null;
     if (provider.capabilities.segmentation) {
@@ -1707,32 +1714,18 @@ const netReanalyze = async (
   rejectedPlace: string
 ): Promise<void> => {
   try {
-    const gate = await gateRun({ kind: 'request', request });
-
-    if (ticket !== runTicket) {
-      return;
-    }
-
-    if (!gate.ready) {
-      announceGate(gate.reason);
-      return;
-    }
-    const { provider, settings, key } = gate;
-    const run = startRun(
-      {
-        runId: nextRunId(`${request.requestId}-reanalyze`),
-        requestId: request.requestId,
-        kind: 'identify',
-        provider,
-        settings,
-        key,
-        request,
-        cacheKey: currentCacheKey,
-      },
-      { inheritFrom: pickInherit(request.requestId, provider, key), abortSiblings }
+    const started = await startPanelRun(
+      request,
+      ticket,
+      nextRunId(`${request.requestId}-reanalyze`),
+      currentCacheKey
     );
+
+    if (!started) {
+      return;
+    }
     showSkeleton(request.requestId, 'identifying');
-    await runIdentify({ run, origin: 'panel', rejectedPlace });
+    await runIdentify({ run: started.run, origin: 'panel', rejectedPlace });
   } catch (err) {
     if (ticket !== runTicket) {
       return;
@@ -1760,7 +1753,7 @@ const retry = async (): Promise<void> => {
   if (!target) {
     return;
   }
-  clearContentSlots();
+  clearLinks();
   await netPanelRun(() => runAnalysis(target.request, 'panel'), target.request);
 };
 
@@ -1918,9 +1911,9 @@ const sourceHostFor = (request: TripRequest | null): string => {
   return request?.signals?.pageHost ?? '';
 };
 
-const resultCardProps = async (
+const resultCardProps = (
   place: PlaceResult
-): Promise<{
+): {
   view: 'result';
   place: PlaceResult;
   lowConfidence: boolean;
@@ -1928,7 +1921,7 @@ const resultCardProps = async (
   confidence: ConfidenceView;
   sourceHost: string | null;
   alternates: AlternatesView;
-}> => {
+} => {
   const host = sourceHostFor(displayedRequest);
 
   const alternates = alternatesView();
@@ -1949,7 +1942,7 @@ const refreshResultCard = async (): Promise<void> => {
     return;
   }
   const place = currentPlace;
-  const props = await resultCardProps(place);
+  const props = resultCardProps(place);
 
   if (currentView !== 'result' || currentPlace !== place) {
     return;
@@ -2009,7 +2002,7 @@ const runAlternates = async (intent: AlternateIntent): Promise<void> => {
     if (err instanceof ProviderError && err.code === 'aborted') {
       return;
     }
-    recordPartialUsage(bucket, stage, err);
+    void recordPartialUsage(bucket, stage, err);
     if (mine !== alternatesRunId || (host && activeRun() !== host)) {
       return;
     }
@@ -2068,30 +2061,15 @@ const onKeySave = async (key: string): Promise<void> => {
   const sessionOnly = store.get().keyForm.sessionOnly;
   setKeyForm({ pending: true });
   announceStatus('statusValidatingKey');
-  const { provider, settings } = await getActiveProvider();
-  runSettings = settings;
-  try {
-    await provider.testKey(key);
-  } catch (err) {
-    const failureKey =
-      err instanceof ProviderError && err.code === 'auth'
-        ? 'keyErrorRejected'
-        : err instanceof ProviderError && err.code === 'network'
-          ? 'keyErrorNetwork'
-          : 'keyErrorRetry';
-    setKeyForm({ pending: false, error: msg(failureKey) });
-    announceStatus(failureKey);
+  const outcome = await validateAndSaveKey(key, sessionOnly);
+
+  if (!outcome.ok) {
+    setKeyForm({ pending: false, error: msg(outcome.failure) });
+    announceStatus(outcome.failure);
+
     return;
   }
-  try {
-    await saveKey(provider.id, key, sessionOnly);
-    runSettings = { ...settings, sessionOnly };
-    await saveSettings(runSettings);
-  } catch {
-    setKeyForm({ pending: false, error: msg('keyErrorRetry') });
-    announceStatus('keyErrorRetry');
-    return;
-  }
+  runSettings = outcome.settings;
   setKeyForm({ pending: false, error: null, resetKey: store.get().keyForm.resetKey + 1 });
   store.set({ keySaved: true, replacing: false, showOrphaned: false });
   selectTab('main');
@@ -2149,34 +2127,22 @@ const onConsentDecision = async (agreed: boolean): Promise<void> => {
 };
 
 const onSessionOnlyChange = async (checked: boolean): Promise<void> => {
-  const { provider, settings } = await getActiveProvider();
-
   // Optimistic for the remount; the settled state below always comes from
   // verified storage, never from the previous checkbox value.
   setKeyForm({ sessionOnly: checked });
 
-  let result;
+  const outcome = await applyKeyMode(checked);
 
-  try {
-    result = await setKeyMode(provider.id, checked);
-  } catch {
-    runSettings = { ...settings };
-    setKeyForm({ sessionOnly: settings.sessionOnly, error: msg('settingsSaveFailed') });
+  runSettings = { ...outcome.settings };
+
+  if (outcome.failed) {
+    setKeyForm({ sessionOnly: outcome.settings.sessionOnly, error: msg('settingsSaveFailed') });
     announceStatus('settingsSaveFailed');
 
     return;
   }
 
-  runSettings = { ...settings, sessionOnly: result.sessionOnly };
-
-  if (result.error) {
-    setKeyForm({ sessionOnly: result.sessionOnly, error: msg('settingsSaveFailed') });
-    announceStatus('settingsSaveFailed');
-
-    return;
-  }
-
-  setKeyForm({ sessionOnly: result.sessionOnly, error: null });
+  setKeyForm({ sessionOnly: outcome.settings.sessionOnly, error: null });
 };
 
 interface PreviewFrameProps {
@@ -2233,7 +2199,7 @@ const PreviewFrame = ({ preview }: PreviewFrameProps) => {
 };
 
 const onTabKeyDown = (event: ReactKeyboardEvent): void => {
-  const tabs = enabledTabs();
+  const tabs = ENABLED_TABS;
   const currentId = (event.target as HTMLElement).id;
   const current = (Object.keys(TAB_IDS) as PanelTab[]).find((tab) => TAB_IDS[tab] === currentId);
   if (!current) {
@@ -2300,7 +2266,7 @@ const SidepanelApp = () => {
         id="main-panel"
         role="tabpanel"
         aria-labelledby="tab-main"
-        hidden={!main || undefined}
+        hidden={main ? undefined : true}
       >
         <header id="preview-header">
           <h2 id="preview-heading" className="visually-hidden" tabIndex={-1}>
@@ -2489,9 +2455,9 @@ export const initPanel = (): void => {
 
   updatePreview(null);
   showIdle();
-  void refreshLock();
-  chrome.storage.local.onChanged.addListener(onLockAreaChanged);
-  chrome.storage.session.onChanged.addListener(onLockAreaChanged);
+  void refreshKeyState();
+  chrome.storage.local.onChanged.addListener(onKeyAreaChanged);
+  chrome.storage.session.onChanged.addListener(onKeyAreaChanged);
 
   void refreshPanelSettings();
   void watchOwnHandoffSlot();

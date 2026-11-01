@@ -1,6 +1,5 @@
-// Cost math and the monthly spend accumulator. Providers report normalized
-// usage; this module prices it. Providers without a rate table (custom
-// endpoints) yield null, and the UI shows token counts instead of dollars.
+// Cost math and the monthly spend accumulator. The provider reports
+// normalized usage; this module prices it at the Muse rate card.
 import type { Usage } from './providers/index';
 import { sendCommand } from './storage_client';
 
@@ -16,12 +15,10 @@ export interface ModelRates {
 export const CACHED_INPUT_USD_PER_MTOK = 0.15;
 
 // muse-spark-1.3: $1.25 per 1M input tokens, $4.25 per 1M output tokens.
-export const MUSE_SPARK_RATES: Record<string, ModelRates> = {
-  'muse-spark-1.3': {
-    inputUsdPerMTok: 1.25,
-    outputUsdPerMTok: 4.25,
-    cachedInputUsdPerMTok: CACHED_INPUT_USD_PER_MTOK,
-  },
+export const MUSE_SPARK_RATE: ModelRates = {
+  inputUsdPerMTok: 1.25,
+  outputUsdPerMTok: 4.25,
+  cachedInputUsdPerMTok: CACHED_INPUT_USD_PER_MTOK,
 };
 
 // Web grounding bills per search query on top of tokens.

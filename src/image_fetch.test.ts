@@ -3,7 +3,6 @@ import {
   FETCH_JPEG_QUALITY,
   FETCH_MAX_BYTES,
   downscaleToJpegDataUrl,
-  encodeBase64,
   fetchImageBytes,
   fetchImageBytesViaTab,
 } from './image_fetch';
@@ -12,26 +11,6 @@ import { installChromeMock, uninstallChromeMock, type ChromeMock } from './test/
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
-});
-
-describe('encodeBase64', () => {
-  it('round-trips bytes through the chunked path', () => {
-    const proto = Uint8Array.prototype as unknown as { toBase64?: unknown };
-
-    const native = proto.toBase64;
-    delete proto.toBase64;
-
-    try {
-      const bytes = Uint8Array.from({ length: 100000 }, (_, i) => i % 251);
-
-      const decoded = Uint8Array.from(atob(encodeBase64(bytes)), (ch) => ch.charCodeAt(0));
-      expect(decoded).toEqual(bytes);
-    } finally {
-      if (native !== undefined) {
-        proto.toBase64 = native;
-      }
-    }
-  });
 });
 
 describe('fetchImageBytesViaTab', () => {

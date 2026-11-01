@@ -29,7 +29,6 @@ vi.mock('idb-keyval', () => {
 import type { ChromeMock } from './test/chrome_mock';
 import {
   clickEl,
-  cover,
   dispatchEl,
   readShell,
   settleWrite,
@@ -77,7 +76,7 @@ describe('onboarding', () => {
   it('reports the verified mode when the session-only move fails', async () => {
     const mock = await setup();
 
-    const { saveKey, loadKey } = await cover(import('./key_vault'));
+    const { saveKey, loadKey } = await settleWrite(import('./key_vault'));
     await settleWrite(saveKey('muse', 'LLM_x', false));
 
     mock.session.fault = (op) => {
@@ -96,7 +95,7 @@ describe('onboarding', () => {
 
     mock.session.fault = () => undefined;
 
-    expect(await cover(loadKey('muse'))).toEqual({ state: 'ok', key: 'LLM_x' });
+    expect(await settleWrite(loadKey('muse'))).toEqual({ state: 'ok', key: 'LLM_x' });
     expect(mock.local.data.has('apiKey:muse')).toBe(true);
   });
 

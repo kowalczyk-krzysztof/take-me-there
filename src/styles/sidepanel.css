@@ -151,13 +151,6 @@ main {
   margin: 0 0 8px;
 }
 
-#key-saved-error {
-  margin: 0 0 8px;
-  font-size: 0.75rem;
-  line-height: 1.5;
-  color: var(--error);
-}
-
 #page-footer {
   position: sticky;
   bottom: 0;
@@ -176,36 +169,4 @@ main {
 
 #page-footer p:last-child {
   margin-bottom: 0;
-}
-
-.confirm-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 12px;
-}
-
-.confirm-actions button {
-  font: inherit;
-  font-weight: 500;
-  padding: 8px 16px;
-  border-radius: 8px;
-  cursor: pointer;
-  background: var(--card);
-  color: var(--text);
-  border: 1px solid var(--border);
-  transition: background-color 120ms ease;
-}
-
-.confirm-actions button:hover {
-  background: var(--surface);
-}
-
-.confirm-actions button.primary {
-  background: var(--action);
-  color: var(--on-action);
-  border-color: transparent;
-}
-
-.confirm-actions button.primary:hover {
-  background: var(--action-hover);
 }
