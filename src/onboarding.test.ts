@@ -52,7 +52,10 @@ describe('onboarding', () => {
     await setup();
     expect(document.querySelector('#title')?.textContent).toBe('appName');
     expect(document.querySelector('#howto')?.textContent).toBe('onboardingHowto');
-    expect(document.querySelector('#try-hint')?.textContent).toBe('onboardingTryHint');
+    expect(document.querySelector('#key-later')?.textContent).toBe('onboardingKeyLater');
+    expect((document.querySelector('.title-row img') as HTMLImageElement).getAttribute('src')).toBe(
+      'icons/48.png'
+    );
     expect(document.querySelector('#key-input')).not.toBeNull();
     expect(document.querySelector('#key-host button.primary')?.textContent).toBe('saveKeyButton');
   });
@@ -193,7 +196,9 @@ describe('onboarding', () => {
     expect(permsRemove).toHaveBeenCalledWith({ origins: ['https://llm.example.com/*'] });
 
     await waitFor(() => {
-      expect(document.querySelector('#key-hint')?.textContent).toBe('keyHint');
+      expect(document.querySelector('#key-hint')?.textContent).toBe(
+        'keyHintPrefixkeyHintDashboardnewTabSuffix.'
+      );
     });
   });
 });

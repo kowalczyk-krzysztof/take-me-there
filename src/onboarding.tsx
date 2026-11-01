@@ -186,8 +186,13 @@ const OnboardingApp = () => {
 
   return (
     <main ref={attach}>
-      <h1 id="title">{msg('appName')}</h1>
-      <p id="howto">{msg('onboardingHowto')}</p>
+      <div className="panel-card title-card">
+        <div className="title-row">
+          <img src="icons/48.png" alt="" width={40} height={40} />
+          <h1 id="title">{msg('appName')}</h1>
+        </div>
+        <p id="howto">{msg('onboardingHowto')}</p>
+      </div>
       <div key={settings === null ? 'loading' : 'ready'}>
         <ProviderSection
           heading={msg('onboardingProviderHeading')}
@@ -243,7 +248,7 @@ const OnboardingApp = () => {
       <div id="status-region" role="status" className="visually-hidden">
         {state.status}
       </div>
-      <p id="try-hint">{msg('onboardingTryHint')}</p>
+      <p id="key-later">{msg('onboardingKeyLater')}</p>
     </main>
   );
 };

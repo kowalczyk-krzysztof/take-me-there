@@ -111,26 +111,38 @@ export const KeySetup = ({
           <label className={styles['field-label']} htmlFor="key-input">
             {customHost ? msg('keyLabelCustom') : msg('keyLabel')}
           </label>
-          <input
-            id="key-input"
-            ref={inputRef}
-            type={revealed ? 'text' : 'password'}
-            autoComplete="off"
-            autoCapitalize="off"
-            spellCheck={false}
-            aria-describedby={error === null ? 'key-hint' : 'key-hint key-error'}
-            aria-invalid={error === null ? undefined : 'true'}
-            placeholder={msg(customHost ? 'keyPlaceholderCustom' : 'keyPlaceholder')}
-            onChange={(event) => callbacks.onDraftChange?.(event.currentTarget.value)}
-          />
+          <div className={styles['input-row']}>
+            <input
+              id="key-input"
+              ref={inputRef}
+              type={revealed ? 'text' : 'password'}
+              autoComplete="off"
+              autoCapitalize="off"
+              spellCheck={false}
+              aria-describedby={error === null ? 'key-hint' : 'key-hint key-error'}
+              aria-invalid={error === null ? undefined : 'true'}
+              placeholder={msg(customHost ? 'keyPlaceholderCustom' : 'keyPlaceholder')}
+              onChange={(event) => callbacks.onDraftChange?.(event.currentTarget.value)}
+            />
+            <button
+              type="button"
+              className={styles.secondary}
+              aria-controls="key-input"
+              onClick={() => flushSync(() => setRevealed((was) => !was))}
+            >
+              {msg(revealed ? 'hideKeyButton' : 'showKeyButton')}
+            </button>
+          </div>
           <p className={styles.hint} id="key-hint">
-            {customHost ? msg('keyHintCustom') : msg('keyHint')}
+            {customHost ? (
+              msg('keyHintCustom')
+            ) : (
+              <>
+                {msg('keyHintPrefix')}
+                <ExternalLink href={DASHBOARD_URL}>{msg('keyHintDashboard')}</ExternalLink>.
+              </>
+            )}
           </p>
-          {customHost ? null : (
-            <p className={styles.dashboard}>
-              <ExternalLink href={DASHBOARD_URL}>{msg('dashboardLink')}</ExternalLink>
-            </p>
-          )}
           <p
             className={styles.error}
             id="key-error"
@@ -155,20 +167,19 @@ export const KeySetup = ({
             <button type="submit" className={styles.primary} aria-disabled={pending || undefined}>
               {msg(pending ? 'validatingButton' : 'saveKeyButton')}
             </button>
-            <button
-              type="button"
-              className={styles.secondary}
-              aria-controls="key-input"
-              onClick={() => flushSync(() => setRevealed((was) => !was))}
-            >
-              {msg(revealed ? 'hideKeyButton' : 'showKeyButton')}
-            </button>
           </div>
           <p className={styles.notice}>
             {customHost ? msg('securityNoticeCustom', customHost) : msg('securityNotice')}
           </p>
           <p className={styles.hygiene}>
-            {customHost ? msg('keyHygieneCustom') : msg('keyHygiene')}
+            {customHost ? (
+              msg('keyHygieneCustom')
+            ) : (
+              <>
+                {msg('keyHygienePrefix')}
+                <ExternalLink href={DASHBOARD_URL}>{msg('keyHintDashboard')}</ExternalLink>.
+              </>
+            )}
           </p>
         </form>
       )}

@@ -75,13 +75,21 @@ describe('key-setup', () => {
   it('renders the setup form with canonical copy', () => {
     const root = renderSetup().container;
     expect(root.querySelector('label')?.textContent).toBe('keyLabel');
-    expect(root.querySelector('#key-hint')?.textContent).toBe('keyHint');
+    expect(root.querySelector('#key-hint')?.textContent).toBe(
+      'keyHintPrefixkeyHintDashboardnewTabSuffix.'
+    );
     expect(root.querySelector('.notice')?.textContent).toBe('securityNotice');
-    expect(root.querySelector('.hygiene')?.textContent).toBe('keyHygiene');
+    expect(root.querySelector('.hygiene')?.textContent).toBe(
+      'keyHygienePrefixkeyHintDashboardnewTabSuffix.'
+    );
 
-    const link = root.querySelector('.dashboard a') as HTMLAnchorElement;
-    expect(link.getAttribute('href')).toBe('https://dev.meta.ai');
-    expect(link.target).toBe('_blank');
+    const links = [...root.querySelectorAll('#key-hint a, .hygiene a')] as HTMLAnchorElement[];
+    expect(links).toHaveLength(2);
+
+    for (const link of links) {
+      expect(link.getAttribute('href')).toBe('https://dev.meta.ai');
+      expect(link.target).toBe('_blank');
+    }
   });
 
   it('rejects empty submits without emitting', () => {
@@ -203,7 +211,6 @@ describe('key-setup', () => {
       'securityNoticeCustom(my-server.example)'
     );
     expect(root.querySelector('.hygiene')?.textContent).toBe('keyHygieneCustom');
-    expect(root.querySelector('.dashboard')).toBeNull();
 
     const consent = renderSetup({ mode: 'consent', customHost: 'my-server.example' }).container;
     expect(consent.querySelector('.consent-body')?.textContent).toBe(

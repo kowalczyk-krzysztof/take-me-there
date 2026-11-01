@@ -211,9 +211,13 @@
     "message": "Muse API key",
     "description": "Key field label."
   },
-  "keyHint": {
-    "message": "Starts with LLM_ - created in the dev.meta.ai dashboard.",
-    "description": "Key field hint."
+  "keyHintPrefix": {
+    "message": "Starts with LLM_ - created in the ",
+    "description": "Key hint before the dashboard link."
+  },
+  "keyHintDashboard": {
+    "message": "dev.meta.ai dashboard",
+    "description": "Link text for the Meta developer dashboard."
   },
   "keyPlaceholder": {
     "message": "LLM_…",
@@ -243,17 +247,13 @@
     "message": "Session-only mode (forget the key when the browser closes)",
     "description": "Session-only checkbox label."
   },
-  "dashboardLink": {
-    "message": "Get a key in the dev.meta.ai dashboard",
-    "description": "Dashboard link text."
-  },
   "securityNotice": {
     "message": "Your API key is encrypted before it's saved (AES-GCM, with a non-extractable key kept in this browser profile) and never leaves this device except to authenticate requests to api.meta.ai. Someone with full access to your computer account could still recover it, so only save it on a trusted device - or enable session-only mode, which keeps the key in memory and forgets it when the browser closes. Saving the key sends only the key itself to validate it - images and page text are never sent before you click 'Agree & analyze'.",
     "description": "Canonical key security notice."
   },
-  "keyHygiene": {
-    "message": "Create a dedicated key just for this extension, paste it only into the official Web Store install or a build you made yourself from this repo (a modified clone could steal it), and revoke it anytime in the dev.meta.ai dashboard.",
-    "description": "Key hygiene lines."
+  "keyHygienePrefix": {
+    "message": "Create a dedicated key just for this extension, paste it only into the official Web Store install or a build you made yourself from this repo (a modified clone could steal it), and revoke it anytime in the ",
+    "description": "Key hygiene lines before the dashboard link."
   },
   "consentTitle": {
     "message": "Before the first analysis",
@@ -264,12 +264,12 @@
     "description": "Canonical data-transmission disclosure."
   },
   "onboardingHowto": {
-    "message": "Right-click any image on any page and choose Take me there. Muse AI identifies the place and the side panel plans your trip.",
+    "message": "Right-click any image on any page and choose Take me there. Muse AI identifies the place.",
     "description": "Onboarding how-it-works line."
   },
-  "onboardingTryHint": {
-    "message": "Try it now: open a photo-rich page such as a Wikipedia landmark article, right-click a photo, and choose Take me there.",
-    "description": "Onboarding try-it hint."
+  "onboardingKeyLater": {
+    "message": "You can change your key and key settings later in the Settings tab.",
+    "description": "Onboarding note about changing the key later."
   },
   "optionsKeyHeading": {
     "message": "API key",

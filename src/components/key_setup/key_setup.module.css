@@ -26,6 +26,14 @@
   color: var(--text);
   font: inherit;
 }
+.root .input-row {
+  display: flex;
+  gap: 8px;
+}
+.root .input-row input {
+  flex: 1;
+  min-width: 0;
+}
 .root input[aria-invalid='true'] {
   border-color: var(--error);
   border-width: 2px;
