@@ -1,7 +1,3 @@
-// Command protocol for the worker-owned storage service. Pages send intents;
-// the worker validates, serializes, and executes them against chrome.storage
-// as the single writer. Schemas bound shape and size; semantic checks
-// (non-empty, finite) live with the handlers so error text stays stable.
 import * as z from 'zod/mini';
 import { CACHE_ENTRY_SCHEMA } from './types';
 

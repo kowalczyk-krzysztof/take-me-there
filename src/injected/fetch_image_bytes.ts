@@ -1,7 +1,4 @@
-// Page-context image fetch for byte acquisition. Runs inside the target
-// tab via scripting.executeScript, so image CDNs that serve CORS headers
-// need no extension host permission and the user never sees a grant
-// prompt. Self-contained: injected modules cannot import shared code.
+// Self-contained: injected modules cannot import shared code.
 export type FetchImageReason =
   'unsupported-scheme' | 'fetch-failed' | 'http-status' | 'non-image' | 'too-large' | 'empty';
 

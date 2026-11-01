@@ -1,9 +1,4 @@
-// Window-scoped worker-to-panel delivery. Each window owns one session slot;
-// a session-persisted sequence orders records while timestamps only expire
-// them, so a clock rollback can never reorder or resurrect a run. Panels
-// acknowledge terminal records through the worker, which clears the slot
-// only when the acknowledged sequence still matches: a delayed ack never
-// deletes a newer payload.
+// One session slot per window, sequence-ordered; timestamps only expire. Acks clear the slot only on sequence match.
 import * as z from 'zod/mini';
 import { createMutex } from './utils/mutex';
 import { isExtensionPageSender } from './storage_commands';
@@ -18,10 +13,7 @@ const ACK_TIMEOUT_MS = 5000;
 
 export const handoffSlotKey = (windowId: number): string => `tripRequest:${windowId}`;
 
-// Serializes slot check-and-act sequences (collecting/terminal writes,
-// ack removals) so a panel ack can never slip between a worker's freshness
-// check and its write and delete a newer payload. Worker-side only: each
-// bundle gets its own instance and only the worker writes slots.
+// Serializes slot check-and-act so an ack can never delete a newer payload. Worker-side only.
 const slotMutex = createMutex();
 
 export const withHandoffSlot = <T>(task: () => Promise<T>): Promise<T> => slotMutex(task);
@@ -31,9 +23,7 @@ const ackSchema = z.strictObject({
   seq: z.number(),
 });
 
-// Chained allocation: concurrent clicks serialize here, so every sequence
-// is unique and persisted before the next is issued. The chain rehydrates
-// from session storage after a worker restart.
+// Concurrent clicks serialize here so every sequence is unique; the chain rehydrates from storage after a restart.
 let seqTail: Promise<number> | null = null;
 
 const loadSeq = async (): Promise<number> => {
@@ -60,15 +50,13 @@ export const allocateHandoffSeq = (): Promise<number> => {
     return next;
   });
 
-  // A persist failure rejects this caller but never poisons the chain:
-  // the next click rehydrates instead of inheriting the rejection.
+  // A persist failure rejects this caller but never poisons the chain.
   seqTail = issued.catch(() => loadSeq());
 
   return issued;
 };
 
-// Clears the window slot only when it still holds the acknowledged
-// sequence. Returns whether anything was cleared.
+// Clears the slot only on sequence match.
 export const ackHandoffSlot = async (windowId: number, seq: number): Promise<boolean> => {
   const slot = handoffSlotKey(windowId);
 
@@ -91,8 +79,7 @@ export interface HandoffAckResult {
   error?: string;
 }
 
-// Message entry for the worker listener and tests. Returns undefined for
-// messages outside this protocol.
+// Returns undefined for foreign messages.
 export const handleHandoffMessage = async (
   message: unknown,
   sender: chrome.runtime.MessageSender
@@ -143,7 +130,6 @@ export const ackRequest = async (windowId: number, seq: number): Promise<void> =
       timeout,
     ]);
   } catch {
-    // The slot ages out by TTL; the run proceeds regardless.
   } finally {
     clearTimeout(timer);
   }

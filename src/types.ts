@@ -1,11 +1,7 @@
-// zod schemas as the single source of truth: they emit the Muse
-// response_format payload, validate parsed model output, and produce the
-// shared TypeScript types via z.infer. Import from 'zod/mini' only: a plain
-// 'zod' import silently multiplies the bundle (enforced by a pre-zip grep).
+// Import from 'zod/mini' only: a plain 'zod' import multiplies the bundle.
 import * as z from 'zod/mini';
 
-// Identify output: every string carries maxLength, the object is strict, and
-// every property is required. This is exactly Muse's strict subset.
+// Strict subset for Muse: strict object, every property required.
 export const PLACE_SCHEMA = z.strictObject({
   identified: z.boolean(),
   placeName: z.string().check(z.maxLength(100)),
@@ -21,8 +17,6 @@ export type PlaceResult = z.infer<typeof PLACE_SCHEMA>;
 // so stale entries from older prompts stop matching.
 export const PROMPT_VERSION = 1;
 
-// Bounded cache entry: validates stored results on read and outbound
-// writes through the storage commands.
 export const CACHE_ENTRY_SCHEMA = z.strictObject({
   place: PLACE_SCHEMA,
   usage: z.strictObject({
@@ -34,10 +28,7 @@ export const CACHE_ENTRY_SCHEMA = z.strictObject({
   }),
 });
 
-// Payload for the Muse response_format json_schema. toJSONSchema always adds
-// a top-level $schema key, which the strict subset forbids, so drop it here.
-// $ref/$defs must never appear: the unit test fails the build if a later
-// schema edit introduces them.
+// toJSONSchema adds a top-level $schema key, which the strict subset forbids.
 export const placeJsonSchema = (): Record<string, unknown> => {
   const emitted = z.toJSONSchema(PLACE_SCHEMA) as unknown as Record<string, unknown>;
 
@@ -55,9 +46,7 @@ const JSON_LD_SCHEMA = z.strictObject({
   lon: z.nullable(z.number()),
 });
 
-// The page scraper's output shape, mirrored from the self-contained injected
-// module (which cannot import this file). The panel validates the handoff
-// against this before trusting it.
+// Mirrored from the self-contained injected module, which cannot import this file.
 export const PAGE_SIGNALS_SCHEMA = z.strictObject({
   imgFound: z.boolean(),
   alt: z.string(),
@@ -91,9 +80,6 @@ export const FRAME_FAILURE_SCHEMA = z.enum([
 
 export type FrameFailureReason = z.infer<typeof FRAME_FAILURE_SCHEMA>;
 
-// The worker-to-panel handoff record. Signals ride along only once the
-// scrape settles (the 'ready' terminal write); video clicks add the media
-// marker plus either the captured frame or its failure reason.
 export const TRIP_REQUEST_SCHEMA = z.strictObject({
   requestId: z.string(),
   seq: z.number(),

@@ -1,6 +1,3 @@
-// Video-rung selection: which mp4 URLs may ride rung 2, the frame cache
-// seed, and the one-time first-video confirm flag (mirrors the consent
-// flag: local storage, ever-persistent, fail-closed).
 const VIDEO_CONFIRM_KEY = 'videoFrameConsent';
 // Bump when the video confirm copy or the consented video flows change.
 const VIDEO_CONSENT_VERSION: number = 1;
@@ -35,9 +32,7 @@ export const setVideoConsented = async (): Promise<void> => {
   });
 };
 
-// Rung 2 carries full motion plus the soundtrack, so the URL bar is high:
-// public https only (server-fetched), manifests and blobs rejected, inline
-// data: video capped at 50 MB.
+// Rung 2 carries full motion plus the soundtrack, so the URL bar is high: public https only.
 export const isRung2Usable = (srcUrl: string): boolean => {
   if (!srcUrl || srcUrl.startsWith('blob:')) {
     return false;
@@ -64,10 +59,7 @@ export const isRung2Usable = (srcUrl: string): boolean => {
   return !path.endsWith('.m3u8') && !path.endsWith('.mpd');
 };
 
-// Frame cache key seed: the blob: address is unstable across loads, so the
-// key is the page plus the whole-second timestamp of the captured frame.
-// Query parameters survive: /video?id=A and /video?id=B are different
-// videos sharing a page.
+// The blob: address is unstable, so the key is the page plus the whole-second timestamp; query parameters survive.
 export const frameCacheSeed = (time: number, srcUrl: string): string => {
   let stripped = srcUrl;
 
@@ -75,9 +67,7 @@ export const frameCacheSeed = (time: number, srcUrl: string): string => {
     const parsed = new URL(srcUrl);
     parsed.hash = '';
     stripped = parsed.toString();
-  } catch {
-    // Non-URL sources (blobs, data) seed verbatim.
-  }
+  } catch {}
 
   return `${stripped}#t=${Math.floor(time)}`;
 };

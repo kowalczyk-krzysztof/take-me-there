@@ -14,10 +14,7 @@ export interface MigrationStepResult {
   error?: string;
 }
 
-// Ordered and idempotent: every step tolerates already-migrated records,
-// and steps are isolated so one corrupt store cannot block the others.
-// Consent and vault records are deliberately excluded: legacy consent has
-// no timestamp to backfill and vault ciphertext must never be rewritten.
+// Steps are isolated so one corrupt store cannot block the others; vault ciphertext is excluded and never rewritten.
 export const runUpdateMigrations = async (): Promise<MigrationStepResult[]> => {
   const results: MigrationStepResult[] = [];
 

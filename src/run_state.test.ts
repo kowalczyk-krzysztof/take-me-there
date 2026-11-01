@@ -134,7 +134,6 @@ describe('run accounting', () => {
     await expect(settleStage(run, 'identify')).resolves.toBeCloseTo(0.001, 9);
     expect(run.recordedUsd).toBeCloseTo(0.001, 9);
 
-    // A repeated settlement re-reads the total without charging again.
     await expect(settleStage(run, 'identify')).resolves.toBeCloseTo(0.001, 9);
     expect(await readMonthSpend()).toBeCloseTo(0.001, 9);
 

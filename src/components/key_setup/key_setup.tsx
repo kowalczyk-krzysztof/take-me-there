@@ -144,9 +144,7 @@ export const KeySetup = ({
             {error}
           </p>
           <label className={styles['checkbox-row']}>
-            {/* Uncontrolled + keyed: a changed sessionOnly prop remounts
-                with the new default; user toggles never re-render with a
-                new value, so the DOM keeps the user's choice. */}
+            {/* Keyed remount picks up prop changes; user toggles never re-render, so the DOM keeps the user's choice. */}
             <input
               type="checkbox"
               id="session-only"

@@ -78,9 +78,7 @@ export class MuseProvider implements Provider {
     return runIdentify(key, input, (messages, schema) => this.identifyRequest(messages, schema));
   }
 
-  // Rung 2: json_schema x video is undocumented, so the schema attempt may
-  // 400. The prescribed fallback describes the video in free text, then
-  // normalizes that description through the proven text-only schema path.
+  // json_schema x video is undocumented and may 400; the fallback describes, then normalizes.
   private async identifyVideo(key: string, input: IdentifyInput): Promise<IdentifyResult> {
     try {
       return await runIdentify(key, input, (messages, schema) =>
@@ -232,8 +230,6 @@ export class MuseProvider implements Provider {
     throw invalidResponse(usage, 'model output failed validation');
   }
 
-  // Single effort-first path: every identify runs at medium effort with the
-  // guess-permissive prompt. There is no weak first pass to retry out of.
   private identifyRequest(
     messages: ChatMessage[],
     schema: Record<string, unknown>
@@ -254,10 +250,7 @@ export class MuseProvider implements Provider {
     };
   }
 
-  // One web-grounded structured call: the Responses shape carries the schema
-  // plus search citations. An HTTP rejection or unparseable output returns
-  // null and falls through to the structured chat path; aborts and network
-  // failures throw instead so a cancelled or offline run never double-calls.
+  // HTTP rejection or unparseable output returns null (chat fallback); aborts and network failures throw.
   private async groundedStructured<T>(
     key: string,
     signal: AbortSignal,
@@ -404,9 +397,7 @@ export class MuseProvider implements Provider {
     throw invalidResponse(usage, 'model output failed validation');
   }
 
-  // One sam-3.1 segmentation call with a bare-noun prompt. The answer is
-  // token-grammar text (parsed by sam.ts); empty text is a valid no-match,
-  // never an error.
+  // Empty text is a valid no-match, never an error.
   async segmentLandmark(key: string, input: SegmentInput): Promise<SegmentResult> {
     requireKey(key);
     await assertConsent();

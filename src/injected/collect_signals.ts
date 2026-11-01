@@ -36,16 +36,13 @@ export const collectSignals = (srcUrl: string): PageSignalData => {
   };
 
   const target = abs(srcUrl);
-  // toWellFormed last: slicing and page-controlled text can both leave lone
-  // surrogates that would throw in encodeURIComponent downstream.
+  // Slicing and page text can leave lone surrogates that throw in encodeURIComponent.
   const clean = (s: string | null | undefined): string =>
     (s || '').replace(/\s+/g, ' ').trim().slice(0, 300).toWellFormed();
 
   const meta = (sel: string): string => clean(document.querySelector(sel)?.getAttribute('content'));
 
-  // Locate the clicked img: currentSrc (srcset/picture winner) -> src attr ->
-  // any srcset candidate. Scan cap: a hostile page with 100k imgs must not
-  // stall the worker's awaited injection.
+  // Capped: a hostile page with 100k imgs must not stall the awaited injection.
   const imgs = [...document.querySelectorAll('img')].slice(0, 2000);
 
   const img =
@@ -58,8 +55,7 @@ export const collectSignals = (srcUrl: string): PageSignalData => {
     ) ||
     null;
 
-  // Nearest preceding element matching sel, walking up from the image
-  // (hop-capped on crafted DOMs).
+  // Hop-capped on crafted DOMs.
   const nearestPrev = (sel: string): Element | null => {
     let hops = 0;
 
@@ -82,7 +78,6 @@ export const collectSignals = (srcUrl: string): PageSignalData => {
     return null;
   };
 
-  // schema.org JSON-LD: Place-like nodes and anything with geo coordinates.
   const ld: JsonLdPlace[] = [];
 
   for (const s of document.querySelectorAll('script[type="application/ld+json"]')) {
@@ -128,9 +123,7 @@ export const collectSignals = (srcUrl: string): PageSignalData => {
           });
         }
       }
-    } catch {
-      // malformed JSON-LD: skip block
-    }
+    } catch {}
   }
 
   const safeDecode = (value: string): string => {
@@ -160,8 +153,7 @@ export const collectSignals = (srcUrl: string): PageSignalData => {
     ogSiteName: meta('meta[property="og:site_name"]'),
     docTitle: clean(document.title),
     metaDescription: meta('meta[name="description"]'),
-    // Data minimization: no query strings/fragments ever leave the page; the
-    // full URL stays local-only.
+    // No query strings or fragments ever leave the page.
     canonical: clean(
       (document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null)?.href?.split(
         /[?#]/
@@ -176,8 +168,6 @@ export const collectSignals = (srcUrl: string): PageSignalData => {
     imgFileSlug: fileSlug(target),
     jsonLd: ld.slice(0, 5),
   };
-  // Hard total-size guard: a hostile page must not inflate the prompt or break
-  // the storage write.
   if (JSON.stringify(out).length > 4096) {
     out.jsonLd = [];
     out.nearestParagraph = out.nearestParagraph.slice(0, 120).toWellFormed();

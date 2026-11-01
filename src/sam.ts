@@ -31,8 +31,6 @@ const finite = (value: string): number | null => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
-// Parse every box token in the answer, dropping malformed numbers. NaN,
-// infinities, and absurd magnitudes never survive this pass.
 export const parseSamBoxes = (text: string): SamTokenBox[] => {
   const boxes: SamTokenBox[] = [];
   BOX_TOKEN_RE.lastIndex = 0;
@@ -73,9 +71,6 @@ export const parseSamBoxes = (text: string): SamTokenBox[] => {
   return boxes;
 };
 
-// Pick the largest-area box (highest confidence breaks ties), scaled from
-// the token's w/h reference frame into image pixels, padded ~8%, clamped to
-// the frame, and rejected below the minimum area or on inverted edges.
 export const selectSamBox = (
   boxes: SamTokenBox[],
   imageWidth: number,
@@ -138,8 +133,6 @@ export const selectSamBox = (
   return best;
 };
 
-// Crop the bitmap to the validated box, downscaling the crop to the fetch
-// cap so the re-identify stays bounded. Returns a JPEG data: URL.
 export const cropToSamBox = async (bitmap: ImageBitmap, box: SamPixelBox): Promise<string> => {
   const sw = Math.max(1, Math.round(box.x2 - box.x1));
 

@@ -1,7 +1,5 @@
-// Post-build checks for the MV3 bundle: no eval-style code (the content
-// security policy forbids it), zod/mini only in source (the full zod import
-// doubles the schema weight), and the service worker bundle carries the
-// serialized page scraper plus the menu wiring.
+// Post-build MV3 checks: no eval-style code (CSP forbids it), zod/mini only (full zod
+// doubles schema weight), worker carries the scraper plus menu wiring.
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

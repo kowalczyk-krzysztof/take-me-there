@@ -1,6 +1,4 @@
-// Hand-rolled chrome mock for unit tests: Map-backed storage areas with
-// onChanged dispatch, a catalog-checked i18n, and minimal runtime stubs. No
-// mocking library.
+// Map-backed storage with onChanged dispatch, catalog-checked i18n, minimal runtime stubs.
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -14,9 +12,7 @@ const catalog = JSON.parse(
 
 export const catalogKeys = (): Set<string> => new Set(Object.keys(catalog));
 
-// Identity-preserving but strict: known keys echo so behavior tests pin the
-// message identity (stable across copy edits), substitutions stay visible so
-// wrong amounts/counts fail, and unknown keys surface as '' like Chrome.
+// Known keys echo so tests pin message identity across copy edits; unknown keys surface as '' like Chrome.
 const getMessage = (key: string, subs?: string | string[]): string => {
   if (!Object.hasOwn(catalog, key)) {
     return '';
@@ -116,12 +112,9 @@ export class MockStorageArea {
   }
 
   private dispatch(changes: Record<string, MockStorageChange>): void {
-    // Chrome delivers storage events asynchronously with just the changes
-    // on per-area listeners (the area is implicit).
+    // Chrome delivers storage events asynchronously.
     queueMicrotask(() => {
-      // Storage listeners drive the page stores; they run bare so the
-      // surrounding harness scope attributes and flushes them. A nested
-      // act() scope here would clobber the outer async scope's queue.
+      // Listeners run bare so the harness scope attributes them; a nested act() here would clobber the outer queue.
       for (const listener of this.listeners) {
         listener(structuredClone(changes));
       }

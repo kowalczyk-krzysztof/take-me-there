@@ -1,5 +1,3 @@
-// Cost math and the monthly spend accumulator. The provider reports
-// normalized usage; this module prices it at the Muse rate card.
 import type { Usage } from './providers/index';
 import { sendCommand } from './storage_client';
 
@@ -9,21 +7,15 @@ export interface ModelRates {
   cachedInputUsdPerMTok?: number;
 }
 
-// Prompt-cache reads bill below full input price on Muse only: other
-// providers fall back to their full input rate unless they configure
-// their own cached rate, so the UI never invents savings for them.
 export const CACHED_INPUT_USD_PER_MTOK = 0.15;
 
-// muse-spark-1.3: $1.25 per 1M input tokens, $4.25 per 1M output tokens.
 export const MUSE_SPARK_RATE: ModelRates = {
   inputUsdPerMTok: 1.25,
   outputUsdPerMTok: 4.25,
   cachedInputUsdPerMTok: CACHED_INPUT_USD_PER_MTOK,
 };
 
-// Web grounding bills per search query on top of tokens.
 export const WEB_SEARCH_COST_USD = 0.0025;
-// Flat fee per sam-3.1 image call.
 export const SAM_IMAGE_COST_USD = 0.0025;
 
 export const cachedInputTokensOf = (usage: Usage): number =>
@@ -55,8 +47,6 @@ interface SpendRecord {
   months: Record<string, number>;
 }
 
-// idempotent: wraps a legacy flat month map in the versioned record.
-// Versioned, absent, and unreadable records are left untouched.
 export const migrateSpend = async (): Promise<void> => {
   const stored = (await chrome.storage.local.get(COST_TOTALS_KEY)) as {
     costTotals?: unknown;
@@ -91,10 +81,7 @@ export const formatUsd = (amount: number): string => {
 export const monthKey = (date: Date = new Date()): string =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 
-// Strict read: storage failures throw so writers abort instead of
-// persisting totals rebuilt from an empty read. Absent totals read as
-// empty; legacy flat maps migrate in memory and persist on next write.
-// Exported for the worker storage service, the only writer.
+// Storage failures throw so writers abort instead of persisting totals rebuilt from an empty read.
 export const readTotals = async (): Promise<Record<string, number>> => {
   const stored = (await chrome.storage.local.get(COST_TOTALS_KEY)) as {
     costTotals?: unknown;

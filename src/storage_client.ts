@@ -1,8 +1,5 @@
-// Page-side client for the worker storage service. Every shared-state
-// mutation travels as a validated command; the worker executes. Transport
-// failures and timeouts throw; command rejections throw StorageCommandError
-// from sendCommand, or surface as a result from sendCommandResult for
-// callers that must render verified state alongside the error.
+// Transport failures and timeouts throw. Command rejections throw from sendCommand,
+// or surface as a result from sendCommandResult.
 import { STORAGE_MESSAGE_SCOPE, type CommandResult, type StorageCommand } from './storage_commands';
 
 const COMMAND_TIMEOUT_MS = 30000;

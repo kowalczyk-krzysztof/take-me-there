@@ -7,9 +7,7 @@ export type SaveKeyFailure = 'keyErrorRejected' | 'keyErrorNetwork' | 'keyErrorR
 export type SaveKeyOutcome =
   { ok: true; settings: ExtensionSettings } | { ok: false; failure: SaveKeyFailure };
 
-// Validate-then-persist, shared by the panel, options, and onboarding so
-// the test/save/settings writes can never drift between pages. Success
-// carries the stored settings (with the new session-only flag).
+// Shared so the test/save/settings writes can never drift between pages.
 export const validateAndSaveKey = async (
   key: string,
   sessionOnly: boolean
@@ -47,8 +45,6 @@ export interface KeyModeOutcome {
   failed: boolean;
 }
 
-// Toggles session-only placement and reports the verified settings:
-// success carries the new flag, any failure carries the stored one.
 export const applyKeyMode = async (checked: boolean): Promise<KeyModeOutcome> => {
   const { provider, settings } = await getActiveProvider();
 

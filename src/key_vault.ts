@@ -1,7 +1,4 @@
-// Encrypted API-key storage. A non-extractable AES-GCM key lives in the
-// extension origin's IndexedDB (via idb-keyval); API keys rest in
-// chrome.storage only as {iv, ciphertext}. Session-only mode keeps the
-// ciphertext in storage.session (memory-only, wiped on exit) instead.
+// API keys rest in chrome.storage only as {iv, ciphertext} under a non-extractable IndexedDB key.
 import { createStore, get, set } from 'idb-keyval';
 import { sendCommand, sendCommandResult } from './storage_client';
 import { decodeBase64, encodeBase64 } from './utils/base64';
@@ -106,9 +103,7 @@ export const loadKey = async (providerId: string): Promise<KeyStatus> => {
 
     return { state: 'ok', key: new TextDecoder().decode(decrypted) };
   } catch {
-    // Never delete here: the ciphertext may belong to a rotated wrapping
-    // key or a newer record version. The orphan notice asks the user to
-    // re-enter the key, which overwrites the record on save.
+    // Never delete: the ciphertext may belong to a rotated wrapping key or a newer version.
     return { state: 'missing', orphaned: true };
   }
 };
@@ -122,9 +117,7 @@ export interface KeyModeResult {
   error?: string;
 }
 
-// The single key-mode operation for all key forms. Returns the verified
-// actual mode: session-only is reported only when storage satisfies it.
-// Transport failures throw; the caller keeps its last verified state.
+// Returns the verified actual mode; transport failures throw.
 export const setKeyMode = async (
   providerId: string,
   sessionOnly: boolean

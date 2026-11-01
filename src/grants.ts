@@ -1,12 +1,8 @@
-// Temporary host permissions for image byte-fetching: a per-origin
-// grant is borrowed for seconds. Temp grants ledger in session storage
-// so a worker restart can reconcile abandoned ones.
+// Temp grants ledger in session storage so a restart can reconcile abandoned ones.
 import { createMutex, type Mutex } from './utils/mutex';
 
 export const TEMP_GRANT_KEY = 'tempGrants';
 
-// A byte fetch never holds a grant this long: older ledger entries belong
-// to dead panels.
 export const TEMP_GRANT_TTL_MS = 10 * 60 * 1000;
 
 type TempLedger = Record<string, number>;
@@ -39,9 +35,7 @@ const writeLedger = async (ledger: TempLedger): Promise<void> => {
   try {
     await chrome.storage.session.set({ [TEMP_GRANT_KEY]: ledger });
   } catch {
-    // Best effort: a lost ledger entry leaks at most one grant, which the
-    // next startup reconcile still cannot see. The finally below revokes
-    // directly, so the common path stays clean.
+    // Best effort: the finally below still revokes directly.
   }
 };
 
@@ -61,9 +55,7 @@ export const removeGrant = async (origin: string): Promise<void> => {
   }
 };
 
-// One mutex per origin: concurrent borrowers for the same host queue
-// instead of racing, so the first finisher cannot revoke the grant out
-// from under a task that is still fetching.
+// Concurrent borrowers for one origin queue instead of racing, so the first finisher cannot revoke from under a live task.
 const originMutexes = new Map<string, Mutex>();
 
 const mutexForOrigin = (origin: string): Mutex => {
@@ -79,10 +71,7 @@ const mutexForOrigin = (origin: string): Mutex => {
   return fresh;
 };
 
-// One origin grant with guaranteed cleanup. Loopback http skips the grant
-// entirely: the fetch goes direct instead. Pre-existing user approvals
-// are used but never revoked; only a grant this call created is removed
-// after the task.
+// Pre-existing approvals are used but never revoked; only created grants are removed.
 export const withTempGrant = async <T>(
   origin: string,
   loopback: boolean,
@@ -125,8 +114,7 @@ export const withTempGrant = async <T>(
   });
 };
 
-// Worker startup sweep: revoke abandoned temp grants. Fresh entries may
-// belong to a live panel and are left alone.
+// Fresh entries may belong to a live panel and are left alone.
 export const reconcileTempGrants = async (now: number = Date.now()): Promise<void> => {
   const ledger = await readLedger();
 

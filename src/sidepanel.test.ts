@@ -132,8 +132,7 @@ const READY = (overrides: Record<string, unknown> = {}) => {
 
 const fetchMock = vi.fn();
 
-// A hung request with real-fetch abort semantics: it rejects when the
-// caller aborts, so cancel paths behave as they do in production.
+// Rejects on abort, like a real fetch.
 const hangUntilAbort = (): void => {
   fetchMock.mockImplementationOnce(
     (_url: string, init?: { signal?: AbortSignal }) =>
@@ -186,7 +185,6 @@ describe('sidepanel', () => {
     const tabMain = document.querySelector('#tab-main') as HTMLButtonElement;
 
     const tabSettings = document.querySelector('#tab-settings') as HTMLButtonElement;
-    // Explore is available immediately, key or not.
     expect(tabMain.getAttribute('aria-selected')).toBe('true');
     expect(tabMain.hasAttribute('aria-disabled')).toBe(false);
     await plantKeyAndConsent();
@@ -213,7 +211,6 @@ describe('sidepanel', () => {
     dispatchEl(tabSettings, new KeyboardEvent('keydown', { key: 'Home', bubbles: true }));
     expect(document.activeElement).toBe(tabMain);
     expect(tabMain.getAttribute('aria-selected')).toBe('true');
-    // A new run surfaces on the main tab even from the settings tab.
     clickEl(tabSettings);
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
@@ -244,8 +241,6 @@ describe('sidepanel', () => {
     dispatchEl(tabSettings, new KeyboardEvent('keydown', { key: 'Home', bubbles: true }));
     expect(document.activeElement).toBe(tabMain);
     expect(tabMain.getAttribute('aria-selected')).toBe('true');
-    // The End key selected settings and kicked its async refresh; the
-    // tail below it is pure sync, so drain the aftershock here.
     await drainStragglers();
   });
 
@@ -506,7 +501,6 @@ describe('sidepanel', () => {
 
     await settleWrite(mock.local.set({ settings: { v: 1, settings: { imageOnly: true } } }));
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
-    // Prove the second handoff re-ran identify.
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledTimes(2);
     });
@@ -852,7 +846,6 @@ describe('sidepanel', () => {
     clickEl(document.querySelector('#result-slot .confirm-actions .primary') as HTMLButtonElement);
     await waitForHeading('Oia');
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    // The gate is one-time: the next video analyzes without asking.
     fetchMock.mockClear();
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
     await settleWrite(
@@ -936,8 +929,7 @@ describe('sidepanel', () => {
     expect(fetchMock).not.toHaveBeenCalled();
     expect(document.querySelector('#result-slot')?.textContent).toContain('panelIdle');
     expect(document.querySelector('#status-region')?.textContent).toBe('');
-    // A leaked run would have fetched and cached: the follow-up uses a
-    // distinct image so only a true ignore keeps the total at one.
+    // A distinct image, so only a true ignore keeps the total at one.
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
     await settleWrite(
       mock.session.set({
@@ -950,8 +942,7 @@ describe('sidepanel', () => {
 
   it('delivers a stored record on startup without any storage event', async () => {
     await setup(async (mock) => {
-      // The startup chain fires during import and must never observe an
-      // unmocked fetch.
+      // The startup chain must never observe an unmocked fetch.
       fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
       await plantKeyAndConsent();
       await settleWrite(mock.session.set({ [SLOT]: READY({ requestId: '500-1' }) }));
@@ -976,9 +967,7 @@ describe('sidepanel', () => {
     await settleWrite(mock.session.set({ [SLOT]: READY({ requestId: '10-1', seq: 50 }) }));
     await waitForHeading('Oia');
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    // A distinct image with a newer timestamp: if the stale record leaked
-    // through, it would miss the cache and fetch instead of being dropped
-    // by the sequence guard. Clocks order nothing here.
+    // Newer timestamp on purpose: clocks order nothing here.
     await settleWrite(
       mock.session.set({
         [SLOT]: READY({

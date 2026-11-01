@@ -10,12 +10,9 @@ export const CACHE_INDEX_KEY = 'cacheKeys';
 
 export const CACHE_ENTRY_VERSION = 2;
 
-// Session-held entries expire a week after creation.
 export const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
-// Total cache bytes: a conservative share of the 10 MB session quota.
-// Identify-only entries are small, so the slot cap binds first; the byte
-// cap stays as defense-in-depth.
+// Conservative share of the 10 MB session quota; the slot cap binds first.
 export const CACHE_MAX_BYTES = 2 * 1024 * 1024;
 
 export type CacheEntry = z.infer<typeof CACHE_ENTRY_SCHEMA>;
@@ -42,8 +39,7 @@ export interface IdentifyKeyParts {
   imageOnly: boolean;
 }
 
-// Identify-cache identity: schema/prompt version, image-only mode, and
-// media identity. Everything hashes; raw identity fields are never stored.
+// Everything hashes; raw identity fields are never stored.
 export const hashIdentifyKey = async (parts: IdentifyKeyParts): Promise<string> =>
   hashFields([
     String(CACHE_VERSION),
@@ -117,10 +113,7 @@ export const readCacheIndex = async (): Promise<string[]> => {
 const getAllLocal = async (): Promise<Record<string, unknown>> =>
   (await chrome.storage.local.get(null as unknown as string)) as unknown as Record<string, unknown>;
 
-// Upgrade purge: legacy result-cache records lived in local storage; the
-// session-default cache starts empty. Restricted to the cache namespace:
-// keys, settings, and cost history are never touched. Throws on
-// failure so the migration framework reports and retries it.
+// Restricted to the cache namespace. Throws on failure so the migration framework reports and retries it.
 export const migrateCache = async (): Promise<void> => {
   const stored = await getAllLocal();
 
@@ -151,8 +144,6 @@ export const setCacheEntry = async (hash: string, entry: CacheEntry): Promise<vo
   }
 };
 
-// Clears indexed and orphaned entries through the shared storage owner.
-// Returns the removed entry count; throws when the clear itself fails so
-// callers never report a failed cleanup as successful.
+// Throws when the clear itself fails.
 export const clearCacheEntries = async (): Promise<number> =>
   sendCommand<number>({ kind: 'cache.clear' });

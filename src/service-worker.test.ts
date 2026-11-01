@@ -213,9 +213,7 @@ describe('service-worker', () => {
     fireClick(mock, { ...IMAGE_INFO }, { ...TAB });
     await flush(0);
     releases[0]([{ result: null }]);
-    // The first click is past its scrape and into its terminal write while
-    // the second click arrives: a get-then-set gap here would let the stale
-    // write bury the newer collecting record.
+    // The second click arrives mid-terminal-write: a get-then-set gap would let the stale write bury it.
     await flush(0);
     fireClick(mock, { ...IMAGE_INFO, srcUrl: 'https://cdn.example.com/fira.jpg' }, { ...TAB });
     await flush(15);
@@ -308,8 +306,7 @@ describe('service-worker', () => {
     const mock = await setup();
     await mock.session.set({ handoffSeq: 41 });
 
-    // Restart: drop all module state, keep the stored sequence. The fresh
-    // worker registers a second click listener; only the newest handles.
+    // The fresh worker registers a second click listener; only the newest handles.
     vi.resetModules();
     await import('./service-worker');
     mock.worker.menuClicked.splice(0, mock.worker.menuClicked.length - 1);

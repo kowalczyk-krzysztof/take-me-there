@@ -1,5 +1,3 @@
-// Panel state machine: handoff intake, key and consent gates, cached or live
-// analysis, disagree flows, and the cost footer.
 import { useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { flushSync } from 'react-dom';
@@ -248,7 +246,7 @@ const refreshKeyState = async (): Promise<void> => {
       keySaved: keyStatus.state === 'ok',
     });
   } catch {
-    // Keep the current lock on storage failure.
+    // Keep the current key state on storage failure.
   }
 };
 
@@ -315,19 +313,14 @@ const attachSettings = (el: HTMLElement | null): (() => void) | void => {
   });
 };
 
-// Delivery cursor: the worker sequence orders records (timestamps only
-// expire them), with a rank so a terminal write supersedes the collecting
-// write of the same click without a panel reopen replaying either.
+// Worker sequence orders records; rank lets a terminal write supersede the collecting write of the same click.
 let lastSeenSeq = 0;
 
 let lastSeenRank = -1;
 
 let panelWindowPromise: Promise<number | undefined> | null = null;
 
-// The handoff key is extension-global, so every open panel sees every
-// request. Each panel resolves its own window once and ignores records
-// stamped for another window: one click, one analysis, no cross-window
-// display of another window's browsing.
+// Handoff storage is global; each panel only runs its own window's records.
 const getPanelWindowId = (): Promise<number | undefined> => {
   if (!panelWindowPromise) {
     panelWindowPromise = chrome.windows.getCurrent().then(
@@ -339,8 +332,7 @@ const getPanelWindowId = (): Promise<number | undefined> => {
   return panelWindowPromise;
 };
 
-// Request behind the displayed result, for follow-up stages that
-// must bind to what the user sees rather than to any live run.
+// Request behind the displayed result; follow-ups bind to this, not the live run.
 let displayedRequest: TripRequest | null = null;
 
 let runSettings: ExtensionSettings | null = null;
@@ -401,9 +393,7 @@ const focusResultHeading = (): void => {
   focusSelector('#result-slot h2');
 };
 
-// Every result-slot swap runs through here so a swap that removes the
-// focused subtree falls back to the new visible heading, or to the
-// persistent preview heading when the new tree has none.
+// A swap that removes the focused subtree falls back to the new visible heading.
 const swapResultSlot = (build: () => void): void => {
   const before = composedActiveElement();
   build();
@@ -494,8 +484,7 @@ const clearCost = (): void => {
   store.set({ cost: '' });
 };
 
-// Settles the originating run's stage (stale runs included: the spend
-// happened) but renders the cost line only for the UI owner.
+// Stale runs settle too (the spend happened); only the UI owner renders the cost line.
 const priceAndRecord = async (run: RunContext, stage: string): Promise<void> => {
   const rates = run.provider.getRates();
 
@@ -593,9 +582,6 @@ const showConsent = (focusGate: boolean): void => {
   }
 };
 
-// First-video gate: the same blocking inline-state pattern as consent
-// (heading, disclosure, agree + explicit decline in DOM order), rendered in
-// the light DOM because no key form is involved.
 const showVideoConfirm = (rung2: boolean, imageOnly: boolean, focusGate: boolean): void => {
   cancelSkeleton();
   currentView = 'video-confirm';
@@ -631,9 +617,6 @@ type GateResult =
   | { ready: true; provider: Provider; settings: ExtensionSettings; key: string }
   | { ready: false; reason: 'key' | 'consent' };
 
-// Every run starts here: resolve the provider, then require a stored key and
-// consent. A pending run routes to onboarding/consent so it can resume;
-// without one the caller only announces the blocker.
 const gateRun = async (pending: PendingRun | null): Promise<GateResult> => {
   const { provider, settings } = await getActiveProvider();
   runSettings = settings;
@@ -665,10 +648,7 @@ const announceGate = (reason: 'key' | 'consent'): void => {
   announceStatus(reason === 'key' ? 'statusKeyNeeded' : 'statusConsentNeeded');
 };
 
-// Alternates belong to the displayed result: a new analysis run aborts
-// their controller alongside the previous analysis. Ready alternate
-// cards survive (their indices stay valid); only the in-flight marker
-// resets, and the loser of a run race bows out by id.
+// A new analysis aborts in-flight alternates; ready cards survive.
 const abortSiblings = (): void => {
   if (alternatesController) {
     alternatesController.abort();
@@ -682,9 +662,6 @@ const cancelAllWork = (): void => {
   abortSiblings();
 };
 
-// The visible Cancel beside every paid phase: runs in flight abort
-// through their own paths (spend settled, announced);
-// with nothing in flight (still collecting), the panel idles directly.
 const onCancelLoading = (): void => {
   const hadRun = cancelActiveRun() !== null;
 
@@ -698,10 +675,7 @@ const onCancelLoading = (): void => {
   }
 };
 
-// Follow-up stages of one request (re-analyze, look-again)
-// inherit the live run's usage snapshot so the run figure stays cumulative
-// while each stage still settles exactly once. Anything else (a new
-// request, a replaced key, a switched provider or model) starts clean.
+// Follow-ups inherit the live run's usage so the run figure stays cumulative; anything else starts clean.
 const pickInherit = (
   requestId: string,
   provider: Provider,
@@ -728,9 +702,7 @@ const pickInherit = (
   return current;
 };
 
-// Gate ticket: flows that install a run take one before gating and abandon
-// when a newer flow started while they waited, so an older gate can never
-// install over a newer run.
+// Older gates abandon when a newer flow started mid-wait.
 let runTicket = 0;
 
 let lastAnalysisTicket = 0;
@@ -743,8 +715,7 @@ const nextRunId = (requestId: string): string => {
   return `${requestId}#${runCounter}`;
 };
 
-// Commits a run's working state to the displayed globals. Callers must own
-// the UI; rendering from any other run's state is a cross-run leak.
+// Callers must own the UI.
 const commitDisplayed = (run: RunContext, view: string): void => {
   currentPlace = run.place;
   currentDestination = run.destination;
@@ -776,9 +747,7 @@ const fallbackFor = (signals: PageSignals): { label: string; href: string } | nu
 
 type RunOutcome = 'result' | 'no-place' | 'error' | 'aborted' | 'partial';
 
-// Rung-2 media for a video request: only when no frame was captured, the URL
-// is server-fetchable, and the provider speaks video. Centralized so re-runs
-// (look again, re-analyze, retry) route exactly like the first attempt.
+// Single routing rule for first attempts and re-runs.
 const videoUrlForRequest = (request: TripRequest, provider: Provider): string | undefined =>
   request.mediaType === 'video' &&
   !request.frame &&
@@ -843,7 +812,6 @@ const renderNoPlace = async (
   run: RunContext,
   cached: boolean
 ): Promise<void> => {
-  // Live runs honor the skeleton dwell; cache hits render immediately.
   if (!cached) {
     await settleSkeleton();
   }
@@ -911,8 +879,6 @@ const renderErrorCard = (
   }
 };
 
-// Error-path footer: video runs report their rung (a frame-carrying request
-// ran rung 1, a frameless one ran rung 2), everything else keeps the old rule.
 const errorPrivacy = (request: TripRequest | null): PrivacyMode => {
   if (request?.mediaType === 'video') {
     return request.frame ? 'video-frame' : 'video-url';
@@ -984,8 +950,6 @@ const showProviderError = (
   updatePrivacy(privacy);
 };
 
-// An all-zero usage report carries no billing signal, so there is
-// nothing to absorb into the run figure.
 const usageIsEmpty = (usage: Usage): boolean =>
   usage.inputTokens <= 0 &&
   usage.outputTokens <= 0 &&
@@ -1008,9 +972,7 @@ interface IdentifyArgs {
   requestOverride?: TripRequest;
 }
 
-// Guesses below this confidence render the no-place card instead of a
-// result: the model was told to guess rather than refuse, so the panel
-// owns the refusal line. Tune against live traffic.
+// The model guesses rather than refuses, so the panel owns the refusal line.
 const NO_PLACE_MIN_CONFIDENCE = 0.35;
 
 const runIdentify = async (args: IdentifyArgs): Promise<RunOutcome> => {
@@ -1053,9 +1015,6 @@ const runIdentify = async (args: IdentifyArgs): Promise<RunOutcome> => {
       return 'error';
     }
 
-    // A 400 on the image-bearing identify means the model could not fetch
-    // the remote image, so the panel retries automatically with downloaded
-    // bytes instead of asking the user to press a button.
     if (
       err instanceof ProviderError &&
       err.status === 400 &&
@@ -1097,7 +1056,6 @@ const runIdentify = async (args: IdentifyArgs): Promise<RunOutcome> => {
   }
 
   if (!identify.place.identified || identify.place.confidence < NO_PLACE_MIN_CONFIDENCE) {
-    // Stash the guess: look-again rejects it to force a different candidate.
     commitDisplayed(run, 'no-place');
     await renderNoPlace(request, origin, run, false);
 
@@ -1165,8 +1123,6 @@ const renderCached = async (
     return;
   }
 
-  // Same refusal line as a live run: a cached low-confidence guess shows
-  // the no-place card instead of flipping to a result on revisit.
   if (!entry.place.identified || entry.place.confidence < NO_PLACE_MIN_CONFIDENCE) {
     commitDisplayed(run, 'no-place');
     await renderNoPlace(request, origin, run, true);
@@ -1367,8 +1323,6 @@ const handle = async (value: unknown): Promise<void> => {
     return;
   }
   if (Date.now() - request.at > HANDOFF_TTL_MS) {
-    // Expired records never run; the ack clears the stale slot when it
-    // still holds this sequence.
     await ackRequest(request.windowId, request.seq);
     return;
   }
@@ -1403,17 +1357,11 @@ const handle = async (value: unknown): Promise<void> => {
     }, STALE_COLLECTING_MS);
     return;
   }
-  // Consume-on-read: acknowledge the terminal record before running so a
-  // panel reopen can never replay (and rebill) a finished run. The worker
-  // clears the slot only if it still holds this sequence.
+  // Ack before running so a reopen can never replay (and rebill) a finished run.
   await ackRequest(request.windowId, request.seq);
   try {
     await runAnalysis(request, 'gesture');
   } catch (err) {
-    // Entry-point net: an unexpected throw surfaces the error card
-    // instead of stranding the panel on a skeleton. A newer flow that
-    // started while this one unwound owns the UI, so stale errors bow
-    // out instead of canceling it.
     if (lastAnalysisTicket !== runTicket) {
       return;
     }
@@ -1422,8 +1370,6 @@ const handle = async (value: unknown): Promise<void> => {
     showProviderError(err, request);
   }
 };
-
-// ---- SAM crop-to-landmark ----
 
 const SAM_OVERLAY_DWELL_MS = 1200;
 
@@ -1434,9 +1380,7 @@ interface SamCrop {
   height: number;
 }
 
-// Best-effort landmark crop for "look again": any failure (denied origin,
-// undecodable bytes, SAM error, no valid box, superseding gesture) falls
-// back to the full image. Never throws.
+// Any failure falls back to the full image. Never throws.
 const trySamCrop = async (run: RunContext, request: TripRequest): Promise<SamCrop | null> => {
   try {
     return await samCropAttempt(run, request);
@@ -1461,8 +1405,7 @@ const samCropAttempt = async (run: RunContext, request: TripRequest): Promise<Sa
     } catch {
       return null;
     }
-    // Prompt-free first: the page tab fetches CORS-open hosts with no
-    // extension permission. Any tab failure falls back to the grant path.
+    // Tab fetch first: CORS-open hosts need no permission prompt.
     try {
       inputBytes = await fetchImageBytesViaTab(
         request.tabId,
@@ -1494,8 +1437,7 @@ const samCropAttempt = async (run: RunContext, request: TripRequest): Promise<Sa
   if (!inputBytes) {
     return null;
   }
-  // One normalized bitmap feeds both the SAM call and the crop, so box
-  // fractions always match the pixels being cut.
+  // One bitmap feeds the SAM call and the crop, so box fractions match the cut pixels.
   let samDataUrl: string;
   try {
     samDataUrl = await downscaleToJpegDataUrl(inputBytes);
@@ -1540,8 +1482,6 @@ const samCropAttempt = async (run: RunContext, request: TripRequest): Promise<Sa
   }
 };
 
-// The overlay is a static box (no draw animation in either motion mode);
-// reduced motion additionally skips the dwell and swaps instantly.
 const showSamOverlay = (box: SamPixelBox, width: number, height: number): void => {
   const frame = document.getElementById('preview-frame');
   const img = frame?.querySelector('img');
@@ -1588,8 +1528,6 @@ const lookAgain = async (): Promise<void> => {
   }
 };
 
-// Gate-ticket-start shared by look-again and re-analyze: null when a
-// newer flow won the ticket or the key/consent gate is not ready.
 const startPanelRun = async (
   request: TripRequest,
   ticket: number,
@@ -1652,8 +1590,7 @@ const netLookAgain = async (
       samCrop = await trySamCrop(run, request);
 
       if (!ownsUi(run)) {
-        // A cancel during the SAM overlay settles like an aborted
-        // identify (the SAM spend counts); a superseding run owns the UI.
+        // A cancel here still settles: the SAM spend counts.
         await priceAndRecord(run, 'identify');
 
         if (activeRun() === null) {
@@ -1678,8 +1615,6 @@ const netLookAgain = async (
       requestOverride: identifyRequest,
     });
 
-    // One shot per image, spent only on a completed look: failures and
-    // cancels leave the button for another attempt.
     if (outcome === 'result' || outcome === 'no-place') {
       lookAgainUsed.add(cacheKey);
     }
@@ -1757,12 +1692,8 @@ const retry = async (): Promise<void> => {
   await netPanelRun(() => runAnalysis(target.request, 'panel'), target.request);
 };
 
-// The model could not fetch the remote image, so the panel downloads the
-// bytes itself and retries with a data: URL. The tab fetch runs first with
-// no permission prompt; only its failure falls back to the
-// permission-gated direct fetch. The grant is removed in the finally so it
-// never outlives the attempt. Resolves true when a replacement run
-// started.
+// Tab fetch first (no prompt); permission-gated direct fetch only on its
+// failure. Resolves true when a replacement run started.
 const fetchRetry = async (signal?: AbortSignal): Promise<boolean> => {
   const target =
     lastRun?.kind === 'request'
@@ -1791,15 +1722,11 @@ const fetchRetry = async (signal?: AbortSignal): Promise<boolean> => {
     return false;
   }
 
-  // The caller's signal aborts in-flight fetches. The replacement
-  // runAnalysis owns the takeover (cancel, timers, run ticket), so this
-  // retry never cancels the calling run itself.
   const stop = signal ?? new AbortController().signal;
 
   const ticket = runTicket;
 
-  // A cancel or a newer run that lands during the downscale must not
-  // resurrect as a replacement run.
+  // A cancel during the downscale must not resurrect as a replacement run.
   const runWithBytes = async (bytes: Uint8Array): Promise<boolean> => {
     const dataUrl = await downscaleToJpegDataUrl(bytes);
 
@@ -1813,8 +1740,6 @@ const fetchRetry = async (signal?: AbortSignal): Promise<boolean> => {
     return false;
   };
 
-  // Prompt-free first: fetch inside the page tab, where CORS-open image
-  // hosts need no extension permission.
   try {
     const bytes = await fetchImageBytesViaTab(target.tabId, target.frameId ?? 0, srcUrl, stop);
 
@@ -1833,8 +1758,6 @@ const fetchRetry = async (signal?: AbortSignal): Promise<boolean> => {
     if (stop.aborted) {
       return false;
     }
-    // The tab is gone, unscriptable, or the host rejects page fetches:
-    // fall through to the permission-gated direct fetch.
   }
 
   if (stop.aborted) {
@@ -1961,9 +1884,7 @@ const runAlternates = async (intent: AlternateIntent): Promise<void> => {
   alternatesController = controller;
   alternatesRunId += 1;
   const mine = alternatesRunId;
-  // Unique stage per alternates call: settlement dedupes on run+stage,
-  // so a shared name would drop every repeat after the first from the
-  // monthly total.
+  // Settlement dedupes on run+stage: a shared name would drop repeats from the monthly total.
   const stage = `alternates:${mine}`;
   alternatesLoading = intent;
   currentAlternates = null;
@@ -2127,8 +2048,7 @@ const onConsentDecision = async (agreed: boolean): Promise<void> => {
 };
 
 const onSessionOnlyChange = async (checked: boolean): Promise<void> => {
-  // Optimistic for the remount; the settled state below always comes from
-  // verified storage, never from the previous checkbox value.
+  // Optimistic; the settled state always comes from verified storage.
   setKeyForm({ sessionOnly: checked });
 
   const outcome = await applyKeyMode(checked);

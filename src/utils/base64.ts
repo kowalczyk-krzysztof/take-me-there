@@ -1,6 +1,4 @@
-// Chunked base64 transcoding without call-stack blowups on multi-megabyte
-// inputs. Injected page modules cannot import this file, so
-// fetch_image_bytes keeps its own copy by necessity.
+// Chunked: no call-stack blowups on multi-megabyte inputs. Injected modules keep their own copy.
 export const encodeBase64 = (bytes: Uint8Array): string => {
   const toBase64 = (Uint8Array.prototype as unknown as { toBase64?: unknown }).toBase64;
 

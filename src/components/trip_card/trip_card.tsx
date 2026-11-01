@@ -63,9 +63,7 @@ interface Props {
   callbacks: TripCardCallbacks;
 }
 
-// Remount identity: result cards keep their subtree across alternates
-// transitions (same place, new props) so the focused chip survives;
-// every other view remounts per card so one-shot buttons reset.
+// Result cards keep their subtree across alternates transitions so the focused chip survives; other views remount so one-shot buttons reset.
 const cardIdentity = (card: CardState): unknown =>
   card.view === 'result'
     ? [

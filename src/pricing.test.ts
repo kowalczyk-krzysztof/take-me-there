@@ -38,8 +38,7 @@ describe('pricing', () => {
   });
 
   it('buckets a fixed instant in the zones local month', async () => {
-    // 2026-03-01T00:30Z is still February west of UTC: a UTC bucket would
-    // file it under March there, while the local-month rule follows the zone.
+    // Still February west of UTC: a UTC bucket would file it under March.
     const instant = new Date('2026-03-01T00:30:00Z');
 
     const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -57,8 +56,7 @@ describe('pricing', () => {
   });
 
   it('buckets a local wall-clock boundary in its own month', async () => {
-    // Feb 28 23:30 local is already March in UTC east of here: the bucket
-    // must follow the wall clock, not the UTC date.
+    // Already March in UTC east of here: the bucket must follow the wall clock.
     const instant = new Date(2026, 1, 28, 23, 30);
     await recordMonthSpend(0.5, instant);
 

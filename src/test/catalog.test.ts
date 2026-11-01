@@ -3,10 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
-// Every message key the source can render must exist in the catalog with
-// enough $n placeholders for its call-site substitutions. Otherwise Chrome
-// renders a literal "$1" (or nothing) and the echo-free strict mock in
-// behavior tests is the only backstop.
+// Every rendered key must exist with enough $n placeholders, or Chrome renders a literal "$1".
 
 const TEST_DIR = dirname(fileURLToPath(import.meta.url));
 
@@ -55,9 +52,7 @@ interface KeyUse {
 
 const KEY = '[A-Za-z0-9_]+';
 
-// Parses the substitution count after `msg('key'` / `announce*('key'`:
-// absent -> 0, `[...]` -> top-level elements, anything else -> 1, except a
-// bare identifier of unknown shape which is reported for explicit handling.
+// Counts substitutions after msg('key': absent -> 0, [...] -> elements, anything else -> 1.
 const parseSubs = (text: string, from: number): number | null => {
   let at = from;
 

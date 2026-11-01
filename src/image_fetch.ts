@@ -65,11 +65,7 @@ export const fetchImageBytes = async (url: string, signal: AbortSignal): Promise
   return bytes;
 };
 
-// Page-context byte fetch: runs inside the target tab, so CORS-open image
-// hosts need no extension permission and the user sees no grant prompt.
-// Anything the tab cannot do (navigated away, unscriptable page, CORS
-// rejection, undecodable result) throws and the caller falls back to the
-// permission-gated direct fetch.
+// Runs inside the target tab, so CORS-open hosts need no permission. Throws and the caller falls back to the gated direct fetch.
 export const fetchImageBytesViaTab = async (
   tabId: number,
   frameId: number,

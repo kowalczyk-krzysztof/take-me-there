@@ -1,11 +1,4 @@
-// Per-analysis lifecycle. One RunContext owns everything a single analysis
-// needs: request identity, an immutable provider/settings snapshot, its
-// abort controller, working place/cache state, cumulative usage, and the
-// accounting watermark. Async flows capture the run and check ownsUi()
-// after every await: a superseded or cancelled run may still settle its
-// known usage, but it must never start paid work, touch the UI, or write
-// result cache. Replaces the scattered activeRequest/activeController/
-// runUsage/recordedUsd globals; genuine UI state stays in the panel.
+// Async flows check ownsUi() after every await; superseded runs may settle usage but must never touch UI or cache.
 import { recordMonthSpend, readMonthSpend, estimateCostUsd } from './pricing';
 import {
   addUsage,
@@ -112,8 +105,7 @@ export const createRun = (init: RunInit): RunContext => {
   };
 };
 
-// Usage-only bucket for flows without an owning analysis run:
-// settles through the same idempotent path, never owns UI.
+// Usage-only bucket: settles idempotently, never owns UI.
 export const createEphemeralRun = (
   kind: RunKind,
   provider: Provider,
@@ -138,10 +130,7 @@ export interface StartRunOptions {
   abortSiblings?: () => void;
 }
 
-// Starts a run as the UI owner, cancelling whatever it supersedes through
-// the same path a user Cancel takes. Follow-up stages of one request
-// (guide after identify, look-again) inherit the usage snapshot so the run
-// figure stays cumulative while each stage still settles exactly once.
+// Follow-ups inherit the usage snapshot so the run figure stays cumulative.
 export const startRun = (init: RunInit, options: StartRunOptions = {}): RunContext => {
   if (active) {
     cancelRun(active);
@@ -165,14 +154,8 @@ export const absorbRunUsage = (run: RunContext, usage: Usage): void => {
   run.usage = addUsage(run.usage, usage);
 };
 
-// Idempotent run/stage settlement: the first settle of a (run, stage) pair
-// records the unrecorded delta against the run's watermark; repeats and
-// zero deltas only re-read the total. A failed write leaves the watermark
-// and the settled mark untouched, so the next stage retries instead of
-// losing the spend. Concurrent settles on one run serialize on its mutex,
-// so an alternate settling mid-guide cannot double-count the shared base. Stale
-// runs settle exactly like live ones: the spend happened, so the month
-// total owes it, but the caller must skip UI work.
+// First settle of a (run, stage) records the unrecorded delta; repeats only re-read.
+// A failed write leaves the watermark, so the next stage retries instead of losing the spend.
 export const settleStage = async (run: RunContext, stage: string): Promise<number> => {
   let total = 0;
 

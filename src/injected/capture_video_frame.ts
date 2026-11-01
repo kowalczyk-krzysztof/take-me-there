@@ -16,7 +16,6 @@ export interface FrameMiss {
 export type CaptureVideoFrameResult = CapturedFrame | FrameMiss;
 
 export const captureVideoFrame = (srcUrl: string): CaptureVideoFrameResult => {
-  // storage.session carries the handoff: keep the frame well under quota.
   const MAX_BYTES = 512000;
 
   const abs = (u: string): string => {
@@ -53,9 +52,7 @@ export const captureVideoFrame = (srcUrl: string): CaptureVideoFrameResult => {
       return strip(v.currentSrc) === bare || strip(v.src) === bare;
     }) ??
     null;
-  // Last resort: the frame's playing video, but only when exactly one
-  // candidate exists. On multi-video pages a wrong guess could capture a
-  // webcam or meeting frame the user never clicked.
+  // Only when exactly one candidate exists: a wrong guess could capture a webcam or meeting frame.
   const playing = videos.filter((v) => !v.paused && !v.ended && v.readyState >= 2);
 
   const video = byBare ?? (playing.length === 1 ? playing[0] : null);
@@ -79,8 +76,6 @@ export const captureVideoFrame = (srcUrl: string): CaptureVideoFrameResult => {
   if (!ctx) {
     return { ok: false, reason: 'no-dimensions' };
   }
-  // Descending quality ladder: start at full rung-1 fidelity (1280px, q0.85)
-  // and shrink until the frame fits the session handoff.
   const attempts: Array<[number, number]> = [
     [1280, 0.85],
     [1280, 0.7],
@@ -105,8 +100,7 @@ export const captureVideoFrame = (srcUrl: string): CaptureVideoFrameResult => {
     try {
       dataUrl = canvas.toDataURL('image/jpeg', quality);
     } catch {
-      // Readback failed: cross-origin pixels without CORS approval taint
-      // the canvas, so the frame can never leave the page this way.
+      // Cross-origin pixels without CORS taint the canvas.
       return { ok: false, reason: 'tainted' };
     }
 

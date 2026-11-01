@@ -121,7 +121,6 @@ describe('storage service protocol', () => {
       enqueueLocalCommand({ kind: 'spend.record', amountUsd: NaN, at: 1 })
     ).resolves.toEqual({ ok: false, error: 'invalid spend amount' });
 
-    // The queue still serves after rejections.
     await setCacheEntry('after', entry('Oia'));
     expect((await getCacheEntry('after'))?.place.placeName).toBe('Oia');
   });
@@ -206,8 +205,7 @@ describe('storage service concurrency', () => {
       }
     };
 
-    // The faulted step logs its failure; capture the expected warning
-    // instead of printing it.
+    // Capture the expected warning instead of printing it.
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     try {
@@ -220,7 +218,6 @@ describe('storage service concurrency', () => {
       const steps = (partial as { ok: true; value: Array<{ name: string; ok: boolean }> }).value;
       expect(steps.find((step) => step.name === 'settings')?.ok).toBe(false);
 
-      // Restart: a fresh service instance holds no migration progress.
       mock.local.fault = () => undefined;
       vi.resetModules();
       const fresh = await import('./storage_service');
@@ -234,7 +231,6 @@ describe('storage service concurrency', () => {
       const done = (retried as { ok: true; value: Array<{ name: string; ok: boolean }> }).value;
       expect(done.every((step) => step.ok)).toBe(true);
 
-      // The interrupted step logged once; the clean retry stays silent.
       expect(warn).toHaveBeenCalledTimes(1);
       expect(warn).toHaveBeenCalledWith('migration settings failed', expect.any(Error));
     } finally {
@@ -319,10 +315,8 @@ describe('storage service key modes', () => {
     mock.local.fault = () => undefined;
     mock.session.fault = () => undefined;
 
-    // Ciphertext survives every failure: the key still decrypts.
     expect(await loadKey('muse')).toEqual({ state: 'ok', key: 'LLM_secret' });
 
-    // The reported mode matches freshly read storage, never a guess.
     const sessionHas = mock.session.data.has('apiKey:muse');
     const localHas = mock.local.data.has('apiKey:muse');
     const settingsTrue = (await loadSettings()).sessionOnly === true;

@@ -1,6 +1,4 @@
-// Bounded stream drain for untrusted response bodies: reads through a byte
-// cap instead of materializing unboundedly. Injected page modules cannot
-// import this file, so fetch_image_bytes keeps its own loop by necessity.
+// Reads through a byte cap instead of materializing unboundedly. Injected modules keep their own loop.
 export class CapExceededError extends Error {
   constructor(message: string) {
     super(message);

@@ -9,8 +9,6 @@ export interface SettingsRecord {
   settings: Partial<ExtensionSettings>;
 }
 
-// idempotent: wraps legacy bare settings; versioned records and unreadable
-// garbage are left untouched (reads already tolerate both).
 export const migrateSettings = async (): Promise<void> => {
   const stored = (await chrome.storage.local.get(SETTINGS_STORAGE_KEY)) as {
     settings?: unknown;

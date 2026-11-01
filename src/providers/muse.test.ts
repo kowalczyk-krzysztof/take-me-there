@@ -341,8 +341,7 @@ describe('muse video identify (rung 2)', () => {
       code: 'server',
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    // The second call is the two-step describe (video part, no schema), not
-    // the image path's signals-only retry.
+    // The two-step describe, not the image path's signals-only retry.
     const second = requestBody(1);
     expect(second.response_format).toBeUndefined();
     expect(second.messages[1].content[1].type).toBe('video_url');

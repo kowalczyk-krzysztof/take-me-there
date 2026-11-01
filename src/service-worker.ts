@@ -12,13 +12,9 @@ import {
 } from './handoff';
 import { reconcileTempGrants } from './grants';
 
-// Startup sweep for temp grants abandoned by dead panels. The ledger
-// persists, so a suspension mid-sweep simply retries next startup.
 void reconcileTempGrants();
 
-// Startup migrations: every step is idempotent, so rerunning is cheap and
-// a previously failed step (like the legacy cache purge) retries until
-// it reports success. Queued first, so no cache use precedes the purge.
+// Queued first, so no cache use precedes the purge.
 void enqueueLocalCommand({ kind: 'migrate.run' }).catch(() => undefined);
 
 const MENU_ID = 'plan-trip';
@@ -29,10 +25,8 @@ const MAX_INLINE_DATA_URL = 100000;
 
 let requestCounter = 0;
 
-// Freshness per window, checked synchronously before terminal writes so a
-// superseded click can never bury a newer collecting record. In-memory is
-// correct here: a worker restart kills the in-flight handlers the map
-// guards, and ordering across restarts comes from the persisted sequence.
+// In-memory is correct: a restart kills the in-flight handlers this guards,
+// and ordering across restarts comes from the persisted sequence.
 const latestSeqByWindow = new Map<number, number>();
 
 chrome.runtime.onInstalled.addListener((details) => {
@@ -54,8 +48,7 @@ chrome.runtime.onInstalled.addListener((details) => {
   }
 });
 
-// Single-writer storage commands from extension pages. The scope filter runs
-// synchronously so foreign messages fall through to other listeners.
+// The scope filter runs synchronously so foreign messages fall through.
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (
     !message ||
@@ -70,8 +63,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   return true;
 });
 
-// Handoff acknowledgements from panels: the worker clears a window slot
-// only when the acknowledged sequence still matches.
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (
     !message ||
@@ -125,9 +116,6 @@ const nextRequestId = (): string => {
   return `${Date.now()}-${requestCounter}`;
 };
 
-// The collecting write is the click's only visible trace: if it fails, the
-// panel gets an error record instead of silence. When even that fails the
-// worker has no channel left; the opened panel stays idle.
 const writeCollectingState = (slot: string, record: Record<string, unknown>): Promise<boolean> =>
   withHandoffSlot(async () => {
     try {
@@ -159,8 +147,7 @@ const handleImageClick = async (
   try {
     seq = await allocateHandoffSeq();
   } catch {
-    // No sequence, no ordered record: the click is dropped and the
-    // opened panel stays idle rather than rejecting unhandled.
+    // No sequence, no ordered record: drop the click instead of rejecting.
     return;
   }
   latestSeqByWindow.set(windowId, seq);
@@ -242,8 +229,7 @@ const handleVideoClick = async (
   if (!collecting) {
     return;
   }
-  // Page signals and the frame capture race side by side: the panel wants
-  // both, and sequential injections would double the worst case.
+  // Race side by side: sequential injections would double the worst case.
   const [signals, captured] = await Promise.all([
     scrapeWithTimeout(tabId, frameId, srcUrl),
     captureWithTimeout(tabId, frameId, srcUrl),
@@ -280,9 +266,7 @@ const scrapeWithTimeout = async (
     const results = await withTimeout(
       chrome.scripting.executeScript({
         target: { tabId, frameIds: [frameId] },
-        // chrome-types declares func as () => void; the cast keeps the raw
-        // reference (a wrapper closure would break serialization) while the
-        // args array still carries srcUrl at runtime.
+        // The cast keeps the raw reference: a wrapper closure would break serialization.
         func: collectSignals as unknown as () => void,
         args: [srcUrl],
       }),
@@ -293,14 +277,11 @@ const scrapeWithTimeout = async (
 
     return Object.keys(result).length > 0 ? result : null;
   } catch {
-    // Timeout, missing permission, or a page that refuses injection: the
-    // analysis still proceeds, image-only.
     return null;
   }
 };
 
-// Null means the injection itself failed (timeout, chrome:// page,
-// cross-origin frame): distinct from the function reporting a miss.
+// Null means the injection itself failed, distinct from a reported miss.
 const captureWithTimeout = async (
   tabId: number,
   frameId: number,
@@ -358,9 +339,6 @@ const writeTerminalState = (windowId: number, seq: number, record: TerminalRecor
         await chrome.storage.session.set({ [slot]: record });
       }
     } catch {
-      // Quota or transient failure: retry once with the heavy payloads
-      // stripped (a rejected frame surfaces as too-large) so the panel still
-      // reaches a terminal state.
       try {
         if (isCurrentSeq(windowId, seq)) {
           const slim: TerminalRecord = { ...record };
@@ -378,8 +356,6 @@ const writeTerminalState = (windowId: number, seq: number, record: TerminalRecor
     }
   });
 
-// Synchronous by design: no await may sit between the freshness check and
-// the write, or a newer click's collecting record lands in the gap and the
-// stale terminal write buries it.
+// No await may sit between the freshness check and the write, or a stale terminal buries a newer collecting record.
 const isCurrentSeq = (windowId: number, seq: number): boolean =>
   latestSeqByWindow.get(windowId) === seq;

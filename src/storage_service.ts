@@ -1,8 +1,5 @@
-// Worker-owned single writer for shared extension state. Pages send storage
-// commands; this module validates the sender and payload, executes commands
-// strictly one at a time, and answers with a serializable result. A failed
-// command resolves its caller with an error and never breaks the queue.
-// Page-local mutexes cannot coordinate two windows; this queue can.
+// Worker-owned single writer: commands execute one at a time (page-local mutexes
+// cannot coordinate two windows), and a failed command never breaks the queue.
 import { encryptKeyRecord, vaultStorageKey } from './key_vault';
 import { monthKey, readTotals, writeTotals } from './pricing';
 import {
@@ -103,9 +100,6 @@ const cacheSet = async (hash: string, entry: CacheEntry): Promise<void> => {
   await enforceCachePolicy(hash);
 };
 
-// Age/count/byte enforcement after every write: expired and orphaned
-// records go, the index keeps the survivors in LRU order, and count and
-// byte caps trim from the least-recently-used tail.
 const enforceCachePolicy = async (fresh: string): Promise<void> => {
   const stored = await getAllSession();
 
@@ -190,11 +184,7 @@ const placementSatisfies = (
     : placement.localHas && !placement.sessionHas;
 };
 
-// Central key-mode change: move the ciphertext, verify the placement,
-// persist the settings flag, and report session-only only when the freshly
-// read storage satisfies it. Any failure reconciles the actual state and
-// reports it alongside the error; ciphertext is never deleted to satisfy
-// a move (copy, verify, then remove the old side).
+// Move the ciphertext, verify the placement, then remove the old side; ciphertext is never deleted to satisfy a move.
 const setKeyMode = async (providerId: string, sessionOnly: boolean): Promise<CommandResult> => {
   if (!providerId) {
     return invalid('unknown provider');
@@ -378,14 +368,11 @@ const enqueue = (command: StorageCommand): Promise<CommandResult> =>
     });
   });
 
-// In-worker execution for writer code already running in the worker (the
-// update migration): same validation-free fast path through the queue so a
-// page command can never interleave mid-migration.
+// Same queue, so a page command can never interleave mid-migration.
 export const enqueueLocalCommand = (command: StorageCommand): Promise<CommandResult> =>
   enqueue(command);
 
-// Message entry for the worker listener and tests. Returns undefined for
-// messages outside this protocol so other listeners can claim them.
+// Returns undefined for foreign messages so other listeners can claim them.
 export const handleStorageMessage = async (
   message: unknown,
   sender: chrome.runtime.MessageSender

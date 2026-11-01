@@ -1,8 +1,6 @@
 export type Mutex = <T>(task: () => Promise<T>) => Promise<T>;
 
-// Serializes async read-modify-write cycles against one storage key.
-// Tasks run in call order; a rejection reaches its own caller while the
-// chain stays alive for the next task.
+// Tasks run in call order; a rejection reaches its own caller while the chain stays alive.
 export const createMutex = (): Mutex => {
   let tail: Promise<void> = Promise.resolve();
 
