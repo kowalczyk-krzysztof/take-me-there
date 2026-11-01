@@ -2,7 +2,6 @@
 // layer: prompt builders, the identify attempt machine, the chat SSE parser,
 // and the consent chokepoint. The UI branches on capabilities, never on
 // provider names.
-import { EventSourceParserStream, type EventSourceMessage } from 'eventsource-parser/stream';
 import type { ModelRates } from '../pricing';
 import { truncateCodePoints } from '../utils/text';
 import {
@@ -120,15 +119,6 @@ export const responseError = (res: Response): ProviderError => {
 
 export const FETCH_TIMEOUT_MS = 30_000;
 
-export const STREAM_STALL_MS = 30_000;
-
-export const HEADER_TIMEOUT_MS = 30_000;
-
-export const GUIDE_MAX_CITATIONS = 32;
-
-// Total-timeout for one request/response round trip. Streaming callers keep
-// the bare caller signal on the fetch and use readStall per chunk instead:
-// a total timeout would kill long guides mid-stream.
 export const fetchTimeout = (signal: AbortSignal): AbortSignal =>
   AbortSignal.any([signal, AbortSignal.timeout(FETCH_TIMEOUT_MS)]);
 
@@ -136,63 +126,6 @@ export const fetchTimeout = (signal: AbortSignal): AbortSignal =>
 // clears once headers land and per-read stall deadlines govern the rest,
 // so a healthy long stream can finish. A header stall is a retryable
 // stream error, never an abort.
-export const postStreamHeaders = async (
-  url: string,
-  key: string,
-  body: Record<string, unknown>,
-  signal: AbortSignal
-): Promise<Response> => {
-  const headerCtrl = new AbortController();
-
-  let headerFired = false;
-
-  const timer = setTimeout(() => {
-    headerFired = true;
-    headerCtrl.abort();
-  }, HEADER_TIMEOUT_MS);
-
-  try {
-    return await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-      body: JSON.stringify(body),
-      signal: AbortSignal.any([signal, headerCtrl.signal]),
-    });
-  } catch (err) {
-    if (headerFired && !signal.aborted) {
-      throw new ProviderError('stream_error', 'stream headers timed out', true);
-    }
-
-    throw toNetworkError(err, signal);
-  } finally {
-    clearTimeout(timer);
-  }
-};
-
-// One stream read that fails instead of hanging forever on a stalled
-// connection. Rejects with a retryable stream error and cancels the reader
-// so the fetch does not linger.
-export const readStall = async <T>(
-  reader: ReadableStreamDefaultReader<T>,
-  stallMs: number = STREAM_STALL_MS
-): Promise<ReadableStreamReadResult<T>> => {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-
-  try {
-    return await Promise.race([
-      reader.read(),
-      new Promise<never>((_resolve, reject) => {
-        timer = setTimeout(() => {
-          void reader.cancel().catch(() => undefined);
-          reject(new ProviderError('stream_error', 'stream stalled', true));
-        }, stallMs);
-      }),
-    ]);
-  } finally {
-    clearTimeout(timer);
-  }
-};
-
 export const JSON_MAX_BYTES = 2 * 1024 * 1024;
 
 // Bounded JSON body read: responses stream through a byte cap instead of
@@ -274,18 +207,6 @@ export const testModelsEndpoint = async (base: string, key: string): Promise<voi
   }
 };
 
-export const toStreamError = (err: unknown, signal: AbortSignal): ProviderError => {
-  if (err instanceof ProviderError) {
-    return err;
-  }
-
-  if (signal.aborted || (err as { name?: string })?.name === 'AbortError') {
-    return new ProviderError('aborted', 'request aborted', false);
-  }
-
-  return new ProviderError('stream_error', 'stream parse error', true);
-};
-
 export const readChatUsage = (
   data: unknown
 ): { inputTokens: number; outputTokens: number; cachedInputTokens?: number } | undefined => {
@@ -351,22 +272,6 @@ export interface GuideSource {
   url: string;
 }
 
-export type GuideEvent =
-  | { type: 'delta'; text: string }
-  | { type: 'searching' }
-  | { type: 'sources'; sources: GuideSource[] }
-  | { type: 'usage'; usage: Usage };
-
-export interface GuideInput {
-  destination: string;
-  signal: AbortSignal;
-  language?: string;
-  transport?: 'responses' | 'chat';
-  // Full-prompt override for composed calls (itinerary narration): when set,
-  // providers stream it instead of building the place-guide prompt.
-  prompt?: string;
-}
-
 export interface ItineraryPin {
   name: string;
   host: string;
@@ -417,7 +322,6 @@ export interface Provider {
   readonly capabilities: ProviderCapabilities;
   testKey(key: string): Promise<void>;
   identifyPlace(key: string, input: IdentifyInput): Promise<IdentifyResult>;
-  streamGuide(key: string, input: GuideInput): AsyncGenerator<GuideEvent, void, void>;
   planItinerary(key: string, input: ItineraryInput): Promise<ItineraryResult>;
   scanPlaces(key: string, input: ScanInput): Promise<ScanResult>;
   findAlternates(key: string, input: AlternatesInput): Promise<AlternatesResult>;
@@ -567,19 +471,6 @@ export const buildIdentifyMessages = (opts: IdentifyMessageOptions): ChatMessage
   }
 
   return [developer, { role: 'user', content: parts }];
-};
-
-export const buildGuidePrompt = (destination: string, language?: string): string => {
-  let prompt =
-    `Write a concise trip guide for ${destination}: a 2-3 sentence overview, 4-6 highlight ` +
-    'bullets, the best time to visit, and how to get there. Keep it factual and skip places you are unsure about. ' +
-    "Begin your answer immediately with the '## ' heading naming the place: no preamble, no acknowledgement.";
-
-  if (language) {
-    prompt += ` Write the guide in ${language}.`;
-  }
-
-  return prompt;
 };
 
 export interface IdentifyRequest {
@@ -1318,142 +1209,6 @@ export const fetchChatCompletion = async (
 
   return data;
 };
-
-export type ChatStreamEvent = { type: 'delta'; text: string } | { type: 'usage'; usage: Usage };
-
-// Cap for one buffered SSE event. Overflow errors the stream unrecoverably
-// by design; Retry builds a fresh fetch plus pipeline.
-export const SSE_MAX_BUFFER = 1024 * 1024;
-
-// Text decoding stage of the SSE pipeline. The cast bridges DOM stream
-// variance (TextDecoderStream.writable accepts any BufferSource); the
-// runtime pairing is the documented pipeThrough chain.
-export const decodeStream = (body: ReadableStream<Uint8Array>): ReadableStream<string> =>
-  body.pipeThrough(new TextDecoderStream() as unknown as ReadableWritablePair<string, Uint8Array>);
-
-export async function* iterateChatStream(
-  body: ReadableStream<Uint8Array>,
-  signal: AbortSignal
-): AsyncGenerator<ChatStreamEvent, void, void> {
-  const parser = decodeStream(body).pipeThrough(
-    new EventSourceParserStream({ maxBufferSize: SSE_MAX_BUFFER, onError: 'terminate' })
-  );
-
-  const reader = parser.getReader();
-  // Usage blocks carry running totals, not deltas: compatible servers may
-  // repeat them per chunk, so only the last one is reported, once.
-  let latestUsage: Usage | null = null;
-  // A chat stream is complete only on a documented terminal: the [DONE]
-  // sentinel or a choice finish_reason. EOF before either is an
-  // interruption, never a clean end.
-  let terminal = false;
-
-  try {
-    for (;;) {
-      if (signal.aborted) {
-        throw new ProviderError('aborted', 'request aborted', false);
-      }
-
-      let result: ReadableStreamReadResult<EventSourceMessage>;
-
-      try {
-        result = await readStall(reader);
-      } catch (err) {
-        throw toStreamError(err, signal);
-      }
-
-      if (result.done) {
-        break;
-      }
-
-      const data = result.value.data.trim();
-
-      if (data === '') {
-        continue;
-      }
-
-      if (data === '[DONE]') {
-        terminal = true;
-        break;
-      }
-
-      let payload: unknown;
-
-      try {
-        payload = JSON.parse(data);
-      } catch {
-        throw new ProviderError('stream_error', 'malformed stream payload', true);
-      }
-
-      const choice = (
-        payload as {
-          choices?: Array<{ delta?: { content?: unknown }; finish_reason?: unknown }>;
-        }
-      )?.choices?.[0];
-
-      const delta = choice?.delta?.content;
-
-      if (typeof delta === 'string' && delta) {
-        yield { type: 'delta', text: delta };
-      }
-
-      const tokens = readChatUsage(payload);
-
-      if (tokens) {
-        latestUsage = { ...emptyUsage(), ...tokens };
-      }
-
-      const finish = choice?.finish_reason;
-
-      if (typeof finish === 'string' && finish) {
-        // Usage above is already banked: a failed terminal must not lose
-        // the billed tokens it arrived with.
-        if (finish === 'content_filter') {
-          throw new ProviderError('invalid_response', 'guide stopped by content filter', false);
-        }
-
-        terminal = true;
-      }
-    }
-
-    if (!terminal) {
-      throw new ProviderError('stream_error', 'stream ended before completion', true);
-    }
-
-    if (latestUsage) {
-      yield { type: 'usage', usage: latestUsage };
-    }
-  } catch (err) {
-    if (err instanceof ProviderError && err.usage === undefined && latestUsage) {
-      err.usage = { ...latestUsage };
-    }
-
-    throw err;
-  } finally {
-    // Early exits ([DONE], terminals, errors) must not leave the fetch
-    // lingering behind a locked reader.
-    await reader.cancel().catch(() => undefined);
-    reader.releaseLock();
-  }
-}
-
-export async function* postChatStream(
-  url: string,
-  key: string,
-  body: Record<string, unknown>,
-  signal: AbortSignal
-): AsyncGenerator<ChatStreamEvent, void, void> {
-  const res = await postStreamHeaders(url, key, body, signal);
-
-  if (!res.ok) {
-    throw responseError(res);
-  }
-
-  if (!res.body) {
-    throw new ProviderError('stream_error', 'empty response body', true);
-  }
-  yield* iterateChatStream(res.body, signal);
-}
 
 export { SETTINGS_STORAGE_KEY, SETTINGS_VERSION } from '../settings_store';
 export const CONSENT_STORAGE_KEY = 'consentGiven';

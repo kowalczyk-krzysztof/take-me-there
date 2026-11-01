@@ -6,11 +6,10 @@ import type { AlternatesView as AlternatesState } from './trip_card';
 interface Props {
   alternates: AlternatesState;
   onPinAlternate: (index: number) => void;
-  onPlanInstead: (index: number) => void;
   onCancel: () => void;
 }
 
-export const AlternatesView = ({ alternates, onPinAlternate, onPlanInstead, onCancel }: Props) => {
+export const AlternatesView = ({ alternates, onPinAlternate, onCancel }: Props) => {
   if (alternates.state === 'idle') {
     return <div className={styles.alternates} hidden />;
   }
@@ -50,14 +49,6 @@ export const AlternatesView = ({ alternates, onPinAlternate, onPlanInstead, onCa
               }}
             >
               {card.pinned ? msg('savedButton', card.name) : msg('pinButton', card.name)}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                onPlanInstead(index);
-              }}
-            >
-              {msg('alternatesInstead', card.name)}
             </button>
           </div>
         </div>

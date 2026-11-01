@@ -17,8 +17,7 @@ import {
 import type { PlaceResult, TripRequest } from './types';
 import { createMutex } from './utils/mutex';
 
-export type RunKind =
-  'identify' | 'video' | 'scan' | 'guide' | 'scan-guide' | 'itinerary' | 'alternates';
+export type RunKind = 'identify' | 'video' | 'scan' | 'itinerary' | 'alternates';
 
 export interface RunContext {
   readonly runId: string;
@@ -34,7 +33,6 @@ export interface RunContext {
   place: PlaceResult | null;
   destination: string;
   cacheKey: string;
-  guideKey: string;
   usage: Usage;
   recordedUsd: number;
   settledStages: Set<string>;
@@ -116,7 +114,6 @@ export const createRun = (init: RunInit): RunContext => {
     place: init.place ?? null,
     destination: init.destination ?? '',
     cacheKey: init.cacheKey ?? '',
-    guideKey: '',
     usage: emptyUsage(),
     recordedUsd: 0,
     settledStages: new Set(),

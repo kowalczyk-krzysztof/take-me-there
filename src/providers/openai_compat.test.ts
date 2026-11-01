@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { chatResponse as sharedChatResponse, sseResponse } from '../test/helpers';
-import { setConsented, type GuideEvent, type OpenAiCompatSettings } from './index';
+import { chatResponse as sharedChatResponse } from '../test/helpers';
+import { setConsented, type OpenAiCompatSettings } from './index';
 import { OpenAiCompatProvider } from './openai_compat';
 import { installChromeMock, uninstallChromeMock } from '../test/chrome_mock';
 
@@ -40,15 +40,6 @@ const input = () => ({
   signalsText: 'page title: X',
   signal: new AbortController().signal,
 });
-
-const collect = async (gen: AsyncGenerator<GuideEvent, void, void>): Promise<GuideEvent[]> => {
-  const out: GuideEvent[] = [];
-  for await (const event of gen) {
-    out.push(event);
-  }
-
-  return out;
-};
 
 describe('openai_compat', () => {
   it('identifies with json_schema and client-side validation', async () => {
@@ -147,96 +138,11 @@ describe('openai_compat', () => {
     expect(new OpenAiCompatProvider(config()).getRates()).toBeUndefined();
   });
 
-  it('streams guides over chat completions', async () => {
-    await setConsented();
-    fetchMock.mockResolvedValue(
-      sseResponse([
-        'data: {"choices":[{"delta":{"content":"Day 1"}}]}\n\n',
-        'data: {"choices":[{"delta":{}}],"usage":{"prompt_tokens":7,"completion_tokens":3}}\n\ndata: [DONE]\n\n',
-      ])
-    );
-
-    const provider = new OpenAiCompatProvider(config());
-
-    const events = await collect(
-      provider.streamGuide('sk_key', {
-        destination: 'Oia, Greece',
-        signal: new AbortController().signal,
-      })
-    );
-    expect(events).toEqual([
-      { type: 'delta', text: 'Day 1' },
-      { type: 'usage', usage: { inputTokens: 7, outputTokens: 3, searchCount: 0, flatFeesUsd: 0 } },
-    ]);
-  });
-
-  it('reports repeated cumulative usage blocks once', async () => {
-    await setConsented();
-    fetchMock.mockResolvedValue(
-      sseResponse([
-        'data: {"choices":[{"delta":{"content":"Hi"}}],"usage":{"prompt_tokens":7,"completion_tokens":3}}\n\n',
-        'data: {"choices":[{"delta":{"content":" there"}}],"usage":{"prompt_tokens":9,"completion_tokens":5}}\n\ndata: [DONE]\n\n',
-      ])
-    );
-
-    const provider = new OpenAiCompatProvider(config());
-
-    const events = await collect(
-      provider.streamGuide('sk_key', {
-        destination: 'Oia, Greece',
-        signal: new AbortController().signal,
-      })
-    );
-    expect(events).toEqual([
-      { type: 'delta', text: 'Hi' },
-      { type: 'delta', text: ' there' },
-      {
-        type: 'usage',
-        usage: { inputTokens: 9, outputTokens: 5, searchCount: 0, flatFeesUsd: 0 },
-      },
-    ]);
-  });
-
-  it('attaches the latest usage when the stream aborts', async () => {
-    await setConsented();
-    fetchMock.mockResolvedValue(
-      sseResponse([
-        'data: {"choices":[{"delta":{"content":"Hi"}}],"usage":{"prompt_tokens":7,"completion_tokens":3}}\n\n',
-        'data: {"choices":[{"delta":{"content":" there"}}]}\n\n',
-      ])
-    );
-
-    const provider = new OpenAiCompatProvider(config());
-
-    const controller = new AbortController();
-
-    const gen = provider.streamGuide('sk_key', {
-      destination: 'Oia, Greece',
-      signal: controller.signal,
-    });
-
-    const first = await gen.next();
-    expect(first.value).toEqual({ type: 'delta', text: 'Hi' });
-    controller.abort();
-    await expect(gen.next()).rejects.toMatchObject({
-      code: 'aborted',
-      usage: { inputTokens: 7, outputTokens: 3 },
-    });
-  });
-
   it('enforces consent on every remote call', async () => {
     const provider = new OpenAiCompatProvider(config());
     await expect(provider.identifyPlace('sk_key', input())).rejects.toMatchObject({
       code: 'consent_required',
     });
-    await expect(
-      collect(
-        provider.streamGuide('sk_key', {
-          destination: 'X',
-          signal: new AbortController().signal,
-        })
-      )
-    ).rejects.toMatchObject({ code: 'consent_required' });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
@@ -273,33 +179,6 @@ describe('compat planItinerary', () => {
     expect(body.prompt_cache_key).toBe('take-me-there');
     expect(body.prompt_cache_retention).toBeUndefined();
     expect(body.max_completion_tokens).toBe(4096);
-  });
-
-  it('honors prompt overrides in streamed guides', async () => {
-    await setConsented();
-    fetchMock.mockResolvedValue(
-      sseResponse([
-        'data: {"choices":[{"delta":{"content":"Hi"}}]}\n',
-        '\n',
-        'data: [DONE]\n',
-        '\n',
-      ])
-    );
-
-    const provider = new OpenAiCompatProvider(config());
-
-    const events: GuideEvent[] = [];
-    for await (const event of provider.streamGuide('sk_key', {
-      destination: 'X',
-      signal: new AbortController().signal,
-      prompt: 'Custom narration prompt.',
-    })) {
-      events.push(event);
-    }
-    expect(events.some((event) => event.type === 'delta')).toBe(true);
-
-    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(init.body as string).toContain('Custom narration prompt.');
   });
 });
 

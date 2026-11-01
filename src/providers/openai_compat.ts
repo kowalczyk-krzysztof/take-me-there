@@ -6,7 +6,6 @@ import {
   ProviderError,
   assertConsent,
   buildAlternatesMessages,
-  buildGuidePrompt,
   buildItineraryMessages,
   buildScanMessages,
   emptyUsage,
@@ -17,7 +16,6 @@ import {
   parseAlternatesContent,
   parseItineraryPlan,
   parseScanBatch,
-  postChatStream,
   remapScanPlaces,
   requireKey,
   runIdentify,
@@ -25,8 +23,6 @@ import {
   type AlternatesInput,
   type AlternatesResult,
   type ChatMessage,
-  type GuideEvent,
-  type GuideInput,
   type IdentifyInput,
   type IdentifyRequest,
   type IdentifyResult,
@@ -43,8 +39,6 @@ import {
 } from './index';
 
 const IDENTIFY_MAX_TOKENS = 2048;
-
-const GUIDE_MAX_TOKENS = 4096;
 
 // Multi-image batches share the muse output budget: 2048 truncates the
 // JSON mid-array, and the truncated half bills a strict retry for nothing.
@@ -284,30 +278,6 @@ export class OpenAiCompatProvider implements Provider {
       'not_configured',
       'segmentation is not configured on this provider',
       false
-    );
-  }
-
-  async *streamGuide(key: string, input: GuideInput): AsyncGenerator<GuideEvent, void, void> {
-    requireKey(key);
-
-    await assertConsent();
-
-    const base = this.baseURL();
-
-    const prompt = input.prompt ?? buildGuidePrompt(input.destination, input.language);
-
-    yield* postChatStream(
-      `${base}/chat/completions`,
-      key,
-      {
-        model: this.config.model,
-        prompt_cache_key: PROMPT_CACHE_KEY,
-        messages: [{ role: 'user', content: prompt }],
-        max_completion_tokens: GUIDE_MAX_TOKENS,
-        stream: true,
-        stream_options: { include_usage: true },
-      },
-      input.signal
     );
   }
 }

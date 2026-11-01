@@ -49,19 +49,15 @@ export interface TripPlanInsteadDetail {
   index: number;
 }
 
-export type PlanState = 'idle' | 'planning' | 'ready' | 'interrupted';
-
 export type LoadingPhase = 'collecting' | 'identifying' | 'writing';
 
 export interface TripCardCallbacks {
   onPin: () => void;
-  onPlanTrip: () => void;
   onReanalyze: () => void;
   onRetry: () => void;
   onLookAgain: () => void;
   onAlternates: (intent: AlternateIntentView) => void;
   onPinAlternate: (index: number) => void;
-  onPlanInstead: (index: number) => void;
   onCancelAlternates: () => void;
   onCancelLoading: () => void;
   onDismissError: () => void;
@@ -75,7 +71,6 @@ export type CardState =
       place: PlaceResult;
       lowConfidence: boolean;
       pinned: boolean;
-      planState: PlanState;
       canReanalyze: boolean;
       confidence: ConfidenceView;
       sourceHost: string | null;
@@ -129,7 +124,6 @@ export const TripCard = ({ card, callbacks }: Props) => {
           place={card.place}
           lowConfidence={card.lowConfidence}
           pinned={card.pinned}
-          planState={card.planState}
           canReanalyze={card.canReanalyze}
           confidence={card.confidence}
           sourceHost={card.sourceHost}

@@ -20,13 +20,11 @@ const noop = () => {};
 
 const fullCallbacks = (overrides: Partial<TripCardCallbacks> = {}): TripCardCallbacks => ({
   onPin: noop,
-  onPlanTrip: noop,
   onReanalyze: noop,
   onRetry: noop,
   onLookAgain: noop,
   onAlternates: noop,
   onPinAlternate: noop,
-  onPlanInstead: noop,
   onCancelAlternates: noop,
   onCancelLoading: noop,
   onDismissError: noop,
@@ -93,7 +91,6 @@ describe('trip-card', () => {
       place: PLACE,
       lowConfidence: false,
       pinned: false,
-      planState: 'idle',
       canReanalyze: true,
       confidence: { line: 'Confidence: High (0.90).', showScale: true },
       sourceHost: 'example.com',
@@ -127,7 +124,6 @@ describe('trip-card', () => {
       place: PLACE,
       lowConfidence: false,
       pinned: false,
-      planState: 'idle',
       canReanalyze: false,
       confidence: { line: 'confidenceChosen', showScale: false },
       sourceHost: null,
@@ -143,7 +139,6 @@ describe('trip-card', () => {
       place: PLACE,
       lowConfidence: false,
       pinned: false,
-      planState: 'ready',
       canReanalyze: false,
       confidence: CONF,
       sourceHost: 'example.com',
@@ -161,7 +156,6 @@ describe('trip-card', () => {
         place: PLACE,
         lowConfidence: false,
         pinned: false,
-        planState: 'ready',
         canReanalyze: true,
         confidence: CONF,
         sourceHost: 'example.com',
@@ -180,7 +174,6 @@ describe('trip-card', () => {
         place: { ...PLACE, confidence: 0.2 },
         lowConfidence: true,
         pinned: false,
-        planState: 'ready',
         canReanalyze: true,
         confidence: CONF,
         sourceHost: 'example.com',
@@ -204,7 +197,6 @@ describe('trip-card', () => {
       place: { ...PLACE, city: '', country: '', oneLiner: '' },
       lowConfidence: false,
       pinned: false,
-      planState: 'ready',
       canReanalyze: true,
       confidence: CONF,
       sourceHost: 'example.com',
@@ -221,7 +213,6 @@ describe('trip-card', () => {
       place: { ...PLACE, oneLiner },
       lowConfidence: false,
       pinned: false,
-      planState: 'ready',
       canReanalyze: true,
       confidence: CONF,
       sourceHost: 'example.com',
@@ -241,7 +232,6 @@ describe('trip-card', () => {
         place: PLACE,
         lowConfidence: false,
         pinned: false,
-        planState: 'ready',
         canReanalyze: true,
         confidence: CONF,
         sourceHost: 'example.com',
@@ -267,7 +257,6 @@ describe('trip-card', () => {
         place: PLACE,
         lowConfidence: false,
         pinned: false,
-        planState: 'ready',
         canReanalyze: true,
         confidence: CONF,
         sourceHost: 'example.com',
@@ -288,40 +277,32 @@ describe('trip-card', () => {
     expect(root.querySelector('.alternates')?.getAttribute('aria-busy')).toBe('true');
   });
 
-  it('renders alternate cards with instead actions', () => {
-    const onPlanInstead = vi.fn();
-
-    const root = renderCard(
-      {
-        view: 'result',
-        place: PLACE,
-        lowConfidence: false,
-        pinned: false,
-        planState: 'ready',
-        canReanalyze: true,
-        confidence: CONF,
-        sourceHost: 'example.com',
-        alternates: {
-          state: 'ready',
-          intent: 'cheaper',
-          cards: [
-            {
-              name: 'Fira, Greece',
-              why: 'Same caldera, lower prices.',
-              bestMonth: 'May',
-              pinned: false,
-            },
-          ],
-        },
+  it('renders alternate cards', () => {
+    const root = renderCard({
+      view: 'result',
+      place: PLACE,
+      lowConfidence: false,
+      pinned: false,
+      canReanalyze: true,
+      confidence: CONF,
+      sourceHost: 'example.com',
+      alternates: {
+        state: 'ready',
+        intent: 'cheaper',
+        cards: [
+          {
+            name: 'Fira, Greece',
+            why: 'Same caldera, lower prices.',
+            bestMonth: 'May',
+            pinned: false,
+          },
+        ],
       },
-      { onPlanInstead }
-    ).container;
+    }).container;
     expect(root.querySelector('.alternates-skeletons')).toBeNull();
     expect(root.querySelector('.alternate-name')?.textContent).toBe('Fira, Greece');
     expect(root.querySelector('.alternate-why')?.textContent).toBe('Same caldera, lower prices.');
     expect(root.querySelector('.alternate-month')?.textContent).toBe('alternatesBestMonth(May)');
-    clickEl(root.querySelector('.alternate-actions button:not(.pin-button)') as HTMLButtonElement);
-    expect(onPlanInstead).toHaveBeenCalledWith(0);
   });
 
   it('pins alternate cards with a monogram tile', () => {
@@ -333,7 +314,6 @@ describe('trip-card', () => {
         place: PLACE,
         lowConfidence: false,
         pinned: false,
-        planState: 'ready',
         canReanalyze: true,
         confidence: CONF,
         sourceHost: 'example.com',
@@ -439,7 +419,6 @@ describe('trip-card', () => {
       place: PLACE,
       lowConfidence: false,
       pinned: false,
-      planState: 'ready',
       canReanalyze: true,
       confidence: CONF,
       sourceHost: 'example.com',
@@ -448,92 +427,6 @@ describe('trip-card', () => {
     const heading = root.querySelector('h2') as HTMLHeadingElement;
     focusEl(heading);
     expect(document.activeElement?.tagName).toBe('H2');
-  });
-
-  it('gates the guide behind the plan button', () => {
-    const onPlanTrip = vi.fn();
-
-    const rendered = renderCard(
-      {
-        view: 'result',
-        place: PLACE,
-        lowConfidence: false,
-        pinned: false,
-        planState: 'idle',
-        canReanalyze: true,
-        confidence: CONF,
-        sourceHost: 'example.com',
-      },
-      { onPlanTrip }
-    );
-
-    const root = rendered.container;
-
-    const button = root.querySelector('.plan-trip-button') as HTMLButtonElement;
-    expect(button.textContent).toBe('planTripButton');
-    expect(button.hasAttribute('aria-disabled')).toBe(false);
-    clickEl(button);
-    expect(onPlanTrip).toHaveBeenCalledTimes(1);
-    rerenderCard(
-      rendered,
-      {
-        view: 'result',
-        place: PLACE,
-        lowConfidence: false,
-        pinned: false,
-        planState: 'planning',
-        canReanalyze: true,
-        confidence: CONF,
-        sourceHost: 'example.com',
-      },
-      { onPlanTrip }
-    );
-
-    const busy = root.querySelector('.plan-trip-button') as HTMLButtonElement;
-    expect(busy.textContent).toBe('planningButton');
-    expect(busy.getAttribute('aria-disabled')).toBe('true');
-    clickEl(busy);
-    expect(onPlanTrip).toHaveBeenCalledTimes(1);
-    rerenderCard(
-      rendered,
-      {
-        view: 'result',
-        place: PLACE,
-        lowConfidence: false,
-        pinned: false,
-        planState: 'ready',
-        canReanalyze: true,
-        confidence: CONF,
-        sourceHost: 'example.com',
-      },
-      { onPlanTrip }
-    );
-    expect(root.querySelector('.plan-trip-button')).toBeNull();
-  });
-
-  it('offers start-again with honest copy after an interruption', () => {
-    const onPlanTrip = vi.fn();
-
-    const root = renderCard(
-      {
-        view: 'result',
-        place: PLACE,
-        lowConfidence: false,
-        pinned: false,
-        planState: 'interrupted',
-        canReanalyze: true,
-        confidence: CONF,
-        sourceHost: 'example.com',
-      },
-      { onPlanTrip }
-    ).container;
-
-    const button = root.querySelector('.plan-trip-button') as HTMLButtonElement;
-    expect(button.textContent).toBe('startAgainButton');
-    expect(button.hasAttribute('aria-disabled')).toBe(false);
-    expect(root.querySelector('.start-again-hint')?.textContent).toBe('startAgainHint');
-    clickEl(button);
-    expect(onPlanTrip).toHaveBeenCalledTimes(1);
   });
 
   it('renders the pin toggle with pressed state and event', () => {
@@ -545,7 +438,6 @@ describe('trip-card', () => {
         place: PLACE,
         lowConfidence: false,
         pinned: false,
-        planState: 'ready',
         canReanalyze: true,
         confidence: CONF,
         sourceHost: 'example.com',
@@ -567,7 +459,6 @@ describe('trip-card', () => {
         place: PLACE,
         lowConfidence: false,
         pinned: true,
-        planState: 'ready',
         canReanalyze: true,
         confidence: CONF,
         sourceHost: 'example.com',

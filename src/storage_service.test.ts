@@ -62,10 +62,8 @@ const place = (name: string, country = 'Greece'): PlaceResult => ({
 
 const entry = (name: string): CacheEntry => ({
   place: place(name),
-  guide: `# ${name}`,
   sources: [],
   usage: { inputTokens: 10, outputTokens: 5, searchCount: 0, flatFeesUsd: 0 },
-  searchedWeb: false,
 });
 
 let mock: ChromeMock;
@@ -350,13 +348,14 @@ describe('storage service cache commands', () => {
 
     const found = await getCacheEntry('hash0');
     expect(found?.place.placeName).toBe('Oia');
-    expect(found?.guide).toBe('# Oia');
 
     expect(await getCacheEntry('missing')).toBeUndefined();
   });
 
-  it('rejects oversized entries without storing them', async () => {
-    await setCacheEntry('big', { ...entry('Oia'), guide: 'x'.repeat(300000) });
+  it('rejects entries that violate the schema without storing them', async () => {
+    const big = entry('Oia');
+    big.place.oneLiner = 'x'.repeat(500);
+    await setCacheEntry('big', big);
 
     expect(await getCacheEntry('big')).toBeUndefined();
     expect(mock.session.data.has('cache:big')).toBe(false);
@@ -366,7 +365,7 @@ describe('storage service cache commands', () => {
     const corrupt = {
       v: 2,
       createdAt: Date.now(),
-      entry: { ...entry('Oia'), guide: 42 },
+      entry: { ...entry('Oia'), place: 42 },
     };
     await mock.session.set({ 'cache:bad': corrupt });
 
@@ -374,14 +373,14 @@ describe('storage service cache commands', () => {
     expect(mock.session.data.get('cache:bad')).toEqual(corrupt);
   });
 
-  it('evicts least-recently-used entries past the byte cap', async () => {
-    for (let n = 0; n < 10; n += 1) {
-      await setCacheEntry(`max${n}`, { ...entry(`Place${n}`), guide: 'g'.repeat(262144) });
+  it('evicts least-recently-used entries past the slot cap', async () => {
+    for (let n = 0; n < 11; n += 1) {
+      await setCacheEntry(`max${n}`, entry(`Place${n}`));
     }
 
     expect(await getCacheEntry('max0')).toBeUndefined();
-    expect(await getCacheEntry('max1')).toBeUndefined();
-    expect((await getCacheEntry('max9'))?.place.placeName).toBe('Place9');
+    expect((await getCacheEntry('max1'))?.place.placeName).toBe('Place1');
+    expect((await getCacheEntry('max10'))?.place.placeName).toBe('Place10');
   });
 
   it('sweeps expired and orphaned records on write', async () => {

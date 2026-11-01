@@ -12,10 +12,6 @@ export interface ScanItemView {
   pinned: boolean;
 }
 
-export interface ScanGuideDetail {
-  index: number;
-}
-
 export interface ScanPinDetail {
   index: number;
 }
@@ -25,7 +21,6 @@ export interface ScanPinSelectedDetail {
 }
 
 export interface ScanListCallbacks {
-  onGuide: (index: number) => void;
   onPin: (index: number) => void;
   onPinSelected: (indices: number[]) => void;
   onCancel: () => void;
@@ -36,7 +31,7 @@ interface Props extends ScanListCallbacks {
   items: ScanItemView[];
 }
 
-export const ScanList = ({ loading, items, onGuide, onPin, onPinSelected, onCancel }: Props) => {
+export const ScanList = ({ loading, items, onPin, onPinSelected, onCancel }: Props) => {
   const checkedRef = useRef<Set<string>>(new Set());
 
   const [epoch, setEpoch] = useState(0);
@@ -119,7 +114,6 @@ export const ScanList = ({ loading, items, onGuide, onPin, onPinSelected, onCanc
                     item={item}
                     index={index}
                     initialChecked={checked.has(item.title)}
-                    onGuide={onGuide}
                     onPin={onPin}
                   />
                 </li>

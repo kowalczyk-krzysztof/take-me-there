@@ -3,7 +3,6 @@ import {
   CACHE_TTL_MS,
   clearCacheEntries,
   getCacheEntry,
-  hashGuideKey,
   hashIdentifyKey,
   isAllowedPreviewUrl,
   normalizeEndpoint,
@@ -44,10 +43,8 @@ const entry = (name: string): CacheEntry => ({
     confidence: 1,
     oneLiner: '',
   },
-  guide: `${name} guide.`,
   sources: [],
   usage: { inputTokens: 1, outputTokens: 1, searchCount: 0, flatFeesUsd: 0 },
-  searchedWeb: false,
 });
 
 describe('preview allowlist', () => {
@@ -112,23 +109,6 @@ describe('cache key hashing', () => {
       normalizeEndpoint('openai_compat', 'https://llm.example.com/v2')
     );
     expect(normalizeEndpoint('openai_compat', 'not a url')).toBe('not a url');
-  });
-
-  it('keys guides off identify plus destination, language, and grounding', async () => {
-    const identify = await hashIdentifyKey(parts);
-    const base = await hashGuideKey(identify, 'Oia, Greece', 'en-US', true);
-    expect(await hashGuideKey(identify, 'Oia, Greece', 'en-US', true)).toBe(base);
-    expect(
-      await hashGuideKey(
-        await hashIdentifyKey({ ...parts, model: 'other' }),
-        'Oia, Greece',
-        'en-US',
-        true
-      )
-    ).not.toBe(base);
-    expect(await hashGuideKey(identify, 'Fira, Greece', 'en-US', true)).not.toBe(base);
-    expect(await hashGuideKey(identify, 'Oia, Greece', 'de', true)).not.toBe(base);
-    expect(await hashGuideKey(identify, 'Oia, Greece', 'en-US', false)).not.toBe(base);
   });
 
   it('keeps query-selected videos apart', async () => {

@@ -30,14 +30,7 @@ afterEach(() => {
 describe('scan-list', () => {
   it('renders an aria-hidden skeleton while loading', () => {
     const root = renderSync(
-      <ScanList
-        loading={true}
-        items={[]}
-        onGuide={noop}
-        onPin={noop}
-        onPinSelected={noop}
-        onCancel={noop}
-      />
+      <ScanList loading={true} items={[]} onPin={noop} onPinSelected={noop} onCancel={noop} />
     ).container;
     expect(root.querySelector('h2')?.textContent).toBe('scanTitle');
 
@@ -52,14 +45,7 @@ describe('scan-list', () => {
     const onCancel = vi.fn();
 
     const rendered = renderSync(
-      <ScanList
-        loading={true}
-        items={[]}
-        onGuide={noop}
-        onPin={noop}
-        onPinSelected={noop}
-        onCancel={onCancel}
-      />
+      <ScanList loading={true} items={[]} onPin={noop} onPinSelected={noop} onCancel={onCancel} />
     );
     const cancel = rendered.container.querySelector('section > button') as HTMLButtonElement;
     expect(cancel?.textContent).toBe('cancelButton');
@@ -70,7 +56,6 @@ describe('scan-list', () => {
       <ScanList
         loading={false}
         items={ITEMS}
-        onGuide={noop}
         onPin={noop}
         onPinSelected={noop}
         onCancel={onCancel}
@@ -85,14 +70,7 @@ describe('scan-list', () => {
 
   it('shows saved pins as disabled with pressed state', () => {
     const root = renderSync(
-      <ScanList
-        loading={false}
-        items={ITEMS}
-        onGuide={noop}
-        onPin={noop}
-        onPinSelected={noop}
-        onCancel={noop}
-      />
+      <ScanList loading={false} items={ITEMS} onPin={noop} onPinSelected={noop} onCancel={noop} />
     ).container;
 
     const pins = [...root.querySelectorAll('.scan-card .pin-button')] as HTMLButtonElement[];
@@ -107,24 +85,10 @@ describe('scan-list', () => {
 
   it('renders a no-skeleton shadow after results arrive', () => {
     const rendered = renderSync(
-      <ScanList
-        loading={true}
-        items={[]}
-        onGuide={noop}
-        onPin={noop}
-        onPinSelected={noop}
-        onCancel={noop}
-      />
+      <ScanList loading={true} items={[]} onPin={noop} onPinSelected={noop} onCancel={noop} />
     );
     rendered.rerender(
-      <ScanList
-        loading={false}
-        items={ITEMS}
-        onGuide={noop}
-        onPin={noop}
-        onPinSelected={noop}
-        onCancel={noop}
-      />
+      <ScanList loading={false} items={ITEMS} onPin={noop} onPinSelected={noop} onCancel={noop} />
     );
 
     const root = rendered.container;
@@ -137,16 +101,9 @@ describe('scan-list', () => {
     expect(list.children[0].tagName).toBe('LI');
   });
 
-  it('renders cards with group labels and three sibling controls', () => {
+  it('renders cards with group labels and a pin control', () => {
     const root = renderSync(
-      <ScanList
-        loading={false}
-        items={ITEMS}
-        onGuide={noop}
-        onPin={noop}
-        onPinSelected={noop}
-        onCancel={noop}
-      />
+      <ScanList loading={false} items={ITEMS} onPin={noop} onPinSelected={noop} onCancel={noop} />
     ).container;
 
     const cards = root.querySelectorAll('.scan-card');
@@ -158,7 +115,7 @@ describe('scan-list', () => {
     expect(cards[0]?.querySelector('label')?.textContent).toBe('Oia, Greece');
 
     const buttons = cards[0]?.querySelectorAll('button');
-    expect(buttons?.length).toBe(2);
+    expect(buttons?.length).toBe(1);
     // No card-wide click wrapper: no parent of the controls handles clicks.
     expect((cards[0] as HTMLElement).onclick).toBeNull();
     expect(cards[0]?.querySelector('.pin-button')?.getAttribute('aria-pressed')).toBe('false');
@@ -167,14 +124,7 @@ describe('scan-list', () => {
 
   it('renders decorative thumbnails with a placeholder fallback', () => {
     const root = renderSync(
-      <ScanList
-        loading={false}
-        items={ITEMS}
-        onGuide={noop}
-        onPin={noop}
-        onPinSelected={noop}
-        onCancel={noop}
-      />
+      <ScanList loading={false} items={ITEMS} onPin={noop} onPinSelected={noop} onCancel={noop} />
     ).container;
 
     const cards = root.querySelectorAll('.scan-card');
@@ -188,26 +138,15 @@ describe('scan-list', () => {
     expect(placeholder?.getAttribute('aria-hidden')).toBe('true');
   });
 
-  it('emits guide and pin events per card', () => {
-    const onGuide = vi.fn();
-
+  it('emits pin events per card', () => {
     const onPin = vi.fn();
 
     const root = renderSync(
-      <ScanList
-        loading={false}
-        items={ITEMS}
-        onGuide={onGuide}
-        onPin={onPin}
-        onPinSelected={noop}
-        onCancel={noop}
-      />
+      <ScanList loading={false} items={ITEMS} onPin={onPin} onPinSelected={noop} onCancel={noop} />
     ).container;
 
     const cards = root.querySelectorAll('.scan-card');
-    clickEl(cards[1]?.querySelectorAll('button')[0] as HTMLButtonElement);
-    clickEl(cards[0]?.querySelectorAll('button')[1] as HTMLButtonElement);
-    expect(onGuide).toHaveBeenCalledWith(1);
+    clickEl(cards[0]?.querySelectorAll('button')[0] as HTMLButtonElement);
     expect(onPin).toHaveBeenCalledWith(0);
   });
 
@@ -220,7 +159,6 @@ describe('scan-list', () => {
       <ScanList
         loading={false}
         items={ITEMS}
-        onGuide={noop}
         onPin={noop}
         onPinSelected={onPinSelected}
         onCancel={noop}
@@ -238,7 +176,6 @@ describe('scan-list', () => {
       <ScanList
         loading={false}
         items={[{ ...ITEMS[0]!, pinned: true }, ITEMS[1]!]}
-        onGuide={noop}
         onPin={noop}
         onPinSelected={onPinSelected}
         onCancel={noop}
@@ -256,7 +193,6 @@ describe('scan-list', () => {
       <ScanList
         loading={false}
         items={ITEMS}
-        onGuide={noop}
         onPin={noop}
         onPinSelected={onPinSelected}
         onCancel={noop}

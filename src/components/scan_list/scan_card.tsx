@@ -7,11 +7,10 @@ interface Props {
   item: ScanItemView;
   index: number;
   initialChecked: boolean;
-  onGuide: (index: number) => void;
   onPin: (index: number) => void;
 }
 
-export const ScanCard = ({ item, index, initialChecked, onGuide, onPin }: Props) => (
+export const ScanCard = ({ item, index, initialChecked, onPin }: Props) => (
   <div className={styles['scan-card']} role="group" aria-label={item.title}>
     {item.image ? (
       <ThumbImage src={item.image} />
@@ -23,9 +22,6 @@ export const ScanCard = ({ item, index, initialChecked, onGuide, onPin }: Props)
       <span>{item.title}</span>
     </label>
     <div className={styles['card-actions']}>
-      <button type="button" onClick={() => onGuide(index)}>
-        {msg('scanGuide', item.placeName)}
-      </button>
       <button
         type="button"
         className="pin-button"

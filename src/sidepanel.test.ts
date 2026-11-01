@@ -44,7 +44,6 @@ import {
   settleWrite,
   setupPage,
   sleep,
-  sseResponse,
   teardownPage,
   waitFor,
 } from './test/helpers';
@@ -76,13 +75,6 @@ const waitForHeading = async (text: string): Promise<void> => {
   await waitFor(() => {
     expect(document.querySelector('#result-slot h2')?.textContent).toBe(text);
   });
-};
-
-const clickPlanTrip = async (): Promise<void> => {
-  await waitFor(() => {
-    expect(document.querySelector('#result-slot .plan-trip-button')).not.toBeNull();
-  });
-  clickEl(document.querySelector('#result-slot .plan-trip-button') as HTMLButtonElement);
 };
 
 const VALID_PLACE = {
@@ -144,47 +136,6 @@ const READY = (overrides: Record<string, unknown> = {}) => {
   };
 };
 
-const GUIDE_SSE = [
-  'event: response.web_search_call.searching\n',
-  'data: {}\n',
-  '\n',
-  'event: response.output_text.delta\n',
-  'data: {"delta":"Hello "}\n',
-  '\n',
-  'event: response.output_text.delta\n',
-  'data: {"delta":"world"}\n',
-  '\n',
-  'event: response.output_text.annotation.added\n',
-  'data: {"annotation":{"type":"url_citation","url":"https://example.com/a","title":"A"}}\n',
-  '\n',
-  'event: response.web_search_call.completed\n',
-  'data: {}\n',
-  '\n',
-  'event: response.completed\n',
-  'data: {"response":{"usage":{"input_tokens":300,"output_tokens":120}}}\n',
-  '\n',
-].join('');
-
-const GUIDE_SSE_CACHED = [
-  'event: response.web_search_call.searching\n',
-  'data: {}\n',
-  '\n',
-  'event: response.output_text.delta\n',
-  'data: {"delta":"Hello world"}\n',
-  '\n',
-  'event: response.web_search_call.completed\n',
-  'data: {}\n',
-  '\n',
-  'event: response.completed\n',
-  'data: {"response":{"usage":{"input_tokens":1000,"output_tokens":120,"input_tokens_details":{"cached_tokens":800}}}}\n',
-  '\n',
-].join('');
-
-const CHAT_GUIDE_SSE = [
-  'data: {"choices":[{"delta":{"content":"Hello world"}}]}\n\n',
-  'data: {"choices":[{"delta":{}}],"usage":{"prompt_tokens":10,"completion_tokens":5}}\n\ndata: [DONE]\n\n',
-];
-
 const fetchMock = vi.fn();
 
 // A hung request with real-fetch abort semantics: it rejects when the
@@ -221,9 +172,6 @@ describe('sidepanel', () => {
     await setup();
     expect(document.querySelector('#booking-heading')?.textContent).toBe('bookingHeading');
     expect(document.querySelector('#links-slot .slot-empty')?.textContent).toBe('bookingEmpty');
-    expect(document.querySelector('#guide-heading')?.textContent).toBe('guideHeading');
-    expect(document.querySelector('#guide-slot .slot-empty')?.textContent).toBe('guideEmpty');
-    expect(document.querySelector('#guide-content')?.hasAttribute('hidden')).toBe(true);
     expect(document.querySelector('#sources-heading')?.textContent).toBe('sourcesHeading');
     expect(document.querySelector('#sources-slot .slot-empty')?.textContent).toBe('sourcesEmpty');
   });
@@ -279,9 +227,7 @@ describe('sidepanel', () => {
     expect(tabMain.getAttribute('aria-selected')).toBe('true');
     // A new run surfaces on the main tab even from the board tab.
     clickEl(tabBoard);
-    fetchMock
-      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
-      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
+    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitFor(() => {
       expect(document.querySelector('#result-slot h2')?.textContent).toBe('Oia');
@@ -574,71 +520,6 @@ describe('sidepanel', () => {
     );
   });
 
-  it('runs identify plus a grounded guide end to end', async () => {
-    const mock = await setup();
-    await plantKeyAndConsent();
-    fetchMock
-      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
-      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
-    await settleWrite(mock.session.set({ [SLOT]: READY() }));
-    await waitForHeading('Oia');
-    await clickPlanTrip();
-    await waitFor(() => {
-      expect(document.querySelector('#guide-content')?.textContent).toContain('Hello world');
-    });
-
-    const grid = document.querySelector('#links-slot');
-    expect(grid?.querySelectorAll('a.tile')).toHaveLength(2);
-
-    const chips = document.querySelector('#sources-slot');
-    expect(chips?.querySelectorAll('a.chip')).toHaveLength(1);
-    expect(document.querySelector('#privacy-line')?.textContent).toBe(
-      "privacyGuideSearch(Meta's Muse API)"
-    );
-    expect(document.querySelector('#settings-run-line')?.textContent).toBe(
-      'costLine($0.004 | $0.004)'
-    );
-    expect(document.querySelector('#status-region')?.textContent).toBe(
-      'statusGuideReadySources(1)'
-    );
-
-    const guide = document.querySelector('#guide-content') as HTMLElement;
-    expect(guide.getAttribute('lang')).toBe('en-US');
-    expect(guide.getAttribute('dir')).toBe('ltr');
-    expect(guide.getAttribute('role')).toBe('region');
-    expect(guide.tabIndex).toBe(0);
-    expect(guide.getAttribute('aria-labelledby')).toBe('guide-heading');
-  });
-
-  it('streams guides over plain chat in cheap mode', async () => {
-    const mock = await setup(async (seed) => {
-      await settleWrite(seed.local.set({ settings: { v: 1, settings: { skipWebSearch: true } } }));
-    });
-    await plantKeyAndConsent();
-    fetchMock
-      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
-      .mockResolvedValueOnce(
-        sseResponse([
-          'data: {"choices":[{"delta":{"content":"Hello world"}}]}\n\n',
-          'data: {"choices":[{"delta":{}}],"usage":{"prompt_tokens":10,"completion_tokens":5}}\n\ndata: [DONE]\n\n',
-        ])
-      );
-    await settleWrite(mock.session.set({ [SLOT]: READY() }));
-    await waitForHeading('Oia');
-    await clickPlanTrip();
-    await waitFor(() => {
-      expect(document.querySelector('#guide-content')?.textContent).toContain('Hello world');
-    });
-
-    const guideUrl = fetchMock.mock.calls[1][0] as string;
-    expect(guideUrl).toContain('/chat/completions');
-    expect(document.querySelector('#privacy-line')?.textContent).toBe(
-      "privacyGuide(Meta's Muse API)"
-    );
-    expect(document.querySelector('#status-region')?.textContent).toBe('statusGuideReady');
-    expect(document.querySelector('#sources-slot')?.querySelectorAll('a.chip')).toHaveLength(0);
-  });
-
   it('ships static shell titles and leaves document locale alone', async () => {
     await setup();
     expect(document.documentElement.lang).toBe('');
@@ -654,253 +535,34 @@ describe('sidepanel', () => {
     expect(shells[2]).toContain('<title>Welcome to Take Me There</title>');
   });
 
-  it('shows cache savings on the cost line', async () => {
-    const mock = await setup();
-    await plantKeyAndConsent();
-    fetchMock
-      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
-      .mockResolvedValueOnce(sseResponse([GUIDE_SSE_CACHED]));
-    await settleWrite(mock.session.set({ [SLOT]: READY() }));
-    await waitForHeading('Oia');
-    await clickPlanTrip();
-    await waitFor(() => {
-      expect(document.querySelector('#settings-run-line')?.textContent).toBe(
-        'costLineCached($0.004 | $0.004 | $0.001)'
-      );
-    });
-  });
-
-  it('holds the guide until the plan button is pressed', async () => {
-    const mock = await setup();
-    await plantKeyAndConsent();
-    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
-    await settleWrite(mock.session.set({ [SLOT]: READY() }));
-    await waitForHeading('Oia');
-    await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe('statusFoundPlan(Oia)');
-    });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(document.querySelector('#guide-slot .slot-empty')?.textContent).toBe('guideEmpty');
-    expect(document.querySelector('#guide-content')?.textContent).toBe('');
-    expect(document.querySelector('#links-slot a.tile')).not.toBeNull();
-
-    const button = document.querySelector('#result-slot .plan-trip-button') as HTMLButtonElement;
-    expect(button.textContent).toBe('planTripButton');
-    expect(document.querySelector('#settings-run-line')?.textContent).toBe(
-      'costLine($0.000 | $0.000)'
-    );
-  });
-
-  it('shows the plan button for cached results without a guide', async () => {
-    const mock = await setup();
-    await plantKeyAndConsent();
-    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
-    await settleWrite(mock.session.set({ [SLOT]: READY() }));
-    await waitForHeading('Oia');
-    await settleWrite(mock.session.set({ [SLOT]: READY({ requestId: '200-2' }) }));
-    await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe('statusCacheHit(Oia)');
-    });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(document.querySelector('#guide-slot .slot-empty')?.textContent).toBe('guideEmpty');
-    expect(document.querySelector('#result-slot .plan-trip-button')).not.toBeNull();
-  });
-
-  it('renders a long multi-chunk guide in full', async () => {
-    const mock = await setup();
-    await plantKeyAndConsent();
-
-    const deltas = [
-      'I will research Oia for you. ',
-      '## Oia, Greece\n\n',
-      'First paragraph of the guide. ',
-      'Second sentence here. ',
-      '- bullet one\n',
-      '- bullet two\n',
-      '### Getting there\n\n',
-      'Final paragraph at the very end MARKER-XYZ.',
-    ];
-
-    const lines: string[] = [];
-
-    for (const d of deltas) {
-      lines.push(
-        'event: response.output_text.delta\n',
-        `data: {"delta":${JSON.stringify(d)}}\n`,
-        '\n'
-      );
-    }
-    lines.push(
-      'event: response.completed\n',
-      'data: {"response":{"usage":{"input_tokens":100,"output_tokens":200}}}\n',
-      '\n'
-    );
-    fetchMock
-      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
-      .mockResolvedValueOnce(sseResponse(lines));
-    await settleWrite(mock.session.set({ [SLOT]: READY() }));
-    await waitForHeading('Oia');
-    await clickPlanTrip();
-    await waitFor(() => {
-      expect(document.querySelector('#guide-content')?.textContent).toContain('MARKER-XYZ');
-    });
-
-    const text = document.querySelector('#guide-content')?.textContent ?? '';
-    expect(text).toContain('First paragraph');
-    expect(text).toContain('bullet two');
-    expect(text).not.toContain('research Oia');
-  });
-
-  it('re-guides without re-identifying after a grounding switch', async () => {
-    const mock = await setup();
-    await plantKeyAndConsent();
-    fetchMock
-      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
-      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]))
-      .mockResolvedValueOnce(
-        sseResponse([
-          'data: {"choices":[{"delta":{"content":"Second guide"}}]}\n\n',
-          'data: {"choices":[{"delta":{}}],"usage":{"prompt_tokens":10,"completion_tokens":5}}\n\ndata: [DONE]\n\n',
-        ])
-      );
-    await settleWrite(mock.session.set({ [SLOT]: READY() }));
-    await waitForHeading('Oia');
-    await clickPlanTrip();
-    await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe(
-        'statusGuideReadySources(1)'
-      );
-    });
-
-    await settleWrite(mock.local.set({ settings: { v: 1, settings: { skipWebSearch: true } } }));
-    await settleWrite(mock.session.set({ [SLOT]: READY() }));
-    // Prove the second handoff took the cache-hit branch before Plan.
-    await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toContain(
-        'statusCacheHit(Oia)'
-      );
-    });
-    await waitForHeading('Oia');
-    await clickPlanTrip();
-    await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledTimes(3);
-    });
-    await waitFor(() => {
-      expect(document.querySelector('#guide-content')?.textContent).toContain('Second guide');
-    });
-    const [identifyUrl] = fetchMock.mock.calls[0] as [string, RequestInit];
-    const [groundedUrl] = fetchMock.mock.calls[1] as [string, RequestInit];
-    const [chatUrl, chatInit] = fetchMock.mock.calls[2] as [string, RequestInit];
-    expect(identifyUrl).toContain('/chat/completions');
-    expect(groundedUrl).toContain('/responses');
-    expect(chatUrl).toContain('/chat/completions');
-    expect(JSON.stringify(chatInit.body)).not.toContain('image_url');
-  });
-
   it('re-identifies after an image-only switch', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
     fetchMock
       .mockResolvedValueOnce(chatResponse(VALID_PLACE))
-      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]))
-      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
-      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE));
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
-    await clickPlanTrip();
-    await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe(
-        'statusGuideReadySources(1)'
-      );
-    });
 
     await settleWrite(mock.local.set({ settings: { v: 1, settings: { imageOnly: true } } }));
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
-    // Prove the second handoff re-ran identify before Plan.
+    // Prove the second handoff re-ran identify.
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledTimes(3);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
     });
     await waitForHeading('Oia');
-    await clickPlanTrip();
-    await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledTimes(4);
-    });
-    await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe(
-        'statusGuideReadySources(1)'
-      );
-    });
     const urls = fetchMock.mock.calls.map(([url]) => url as string);
     expect(urls[0]).toContain('/chat/completions');
-    expect(urls[1]).toContain('/responses');
-    expect(urls[2]).toContain('/chat/completions');
-    expect(urls[3]).toContain('/responses');
-  });
-
-  it('caps stored guide text at 256 KiB', async () => {
-    const mock = await setup();
-    await plantKeyAndConsent();
-
-    const big = 'G'.repeat(300 * 1024);
-    fetchMock
-      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
-      .mockResolvedValueOnce(
-        sseResponse([
-          'event: response.output_text.delta\n',
-          `data: {"delta":"## Oia\\n\\n${big}"}\n`,
-          '\n',
-          'event: response.completed\n',
-          'data: {"response":{"usage":{"input_tokens":100,"output_tokens":200}}}\n',
-          '\n',
-        ])
-      );
-    await settleWrite(mock.session.set({ [SLOT]: READY() }));
-    await waitForHeading('Oia');
-    await clickPlanTrip();
-    await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe('statusGuideReady');
-    });
-
-    const cached = [...mock.session.data.entries()]
-      .filter(([key]) => key.startsWith('cache:'))
-      .map(([, value]) => (value as { entry: { guide: string } }).entry);
-    expect(cached).toHaveLength(2);
-    expect(cached.map((entry) => entry.guide.length).sort()).toEqual([0, 256 * 1024]);
-  });
-
-  it('retries a failed guide without re-running identify', async () => {
-    const mock = await setup();
-    await plantKeyAndConsent();
-    fetchMock
-      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
-      .mockResolvedValueOnce(new Response('boom', { status: 500 }))
-      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
-    await settleWrite(mock.session.set({ [SLOT]: READY() }));
-    await waitForHeading('Oia');
-    await clickPlanTrip();
-    await waitForHeading('errorServerTitle');
-
-    const card = document.querySelector('#result-slot') as HTMLElement;
-    clickEl(card.querySelector('.primary') as HTMLButtonElement);
-    await waitFor(() => {
-      expect(document.querySelector('#guide-content')?.textContent).toContain('Hello world');
-    });
-    // The result card repaint lands after the streamed guide paint.
-    await waitFor(() => {
-      expect(document.querySelector('#result-slot h2')?.textContent).toBe('Oia');
-      expect(document.querySelector('#result-slot .plan-trip-button')).toBeNull();
-    });
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(urls[1]).toContain('/chat/completions');
   });
 
   it('serves repeat images from cache without fetching', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
 
-    const { hashGuideKey, hashIdentifyKey, normalizeEndpoint, setCacheEntry } = await cover(
+    const { hashIdentifyKey, normalizeEndpoint, setCacheEntry } = await cover(
       import('./result_cache')
     );
-    const { buildDestination } = await cover(import('./deep_links'));
 
     const identify = await cover(
       hashIdentifyKey({
@@ -912,38 +574,18 @@ describe('sidepanel', () => {
         imageOnly: false,
       })
     );
-    const guide = await cover(
-      hashGuideKey(
-        identify,
-        buildDestination('Oia', 'Oia', 'Greece'),
-        chrome.i18n.getUILanguage(),
-        true
-      )
-    );
     const emptyUsage = { inputTokens: 0, outputTokens: 0, searchCount: 0, flatFeesUsd: 0 };
     await settleWrite(
       setCacheEntry(identify, {
         place: VALID_PLACE,
-        guide: '',
         sources: [],
         usage: emptyUsage,
-        searchedWeb: false,
-      })
-    );
-    await settleWrite(
-      setCacheEntry(guide, {
-        place: VALID_PLACE,
-        guide: 'Cached guide text.',
-        sources: [],
-        usage: emptyUsage,
-        searchedWeb: false,
       })
     );
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitFor(() => {
       expect(document.querySelector('#settings-run-line')?.textContent).toBe('costLineCache');
     });
-    expect(document.querySelector('#guide-content')?.textContent).toContain('Cached guide text.');
     expect(document.querySelector('#status-region')?.textContent).toBe('statusCacheHit(Oia)');
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -957,8 +599,7 @@ describe('sidepanel', () => {
     expect(document.querySelector('#result-slot')).not.toBeNull();
     fetchMock
       .mockResolvedValueOnce(new Response('[]', { status: 200 }))
-      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
-      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE));
     (document.querySelector('#key-input') as HTMLInputElement).value = 'LLM_good';
     dispatchEl(
       document.querySelector('#settings-panel form') as HTMLFormElement,
@@ -998,143 +639,23 @@ describe('sidepanel', () => {
     expect(body.reasoning_effort).toBe('medium');
   });
 
-  it('records each stage exactly once in the monthly total', async () => {
+  it('records the run exactly once in the monthly total', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
-    fetchMock
-      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
-      .mockResolvedValueOnce(
-        sseResponse([
-          'event: response.output_text.delta\n',
-          'data: {"delta":"## Oia\\nHello world"}\n',
-          '\n',
-          'event: response.completed\n',
-          'data: {"response":{"usage":{"input_tokens":100,"output_tokens":50}}}\n',
-          '\n',
-        ])
-      );
+    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
-    await clickPlanTrip();
-    await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe('statusGuideReady');
-    });
+    await waitForHeading('Oia');
 
     const { monthKey } = await cover(import('./pricing'));
 
-    const record = mock.local.data.get('costTotals') as {
-      v: number;
-      months: Record<string, number>;
-    };
-    expect(record.v).toBe(1);
-    expect(record.months[monthKey(new Date())]).toBeCloseTo(0.000675, 10);
-  });
-
-  it('keeps the partial guide when the stream errors mid-way', async () => {
-    const mock = await setup();
-    await plantKeyAndConsent();
-    fetchMock
-      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
-      .mockResolvedValueOnce(
-        sseResponse([
-          'event: response.output_text.delta\n',
-          'data: {"delta":"## Oia\\nHello"}\n',
-          '\n',
-          'data: this unnamed block kills the stream\n',
-          '\n',
-        ])
-      );
-    await settleWrite(mock.session.set({ [SLOT]: READY() }));
-    await clickPlanTrip();
     await waitFor(() => {
-      expect(document.querySelector('.guide-interrupted')?.textContent).toBe('guideInterrupted');
+      const record = mock.local.data.get('costTotals') as {
+        v: number;
+        months: Record<string, number>;
+      };
+      expect(record.v).toBe(1);
+      expect(record.months[monthKey(new Date())]).toBeCloseTo(0.0003375, 10);
     });
-    expect(document.querySelector('#guide-content')?.textContent).toContain('Hello');
-    // The result card repaint lands after the interruption tombstone.
-    await waitFor(() => {
-      expect(document.querySelector('#result-slot')?.querySelector('h2')?.textContent).toBe('Oia');
-      expect(document.querySelector('#result-slot .plan-trip-button')?.textContent).toBe(
-        'startAgainButton'
-      );
-    });
-    expect(document.querySelector('#result-slot .start-again-hint')?.textContent).toBe(
-      'startAgainHint'
-    );
-    expect(document.querySelector('#alert-region')?.textContent).toBe('guideInterrupted');
-    // The failed stream reported no usage, so the run cannot claim a cost.
-    expect(document.querySelector('#settings-run-line')?.textContent).toBe(
-      'costIncomplete($0.000)'
-    );
-
-    // The partial text stays on screen only: the cache keeps no guide.
-    const cached = [...mock.session.data.entries()].filter(([key]) => key.startsWith('cache:'));
-    expect(cached).toHaveLength(1);
-    expect((cached[0][1] as { entry: { guide: string } }).entry.guide).toBe('');
-  });
-
-  it('starts interrupted guides again with a new request', async () => {
-    const mock = await setup();
-    await plantKeyAndConsent();
-    fetchMock
-      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
-      .mockResolvedValueOnce(
-        sseResponse([
-          'event: response.output_text.delta\n',
-          'data: {"delta":"## Oia\\nHello"}\n',
-          '\n',
-          'data: this unnamed block kills the stream\n',
-          '\n',
-        ])
-      )
-      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
-    await settleWrite(mock.session.set({ [SLOT]: READY() }));
-    await clickPlanTrip();
-    await waitFor(() => {
-      expect(document.querySelector('#result-slot .plan-trip-button')?.textContent).toBe(
-        'startAgainButton'
-      );
-    });
-    clickEl(document.querySelector('#result-slot .plan-trip-button') as HTMLButtonElement);
-    await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe(
-        'statusGuideReadySources(1)'
-      );
-    });
-    expect(document.querySelector('#guide-content')?.textContent).toContain('Hello world');
-    // The result card repaint lands after the streamed guide paint.
-    await waitFor(() => {
-      expect(document.querySelector('#result-slot .plan-trip-button')).toBeNull();
-    });
-    expect(fetchMock).toHaveBeenCalledTimes(3);
-  });
-
-  it('holds back guide preamble and renders from the heading', async () => {
-    const mock = await setup();
-    await plantKeyAndConsent();
-    fetchMock
-      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
-      .mockResolvedValueOnce(
-        sseResponse([
-          'event: response.output_text.delta\n',
-          'data: {"delta":"I will research Oia to build your factual trip guide."}\n',
-          '\n',
-          'event: response.output_text.delta\n',
-          'data: {"delta":"## Oia\\nHello world"}\n',
-          '\n',
-          'event: response.completed\n',
-          'data: {"response":{"usage":{"input_tokens":100,"output_tokens":50}}}\n',
-          '\n',
-        ])
-      );
-    await settleWrite(mock.session.set({ [SLOT]: READY() }));
-    await clickPlanTrip();
-    await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe('statusGuideReady');
-    });
-
-    const content = document.querySelector('#guide-content');
-    expect(content?.textContent).toContain('Hello world');
-    expect(content?.textContent).not.toContain('research Oia');
-    expect(content?.querySelector('h3')?.textContent).toBe('Oia');
   });
 
   it('keeps the consent gate for re-click when the flag write fails', async () => {
@@ -1261,9 +782,7 @@ describe('sidepanel', () => {
   it('analyzes the captured frame after the video confirm', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
-    fetchMock
-      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
-      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
+    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
     await settleWrite(
       mock.session.set({
         [SLOT]: READY({
@@ -1320,9 +839,7 @@ describe('sidepanel', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     // The gate is one-time: the next video analyzes without asking.
     fetchMock.mockClear();
-    fetchMock
-      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
-      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
+    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
     await settleWrite(
       mock.session.set({
         [SLOT]: READY({
@@ -1373,9 +890,7 @@ describe('sidepanel', () => {
 
     const { setVideoConsented } = await cover(import('./video'));
     await settleWrite(setVideoConsented());
-    fetchMock
-      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
-      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
+    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
     await settleWrite(
       mock.session.set({
         [SLOT]: READY({
@@ -1401,9 +916,7 @@ describe('sidepanel', () => {
   it('pins results to the board with announcements', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
-    fetchMock
-      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
-      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
+    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
 
@@ -1668,121 +1181,6 @@ describe('sidepanel', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('persists the narration and marks it stale after a reorder', async () => {
-    await setup();
-    await plantKeyAndConsent();
-
-    const { loadItinerary, pinPlace } = await cover(import('./board_store'));
-    await cover(pinPlace({ place: { ...VALID_PLACE }, sourceHost: 'example.com' }));
-    await cover(
-      pinPlace({
-        place: { ...VALID_PLACE, placeName: 'Fira', city: 'Fira' },
-        sourceHost: 'example.com',
-      })
-    );
-
-    const VALID_PLAN = {
-      stops: ['Oia, Greece', 'Fira, Greece'],
-      days: [
-        {
-          dayTitle: 'Caldera day',
-          stopNames: ['Oia, Greece', 'Fira, Greece'],
-          summary: 'Walk the caldera path.',
-        },
-      ],
-      nightsEach: [
-        { stop: 'Oia, Greece', nights: 2 },
-        { stop: 'Fira, Greece', nights: 1 },
-      ],
-    };
-    fetchMock
-      .mockResolvedValueOnce(chatResponse(VALID_PLAN))
-      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
-
-    const board = document.querySelector('#board-slot') as HTMLElement;
-    clickEl(board.querySelector('.plan-button') as HTMLButtonElement);
-    await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe('statusItineraryReady');
-    });
-
-    const stored = await cover(loadItinerary());
-    expect(stored?.markdown).toContain('Hello world');
-    expect(stored?.pinIds).toHaveLength(2);
-
-    const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined);
-
-    clickEl(board.querySelector('.copy-trip-button') as HTMLButtonElement);
-    await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe('boardCopied');
-    });
-
-    const fresh = writeText.mock.calls[0][0] as string;
-    expect(fresh).toContain('## Itinerary (AI-generated)');
-    expect(fresh).toContain('Hello world');
-    expect(fresh).not.toContain('outdated');
-
-    const rows = board.querySelectorAll('li');
-    clickEl(rows[0].querySelector('.move-down-button') as HTMLButtonElement);
-    await waitFor(() => {
-      expect(board.querySelector('.plan-note')?.textContent).toBe('boardPlanStale');
-    });
-
-    clickEl(board.querySelector('.copy-trip-button') as HTMLButtonElement);
-    await waitFor(() => {
-      expect(writeText).toHaveBeenCalledTimes(2);
-    });
-
-    const stale = writeText.mock.calls[1][0] as string;
-    expect(stale).toContain('outdated - the board changed since');
-  });
-
-  it('keeps the previous plan when a replan fails', async () => {
-    await setup();
-    await plantKeyAndConsent();
-
-    const { loadItinerary, pinPlace } = await cover(import('./board_store'));
-    await cover(pinPlace({ place: { ...VALID_PLACE }, sourceHost: 'example.com' }));
-    await cover(
-      pinPlace({
-        place: { ...VALID_PLACE, placeName: 'Fira', city: 'Fira' },
-        sourceHost: 'example.com',
-      })
-    );
-
-    const VALID_PLAN = {
-      stops: ['Oia, Greece', 'Fira, Greece'],
-      days: [],
-      nightsEach: [
-        { stop: 'Oia, Greece', nights: 2 },
-        { stop: 'Fira, Greece', nights: 1 },
-      ],
-    };
-    fetchMock
-      .mockResolvedValueOnce(chatResponse(VALID_PLAN))
-      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
-
-    const board = document.querySelector('#board-slot') as HTMLElement;
-    clickEl(board.querySelector('.plan-button') as HTMLButtonElement);
-    await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe('statusItineraryReady');
-    });
-
-    const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined);
-
-    fetchMock.mockRejectedValueOnce(new Error('boom'));
-    clickEl(board.querySelector('.plan-button') as HTMLButtonElement);
-    await waitForHeading('errorNetworkTitle');
-
-    const stored = await cover(loadItinerary());
-    expect(stored?.markdown).toContain('Hello world');
-
-    clickEl(board.querySelector('.copy-trip-button') as HTMLButtonElement);
-    await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe('boardCopied');
-    });
-    expect(writeText.mock.calls[0][0] as string).toContain('Hello world');
-  });
-
   it('discloses remote images and falls back to monograms', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
@@ -1935,9 +1333,7 @@ describe('sidepanel', () => {
   it('retries failed pins without the thumbnail', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
-    fetchMock
-      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
-      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
+    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
 
@@ -1968,9 +1364,7 @@ describe('sidepanel', () => {
   it('clears the board through the inline confirm', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
-    fetchMock
-      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
-      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
+    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
 
@@ -2001,160 +1395,6 @@ describe('sidepanel', () => {
     });
     expect(board.querySelectorAll('li')).toHaveLength(0);
     expect(document.activeElement?.className).toContain('disclosure');
-  });
-
-  it('plans a trip from two pins with a narrated itinerary', async () => {
-    const mock = await setup();
-    await plantKeyAndConsent();
-
-    const FIRA = { ...VALID_PLACE, placeName: 'Fira', city: 'Fira', oneLiner: 'Cliff views.' };
-
-    const VALID_PLAN = {
-      stops: ['Oia, Greece', 'Fira, Greece'],
-      days: [
-        {
-          dayTitle: 'Caldera day',
-          stopNames: ['Oia, Greece', 'Fira, Greece'],
-          summary: 'Walk the caldera path.',
-        },
-      ],
-      nightsEach: [
-        { stop: 'Oia, Greece', nights: 2 },
-        { stop: 'Fira, Greece', nights: 1 },
-      ],
-    };
-    fetchMock
-      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
-      .mockResolvedValueOnce(chatResponse(FIRA))
-      .mockResolvedValueOnce(chatResponse(VALID_PLAN))
-      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
-    await settleWrite(mock.session.set({ [SLOT]: READY() }));
-    await waitForHeading('Oia');
-
-    const card = document.querySelector('#result-slot') as HTMLElement;
-    clickEl(card.querySelector('.pin-button') as HTMLButtonElement);
-    await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned(Oia | 1)');
-    });
-    await settleWrite(
-      mock.session.set({
-        [SLOT]: READY({
-          requestId: '200-2',
-          srcUrl: 'https://cdn.example.com/fira.jpg',
-        }),
-      })
-    );
-    await waitFor(() => {
-      expect(card.querySelector('h2')?.textContent).toBe('Fira');
-    });
-    clickEl(card.querySelector('.pin-button') as HTMLButtonElement);
-    await waitFor(() => {
-      const board = document.querySelector('#board-slot') as HTMLElement;
-      expect(board.querySelectorAll('li')).toHaveLength(2);
-    });
-
-    const board = document.querySelector('#board-slot') as HTMLElement;
-    selectBoardTab();
-
-    const plan = board.querySelector('.plan-button') as HTMLButtonElement;
-    expect(plan.hasAttribute('aria-disabled')).toBe(false);
-    clickEl(plan);
-    await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe('statusItineraryReady');
-    });
-    expect(document.querySelector('#tab-main')?.getAttribute('aria-selected')).toBe('true');
-    expect(document.querySelector('#board-panel')?.hasAttribute('hidden')).toBe(true);
-    expect(card.querySelector('h2')?.textContent).toBe('itineraryTitle(2)');
-    expect(card.querySelectorAll('.stop-list li')).toHaveLength(2);
-
-    const maps = card.querySelector('.maps-link') as HTMLAnchorElement;
-    expect(maps.href).toContain('maps/dir');
-    expect(maps.href).toContain('origin=');
-    expect(document.querySelector('#guide-content')?.textContent).toContain('Hello world');
-    expect(document.querySelector('#privacy-line')?.textContent).toBe(
-      "privacyBoard(Meta's Muse API)"
-    );
-    expect(document.querySelector('#settings-run-line')?.textContent).toBe(
-      'costLine($0.004 | $0.004)'
-    );
-    expect((document.activeElement as HTMLElement)?.tagName).toBe('H2');
-
-    const [, , structure] = fetchMock.mock.calls.map((call) => {
-      const init = call[1] as RequestInit;
-
-      return JSON.parse(init.body as string) as {
-        messages: Array<{ content: Array<{ type: string }> }>;
-        response_format: { type: string };
-      };
-    });
-    expect(structure.response_format.type).toBe('json_schema');
-    expect(structure.messages[1].content[0].type).toBe('text');
-  });
-
-  it('narrates itineraries over plain chat in cheap mode', async () => {
-    const mock = await setup(async (seed) => {
-      await settleWrite(seed.local.set({ settings: { v: 1, settings: { skipWebSearch: true } } }));
-    });
-    await plantKeyAndConsent();
-
-    const FIRA = { ...VALID_PLACE, placeName: 'Fira', city: 'Fira', oneLiner: 'Cliff views.' };
-
-    const VALID_PLAN = {
-      stops: ['Oia, Greece', 'Fira, Greece'],
-      days: [
-        {
-          dayTitle: 'Caldera day',
-          stopNames: ['Oia, Greece', 'Fira, Greece'],
-          summary: 'Walk the caldera path.',
-        },
-      ],
-      nightsEach: [
-        { stop: 'Oia, Greece', nights: 2 },
-        { stop: 'Fira, Greece', nights: 1 },
-      ],
-    };
-    fetchMock
-      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
-      .mockResolvedValueOnce(chatResponse(FIRA))
-      .mockResolvedValueOnce(chatResponse(VALID_PLAN))
-      .mockResolvedValueOnce(sseResponse(CHAT_GUIDE_SSE));
-    await settleWrite(mock.session.set({ [SLOT]: READY() }));
-    await waitForHeading('Oia');
-
-    const card = document.querySelector('#result-slot') as HTMLElement;
-    clickEl(card.querySelector('.pin-button') as HTMLButtonElement);
-    await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned(Oia | 1)');
-    });
-    await settleWrite(
-      mock.session.set({
-        [SLOT]: READY({
-          requestId: '200-2',
-          srcUrl: 'https://cdn.example.com/fira.jpg',
-        }),
-      })
-    );
-    await waitFor(() => {
-      expect(card.querySelector('h2')?.textContent).toBe('Fira');
-    });
-    clickEl(card.querySelector('.pin-button') as HTMLButtonElement);
-    await waitFor(() => {
-      const board = document.querySelector('#board-slot') as HTMLElement;
-      expect(board.querySelectorAll('li')).toHaveLength(2);
-    });
-
-    const board = document.querySelector('#board-slot') as HTMLElement;
-    selectBoardTab();
-
-    const plan = board.querySelector('.plan-button') as HTMLButtonElement;
-    clickEl(plan);
-    await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe('statusItineraryReady');
-    });
-
-    const [narrationUrl, narrationInit] = fetchMock.mock.calls[3] as [string, RequestInit];
-    expect(narrationUrl).toContain('/chat/completions');
-    expect(JSON.parse(narrationInit.body as string)).not.toHaveProperty('tools');
   });
 
   it('renders the scan skeleton while the harvest is collecting', async () => {
@@ -2463,97 +1703,6 @@ describe('sidepanel', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it('streams a scan guide with no second identify pass', async () => {
-    const mock = await setup();
-    await plantKeyAndConsent();
-    fetchMock
-      .mockResolvedValueOnce(
-        chatResponse({
-          places: [
-            { placeName: 'Oia', city: 'Oia', country: 'Greece', confidence: 0.9, imageIndex: 0 },
-          ],
-        })
-      )
-      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
-    await settleWrite(
-      mock.session.set({
-        [SLOT]: READY({
-          srcUrl: '',
-          signals: undefined,
-          scanImages: [
-            {
-              url: 'https://img.example.com/a.jpg',
-              caption: '',
-              heading: '',
-              width: 800,
-              height: 600,
-            },
-          ],
-        }),
-      })
-    );
-    await waitFor(() => {
-      const list = document.querySelector('#result-slot');
-      expect(list?.querySelectorAll('.scan-card')).toHaveLength(1);
-    });
-
-    const list = document.querySelector('#result-slot') as HTMLElement;
-    clickEl(list.querySelector('.scan-card button') as HTMLButtonElement);
-    await waitForHeading('Oia');
-    await waitFor(() => {
-      expect(document.querySelector('#guide-content')?.textContent).toContain('Hello world');
-    });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-  });
-
-  it('streams scan guides over plain chat in cheap mode', async () => {
-    const mock = await setup(async (seed) => {
-      await settleWrite(seed.local.set({ settings: { v: 1, settings: { skipWebSearch: true } } }));
-    });
-    await plantKeyAndConsent();
-    fetchMock
-      .mockResolvedValueOnce(
-        chatResponse({
-          places: [
-            { placeName: 'Oia', city: 'Oia', country: 'Greece', confidence: 0.9, imageIndex: 0 },
-          ],
-        })
-      )
-      .mockResolvedValueOnce(sseResponse(CHAT_GUIDE_SSE));
-    await settleWrite(
-      mock.session.set({
-        [SLOT]: READY({
-          srcUrl: '',
-          signals: undefined,
-          scanImages: [
-            {
-              url: 'https://img.example.com/a.jpg',
-              caption: '',
-              heading: '',
-              width: 800,
-              height: 600,
-            },
-          ],
-        }),
-      })
-    );
-    await waitFor(() => {
-      expect(document.querySelector('#result-slot')?.querySelectorAll('.scan-card')).toHaveLength(
-        1
-      );
-    });
-
-    const list = document.querySelector('#result-slot') as HTMLElement;
-    clickEl(list.querySelector('.scan-card button') as HTMLButtonElement);
-    await waitFor(() => {
-      expect(document.querySelector('#guide-content')?.textContent).toContain('Hello world');
-    });
-
-    const [guideUrl, guideInit] = fetchMock.mock.calls[1] as [string, RequestInit];
-    expect(guideUrl).toContain('/chat/completions');
-    expect(JSON.parse(guideInit.body as string)).not.toHaveProperty('tools');
-  });
-
   it('pins scan cards singly and in bulk', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
@@ -2685,25 +1834,22 @@ describe('sidepanel', () => {
     expect(card.querySelectorAll('.chips-row .chip')).toHaveLength(chips.length);
   });
 
-  it('finds alternates and re-plans the trip instead', async () => {
+  it('finds alternates for an intent', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
-    fetchMock
-      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
-      .mockResolvedValueOnce(
-        groundedResponse({
-          alternatives: [
-            {
-              placeName: 'Fira',
-              country: 'Greece',
-              why: 'Same caldera, lower prices.',
-              bestMonth: 'May',
-            },
-            { placeName: 'Naxos', country: 'Greece', why: 'Quiet beaches.', bestMonth: 'June' },
-          ],
-        })
-      )
-      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
+    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE)).mockResolvedValueOnce(
+      groundedResponse({
+        alternatives: [
+          {
+            placeName: 'Fira',
+            country: 'Greece',
+            why: 'Same caldera, lower prices.',
+            bestMonth: 'May',
+          },
+          { placeName: 'Naxos', country: 'Greece', why: 'Quiet beaches.', bestMonth: 'June' },
+        ],
+      })
+    );
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
 
@@ -2718,41 +1864,29 @@ describe('sidepanel', () => {
 
     const fresh = document.querySelector('#result-slot') as HTMLElement;
     expect(fresh.querySelectorAll('.alternate-card')).toHaveLength(2);
-    clickEl(fresh.querySelector('.alternate-actions button:not(.pin-button)') as HTMLButtonElement);
-    await waitFor(() => {
-      const grid = document.querySelector('#links-slot');
-
-      const tiles = grid?.querySelectorAll('a.tile');
-      expect(tiles?.length).toBeGreaterThan(0);
-      expect((tiles?.[0] as HTMLAnchorElement).href).toContain('Fira');
-    });
-    expect(document.querySelector('#guide-content')?.textContent).toBe('Hello world');
     expect(document.querySelector('#privacy-line')?.textContent).toBe(
       "privacyNames(Meta's Muse API)"
     );
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it('finds alternates and re-plans over plain chat in cheap mode', async () => {
+  it('finds alternates over plain chat in cheap mode', async () => {
     const mock = await setup(async (seed) => {
       await settleWrite(seed.local.set({ settings: { v: 1, settings: { skipWebSearch: true } } }));
     });
     await plantKeyAndConsent();
-    fetchMock
-      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
-      .mockResolvedValueOnce(
-        chatResponse({
-          alternatives: [
-            {
-              placeName: 'Fira',
-              country: 'Greece',
-              why: 'Same caldera, lower prices.',
-              bestMonth: 'May',
-            },
-          ],
-        })
-      )
-      .mockResolvedValueOnce(sseResponse(CHAT_GUIDE_SSE));
+    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE)).mockResolvedValueOnce(
+      chatResponse({
+        alternatives: [
+          {
+            placeName: 'Fira',
+            country: 'Greece',
+            why: 'Same caldera, lower prices.',
+            bestMonth: 'May',
+          },
+        ],
+      })
+    );
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
 
@@ -2762,17 +1896,8 @@ describe('sidepanel', () => {
       expect(document.querySelector('#status-region')?.textContent).toBe('alternatesReady(1)');
     });
 
-    const fresh = document.querySelector('#result-slot') as HTMLElement;
-    clickEl(fresh.querySelector('.alternate-actions button:not(.pin-button)') as HTMLButtonElement);
-    await waitFor(() => {
-      expect(document.querySelector('#guide-content')?.textContent).toContain('Hello world');
-    });
-
     const [altUrl] = fetchMock.mock.calls[1] as [string, RequestInit];
-    const [guideUrl, guideInit] = fetchMock.mock.calls[2] as [string, RequestInit];
     expect(altUrl).toContain('/chat/completions');
-    expect(guideUrl).toContain('/chat/completions');
-    expect(JSON.parse(guideInit.body as string)).not.toHaveProperty('tools');
   });
 
   it('pins alternates to the board with a monogram tile', async () => {
@@ -2893,8 +2018,7 @@ describe('sidepanel', () => {
       .mockResolvedValueOnce(
         new Response(new Uint8Array([1, 2, 3]), { headers: { 'content-type': 'image/jpeg' } })
       )
-      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
-      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE));
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitFor(() => {
       const retried = document.querySelector('#result-slot');
@@ -2903,13 +2027,9 @@ describe('sidepanel', () => {
     expect(document.querySelector('#privacy-line')?.textContent).toBe(
       "privacyImagePixels(Meta's Muse API)"
     );
-    await clickPlanTrip();
-    await waitFor(() => {
-      expect(document.querySelector('#guide-content')?.textContent).toContain('Hello world');
-    });
     expect(permsRequest).toHaveBeenCalledWith({ origins: ['https://cdn.example.com/*'] });
     expect(permsRemove).toHaveBeenCalledWith({ origins: ['https://cdn.example.com/*'] });
-    expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
     expect(fetchMock.mock.calls[2][0]).toBe('https://cdn.example.com/oia.jpg');
     const retryInit = fetchMock.mock.calls[3][1] as RequestInit;
     const retryBody = JSON.parse(retryInit.body as string) as {
@@ -3538,9 +2658,7 @@ describe('sidepanel', () => {
     );
     await plantKeyAndConsent();
 
-    fetchMock
-      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
-      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
+    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
     await settleWrite(
       mock.session.set({
         [SLOT]: READY({
@@ -3569,9 +2687,7 @@ describe('sidepanel', () => {
     const mock = await setup();
     await plantKeyAndConsent();
 
-    fetchMock
-      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
-      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]));
+    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
     await settleWrite(
       mock.session.set({
         [SLOT]: READY({
@@ -3719,36 +2835,6 @@ describe('sidepanel', () => {
     expect(document.querySelector('#result-slot .hint')?.textContent).toBe('panelIdle');
   });
 
-  it('cancels a hanging guide and returns the plan button', async () => {
-    const mock = await setup();
-    await plantKeyAndConsent();
-    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
-    hangUntilAbort();
-    await settleWrite(mock.session.set({ [SLOT]: READY() }));
-    await waitForHeading('Oia');
-    await clickPlanTrip();
-
-    await waitFor(() => {
-      expect(document.querySelector('#result-slot .cancel-button')?.textContent).toBe(
-        'cancelButton'
-      );
-    });
-
-    clickEl(document.querySelector('#result-slot .cancel-button') as HTMLButtonElement);
-
-    await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe('statusCanceled');
-    });
-    // The result card repaint lands after the cancel announcement.
-    await waitFor(() => {
-      expect(document.querySelector('#result-slot h2')?.textContent).toBe('Oia');
-      expect(document.querySelector('#result-slot .plan-trip-button')?.textContent).toBe(
-        'planTripButton'
-      );
-    });
-    expect(document.querySelector('#guide-content')?.textContent).toBe('');
-  });
-
   it('cancels a hanging itinerary from the loading card', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
@@ -3857,7 +2943,7 @@ describe('sidepanel', () => {
     expect(catalog.noPlaceBody.message).toContain('paid analysis');
   });
 
-  it('shows confidence, source, and the save and guide actions', async () => {
+  it('shows confidence, source, and the save action', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
@@ -3871,7 +2957,6 @@ describe('sidepanel', () => {
     expect(card.querySelector('.confidence-scale')?.textContent).toBe('confidenceScale');
     expect(card.querySelector('.source')?.textContent).toBe('sourceLine(example.com)');
     expect(card.querySelector('.pin-button')?.textContent).toBe('pinButton(Oia)');
-    expect(card.querySelector('.plan-trip-button')?.textContent).toBe('planTripButton');
     expect(card.querySelector('section.secondary')).not.toBeNull();
 
     const catalog = JSON.parse(readFileSync(CATALOG_PATH, 'utf8')) as Record<
@@ -3879,8 +2964,6 @@ describe('sidepanel', () => {
       { message: string }
     >;
     expect(catalog.pinButton.message).toBe('Save $1 to trip');
-    expect(catalog.planTripButton.message).toBe('Build a guide');
-    expect(catalog.planningButton.message).toBe('Building guide…');
   });
 
   it('marks scan pins saved with pressed state', async () => {
@@ -4059,64 +3142,8 @@ describe('sidepanel', () => {
     expect(fresh.querySelectorAll('[role="button"]')).toHaveLength(0);
     expect((controls[0] as HTMLElement).className).toContain('pin-button');
 
-    const plan = fresh.querySelector('.plan-trip-button') as HTMLButtonElement;
-    focusEl(plan);
-    expect(document.activeElement).toBe(plan);
-  });
-
-  it('renders guide blocks progressively with bounded announcements', async () => {
-    const mock = await setup();
-    await plantKeyAndConsent();
-    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
-
-    const encoder = new TextEncoder();
-    let controller!: ReadableStreamDefaultController<Uint8Array>;
-    const stream = new ReadableStream<Uint8Array>({
-      start(c) {
-        controller = c;
-      },
-    });
-    fetchMock.mockResolvedValueOnce(
-      new Response(stream, {
-        status: 200,
-        headers: { 'Content-Type': 'text/event-stream' },
-      })
-    );
-    await settleWrite(mock.session.set({ [SLOT]: READY() }));
-    await waitForHeading('Oia');
-    await clickPlanTrip();
-    await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledTimes(2);
-    });
-
-    controller.enqueue(
-      encoder.encode(
-        'event: response.output_text.delta\n' +
-          'data: {"delta":"## Oia\\n\\nSunny days.\\n\\n"}\n' +
-          '\n'
-      )
-    );
-
-    await waitFor(() => {
-      expect(document.querySelector('#guide-content')?.textContent).toContain('Sunny days.');
-    });
-    expect(document.querySelector('#status-region')?.textContent).toBe('statusPlanningTrip');
-
-    controller.enqueue(
-      encoder.encode(
-        'event: response.output_text.delta\n' +
-          'data: {"delta":"Evenings glow."}\n' +
-          '\n' +
-          'event: response.completed\n' +
-          'data: {"response":{"usage":{"input_tokens":300,"output_tokens":120}}}\n' +
-          '\n'
-      )
-    );
-    controller.close();
-
-    await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe('statusGuideReady');
-    });
-    expect(document.querySelector('#guide-content')?.textContent).toContain('Evenings glow.');
+    const pin = fresh.querySelector('.pin-button') as HTMLButtonElement;
+    focusEl(pin);
+    expect(document.activeElement).toBe(pin);
   });
 });

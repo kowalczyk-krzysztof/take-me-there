@@ -11,7 +11,6 @@ import type {
   AlternatesView,
   CardState,
   ConfidenceView,
-  PlanState,
 } from './components/trip_card/trip_card';
 import { TripCard } from './components/trip_card/trip_card';
 import { KeySetup } from './components/key_setup/key_setup';
@@ -46,9 +45,7 @@ import {
   makeThumbnail,
   pinPlace,
   movePin,
-  pinIdentity,
   removePin,
-  saveItinerary,
   type BoardPin,
 } from './board_store';
 import { buildDestination, buildLinks, mapsDirUrl } from './deep_links';
@@ -69,14 +66,6 @@ import {
   resetMonthSpend,
 } from './pricing';
 import {
-  createGuideProgress,
-  createGuideRenderer,
-  findGuideStart,
-  finishGuideProgress,
-  pushGuideProgress,
-} from './render_markdown';
-import {
-  GUIDE_MAX_TEXT_CHARS,
   TRIP_REQUEST_SCHEMA,
   type ItineraryPlan,
   type PageSignals,
@@ -110,7 +99,6 @@ import {
   saveSettings,
   setConsented,
   SETTINGS_STORAGE_KEY,
-  sanitizePromptHint,
   type AlternateIntent,
   type ExtensionSettings,
   type GuideSource,
@@ -119,7 +107,6 @@ import {
 } from './providers/index';
 import {
   getCacheEntry,
-  hashGuideKey,
   hashIdentifyKey,
   isAllowedPreviewUrl,
   normalizeEndpoint,
@@ -128,7 +115,7 @@ import {
 } from './result_cache';
 import { ErrorBoundary } from './components/error_boundary/error_boundary';
 import { msg } from './utils/i18n';
-import { dirForLanguage, truncateCodePoints } from './utils/text';
+import { truncateCodePoints } from './utils/text';
 import { createStore } from './utils/store';
 import './styles/sidepanel.css';
 import './components/shared_styles.css';
@@ -158,11 +145,7 @@ const EMPTY_SIGNALS: PageSignals = {
   jsonLd: [],
 };
 
-type PendingRun =
-  | { kind: 'request'; request: TripRequest }
-  | { kind: 'scan-guide'; request: TripRequest; index: number }
-  | { kind: 'guide' }
-  | { kind: 'itinerary' };
+type PendingRun = { kind: 'request'; request: TripRequest } | { kind: 'itinerary' };
 
 let initialized = false;
 
@@ -242,9 +225,6 @@ interface PanelState {
   result: ResultSlotState;
   resultBusy: boolean;
   links: string | null;
-  guideVisible: boolean;
-  guideBusy: boolean;
-  searching: boolean;
   sources: GuideSource[];
   boardItems: BoardItemView[];
   boardCanPlan: boolean;
@@ -287,9 +267,6 @@ const store = createStore<PanelState>({
   result: blankResultSlot(),
   resultBusy: false,
   links: null,
-  guideVisible: false,
-  guideBusy: false,
-  searching: false,
   sources: [],
   boardItems: [],
   boardCanPlan: false,
@@ -519,8 +496,6 @@ const attachSettings = (el: HTMLElement | null): (() => void) | void => {
   });
 };
 
-const guideContentEl = (): HTMLElement | null => document.getElementById('guide-content');
-
 // Delivery cursor: the worker sequence orders records (timestamps only
 // expire them), with a rank so a terminal write supersedes the collecting
 // write of the same click without a panel reopen replaying either.
@@ -547,8 +522,6 @@ const getPanelWindowId = (): Promise<number | undefined> => {
 
 // Request behind the displayed result (or scan), for follow-up stages that
 // must bind to what the user sees rather than to any live run.
-let displayedRequestId: string | null = null;
-
 let displayedRequest: TripRequest | null = null;
 
 let runSettings: ExtensionSettings | null = null;
@@ -574,10 +547,6 @@ let skeletonFor = '';
 let skeletonShownAt = 0;
 
 let staleTimer: ReturnType<typeof setTimeout> | undefined;
-
-let guidePlanning = false;
-
-let currentPlanState: PlanState = 'idle';
 
 const lookAgainUsed = new Set<string>();
 
@@ -662,12 +631,8 @@ const setPreviewIdentified = (placeName: string): void => {
 };
 
 const clearContentSlots = (): void => {
-  guideContentEl()?.replaceChildren();
   store.set({
     links: null,
-    guideVisible: false,
-    guideBusy: false,
-    searching: false,
     sources: [],
   });
 };
@@ -693,9 +658,7 @@ type PrivacyMode =
   | 'video-url'
   | 'video-url-only'
   | 'board'
-  | 'names'
-  | 'guide'
-  | 'guide-search';
+  | 'names';
 
 const privacyDestination = (): string => {
   if (runSettings?.activeProviderId === 'openai_compat') {
@@ -723,8 +686,6 @@ const PRIVACY_KEYS: Record<PrivacyMode, string> = {
   'video-url-only': 'privacyVideoUrlOnly',
   board: 'privacyBoard',
   names: 'privacyNames',
-  guide: 'privacyGuide',
-  'guide-search': 'privacyGuideSearch',
 };
 
 const updatePrivacy = (mode: PrivacyMode): void => {
@@ -1041,23 +1002,12 @@ const nextRunId = (requestId: string): string => {
   return `${requestId}#${runCounter}`;
 };
 
-type PlaceKind = 'analysis' | 'scan' | 'instead';
-
-let currentPlaceKind: PlaceKind = 'analysis';
-
 // Commits a run's working state to the displayed globals. Callers must own
 // the UI; rendering from any other run's state is a cross-run leak.
 const commitDisplayed = (run: RunContext, view: string): void => {
   currentPlace = run.place;
-  currentPlaceKind =
-    run.kind === 'scan-guide'
-      ? 'scan'
-      : run.kind === 'guide' && !run.request
-        ? 'instead'
-        : 'analysis';
   currentDestination = run.destination;
   currentCacheKey = run.cacheKey;
-  displayedRequestId = run.requestId;
   displayedRequest = run.request;
   markDisplayed(run.runId);
   currentView = view;
@@ -1345,177 +1295,6 @@ const recordPartialUsage = (run: RunContext, stage: string, err: unknown): void 
   void priceAndRecord(run, stage);
 };
 
-interface GuideArgs {
-  run: RunContext;
-  privacy: PrivacyMode;
-  origin: 'gesture' | 'panel';
-  prompt?: string;
-  completeKey?: string;
-  onCompleteText?: (text: string) => void;
-}
-
-const showGuideSkeleton = (content: HTMLElement): void => {
-  content.replaceChildren();
-  const wrap = document.createElement('div');
-  wrap.className = 'guide-skeleton';
-  wrap.setAttribute('aria-hidden', 'true');
-  for (const width of ['90%', '100%', '70%']) {
-    const block = document.createElement('div');
-    block.className = 'skeleton-block';
-    block.style.width = width;
-    wrap.append(block);
-  }
-  const line = document.createElement('p');
-  line.className = 'guide-loading';
-  line.textContent = msg('statusPlanningTrip');
-  wrap.append(line);
-  content.append(wrap);
-};
-
-// Completed guide blocks render as they stream; the trailing partial
-// block and any preamble stay back until more arrives. The searching line
-// and sources still arrive live; they own fixed slots.
-const runGuide = async (args: GuideArgs): Promise<RunOutcome> => {
-  const { run, privacy, origin } = args;
-  const provider = run.provider;
-  const content = guideContentEl();
-  if (!content || !ownsUi(run)) {
-    return 'error';
-  }
-  store.set({ guideVisible: true, guideBusy: true });
-  showGuideSkeleton(content);
-  const renderer = createGuideRenderer(content, msg('truncatedNotice'));
-  const progress = createGuideProgress();
-  let guideSource = '';
-  const sources: GuideSource[] = [];
-  let searchedWeb = false;
-  try {
-    const events = provider.streamGuide(run.key, {
-      destination: run.destination,
-      signal: run.signal,
-      language: chrome.i18n.getUILanguage(),
-      prompt: args.prompt,
-      transport: run.settings.skipWebSearch === true ? 'chat' : undefined,
-    });
-    for await (const event of events) {
-      if (event.type === 'delta') {
-        if (guideSource.length < GUIDE_MAX_TEXT_CHARS) {
-          guideSource += event.text.slice(0, GUIDE_MAX_TEXT_CHARS - guideSource.length);
-        }
-
-        if (ownsUi(run)) {
-          pushGuideProgress(renderer, progress, guideSource);
-        }
-      } else if (event.type === 'searching') {
-        searchedWeb = true;
-
-        if (ownsUi(run)) {
-          store.set({ searching: true });
-          announceStatus('statusSearchingWeb');
-        }
-      } else if (event.type === 'sources') {
-        sources.push(...event.sources);
-
-        if (ownsUi(run)) {
-          showSources(sources);
-        }
-      } else if (event.type === 'usage') {
-        absorbRunUsage(run, event.usage);
-      }
-    }
-  } catch (err) {
-    store.set({ guideBusy: false, searching: false, resultBusy: false });
-    if (err instanceof ProviderError && err.code === 'aborted') {
-      // Streamed tokens were billed even though the run was cancelled.
-      recordPartialUsage(run, 'guide', err);
-
-      if (activeRun() !== null) {
-        // Superseded: the incoming run owns every pixel now.
-        return 'aborted';
-      }
-
-      // User-cancelled while owning the UI: keep partial text without
-      // marking complete. Never cached; planning stays available.
-      if (guideSource.trim()) {
-        finishGuideProgress(renderer, progress, guideSource);
-        const notice = document.createElement('p');
-        notice.className = 'guide-interrupted';
-        notice.textContent = msg('guideInterrupted');
-        content.append(notice);
-      } else {
-        content.replaceChildren();
-      }
-
-      updatePrivacy(privacy);
-      announceStatus('statusCanceled');
-
-      return 'aborted';
-    }
-    recordPartialUsage(run, 'guide', err);
-    await priceAndRecord(run, 'guide');
-
-    if (!ownsUi(run)) {
-      return 'error';
-    }
-
-    if (guideSource.trim()) {
-      // Keep what streamed: a partial guide with an interrupted notice
-      // beats an error card. It is never cached as complete, and the
-      // Plan button stays available for a full retry.
-      finishGuideProgress(renderer, progress, guideSource);
-      const notice = document.createElement('p');
-      notice.className = 'guide-interrupted';
-      notice.textContent = msg('guideInterrupted');
-      content.append(notice);
-      announceAlert('guideInterrupted');
-      return 'partial';
-    }
-    content.replaceChildren();
-    const notice = document.createElement('p');
-    notice.className = 'guide-interrupted';
-    notice.textContent = msg('guideInterrupted');
-    content.append(notice);
-    showProviderError(err, run.request, privacy);
-    return 'error';
-  }
-  await priceAndRecord(run, 'guide');
-
-  if (!ownsUi(run)) {
-    // Settled but stale: no cache write, no render, no announcement.
-    return 'aborted';
-  }
-
-  const start = findGuideStart(guideSource);
-  // Degenerate stream with no heading: render everything rather than
-  // dropping content the hold-back rule cannot place.
-  const finalText = start >= 0 ? guideSource.slice(start) : guideSource;
-  finishGuideProgress(renderer, progress, guideSource);
-  guideSource = finalText;
-  args.onCompleteText?.(guideSource);
-  store.set({ guideBusy: false, searching: false, resultBusy: false });
-  if (run.guideKey && run.place) {
-    await setCacheEntry(run.guideKey, {
-      place: run.place,
-      guide: guideSource,
-      sources: [...sources],
-      usage: { ...run.usage },
-      searchedWeb,
-    });
-  }
-  updatePrivacy(privacy);
-  if (args.completeKey) {
-    announceStatus(args.completeKey);
-  } else if (sources.length > 0) {
-    announceStatus('statusGuideReadySources', String(sources.length));
-  } else {
-    announceStatus('statusGuideReady');
-  }
-  if (origin === 'panel') {
-    focusResultHeading();
-  }
-  return 'result';
-};
-
 interface IdentifyArgs {
   run: RunContext;
   origin: 'gesture' | 'panel';
@@ -1606,10 +1385,8 @@ const runIdentify = async (args: IdentifyArgs): Promise<RunOutcome> => {
   run.place = identify.place;
   await setCacheEntry(run.cacheKey, {
     place: identify.place,
-    guide: '',
     sources: [],
     usage: { ...run.usage },
-    searchedWeb: false,
   });
 
   if (!ownsUi(run)) {
@@ -1634,40 +1411,6 @@ const runIdentify = async (args: IdentifyArgs): Promise<RunOutcome> => {
     updatePrivacy(privacy);
     return 'no-place';
   }
-  run.destination = buildDestination(
-    identify.place.placeName,
-    identify.place.city,
-    identify.place.country
-  );
-  run.guideKey = await guideKeyFor(
-    run.cacheKey,
-    run.destination,
-    run.settings.skipWebSearch !== true
-  );
-
-  const guided = await getCacheEntry(run.guideKey);
-
-  if (!ownsUi(run)) {
-    await priceAndRecord(run, 'identify');
-
-    return 'aborted';
-  }
-
-  if (guided?.guide) {
-    await renderSplitHit(run, identify.place, guided, origin, 'identify');
-
-    if (!ownsUi(run)) {
-      await priceAndRecord(run, 'identify');
-
-      return 'aborted';
-    }
-
-    updatePrivacy(privacy);
-    store.set({ resultBusy: false });
-
-    return 'result';
-  }
-  currentPlanState = 'idle';
   commitDisplayed(run, 'result');
   await renderResultHeader(run, identify.place, true, 'statusFoundPlan');
 
@@ -1689,125 +1432,6 @@ const runIdentify = async (args: IdentifyArgs): Promise<RunOutcome> => {
   return 'result';
 };
 
-// The "Plan a trip" button (and its retries): the guide never runs until
-// the user asks. On retry the error card yields to a fresh result header.
-const runGuidePlan = async (): Promise<void> => {
-  if (guidePlanning || !currentPlace) {
-    return;
-  }
-  // Snapshot the click-time display: the guide plans for the result the
-  // user saw, even if a newer run lands while the gate is open.
-  const place = currentPlace;
-  const destination = currentDestination;
-  const cacheKey = currentCacheKey;
-  const requestId = displayedRequestId ?? '';
-  const request = displayedRequest;
-  const ticket = ++runTicket;
-  const gate = await gateRun({ kind: 'guide' });
-
-  if (ticket !== runTicket) {
-    return;
-  }
-
-  if (!gate.ready) {
-    announceGate(gate.reason);
-    return;
-  }
-  const { provider, settings, key } = gate;
-  guidePlanning = true;
-  const run = startRun(
-    {
-      runId: nextRunId(`${requestId}-guide`),
-      requestId,
-      kind: 'guide',
-      provider,
-      settings,
-      key,
-      request,
-      place,
-      destination,
-      cacheKey,
-    },
-    { inheritFrom: pickInherit(requestId, provider, key), abortSiblings }
-  );
-  lastRun = { kind: 'guide' };
-  // A completed guide may already exist (finished in another tab, or kept
-  // while the header errored): reuse it instead of streaming again.
-  run.guideKey = run.cacheKey
-    ? await guideKeyFor(run.cacheKey, destination, settings.skipWebSearch !== true)
-    : '';
-
-  if (!ownsUi(run)) {
-    guidePlanning = false;
-    return;
-  }
-
-  if (run.guideKey) {
-    const guided = await getCacheEntry(run.guideKey);
-
-    if (!ownsUi(run)) {
-      guidePlanning = false;
-      return;
-    }
-
-    if (guided?.guide) {
-      guidePlanning = false;
-      selectTab('main');
-      await renderSplitHit(run, place, guided, 'panel', 'guide');
-
-      if (!ownsUi(run)) {
-        await priceAndRecord(run, 'guide');
-      }
-
-      return;
-    }
-  }
-  currentPlanState = 'planning';
-  if (currentView !== 'result') {
-    commitDisplayed(run, 'result');
-    await renderResultHeader(run, place, false);
-  } else {
-    await refreshResultCard();
-  }
-
-  if (!ownsUi(run)) {
-    guidePlanning = false;
-    return;
-  }
-
-  selectTab('main');
-  showSources([]);
-  announceStatus('statusPlanningTrip');
-  const privacy: PrivacyMode = settings.skipWebSearch ? 'guide' : 'guide-search';
-  let outcome: RunOutcome = 'error';
-  try {
-    outcome = await runGuide({ run, privacy, origin: 'panel' });
-  } finally {
-    guidePlanning = false;
-  }
-
-  if (!ownsUi(run)) {
-    // User-cancelled (nothing superseded it): the Plan button returns.
-    // Superseded runs leave the UI to their successor.
-    if (outcome === 'aborted' && activeRun() === null) {
-      currentPlanState = 'idle';
-      await refreshResultCard();
-    }
-
-    return;
-  }
-
-  if (outcome === 'result') {
-    currentPlanState = 'ready';
-    await refreshResultCard();
-  } else if (outcome === 'partial') {
-    currentPlanState = 'interrupted';
-    await refreshResultCard();
-  } else if (outcome === 'error') {
-    currentPlanState = 'idle';
-  }
-};
-
 const identifyKeyFor = async (run: RunContext, mediaSeed: string): Promise<string> =>
   hashIdentifyKey({
     mediaSeed,
@@ -1817,89 +1441,6 @@ const identifyKeyFor = async (run: RunContext, mediaSeed: string): Promise<strin
     model: run.provider.modelName,
     imageOnly: run.settings.imageOnly,
   });
-
-const guideKeyFor = async (
-  identifyKey: string,
-  destination: string,
-  grounded: boolean
-): Promise<string> => hashGuideKey(identifyKey, destination, chrome.i18n.getUILanguage(), grounded);
-
-// Split cache read: the identify entry carries the place, the guide entry
-// (keyed off the identify hash plus destination, language, and grounding)
-// carries a completed guide. Either may hit independently.
-const readSplitCache = async (run: RunContext): Promise<CacheEntry | undefined> => {
-  const placeEntry = await getCacheEntry(run.cacheKey);
-
-  if (!placeEntry || !placeEntry.place.identified) {
-    return placeEntry;
-  }
-
-  run.guideKey = await guideKeyFor(
-    run.cacheKey,
-    buildDestination(placeEntry.place.placeName, placeEntry.place.city, placeEntry.place.country),
-    run.settings.skipWebSearch !== true
-  );
-
-  const guided = await getCacheEntry(run.guideKey);
-
-  return {
-    ...placeEntry,
-    guide: guided?.guide ?? '',
-    sources: guided?.sources ?? [],
-    searchedWeb: guided?.searchedWeb ?? false,
-  };
-};
-
-const paintCachedGuide = (guide: string, sources: GuideSource[]): void => {
-  const content = guideContentEl();
-  if (content && guide) {
-    const renderer = createGuideRenderer(content, msg('truncatedNotice'));
-    renderer.push(guide);
-    renderer.finish();
-    store.set({ guideVisible: true });
-  } else {
-    store.set({ guideVisible: false });
-  }
-  if (sources.length > 0) {
-    showSources(sources);
-  } else {
-    store.set({ sources: [] });
-  }
-};
-
-// A completed guide reused without a new request: full result paint plus
-// an honest cost re-render, since the run may have paid for fresh work.
-const renderSplitHit = async (
-  run: RunContext,
-  place: PlaceResult,
-  guided: CacheEntry,
-  origin: 'gesture' | 'panel',
-  stage: string
-): Promise<void> => {
-  currentPlanState = 'ready';
-  commitDisplayed(run, 'result');
-  await renderResultHeader(run, place, false);
-
-  if (!ownsUi(run)) {
-    return;
-  }
-
-  paintCachedGuide(guided.guide, guided.sources);
-  await priceAndRecord(run, stage);
-
-  if (!ownsUi(run)) {
-    return;
-  }
-
-  if (guided.sources.length > 0) {
-    announceStatus('statusGuideReadySources', String(guided.sources.length));
-  } else {
-    announceStatus('statusGuideReady');
-  }
-  if (origin === 'panel') {
-    focusResultHeading();
-  }
-};
 
 const renderCached = async (
   run: RunContext,
@@ -1937,7 +1478,6 @@ const renderCached = async (
   }
   run.destination = buildDestination(entry.place.placeName, entry.place.city, entry.place.country);
   currentAlternates = null;
-  currentPlanState = entry.guide ? 'ready' : 'idle';
   commitDisplayed(run, 'result');
   const props = await resultCardProps(entry.place);
 
@@ -1949,7 +1489,6 @@ const renderCached = async (
     store.set({ result: { ...blankResultSlot(), card: props } });
   });
   showLinks(currentDestination);
-  paintCachedGuide(entry.guide, entry.sources);
   setPreviewIdentified(entry.place.placeName);
   store.set({ cost: msg('costLineCache') });
   updatePrivacy('cache');
@@ -2034,7 +1573,7 @@ const runVideoAnalysis = async (
     return;
   }
 
-  const cached = await readSplitCache(run);
+  const cached = await getCacheEntry(run.cacheKey);
 
   if (!ownsUi(run)) {
     return;
@@ -2183,123 +1722,6 @@ const runScan = async (run: RunContext, origin: 'gesture' | 'panel'): Promise<vo
   }
 };
 
-const runScanGuide = async (
-  request: TripRequest,
-  index: number,
-  origin: 'gesture' | 'panel'
-): Promise<void> => {
-  const place = scanPlaces[index];
-  if (!place) {
-    return;
-  }
-  const ticket = ++runTicket;
-  cancelAllWork();
-  clearStaleTimer();
-  lastRun = { kind: 'scan-guide', request, index };
-  pendingRun = null;
-  const result = scanPlaceResult(place);
-  const thumb = scanThumbs[index] ?? null;
-  updatePreview(thumb);
-  clearCost();
-  const gate = await gateRun({ kind: 'scan-guide', request, index });
-
-  if (ticket !== runTicket) {
-    return;
-  }
-
-  if (!gate.ready) {
-    announceGate(gate.reason);
-    return;
-  }
-  const { provider, settings, key } = gate;
-  const run = startRun(
-    {
-      runId: nextRunId(`${request.requestId}-guide-${index}`),
-      requestId: request.requestId,
-      kind: 'scan-guide',
-      provider,
-      settings,
-      key,
-      request,
-      place: result,
-    },
-    { inheritFrom: pickInherit(request.requestId, provider, key), abortSiblings }
-  );
-  const privacy: PrivacyMode = settings.skipWebSearch ? 'guide' : 'guide-search';
-  run.cacheKey = await identifyKeyFor(run, thumb ?? `scan:${result.placeName},${result.country}`);
-
-  if (!ownsUi(run)) {
-    return;
-  }
-
-  const cached = await readSplitCache(run);
-
-  if (!ownsUi(run)) {
-    return;
-  }
-
-  if (cached) {
-    await renderCached(run, cached, origin);
-    return;
-  }
-  // The scan already identified the place: stream the guide for the known
-  // destination with no second identify pass.
-  run.destination = buildDestination(result.placeName, result.city, result.country);
-  await setCacheEntry(run.cacheKey, {
-    place: result,
-    guide: '',
-    sources: [],
-    usage: { ...run.usage },
-    searchedWeb: false,
-  });
-
-  if (!ownsUi(run)) {
-    return;
-  }
-
-  run.guideKey = await guideKeyFor(
-    run.cacheKey,
-    run.destination,
-    run.settings.skipWebSearch !== true
-  );
-
-  const guided = await getCacheEntry(run.guideKey);
-
-  if (!ownsUi(run)) {
-    return;
-  }
-
-  if (guided?.guide) {
-    await renderSplitHit(run, result, guided, origin, 'scan');
-    return;
-  }
-
-  currentPlanState = 'planning';
-  commitDisplayed(run, 'result');
-  await renderResultHeader(run, result, true);
-
-  if (!ownsUi(run)) {
-    return;
-  }
-
-  const outcome = await runGuide({ run, privacy, origin });
-
-  if (!ownsUi(run)) {
-    if (outcome === 'aborted' && activeRun() === null) {
-      currentPlanState = 'idle';
-      await refreshResultCard();
-    }
-
-    return;
-  }
-
-  currentPlanState =
-    outcome === 'result' ? 'ready' : outcome === 'partial' ? 'interrupted' : 'idle';
-  if (outcome === 'result' || outcome === 'partial') {
-    await refreshResultCard();
-  }
-};
-
 const scanPinFor = (index: number): Omit<BoardPin, 'addedAt'> | null => {
   const place = scanPlaces[index];
   if (!place) {
@@ -2323,14 +1745,6 @@ const refreshScanPins = async (): Promise<void> => {
       scan: { loading: false, items: await scanItemViews(scanPlaces, scanThumbs) },
     },
   });
-};
-
-const onScanGuide = async (index: number): Promise<void> => {
-  const request = displayedRequest;
-  if (!request) {
-    return;
-  }
-  await runScanGuide(request, index, 'panel');
 };
 
 const onScanPin = async (index: number): Promise<void> => {
@@ -2410,7 +1824,7 @@ const runAnalysis = async (request: TripRequest, origin: 'gesture' | 'panel'): P
     return;
   }
 
-  const cached = await readSplitCache(run);
+  const cached = await getCacheEntry(run.cacheKey);
 
   if (!ownsUi(run)) {
     return;
@@ -2485,7 +1899,7 @@ const handle = async (value: unknown): Promise<void> => {
   } catch (err) {
     // Entry-point net: an unexpected throw surfaces the error card
     // instead of stranding the panel on a skeleton.
-    store.set({ guideBusy: false, searching: false, resultBusy: false });
+    store.set({ resultBusy: false });
     cancelAllWork();
     showProviderError(err, request);
   }
@@ -2759,10 +2173,6 @@ const retry = async (): Promise<void> => {
   clearContentSlots();
   if (target.kind === 'itinerary') {
     await planTrip();
-  } else if (target.kind === 'scan-guide') {
-    await runScanGuide(target.request, target.index, 'panel');
-  } else if (target.kind === 'guide') {
-    await runGuidePlan();
   } else {
     await runAnalysis(target.request, 'panel');
   }
@@ -2911,10 +2321,6 @@ const alternatesView = async (): Promise<AlternatesView> => {
 };
 
 const confidenceView = (place: PlaceResult): ConfidenceView => {
-  if (currentPlaceKind === 'instead') {
-    return { line: msg('confidenceChosen'), showScale: false };
-  }
-
   const band =
     place.confidence >= 0.8
       ? 'confidenceHigh'
@@ -2935,7 +2341,6 @@ const resultCardProps = async (
   place: PlaceResult;
   lowConfidence: boolean;
   pinned: boolean;
-  planState: PlanState;
   canReanalyze: boolean;
   confidence: ConfidenceView;
   sourceHost: string | null;
@@ -2950,7 +2355,6 @@ const resultCardProps = async (
     place,
     lowConfidence: place.confidence < 0.6,
     pinned,
-    planState: currentPlanState,
     canReanalyze: (displayedRequest?.srcUrl ?? '') !== '',
     confidence: confidenceView(place),
     sourceHost: host === '' ? null : host,
@@ -3068,104 +2472,6 @@ const onPinAlternate = async (index: number): Promise<void> => {
     place: alternatePlaceResult(target),
     sourceHost: sourceHostFor(displayedRequest),
   });
-};
-
-const onPlanInstead = async (index: number): Promise<void> => {
-  const target = currentAlternates?.alternatives[index];
-  if (!target || currentView !== 'result') {
-    return;
-  }
-  // Model-produced destinations are sanitized before re-entering a prompt.
-  const destination = sanitizePromptHint(buildDestination(target.placeName, '', target.country));
-  if (!destination) {
-    return;
-  }
-  const ticket = ++runTicket;
-  const gate = await gateRun(null);
-
-  if (ticket !== runTicket) {
-    return;
-  }
-
-  if (!gate.ready) {
-    announceGate(gate.reason);
-    return;
-  }
-  const { provider, settings, key } = gate;
-  clearStaleTimer();
-  lastRun = { kind: 'guide' };
-  const requestId = displayedRequestId ?? '';
-  // The selected place replaces the displayed one completely: B's card,
-  // guide, links, pin target, and comparison target, never A's.
-  const place: PlaceResult = {
-    identified: true,
-    placeName: target.placeName,
-    city: '',
-    country: target.country,
-    confidence: 1,
-    oneLiner: target.why,
-  };
-  const run = startRun(
-    {
-      runId: nextRunId(`${requestId}-instead`),
-      requestId,
-      kind: 'guide',
-      provider,
-      settings,
-      key,
-      request: null,
-      destination,
-      place,
-    },
-    { inheritFrom: pickInherit(requestId, provider, key), abortSiblings }
-  );
-  // B never completes A's cache entry: a synthetic identify key seeds a
-  // B-only guide entry, so a repeated Plan instead is served from cache.
-  run.cacheKey = await identifyKeyFor(run, `instead:${destination}`);
-  run.guideKey = await guideKeyFor(run.cacheKey, destination, settings.skipWebSearch !== true);
-  commitDisplayed(run, 'result');
-  currentAlternates = null;
-  scanPlaces = [];
-  scanThumbs = [];
-  updatePreview(null);
-  clearContentSlots();
-  showLinks(destination);
-  announceStatus('statusAnalyzing');
-  currentPlanState = 'planning';
-  await refreshResultCard();
-
-  if (!ownsUi(run)) {
-    return;
-  }
-
-  const cached = await getCacheEntry(run.guideKey);
-
-  if (!ownsUi(run)) {
-    return;
-  }
-
-  if (cached?.guide) {
-    await renderSplitHit(run, place, cached, 'panel', 'guide');
-
-    return;
-  }
-
-  const outcome = await runGuide({ run, privacy: 'names', origin: 'panel' });
-
-  if (!ownsUi(run)) {
-    if (outcome === 'aborted' && activeRun() === null) {
-      currentPlanState = 'idle';
-      await refreshResultCard();
-    }
-
-    return;
-  }
-
-  currentPlanState =
-    outcome === 'result' ? 'ready' : outcome === 'partial' ? 'interrupted' : 'idle';
-  if (outcome === 'result' || outcome === 'partial') {
-    await refreshResultCard();
-  }
 };
 
 // ---- Trip Board ----
@@ -3454,39 +2760,6 @@ const onClearConfirm = async (): Promise<void> => {
   announceStatus('boardCleared');
 };
 
-const narrationPrompt = (pins: BoardPin[], plan: ItineraryPlan): string => {
-  const byName = new Map(pins.map((pin) => [pinDisplayName(pin), pin]));
-  const displayName = (stop: string): string => {
-    const pin = byName.get(stop);
-    return pin ? pinDisplayName(pin) : stop;
-  };
-  let dayPlan: string;
-  if (plan.days.length > 0) {
-    dayPlan = plan.days
-      .map(
-        (day, index) =>
-          `Day ${index + 1} - ${sanitizePromptHint(day.dayTitle, 80)}: ` +
-          `${day.stopNames.map(displayName).join('; ')}. ` +
-          sanitizePromptHint(day.summary, 500)
-      )
-      .join('\n');
-  } else {
-    const nights = new Map(plan.nightsEach.map((entry) => [entry.stop, entry.nights]));
-    dayPlan = `Visit in order: ${plan.stops
-      .map((stop) => `${displayName(stop)} (${nights.get(stop) ?? 1} nights)`)
-      .join('; ')}. Split into sensible days yourself.`;
-  }
-  let prompt =
-    `Narrate this trip itinerary day by day with a '## Day N: title' heading per day, ` +
-    `4-6 highlight bullets across the trip, best months, and transport notes where relevant. ` +
-    `Begin your answer immediately with the '## Day 1' heading: no preamble, no acknowledgement. Day plan:\n${dayPlan}`;
-  const language = chrome.i18n.getUILanguage();
-  if (language) {
-    prompt += ` Write the narration in ${language}.`;
-  }
-  return prompt;
-};
-
 const renderItineraryCard = (pins: BoardPin[], plan: ItineraryPlan): void => {
   const byName = new Map(pins.map((pin) => [pinDisplayName(pin), pin]));
   const nights = new Map(plan.nightsEach.map((entry) => [entry.stop, entry.nights]));
@@ -3606,24 +2879,7 @@ const planTrip = async (): Promise<void> => {
   updatePrivacy('board');
   focusResultHeading();
   run.destination = result.plan.stops.join(', ');
-  let narration = '';
-  const outcome = await runGuide({
-    run,
-    privacy: 'board',
-    origin: 'panel',
-    prompt: narrationPrompt(pins, result.plan),
-    completeKey: 'statusItineraryReady',
-    onCompleteText: (text) => {
-      narration = text;
-    },
-  });
-
-  if (outcome === 'result' && narration.trim()) {
-    // Only completed narrations persist: failures, partials, and
-    // superseded runs leave the previous plan untouched.
-    await saveItinerary(await pinIdentity(pins), narration);
-    await syncBoardPlan(await listPins());
-  }
+  announceStatus('statusItineraryReady');
 };
 
 const resumePending = async (): Promise<void> => {
@@ -3635,10 +2891,6 @@ const resumePending = async (): Promise<void> => {
   }
   if (pending.kind === 'itinerary') {
     await planTrip();
-  } else if (pending.kind === 'scan-guide') {
-    await runScanGuide(pending.request, pending.index, 'panel');
-  } else if (pending.kind === 'guide') {
-    await runGuidePlan();
   } else {
     await runAnalysis(pending.request, 'panel');
   }
@@ -3944,13 +3196,11 @@ const SidepanelApp = () => {
               card={state.result.card}
               callbacks={{
                 onPin: () => void onPinToggle(),
-                onPlanTrip: () => void runGuidePlan(),
                 onReanalyze: () => void reanalyze(),
                 onRetry: () => void retry(),
                 onLookAgain: () => void lookAgain(),
                 onAlternates: (intent) => void onAlternates(intent),
                 onPinAlternate: (index) => void onPinAlternate(index),
-                onPlanInstead: (index) => void onPlanInstead(index),
                 onCancelAlternates: onAlternatesCancel,
                 onCancelLoading: () => onCancelLoading(),
                 onDismissError: () => showIdle(),
@@ -3961,7 +3211,6 @@ const SidepanelApp = () => {
             <ScanList
               loading={state.result.scan.loading}
               items={state.result.scan.items}
-              onGuide={(index) => void onScanGuide(index)}
               onPin={(index) => void onScanPin(index)}
               onPinSelected={(indices) => void onScanPinSelected(indices)}
               onCancel={() => onCancelLoading()}
@@ -4015,23 +3264,6 @@ const SidepanelApp = () => {
           ) : (
             <p className="slot-empty">{msg('bookingEmpty')}</p>
           )}
-        </div>
-        <div id="guide-slot">
-          <h2 id="guide-heading">{msg('guideHeading')}</h2>
-          <p id="search-line" hidden={!state.searching || undefined}>
-            {state.searching ? msg('statusSearchingWeb') : null}
-          </p>
-          {state.guideVisible ? null : <p className="slot-empty">{msg('guideEmpty')}</p>}
-          <div
-            id="guide-content"
-            lang={chrome.i18n.getUILanguage()}
-            dir={dirForLanguage(chrome.i18n.getUILanguage())}
-            tabIndex={0}
-            role="region"
-            aria-labelledby="guide-heading"
-            aria-busy={state.guideBusy || undefined}
-            hidden={!state.guideVisible || undefined}
-          />
         </div>
         <div id="sources-slot">
           <h2 id="sources-heading">{msg('sourcesHeading')}</h2>

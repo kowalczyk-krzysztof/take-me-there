@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { CACHE_ENTRY_VERSION, unwrapEntry } from './result_cache';
-import { GUIDE_MAX_TEXT_CHARS } from './types';
 
 const validEntry = () => ({
   place: {
@@ -11,10 +10,8 @@ const validEntry = () => ({
     confidence: 0.9,
     oneLiner: 'Blue domes over the caldera.',
   },
-  guide: '# Oia',
   sources: [],
   usage: { inputTokens: 10, outputTokens: 5, searchCount: 0, flatFeesUsd: 0 },
-  searchedWeb: false,
 });
 
 const wrapped = (entry: unknown, createdAt: unknown = Date.now()) => ({
@@ -25,7 +22,7 @@ const wrapped = (entry: unknown, createdAt: unknown = Date.now()) => ({
 
 describe('cache entry validation', () => {
   it('accepts versioned records with timestamps', () => {
-    expect(unwrapEntry(wrapped(validEntry()))?.guide).toBe('# Oia');
+    expect(unwrapEntry(wrapped(validEntry()))?.place.placeName).toBe('Oia');
   });
 
   it('rejects bare entries, bad versions, and missing timestamps', () => {
@@ -37,10 +34,7 @@ describe('cache entry validation', () => {
     expect(unwrapEntry({ v: CACHE_ENTRY_VERSION })).toBeUndefined();
   });
 
-  it('rejects oversized guides, excess citations, and schema violations', () => {
-    const big = { ...validEntry(), guide: 'x'.repeat(GUIDE_MAX_TEXT_CHARS + 1) };
-    expect(unwrapEntry(wrapped(big))).toBeUndefined();
-
+  it('rejects excess citations and schema violations', () => {
     const many = {
       ...validEntry(),
       sources: Array.from({ length: 33 }, (_, index) => ({

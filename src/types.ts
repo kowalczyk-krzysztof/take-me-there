@@ -19,8 +19,6 @@ export type PlaceResult = z.infer<typeof PLACE_SCHEMA>;
 
 // Transport/cache bound for total guide text. The renderer caps display
 // separately; this caps memory and stored bytes.
-export const GUIDE_MAX_TEXT_CHARS = 256 * 1024;
-
 // Cache identity input: bump when identify/guide prompts change meaning
 // so stale entries from older prompts stop matching.
 export const PROMPT_VERSION = 1;
@@ -30,7 +28,6 @@ export const PROMPT_VERSION = 1;
 // the transport bounds so a conforming run can never fail validation.
 export const CACHE_ENTRY_SCHEMA = z.strictObject({
   place: PLACE_SCHEMA,
-  guide: z.string().check(z.maxLength(GUIDE_MAX_TEXT_CHARS)),
   sources: z
     .array(
       z.strictObject({
@@ -46,7 +43,6 @@ export const CACHE_ENTRY_SCHEMA = z.strictObject({
     flatFeesUsd: z.number(),
     cachedInputTokens: z.optional(z.number()),
   }),
-  searchedWeb: z.boolean(),
 });
 
 export type CacheEntryData = z.infer<typeof CACHE_ENTRY_SCHEMA>;

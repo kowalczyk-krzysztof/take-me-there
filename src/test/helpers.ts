@@ -249,24 +249,6 @@ export const chatResponse = (
     }
   );
 
-export const sseResponse = (chunks: string[]): Response => {
-  const encoder = new TextEncoder();
-
-  const stream = new ReadableStream<Uint8Array>({
-    start(controller) {
-      for (const chunk of chunks) {
-        controller.enqueue(encoder.encode(chunk));
-      }
-      controller.close();
-    },
-  });
-
-  return new Response(stream, {
-    status: 200,
-    headers: { 'Content-Type': 'text/event-stream' },
-  });
-};
-
 export const groundedResponse = (json: unknown, annotations: unknown[] = []): Response =>
   new Response(
     JSON.stringify({

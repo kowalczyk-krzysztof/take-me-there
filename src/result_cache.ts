@@ -14,7 +14,8 @@ export const CACHE_ENTRY_VERSION = 2;
 export const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 // Total cache bytes: a conservative share of the 10 MB session quota.
-// Ten maxed-out guides exceed it, so LRU eviction can actually trim.
+// Identify-only entries are small, so the slot cap binds first; the byte
+// cap stays as defense-in-depth.
 export const CACHE_MAX_BYTES = 2 * 1024 * 1024;
 
 export type CacheEntry = z.infer<typeof CACHE_ENTRY_SCHEMA>;
@@ -58,25 +59,6 @@ export const hashIdentifyKey = async (parts: IdentifyKeyParts): Promise<string> 
     parts.imageOnly ? 'image-only' : 'full',
     parts.mediaSeed,
     parts.pageUrl,
-  ]);
-
-// Guide-cache identity derives from the identify key plus destination,
-// effective language, and grounding mode, so a language or cheap-mode
-// switch re-guides without re-identifying.
-export const hashGuideKey = async (
-  identifyKey: string,
-  destination: string,
-  language: string,
-  grounded: boolean
-): Promise<string> =>
-  hashFields([
-    String(CACHE_VERSION),
-    'guide',
-    String(PROMPT_VERSION),
-    identifyKey,
-    destination,
-    language,
-    grounded ? 'grounded' : 'chat',
   ]);
 
 const hashFields = async (fields: string[]): Promise<string> => {

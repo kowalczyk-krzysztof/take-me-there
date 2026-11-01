@@ -1,4 +1,3 @@
-import { EventSourceParserStream, type EventSourceMessage } from 'eventsource-parser/stream';
 import { MUSE_SPARK_RATES, SAM_IMAGE_COST_USD, type ModelRates } from '../pricing';
 import {
   alternatesJsonSchema,
@@ -11,17 +10,13 @@ import {
   ProviderError,
   PROMPT_CACHE_KEY,
   PROMPT_CACHE_RETENTION,
-  GUIDE_MAX_CITATIONS,
-  SSE_MAX_BUFFER,
   STRICT_REMINDER,
   allowsVideoMedia,
   assertConsent,
   buildAlternatesMessages,
   buildAlternatesPrompt,
-  buildGuidePrompt,
   buildItineraryMessages,
   buildScanMessages,
-  decodeStream,
   emptyUsage,
   extractChatJson,
   extractResponsesStructured,
@@ -32,10 +27,7 @@ import {
   parseAlternatesContent,
   parseItineraryPlan,
   parseScanBatch,
-  postChatStream,
-  postStreamHeaders,
   readBoundedJson,
-  readStall,
   remapScanPlaces,
   fetchTimeout,
   absorbUsage,
@@ -46,13 +38,10 @@ import {
   sanitizePromptHint,
   testModelsEndpoint,
   toNetworkError,
-  toStreamError,
   tryParsePlace,
   type AlternatesInput,
   type AlternatesResult,
   type ChatMessage,
-  type GuideEvent,
-  type GuideInput,
   type GuideSource,
   type IdentifyInput,
   type IdentifyRequest,
@@ -74,38 +63,7 @@ const MODEL = 'muse-spark-1.3';
 
 const IDENTIFY_MAX_TOKENS = 2048;
 
-const GUIDE_MAX_TOKENS = 4096;
-
 const ITINERARY_MAX_TOKENS = 4096;
-
-interface ResponsesUsagePayload {
-  input_tokens?: unknown;
-  output_tokens?: unknown;
-  input_tokens_details?: { cached_tokens?: unknown };
-}
-
-// Bank terminal tokens before handling the terminal status: failed and
-// incomplete responses bill what they consumed, and the panel settles
-// from the error's usage.
-const absorbResponsesUsage = (payload: unknown, usage: Usage): void => {
-  const nested = (payload as { response?: { usage?: ResponsesUsagePayload } })?.response?.usage;
-
-  const usagePayload = nested ?? (payload as { usage?: ResponsesUsagePayload })?.usage;
-
-  if (!usagePayload || typeof usagePayload.input_tokens !== 'number') {
-    return;
-  }
-
-  usage.inputTokens += usagePayload.input_tokens;
-  usage.outputTokens +=
-    typeof usagePayload.output_tokens === 'number' ? usagePayload.output_tokens : 0;
-
-  const cached = usagePayload.input_tokens_details?.cached_tokens;
-
-  if (typeof cached === 'number' && cached > 0) {
-    usage.cachedInputTokens = (usage.cachedInputTokens ?? 0) + cached;
-  }
-};
 
 export class MuseProvider implements Provider {
   readonly id = 'muse';
@@ -608,255 +566,5 @@ export class MuseProvider implements Provider {
     usage.flatFeesUsd += SAM_IMAGE_COST_USD;
 
     return { text: extracted.text, usage: { ...usage } };
-  }
-
-  async *streamGuide(key: string, input: GuideInput): AsyncGenerator<GuideEvent, void, void> {
-    requireKey(key);
-    await assertConsent();
-
-    const prompt = input.prompt ?? buildGuidePrompt(input.destination, input.language);
-
-    if (input.transport === 'chat') {
-      yield* this.streamGuideChat(key, prompt, input.signal);
-    } else {
-      yield* this.streamGuideResponses(key, prompt, input.signal);
-    }
-  }
-
-  private async *streamGuideChat(
-    key: string,
-    prompt: string,
-    signal: AbortSignal
-  ): AsyncGenerator<GuideEvent, void, void> {
-    yield* postChatStream(
-      `${API_BASE}/chat/completions`,
-      key,
-      {
-        model: MODEL,
-        prompt_cache_key: PROMPT_CACHE_KEY,
-        messages: [{ role: 'user', content: prompt }],
-        max_completion_tokens: GUIDE_MAX_TOKENS,
-        stream: true,
-        stream_options: { include_usage: true },
-      },
-      signal
-    );
-  }
-
-  private async *streamGuideResponses(
-    key: string,
-    prompt: string,
-    signal: AbortSignal
-  ): AsyncGenerator<GuideEvent, void, void> {
-    const res = await postStreamHeaders(
-      `${API_BASE}/responses`,
-      key,
-      {
-        model: MODEL,
-        prompt_cache_key: PROMPT_CACHE_KEY,
-        prompt_cache_retention: PROMPT_CACHE_RETENTION,
-        input: [
-          {
-            type: 'message',
-            role: 'user',
-            content: [{ type: 'input_text', text: prompt }],
-          },
-        ],
-        tools: [{ type: 'web_search', search_context_size: 'low' }],
-        max_output_tokens: GUIDE_MAX_TOKENS,
-        stream: true,
-      },
-      signal
-    );
-
-    if (!res.ok) {
-      throw responseError(res);
-    }
-
-    if (!res.body) {
-      throw new ProviderError('stream_error', 'empty response body', true);
-    }
-
-    const usage = emptyUsage();
-
-    const sources: GuideSource[] = [];
-
-    const seenUrls = new Set<string>();
-
-    let announcedSearching = false;
-
-    // The stream is complete only on a successful response.completed:
-    // EOF before it is an interruption, never a clean end.
-    let completed = false;
-
-    const parser = decodeStream(res.body).pipeThrough(
-      new EventSourceParserStream({ maxBufferSize: SSE_MAX_BUFFER, onError: 'terminate' })
-    );
-
-    const reader = parser.getReader();
-
-    try {
-      for (;;) {
-        if (signal.aborted) {
-          throw new ProviderError('aborted', 'request aborted', false);
-        }
-
-        let result: ReadableStreamReadResult<EventSourceMessage>;
-
-        try {
-          result = await readStall(reader);
-        } catch (err) {
-          throw toStreamError(err, signal);
-        }
-
-        if (result.done) {
-          break;
-        }
-
-        const message = result.value;
-
-        const name = message.event ?? '';
-
-        if (name === 'keepalive') {
-          continue;
-        }
-
-        if (name === '') {
-          // The Responses contract is fully named events: an unnamed block
-          // means we are not talking to the expected endpoint.
-          const data = message.data.trim();
-
-          if (data === '') {
-            continue;
-          }
-
-          if (data === '[DONE]') {
-            break;
-          }
-
-          throw new ProviderError('stream_error', 'unnamed stream payload', true);
-        }
-
-        let payload: unknown;
-
-        try {
-          payload = JSON.parse(message.data);
-        } catch {
-          throw new ProviderError('stream_error', `malformed ${name} payload`, true);
-        }
-
-        if (name === 'response.output_text.delta') {
-          const delta = (payload as { delta?: unknown })?.delta;
-
-          if (typeof delta === 'string' && delta) {
-            yield { type: 'delta', text: delta };
-          }
-        } else if (name === 'response.output_text.annotation.added') {
-          const annotation = (
-            payload as { annotation?: { type?: unknown; url?: unknown; title?: unknown } }
-          )?.annotation;
-
-          if (
-            annotation?.type === 'url_citation' &&
-            typeof annotation.url === 'string' &&
-            annotation.url &&
-            sources.length < GUIDE_MAX_CITATIONS &&
-            !seenUrls.has(annotation.url)
-          ) {
-            seenUrls.add(annotation.url);
-            sources.push({
-              title: typeof annotation.title === 'string' ? annotation.title : '',
-              url: annotation.url,
-            });
-          }
-        } else if (
-          name === 'response.web_search_call.in_progress' ||
-          name === 'response.web_search_call.searching'
-        ) {
-          if (!announcedSearching) {
-            announcedSearching = true;
-            yield { type: 'searching' };
-          }
-        } else if (name === 'response.web_search_call.completed') {
-          usage.searchCount += 1;
-
-          if (!announcedSearching) {
-            announcedSearching = true;
-            yield { type: 'searching' };
-          }
-        } else if (name === 'response.failed') {
-          absorbResponsesUsage(payload, usage);
-
-          const error = (payload as { response?: { error?: { message?: unknown } } })?.response
-            ?.error;
-
-          const detail = typeof error?.message === 'string' && error.message ? error.message : '';
-
-          throw new ProviderError(
-            'server',
-            detail ? `guide failed: ${detail}` : 'guide failed',
-            true
-          );
-        } else if (name === 'response.incomplete') {
-          absorbResponsesUsage(payload, usage);
-
-          const details = (payload as { response?: { incomplete_details?: { reason?: unknown } } })
-            ?.response?.incomplete_details;
-
-          const reason =
-            typeof details?.reason === 'string' && details.reason ? details.reason : 'unknown';
-
-          throw new ProviderError('invalid_response', `guide incomplete: ${reason}`, false);
-        } else if (name === 'response.completed') {
-          const status = (payload as { response?: { status?: unknown }; status?: unknown })
-            ?.response;
-
-          const terminal =
-            (status as { status?: unknown } | undefined)?.status ??
-            (payload as { status?: unknown })?.status;
-
-          if (terminal === 'failed') {
-            absorbResponsesUsage(payload, usage);
-
-            throw new ProviderError('server', 'guide failed', true);
-          }
-
-          if (terminal !== undefined && terminal !== 'completed') {
-            absorbResponsesUsage(payload, usage);
-
-            const reason = typeof terminal === 'string' ? terminal : 'unknown';
-
-            throw new ProviderError('invalid_response', `guide incomplete: ${reason}`, false);
-          }
-
-          absorbResponsesUsage(payload, usage);
-
-          completed = true;
-
-          break;
-        }
-        // Every other event is ignored by design.
-      }
-
-      if (!completed) {
-        throw new ProviderError('stream_error', 'stream ended before completion', true);
-      }
-    } catch (err) {
-      if (err instanceof ProviderError && err.usage === undefined) {
-        err.usage = { ...usage };
-      }
-
-      throw err;
-    } finally {
-      // Early exits (terminals, errors) must not leave the fetch
-      // lingering behind a locked reader.
-      await reader.cancel().catch(() => undefined);
-      reader.releaseLock();
-    }
-
-    if (sources.length > 0) {
-      yield { type: 'sources', sources };
-    }
-    yield { type: 'usage', usage };
   }
 }

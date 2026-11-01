@@ -1,7 +1,7 @@
 import type { PlaceResult } from '../../types';
 import styles from './trip_card.module.css';
 import { msg } from '../../utils/i18n';
-import type { AlternatesView, ConfidenceView, PlanState, TripCardCallbacks } from './trip_card';
+import type { AlternatesView, ConfidenceView, TripCardCallbacks } from './trip_card';
 import { ChipsRow } from './chips_row';
 import { AlternatesView as AlternatesList } from './alternates_view';
 
@@ -9,7 +9,6 @@ interface Props {
   place: PlaceResult;
   lowConfidence: boolean;
   pinned: boolean;
-  planState: PlanState;
   canReanalyze: boolean;
   confidence: ConfidenceView;
   sourceHost: string | null;
@@ -21,7 +20,6 @@ export const ResultView = ({
   place,
   lowConfidence,
   pinned,
-  planState,
   canReanalyze,
   confidence,
   sourceHost,
@@ -61,48 +59,12 @@ export const ResultView = ({
         >
           {pinned ? msg('savedButton', place.placeName) : msg('pinButton', place.placeName)}
         </button>
-        {planState === 'ready' ? null : (
-          <>
-            <button
-              type="button"
-              className={styles['plan-trip-button']}
-              aria-disabled={planState === 'planning' || undefined}
-              onClick={() => {
-                if (planState === 'planning') {
-                  return;
-                }
-                callbacks.onPlanTrip();
-              }}
-            >
-              {msg(
-                planState === 'planning'
-                  ? 'planningButton'
-                  : planState === 'interrupted'
-                    ? 'startAgainButton'
-                    : 'planTripButton'
-              )}
-            </button>
-            {planState === 'planning' ? (
-              <button
-                type="button"
-                className={styles['cancel-button']}
-                onClick={callbacks.onCancelLoading}
-              >
-                {msg('cancelButton')}
-              </button>
-            ) : null}
-          </>
-        )}
       </div>
-      {planState === 'interrupted' ? (
-        <p className={styles['start-again-hint']}>{msg('startAgainHint')}</p>
-      ) : null}
       <section className={styles.secondary} aria-label={msg('secondaryHeading')}>
         <ChipsRow alternates={alternates} onAlternates={callbacks.onAlternates} />
         <AlternatesList
           alternates={alternates}
           onPinAlternate={callbacks.onPinAlternate}
-          onPlanInstead={callbacks.onPlanInstead}
           onCancel={callbacks.onCancelAlternates}
         />
         {canReanalyze ? (
