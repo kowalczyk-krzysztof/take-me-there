@@ -3909,6 +3909,37 @@ describe('sidepanel', () => {
     expect(document.querySelector('#result-slot .hint')?.textContent).toBe('panelIdle');
   });
 
+  it('shows a loading state while analyzing again', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
+    await waitForHeading('Oia');
+
+    hangUntilAbort();
+
+    const again = [...document.querySelectorAll('#result-slot button')].find(
+      (button) => button.textContent === 'reanalyzeButton'
+    ) as HTMLButtonElement;
+    clickEl(again);
+
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot .cancel-button')?.textContent).toBe(
+        'cancelButton'
+      );
+    });
+    expect(document.querySelector('#result-slot .cosmetic')?.textContent).toBe(
+      'loadingPhaseIdentifying'
+    );
+
+    clickEl(document.querySelector('#result-slot .cancel-button') as HTMLButtonElement);
+
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('statusCanceled');
+    });
+    expect(document.querySelector('#result-slot .hint')?.textContent).toBe('panelIdle');
+  });
+
   it('cancels a hanging guide and returns the plan button', async () => {
     const mock = await setup();
     await plantKeyAndConsent();

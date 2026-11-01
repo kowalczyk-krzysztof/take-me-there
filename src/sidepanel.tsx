@@ -2823,6 +2823,7 @@ const reanalyze = async (): Promise<void> => {
       },
       { inheritFrom: pickInherit(request.requestId, provider, key), abortSiblings }
     );
+    showSkeleton(request.requestId, 'identifying');
     await runIdentify({ run, origin: 'panel', rejectedPlace });
   } finally {
     store.set({ resultBusy: false });
