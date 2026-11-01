@@ -15,19 +15,9 @@
     "message": "Analyzing image…",
     "description": "Status announcement when analysis starts."
   },
-  "statusFoundWriting": {
-    "message": "Found $1 - writing trip guide…",
+  "statusFound": {
+    "message": "Found $1.",
     "description": "Status announcement when the place is identified.",
-    "placeholders": {
-      "place": {
-        "content": "$1",
-        "example": "Oia"
-      }
-    }
-  },
-  "statusFoundPlan": {
-    "message": "Found $1 - plan your trip when ready.",
-    "description": "Status announcement when the place is identified and the guide waits for the Plan button.",
     "placeholders": {
       "place": {
         "content": "$1",
@@ -105,10 +95,6 @@
     "message": "Could not read the model's answer - retry.",
     "description": "Alert for validation failures."
   },
-  "alertStreamError": {
-    "message": "Guide interrupted - retry to continue.",
-    "description": "Alert for stream errors."
-  },
   "alertNotConfigured": {
     "message": "The custom provider is not configured.",
     "description": "Alert for a misconfigured provider."
@@ -152,14 +138,6 @@
   "errorInvalidBody": {
     "message": "Could not read the model's answer - retry.",
     "description": "Error card body for validation failures."
-  },
-  "errorStreamTitle": {
-    "message": "Guide interrupted",
-    "description": "Error card title for stream errors."
-  },
-  "errorStreamBody": {
-    "message": "The guide stopped early - retry to continue.",
-    "description": "Error card body for stream errors."
   },
   "errorDataTitle": {
     "message": "Image too large",
@@ -756,7 +734,7 @@
     "description": "Explore panel tab label."
   },
   "tabsLabel": {
-    "message": "Main, trip board, and settings",
+    "message": "Main and settings",
     "description": "Accessible name for the panel tab list."
   },
   "settingsTab": {

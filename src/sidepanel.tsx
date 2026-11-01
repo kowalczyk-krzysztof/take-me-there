@@ -1010,8 +1010,7 @@ const privacyForRequest = (
 const renderResultHeader = async (
   run: RunContext,
   place: PlaceResult,
-  announce: boolean,
-  foundKey = 'statusFoundWriting'
+  announce: boolean
 ): Promise<void> => {
   await settleSkeleton();
 
@@ -1034,7 +1033,7 @@ const renderResultHeader = async (
   showLinks(currentDestination);
   setPreviewIdentified(place.placeName);
   if (announce) {
-    announceStatus(foundKey, place.placeName);
+    announceStatus('statusFound', place.placeName);
   }
 };
 
@@ -1120,7 +1119,6 @@ const ERROR_CARD_KEYS: Record<string, [string, string, string]> = {
   server: ['errorServerTitle', 'errorServerBody', 'alertServer'],
   network: ['errorNetworkTitle', 'errorNetworkBody', 'alertNetwork'],
   invalid_response: ['errorInvalidTitle', 'errorInvalidBody', 'alertInvalidResponse'],
-  stream_error: ['errorStreamTitle', 'errorStreamBody', 'alertStreamError'],
 };
 
 const ERROR_CARD_FALLBACK: [string, string, string] = [
@@ -1336,7 +1334,7 @@ const runIdentify = async (args: IdentifyArgs): Promise<RunOutcome> => {
     return 'no-place';
   }
   commitDisplayed(run, 'result');
-  await renderResultHeader(run, identify.place, true, 'statusFoundPlan');
+  await renderResultHeader(run, identify.place, true);
 
   if (!ownsUi(run)) {
     return 'aborted';

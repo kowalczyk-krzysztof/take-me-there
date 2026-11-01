@@ -1,7 +1,7 @@
 {
   "name": "take-me-there",
   "version": "1.0.0",
-  "description": "Right-click any image to identify the place and plan a trip.",
+  "description": "Right-click any image to identify the place.",
   "private": true,
   "type": "module",
   "sideEffects": [

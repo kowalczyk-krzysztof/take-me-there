@@ -3,21 +3,18 @@
 ![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
 
 See a photo of a place you love? Right-click it, choose "Take me
-there", and the extension identifies the place and plans the trip,
-right in Chrome's side panel.
+there", and the extension identifies the place, right in Chrome's
+side panel.
 
 ## Features
 
 - **Place identification.** Right-click any image (or a video frame)
   and Meta's Muse AI tells you where it is, with a confidence score.
-- **Trip guides with sources.** Press "Plan a trip" for a written
-  guide backed by live web results, each with a link you can check.
 - **Page scan.** Right-click any page to find every place pictured
-  on it, then guide or pin them one by one.
-- **Compare and alternatives.** Put two places head to head, or ask
-  for cheaper, quieter, or similar options.
-- **Trip board.** Pin places from anywhere and turn them into a
-  day-by-day route with booking links.
+  on it.
+- **Alternatives.** Ask for cheaper, quieter, or similar options
+  near the identified place.
+- **Booking links.** Every result carries map and hotel deep links.
 - **Honest pricing.** Every analysis shows exactly what it cost.
   Repeat views load from a local cache and cost nothing.
 
@@ -33,8 +30,6 @@ right in Chrome's side panel.
 1. Right-click a photo and choose "Take me there". The side panel
    opens and asks for your Meta Muse API key.
 2. Paste the key, click "Agree & analyze". The place is identified.
-3. Press "Plan a trip" to load the full guide, or pin the place to
-   your trip board for later.
 
 Your key is stored encrypted on your own machine (see Privacy),
 but anyone with full access to your computer account could still
@@ -58,7 +53,6 @@ calls above:
 
 - API key: AES-GCM encrypted in this browser profile (or memory
   only, in session-only mode).
-- Trip board: pinned places with page addresses and thumbnails.
 - Cost totals: monthly spend per provider.
 - Result cache: recent results keyed by image and page, kept 7 days
   by default (1 or 30 days in Settings), at most 10 entries and
@@ -75,10 +69,9 @@ flowchart TB
     readers --> handoff[("Request handoff<br/>(short-lived tab storage)")]
     handoff --> panel
 
-    subgraph Panel ["Side panel - three tabs"]
+    subgraph Panel ["Side panel - two tabs"]
         direction TB
-        main["Main<br/>identify, guide, compare, alternatives, scan"]
-        board["Trip board<br/>pinned places and planned routes"]
+        main["Main<br/>identify, alternatives, scan, booking links"]
         settingsTab["Settings<br/>key, provider, modes, cache, cost"]
     end
 
@@ -86,21 +79,21 @@ flowchart TB
     providers --> muse["Meta Muse<br/>(muse-spark-1.3)"]
     providers --> compat["Custom server<br/>(any OpenAI-style API)"]
     muse --> identify["chat/completions<br/>names the place as strict JSON"]
-    muse --> guide["responses + web search<br/>writes the guide with cited sources"]
-    board --> pins[("Pin store<br/>(this device only)")]
+    muse --> grounded["responses + web search<br/>grounds alternatives in live results"]
     settingsTab --> vault["Key vault<br/>(AES-GCM encrypted)"]
 ```
 
 ## How Muse is used
 
-All Muse calls go to `https://api.meta.ai`, model `muse-spark-1.3`.
-It is the only website the extension talks to by default.
+All Muse calls go to `https://api.meta.ai`, model `muse-spark-1.3`
+(plus `sam-3.1` for look-again crops). It is the only website the
+extension talks to by default.
 
-| Call                        | What it does                                                               | What is sent                                 |
-| --------------------------- | -------------------------------------------------------------------------- | -------------------------------------------- |
-| `GET /v1/models`            | Checks your key when you save it                                           | Key only, nothing else                       |
-| `POST /v1/chat/completions` | Identifies the place, compares places, suggests alternatives, plans routes | Image plus page text (never without consent) |
-| `POST /v1/responses`        | Writes the trip guide with live web search                                 | Place name plus your question                |
+| Call                        | What it does                                               | What is sent                                 |
+| --------------------------- | ---------------------------------------------------------- | -------------------------------------------- |
+| `GET /v1/models`            | Checks your key when you save it                           | Key only, nothing else                       |
+| `POST /v1/chat/completions` | Identifies the place, scans pages, suggests alternatives   | Image plus page text (never without consent) |
+| `POST /v1/responses`        | Grounds alternatives with live web search, crops landmarks | Place name plus your question                |
 
 A typical analysis costs a few cents: tokens plus about $0.0025 per
 web search. The panel shows the exact figure after every run, and a

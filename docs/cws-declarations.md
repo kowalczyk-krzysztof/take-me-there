@@ -5,15 +5,13 @@ code paths. Update this file when a flow changes.
 
 ## Single purpose
 
-Identify travel places in photos, videos, and page images, then
-write a trip guide for the identified place.
+Identify travel places in photos, videos, and page images.
 
 ## Data sent off the device
 
-Only after the user clicks "Agree & analyze" (or "Plan a trip",
-"Scan page", duel, alternatives, itinerary for those runs), to
-`https://api.meta.ai` by default, or to a user-configured custom
-server instead:
+Only after the user clicks "Agree & analyze" (or "Scan page",
+alternatives for those runs), to `https://api.meta.ai` by default,
+or to a user-configured custom server instead:
 
 - The API key, to authenticate each call. Saving a key also sends
   the key alone to `GET /v1/models` to validate it.
@@ -25,9 +23,8 @@ server instead:
   names. Never the full page address. An image-only setting
   withholds all page text.
 - Video frame captures (data URLs) for video identify runs.
-- The user's own inputs for that run: corrections ("not X"),
-  duel sides, alternative intents, pinned stops, and the UI
-  language for guide localization.
+- The user's own inputs for that run: corrections ("not X") and
+  alternative intents.
 
 The custom server receives the same payloads. The options page
 warns that a custom server has its own data handling.
@@ -36,12 +33,11 @@ warns that a custom server has its own data handling.
 
 AES-GCM encrypted API key in this browser profile (or memory
 only in session-only mode), wrapping key in IndexedDB, settings,
-consent flags, trip board pins, monthly cost totals, the recent
-result cache (session storage: 7-day default expiry with a 1/7/30
-day setting, at most 10 entries and 2 MB, least-recently-used
-eviction, plus a Clear control), and the short-lived tab handoff
-(session storage, consumed or expired). Nothing here is uploaded
-anywhere.
+consent flags, monthly cost totals, the recent result cache
+(session storage: 7-day default expiry with a 1/7/30 day setting,
+at most 10 entries and 2 MB, least-recently-used eviction, plus
+a Clear control), and the short-lived tab handoff (session
+storage, consumed or expired). Nothing here is uploaded anywhere.
 
 ## Data never touched
 
@@ -56,8 +52,8 @@ addresses are hashed locally for cache keys and never sent.
 - `scripting` + `activeTab`: run the page readers (signals,
   images, video frame) in the clicked tab only, after the
   gesture. No standing access to browsing.
-- `storage`: local key, settings, board, spend, and cache;
-  session handoff between worker and panel.
+- `storage`: local key, settings, spend, and cache; session
+  handoff between worker and panel.
 - Host `https://api.meta.ai/*`: the Muse API.
 - Optional host `https://*/*`: a one-time per-run grant to
   download the clicked image when bytes are needed. The fetch runs
@@ -66,6 +62,6 @@ addresses are hashed locally for cache keys and never sent.
 
 ## Account deletion
 
-Not applicable: there are no accounts. Removing the key and pins
-in the UI plus uninstalling removes all stored data (Chrome
-clears extension storage on uninstall).
+Not applicable: there are no accounts. Removing the key in the UI
+plus uninstalling removes all stored data (Chrome clears extension
+storage on uninstall).

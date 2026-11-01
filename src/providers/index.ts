@@ -65,7 +65,6 @@ export type ProviderErrorCode =
   | 'server'
   | 'network'
   | 'invalid_response'
-  | 'stream_error'
   | 'aborted'
   | 'no_key'
   | 'not_configured'
