@@ -1,19 +1,15 @@
-import { loadSettings, saveSettings, type CacheTtlDays } from './settings_store';
+import type { CacheTtlDays } from './settings_store';
 import { sendCommand } from './storage_client';
 
 export const setMode = async (
   mode: 'imageOnly' | 'skipWebSearch',
   checked: boolean
 ): Promise<void> => {
-  const current = await loadSettings();
-
-  await saveSettings({ ...current, [mode]: checked });
+  await sendCommand<void>({ kind: 'settings.patch', patch: { [mode]: checked } });
 };
 
 export const setCacheTtlDays = async (days: CacheTtlDays): Promise<void> => {
-  const current = await loadSettings();
-
-  await saveSettings({ ...current, cacheTtlDays: days });
+  await sendCommand<void>({ kind: 'settings.patch', patch: { cacheTtlDays: days } });
 };
 
 export const clearResultCache = async (): Promise<number> =>

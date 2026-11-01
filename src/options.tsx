@@ -111,7 +111,15 @@ const onTestKey = (): void => {
     let key = draft;
 
     if (!key) {
-      const loaded = await loadKey(provider.id);
+      let loaded;
+
+      try {
+        loaded = await loadKey(provider.id);
+      } catch {
+        store.set({ status: msg('settingsSaveFailed') });
+
+        return;
+      }
       key = loaded.state === 'ok' ? loaded.key : '';
     }
 

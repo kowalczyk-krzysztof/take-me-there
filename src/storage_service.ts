@@ -317,6 +317,20 @@ const execute = async (command: StorageCommand): Promise<CommandResult> => {
 
       return { ok: true, value: undefined };
 
+    case 'settings.patch': {
+      const ttl = command.patch.cacheTtlDays;
+
+      if (ttl !== undefined && ttl !== 1 && ttl !== 7 && ttl !== 30) {
+        return invalid('invalid retention');
+      }
+
+      const current = await loadSettings();
+
+      await writeSettingsRecord({ ...current, ...command.patch });
+
+      return { ok: true, value: undefined };
+    }
+
     case 'key.save': {
       if (!command.providerId) {
         return invalid('unknown provider');
@@ -336,6 +350,18 @@ const execute = async (command: StorageCommand): Promise<CommandResult> => {
       } else {
         await chrome.storage.local.set({ [name]: record });
         await chrome.storage.session.remove(name);
+      }
+
+      const placement = await readPlacement(name);
+
+      if (
+        !placementSatisfies(
+          placement,
+          placement.sessionHas || placement.localHas,
+          command.sessionOnly
+        )
+      ) {
+        return invalid('key save failed verification');
       }
 
       return { ok: true, value: undefined };

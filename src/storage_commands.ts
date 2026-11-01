@@ -40,6 +40,12 @@ const settingsSchema = z.strictObject({
   cacheTtlDays: z.number(),
 });
 
+const settingsPatchSchema = z.strictObject({
+  imageOnly: z.optional(z.boolean()),
+  skipWebSearch: z.optional(z.boolean()),
+  cacheTtlDays: z.optional(z.number()),
+});
+
 const providerSchema = z.strictObject({
   providerId: z.string().check(z.maxLength(64)),
 });
@@ -63,6 +69,7 @@ export type StorageCommand =
   | { kind: 'cache.set'; hash: string; entry: z.infer<typeof cacheEntrySchema> }
   | { kind: 'cache.clear' }
   | { kind: 'settings.save'; settings: z.infer<typeof settingsSchema> }
+  | { kind: 'settings.patch'; patch: z.infer<typeof settingsPatchSchema> }
   | { kind: 'key.save'; providerId: string; key: string; sessionOnly: boolean }
   | { kind: 'key.clear'; providerId: string }
   | { kind: 'key.clearAll' }
@@ -89,6 +96,7 @@ export const COMMAND_SCHEMAS: Record<CommandKind, PayloadSchema> = {
   'cache.set': cacheSetSchema,
   'cache.clear': emptySchema,
   'settings.save': z.strictObject({ settings: settingsSchema }),
+  'settings.patch': z.strictObject({ patch: settingsPatchSchema }),
   'key.save': keySaveSchema,
   'key.clear': providerSchema,
   'key.clearAll': emptySchema,

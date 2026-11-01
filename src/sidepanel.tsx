@@ -748,6 +748,8 @@ const pickInherit = (
 // install over a newer run.
 let runTicket = 0;
 
+let lastAnalysisTicket = 0;
+
 let runCounter = 0;
 
 const nextRunId = (requestId: string): string => {
@@ -1314,6 +1316,7 @@ const runVideoAnalysis = async (
 const runAnalysis = async (request: TripRequest, origin: 'gesture' | 'panel'): Promise<void> => {
   const superseded = activeRun() !== null;
   const ticket = ++runTicket;
+  lastAnalysisTicket = ticket;
   cancelAllWork();
   clearStaleTimer();
   lastRun = { kind: 'request', request };
@@ -1430,7 +1433,12 @@ const handle = async (value: unknown): Promise<void> => {
     await runAnalysis(request, 'gesture');
   } catch (err) {
     // Entry-point net: an unexpected throw surfaces the error card
-    // instead of stranding the panel on a skeleton.
+    // instead of stranding the panel on a skeleton. A newer flow that
+    // started while this one unwound owns the UI, so stale errors bow
+    // out instead of canceling it.
+    if (lastAnalysisTicket !== runTicket) {
+      return;
+    }
     store.set({ resultBusy: false });
     cancelAllWork();
     showProviderError(err, request);
@@ -1597,6 +1605,19 @@ const lookAgain = async (): Promise<void> => {
   store.set({ resultBusy: true });
   announceStatus('statusAnalyzing');
   try {
+    await netLookAgain(request, ticket, cacheKey, rejectedPlace);
+  } finally {
+    store.set({ resultBusy: false });
+  }
+};
+
+const netLookAgain = async (
+  request: TripRequest,
+  ticket: number,
+  cacheKey: string,
+  rejectedPlace: string | undefined
+): Promise<void> => {
+  try {
     const gate = await gateRun({ kind: 'request', request });
 
     if (ticket !== runTicket) {
@@ -1647,8 +1668,12 @@ const lookAgain = async (): Promise<void> => {
           ? { ...request, srcUrl: samCrop.dataUrl }
           : request;
     await runIdentify({ run, origin: 'panel', rejectedPlace, requestOverride: identifyRequest });
-  } finally {
-    store.set({ resultBusy: false });
+  } catch (err) {
+    if (ticket !== runTicket) {
+      return;
+    }
+    cancelAllWork();
+    showProviderError(err, request);
   }
 };
 
@@ -1661,6 +1686,18 @@ const reanalyze = async (): Promise<void> => {
   const ticket = ++runTicket;
   store.set({ resultBusy: true });
   announceStatus('statusAnalyzing');
+  try {
+    await netReanalyze(request, ticket, rejectedPlace);
+  } finally {
+    store.set({ resultBusy: false });
+  }
+};
+
+const netReanalyze = async (
+  request: TripRequest,
+  ticket: number,
+  rejectedPlace: string
+): Promise<void> => {
   try {
     const gate = await gateRun({ kind: 'request', request });
 
@@ -1688,8 +1725,25 @@ const reanalyze = async (): Promise<void> => {
     );
     showSkeleton(request.requestId, 'identifying');
     await runIdentify({ run, origin: 'panel', rejectedPlace });
-  } finally {
+  } catch (err) {
+    if (ticket !== runTicket) {
+      return;
+    }
+    cancelAllWork();
+    showProviderError(err, request);
+  }
+};
+
+const netPanelRun = async (task: () => Promise<void>, request: TripRequest): Promise<void> => {
+  try {
+    await task();
+  } catch (err) {
+    if (lastAnalysisTicket !== runTicket) {
+      return;
+    }
     store.set({ resultBusy: false });
+    cancelAllWork();
+    showProviderError(err, request);
   }
 };
 
@@ -1699,7 +1753,7 @@ const retry = async (): Promise<void> => {
     return;
   }
   clearContentSlots();
-  await runAnalysis(target.request, 'panel');
+  await netPanelRun(() => runAnalysis(target.request, 'panel'), target.request);
 };
 
 // The model could not fetch the remote image, so the panel downloads the
@@ -1976,7 +2030,13 @@ const runAlternates = async (intent: AlternateIntent): Promise<void> => {
 };
 
 const onAlternates = async (intent: AlternateIntent): Promise<void> => {
-  await runAlternates(intent);
+  try {
+    await runAlternates(intent);
+  } catch {
+    alternatesLoading = null;
+    await refreshResultCard();
+    announceAlert('alternatesFail');
+  }
 };
 
 const onAlternatesCancel = (): void => {
@@ -1995,7 +2055,7 @@ const resumePending = async (): Promise<void> => {
     showIdle();
     return;
   }
-  await runAnalysis(pending.request, 'panel');
+  await netPanelRun(() => runAnalysis(pending.request, 'panel'), pending.request);
 };
 
 const onKeySave = async (key: string): Promise<void> => {

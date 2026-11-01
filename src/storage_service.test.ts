@@ -104,7 +104,7 @@ describe('storage service protocol', () => {
   it('rejects unknown commands and invalid payloads without poisoning the queue', async () => {
     await expect(
       handleStorageMessage(
-        { scope: STORAGE_MESSAGE_SCOPE, command: { kind: 'board.explode' } },
+        { scope: STORAGE_MESSAGE_SCOPE, command: { kind: 'nope.explode' } },
         PAGE_SENDER
       )
     ).resolves.toEqual({ ok: false, error: 'unknown command' });
@@ -127,6 +127,39 @@ describe('storage service protocol', () => {
   });
 });
 
+describe('storage service settings patch', () => {
+  it('merges one field without clobbering the rest', async () => {
+    await handleStorageMessage(
+      {
+        scope: STORAGE_MESSAGE_SCOPE,
+        command: { kind: 'settings.patch', patch: { imageOnly: true } },
+      },
+      PAGE_SENDER
+    );
+    await handleStorageMessage(
+      {
+        scope: STORAGE_MESSAGE_SCOPE,
+        command: { kind: 'settings.patch', patch: { cacheTtlDays: 30 } },
+      },
+      PAGE_SENDER
+    );
+    expect(await loadSettings()).toMatchObject({ imageOnly: true, cacheTtlDays: 30 });
+  });
+
+  it('rejects retentions outside the offered choices', async () => {
+    await expect(
+      handleStorageMessage(
+        {
+          scope: STORAGE_MESSAGE_SCOPE,
+          command: { kind: 'settings.patch', patch: { cacheTtlDays: 90 } },
+        },
+        PAGE_SENDER
+      )
+    ).resolves.toEqual({ ok: false, error: 'invalid retention' });
+    expect((await loadSettings()).cacheTtlDays).toBe(7);
+  });
+});
+
 describe('storage service concurrency', () => {
   it('sums concurrent spend records without lost updates', async () => {
     const date = new Date('2026-03-15T12:00:00Z');
@@ -138,7 +171,7 @@ describe('storage service concurrency', () => {
 
   it('converges when a migration races a write', async () => {
     await mock.local.set({
-      settings: { activeProviderId: 'muse' },
+      settings: { imageOnly: true },
     });
 
     const [migration] = await Promise.all([
@@ -158,7 +191,7 @@ describe('storage service concurrency', () => {
 
   it('converges after a worker restart interrupts a migration', async () => {
     await mock.local.set({
-      settings: { activeProviderId: 'muse' },
+      settings: { imageOnly: true },
       costTotals: { '2026-03': 1.5 },
     });
 

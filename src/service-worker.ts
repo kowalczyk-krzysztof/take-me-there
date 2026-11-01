@@ -8,6 +8,7 @@ import {
   allocateHandoffSeq,
   handleHandoffMessage,
   handoffSlotKey,
+  withHandoffSlot,
 } from './handoff';
 import { reconcileTempGrants } from './grants';
 
@@ -127,26 +128,24 @@ const nextRequestId = (): string => {
 // The collecting write is the click's only visible trace: if it fails, the
 // panel gets an error record instead of silence. When even that fails the
 // worker has no channel left; the opened panel stays idle.
-const writeCollectingState = async (
-  slot: string,
-  record: Record<string, unknown>
-): Promise<boolean> => {
-  try {
-    await chrome.storage.session.set({ [slot]: record });
-
-    return true;
-  } catch {
+const writeCollectingState = (slot: string, record: Record<string, unknown>): Promise<boolean> =>
+  withHandoffSlot(async () => {
     try {
-      await chrome.storage.session.set({
-        [slot]: { ...record, status: 'error', reason: 'collecting-failed' },
-      });
-    } catch {
-      // No channel left; the opened panel stays idle.
-    }
+      await chrome.storage.session.set({ [slot]: record });
 
-    return false;
-  }
-};
+      return true;
+    } catch {
+      try {
+        await chrome.storage.session.set({
+          [slot]: { ...record, status: 'error', reason: 'collecting-failed' },
+        });
+      } catch {
+        // No channel left; the opened panel stays idle.
+      }
+
+      return false;
+    }
+  });
 
 const handleImageClick = async (
   srcUrl: string,
@@ -155,7 +154,15 @@ const handleImageClick = async (
   tabId: number,
   windowId: number
 ): Promise<void> => {
-  const seq = await allocateHandoffSeq();
+  let seq: number;
+
+  try {
+    seq = await allocateHandoffSeq();
+  } catch {
+    // No sequence, no ordered record: the click is dropped and the
+    // opened panel stays idle rather than rejecting unhandled.
+    return;
+  }
   latestSeqByWindow.set(windowId, seq);
 
   const requestId = nextRequestId();
@@ -204,9 +211,13 @@ const handleVideoClick = async (
   tabId: number,
   windowId: number
 ): Promise<void> => {
-  requestCounter += 1;
+  let seq: number;
 
-  const seq = await allocateHandoffSeq();
+  try {
+    seq = await allocateHandoffSeq();
+  } catch {
+    return;
+  }
   latestSeqByWindow.set(windowId, seq);
 
   const requestId = nextRequestId();
@@ -338,37 +349,34 @@ interface TerminalRecord {
   frameError?: string;
 }
 
-const writeTerminalState = async (
-  windowId: number,
-  seq: number,
-  record: TerminalRecord
-): Promise<void> => {
-  const slot = handoffSlotKey(windowId);
+const writeTerminalState = (windowId: number, seq: number, record: TerminalRecord): Promise<void> =>
+  withHandoffSlot(async () => {
+    const slot = handoffSlotKey(windowId);
 
-  try {
-    if (isCurrentSeq(windowId, seq)) {
-      await chrome.storage.session.set({ [slot]: record });
-    }
-  } catch {
-    // Quota or transient failure: retry once with the heavy payloads
-    // stripped (a rejected frame surfaces as too-large) so the panel still
-    // reaches a terminal state.
     try {
       if (isCurrentSeq(windowId, seq)) {
-        const slim: TerminalRecord = { ...record };
-        delete slim.signals;
-
-        if (slim.frame) {
-          delete slim.frame;
-          slim.frameError = 'too-large';
-        }
-        await chrome.storage.session.set({ [slot]: slim });
+        await chrome.storage.session.set({ [slot]: record });
       }
     } catch {
-      // Last resort: keep the collecting record; the next click recovers.
+      // Quota or transient failure: retry once with the heavy payloads
+      // stripped (a rejected frame surfaces as too-large) so the panel still
+      // reaches a terminal state.
+      try {
+        if (isCurrentSeq(windowId, seq)) {
+          const slim: TerminalRecord = { ...record };
+          delete slim.signals;
+
+          if (slim.frame) {
+            delete slim.frame;
+            slim.frameError = 'too-large';
+          }
+          await chrome.storage.session.set({ [slot]: slim });
+        }
+      } catch {
+        // Last resort: keep the collecting record; the next click recovers.
+      }
     }
-  }
-};
+  });
 
 // Synchronous by design: no await may sit between the freshness check and
 // the write, or a newer click's collecting record lands in the gap and the

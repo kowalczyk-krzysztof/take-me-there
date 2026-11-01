@@ -5,6 +5,7 @@
 // only when the acknowledged sequence still matches: a delayed ack never
 // deletes a newer payload.
 import * as z from 'zod/mini';
+import { createMutex } from './utils/mutex';
 import { isExtensionPageSender } from './storage_commands';
 
 export const HANDOFF_TTL_MS = 10 * 60 * 1000;
@@ -16,6 +17,14 @@ export const HANDOFF_ACK_SCOPE = 'take-me-there/handoff-v1';
 const ACK_TIMEOUT_MS = 5000;
 
 export const handoffSlotKey = (windowId: number): string => `tripRequest:${windowId}`;
+
+// Serializes slot check-and-act sequences (collecting/terminal writes,
+// ack removals) so a panel ack can never slip between a worker's freshness
+// check and its write and delete a newer payload. Worker-side only: each
+// bundle gets its own instance and only the worker writes slots.
+const slotMutex = createMutex();
+
+export const withHandoffSlot = <T>(task: () => Promise<T>): Promise<T> => slotMutex(task);
 
 const ackSchema = z.strictObject({
   windowId: z.number(),
@@ -109,7 +118,9 @@ export const handleHandoffMessage = async (
   }
 
   try {
-    const cleared = await ackHandoffSlot(parsed.data.windowId, parsed.data.seq);
+    const cleared = await withHandoffSlot(() =>
+      ackHandoffSlot(parsed.data.windowId, parsed.data.seq)
+    );
 
     return { ok: true, cleared };
   } catch (err) {
