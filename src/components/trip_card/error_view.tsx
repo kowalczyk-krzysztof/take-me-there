@@ -8,16 +8,24 @@ interface Props {
   body: string;
   showRetry: boolean;
   fallback: { label: string; href: string } | null;
-  callbacks: Pick<TripCardCallbacks, 'onRetry' | 'onDismissError'>;
+  grantHost: string | null;
+  callbacks: Pick<TripCardCallbacks, 'onRetry' | 'onDismissError' | 'onAllowHost'>;
 }
 
-export const ErrorView = ({ title, body, showRetry, fallback, callbacks }: Props) => {
-  const hasAction = showRetry || fallback !== null;
+export const ErrorView = ({ title, body, showRetry, fallback, grantHost, callbacks }: Props) => {
+  const hasAction = showRetry || fallback !== null || grantHost !== null;
 
   return (
     <>
       <h2 tabIndex={-1}>{title}</h2>
       <p>{body}</p>
+      {grantHost ? (
+        <OneShotButton
+          label={msg('grantAllowButton', grantHost)}
+          loadingLabel={msg('grantAllowPending')}
+          onFire={() => callbacks.onAllowHost(grantHost)}
+        />
+      ) : null}
       {showRetry ? (
         <OneShotButton
           label={msg('retryButton')}

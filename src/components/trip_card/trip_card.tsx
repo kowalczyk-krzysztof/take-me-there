@@ -30,6 +30,7 @@ export type LoadingPhase = 'collecting' | 'identifying';
 export interface TripCardCallbacks {
   onReanalyze: () => void;
   onRetry: () => void;
+  onAllowHost: (host: string) => void;
   onLookAgain: () => void;
   onAlternates: (intent: AlternateIntentView) => void;
   onCancelAlternates: () => void;
@@ -56,6 +57,7 @@ export type CardState =
       body: string;
       showRetry: boolean;
       fallback?: { label: string; href: string } | null;
+      grantHost?: string | null;
     };
 
 interface Props {
@@ -129,6 +131,7 @@ export const TripCard = ({ card, callbacks }: Props) => {
           body={card.body}
           showRetry={card.showRetry}
           fallback={card.fallback ?? null}
+          grantHost={card.grantHost ?? null}
           callbacks={callbacks}
         />
       );

@@ -72,7 +72,11 @@ describe('service-worker', () => {
     const mock = installChromeMock();
 
     const permsRemove = vi.fn().mockResolvedValue(undefined);
-    (chrome as unknown as { permissions: unknown }).permissions = { remove: permsRemove };
+    (chrome as unknown as { permissions: unknown }).permissions = {
+      remove: permsRemove,
+      contains: vi.fn().mockResolvedValue(false),
+      getAll: vi.fn().mockResolvedValue({ origins: [] }),
+    };
 
     await mock.session.set({
       [TEMP_GRANT_KEY]: { 'https://old.example.com': Date.now() - 11 * 60 * 1000 },
@@ -81,7 +85,8 @@ describe('service-worker', () => {
     await flush();
 
     expect(permsRemove).toHaveBeenCalledWith({ origins: ['https://old.example.com/*'] });
-    expect((await mock.session.get(TEMP_GRANT_KEY))[TEMP_GRANT_KEY]).toEqual({});
+    expect(await mock.session.get(TEMP_GRANT_KEY)).toEqual({});
+    expect(await mock.local.get(TEMP_GRANT_KEY)).toEqual({ [TEMP_GRANT_KEY]: {} });
   });
 
   it('wires menus, panel behavior, and onboarding on install', async () => {

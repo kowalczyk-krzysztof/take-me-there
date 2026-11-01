@@ -31,7 +31,7 @@ import {
 } from './types';
 import { frameCacheSeed, hasVideoConsented, isRung2Usable, setVideoConsented } from './video';
 import { HANDOFF_TTL_MS, ackRequest, handoffSlotKey } from './handoff';
-import { withTempGrant } from './grants';
+import { addHostGrant, releaseHostAccess, requestHostAccess } from './grants';
 import {
   absorbRunUsage,
   activeRun,
@@ -43,6 +43,7 @@ import {
   type RunContext,
 } from './run_state';
 import {
+  FETCH_TIMEOUT_MS,
   ProviderError,
   formatSignalsForPrompt,
   getActiveProviderStrict,
@@ -411,23 +412,93 @@ const swapResultSlot = (build: () => void): void => {
   }
 };
 
-const updatePreview = (srcUrl: string | null, kind: 'image' | 'frame' = 'image'): void => {
-  if (srcUrl && isAllowedPreviewUrl(srcUrl)) {
-    store.set({
-      preview: {
-        kind: 'image',
-        src: srcUrl,
-        frame: kind === 'frame',
-        identified: null,
-        overlay: null,
-      },
-    });
-  } else {
-    showPreviewPlaceholder();
+let previewToken = 0;
+
+let previewController: AbortController | null = null;
+
+const revokePreviewObjectUrl = (): void => {
+  const current = store.get().preview;
+
+  if (current.kind !== 'placeholder' && current.src.startsWith('blob:')) {
+    URL.revokeObjectURL(current.src);
   }
 };
 
+const setImagePreview = (src: string, kind: 'image' | 'frame'): void => {
+  store.set({
+    preview: {
+      kind: 'image',
+      src,
+      frame: kind === 'frame',
+      identified: null,
+      overlay: null,
+    },
+  });
+};
+
+// Remote pixels load without credentials and only after consent; data and
+// blob addresses never touch the network.
+const updatePreview = (
+  srcUrl: string | null,
+  kind: 'image' | 'frame' = 'image',
+  consented = false
+): void => {
+  previewToken += 1;
+  previewController?.abort();
+  previewController = null;
+  revokePreviewObjectUrl();
+
+  if (!srcUrl || !isAllowedPreviewUrl(srcUrl)) {
+    showPreviewPlaceholder();
+
+    return;
+  }
+
+  if (srcUrl.startsWith('data:image/') || srcUrl.startsWith('blob:')) {
+    setImagePreview(srcUrl, kind);
+
+    return;
+  }
+
+  if (!consented) {
+    showPreviewPlaceholder();
+
+    return;
+  }
+
+  showPreviewPlaceholder();
+
+  const token = previewToken;
+  const controller = new AbortController();
+  previewController = controller;
+
+  void (async () => {
+    let bytes: Uint8Array;
+
+    try {
+      bytes = await fetchImageBytes(srcUrl, controller.signal);
+    } catch {
+      return;
+    }
+
+    if (token !== previewToken || controller.signal.aborted) {
+      return;
+    }
+
+    const url = URL.createObjectURL(new Blob([bytes as BlobPart]));
+
+    if (token !== previewToken) {
+      URL.revokeObjectURL(url);
+
+      return;
+    }
+
+    setImagePreview(url, kind);
+  })();
+};
+
 const showPreviewPlaceholder = (): void => {
+  revokePreviewObjectUrl();
   store.set({ preview: { kind: 'placeholder' } });
 };
 
@@ -691,6 +762,7 @@ const cancelAllWork = (): void => {
 const onCancelLoading = (): void => {
   runTicket += 1;
   pendingRun = null;
+  pendingLookAgain = null;
 
   if (collectingSeq !== null) {
     for (const seq of canceledSeqs) {
@@ -938,6 +1010,49 @@ const ERROR_CARD_FALLBACK: [string, string, string] = [
   'alertServer',
 ];
 
+const GRANT_BODY_KEYS = {
+  allow: 'grantAllowBody',
+  denied: 'grantDeniedBody',
+  error: 'grantErrorBody',
+} as const;
+
+type GrantCardKind = keyof typeof GRANT_BODY_KEYS;
+
+interface PendingLookAgain {
+  ticket: number;
+  cacheKey: string;
+  request: TripRequest;
+  rejectedPlace: string | undefined;
+}
+
+let pendingLookAgain: PendingLookAgain | null = null;
+
+const renderGrantCard = (kind: GrantCardKind, host: string): void => {
+  cancelSkeleton();
+  currentView = 'error';
+  currentAlternates = null;
+  swapResultSlot(() => {
+    store.set({
+      result: {
+        ...blankResultSlot(),
+        card: {
+          view: 'error',
+          title: msg('grantAllowTitle'),
+          body: msg(GRANT_BODY_KEYS[kind], host),
+          showRetry: true,
+          grantHost: host,
+        },
+      },
+    });
+  });
+};
+
+const showGrantCard = (kind: GrantCardKind, host: string, request: TripRequest): void => {
+  renderGrantCard(kind, host);
+  announceAlert(GRANT_BODY_KEYS[kind], host);
+  updatePrivacy(errorPrivacy(request));
+};
+
 const showProviderError = (
   err: unknown,
   request: TripRequest | null,
@@ -1065,7 +1180,28 @@ const runIdentify = async (args: IdentifyArgs): Promise<RunOutcome> => {
         return 'aborted';
       }
 
-      showProviderError(err, request, undefined, true);
+      if (!ownsUi(run)) {
+        return 'error';
+      }
+
+      if (!request.srcUrl.startsWith('https://')) {
+        showProviderError(err, request, undefined, true);
+
+        return 'error';
+      }
+
+      let host = '';
+
+      try {
+        host = new URL(request.srcUrl).host;
+      } catch {
+        showProviderError(err, request);
+
+        return 'error';
+      }
+
+      pendingLookAgain = null;
+      showGrantCard('allow', host, request);
 
       return 'error';
     }
@@ -1291,7 +1427,8 @@ const runAnalysis = async (request: TripRequest, origin: 'gesture' | 'panel'): P
   clearStaleTimer();
   lastRun = { kind: 'request', request };
   pendingRun = null;
-  updatePreview(request.srcUrl || null);
+  pendingLookAgain = null;
+  updatePreview(null);
   clearCost();
   const gate = await gateRun({ kind: 'request', request });
 
@@ -1321,6 +1458,7 @@ const runAnalysis = async (request: TripRequest, origin: 'gesture' | 'panel'): P
     await runVideoAnalysis(run, origin, superseded);
     return;
   }
+  updatePreview(request.srcUrl || null, 'image', true);
   if (request.dataPending || !request.srcUrl) {
     renderErrorCard('errorDataTitle', 'errorDataBody', false, false);
     announceAlert('errorDataBody');
@@ -1377,6 +1515,7 @@ const handle = async (value: unknown): Promise<void> => {
   lastSeenRank = rank;
   if (request.status === 'error') {
     collectingSeq = null;
+    pendingLookAgain = null;
     await ackRequest(request.windowId, request.seq);
     renderErrorCard('handoffFailedTitle', 'handoffFailedBody', false, false);
     announceAlert('handoffFailedBody');
@@ -1424,29 +1563,32 @@ interface SamCrop {
   height: number;
 }
 
-// Any failure falls back to the full image. Never throws.
-const trySamCrop = async (run: RunContext, request: TripRequest): Promise<SamCrop | null> => {
+// Any failure falls back to the full image. Never throws. 'needs-grant'
+// is not a failure: the caller offers the explicit host-access action.
+const trySamCrop = async (
+  run: RunContext,
+  request: TripRequest,
+  grantedBytes?: Uint8Array
+): Promise<SamCrop | 'needs-grant' | null> => {
   try {
-    return await samCropAttempt(run, request);
+    return await samCropAttempt(run, request, grantedBytes);
   } catch {
     return null;
   }
 };
 
-const samCropAttempt = async (run: RunContext, request: TripRequest): Promise<SamCrop | null> => {
+const samCropAttempt = async (
+  run: RunContext,
+  request: TripRequest,
+  grantedBytes?: Uint8Array
+): Promise<SamCrop | 'needs-grant' | null> => {
   const provider = run.provider;
   const direct =
     request.frame?.dataUrl ?? (request.srcUrl.startsWith('data:image/') ? request.srcUrl : null);
-  let inputBytes = direct ? dataUrlToBytes(direct) : null;
+  let inputBytes = grantedBytes ?? (direct ? dataUrlToBytes(direct) : null);
   if (!inputBytes) {
     const loopback = isLoopbackHttp(request.srcUrl);
     if (request.mediaType || (!request.srcUrl.startsWith('https://') && !loopback)) {
-      return null;
-    }
-    let origin: string;
-    try {
-      origin = new URL(request.srcUrl).origin;
-    } catch {
       return null;
     }
     // Tab fetch first: CORS-open hosts need no permission prompt.
@@ -1464,18 +1606,14 @@ const samCropAttempt = async (run: RunContext, request: TripRequest): Promise<Sa
       if (run.signal.aborted) {
         return null;
       }
-      let outcome: { granted: boolean; result?: Uint8Array };
+      if (!loopback) {
+        return 'needs-grant';
+      }
       try {
-        outcome = await withTempGrant(origin, loopback, async () =>
-          fetchImageBytes(request.srcUrl, run.signal)
-        );
+        inputBytes = await fetchImageBytes(request.srcUrl, run.signal);
       } catch {
         return null;
       }
-      if (!outcome.granted || !outcome.result) {
-        return null;
-      }
-      inputBytes = outcome.result;
     }
   }
   if (!inputBytes) {
@@ -1560,6 +1698,7 @@ const lookAgain = async (): Promise<void> => {
   if (!request?.srcUrl || !currentCacheKey || lookAgainUsed.has(currentCacheKey)) {
     return;
   }
+  pendingLookAgain = null;
   const cacheKey = currentCacheKey;
   const rejectedPlace = currentPlace?.placeName || undefined;
   const ticket = ++runTicket;
@@ -1613,7 +1752,8 @@ const netLookAgain = async (
   request: TripRequest,
   ticket: number,
   cacheKey: string,
-  rejectedPlace: string | undefined
+  rejectedPlace: string | undefined,
+  grantedBytes?: Uint8Array
 ): Promise<void> => {
   try {
     const started = await startPanelRun(
@@ -1631,7 +1771,31 @@ const netLookAgain = async (
     showSkeleton(request.requestId, 'identifying');
     let samCrop: SamCrop | null = null;
     if (provider.capabilities.segmentation) {
-      samCrop = await trySamCrop(run, request);
+      const cropOrGrant = await trySamCrop(run, request, grantedBytes);
+
+      if (cropOrGrant === 'needs-grant') {
+        if (!ownsUi(run)) {
+          return;
+        }
+
+        let host = '';
+
+        try {
+          host = new URL(request.srcUrl).host;
+        } catch {
+          showProviderError(new Error('unreadable image address'), request);
+
+          return;
+        }
+
+        pendingLookAgain = { ticket, cacheKey, request, rejectedPlace };
+        cancelSkeleton();
+        showGrantCard('allow', host, request);
+
+        return;
+      }
+
+      samCrop = cropOrGrant;
 
       if (!ownsUi(run)) {
         // A cancel here still settles: the SAM spend counts.
@@ -1758,14 +1922,6 @@ const fetchRetry = async (signal?: AbortSignal): Promise<boolean> => {
     return false;
   }
 
-  let origin: string;
-
-  try {
-    origin = new URL(srcUrl).origin;
-  } catch {
-    return false;
-  }
-
   const stop = signal ?? new AbortController().signal;
 
   const ticket = runTicket;
@@ -1808,25 +1964,119 @@ const fetchRetry = async (signal?: AbortSignal): Promise<boolean> => {
     return false;
   }
 
-  let started = false;
+  if (loopback) {
+    try {
+      return await runWithBytes(await fetchImageBytes(srcUrl, stop));
+    } catch {
+      announceAlert('fetchFailed');
 
-  const outcome = await withTempGrant(origin, loopback, async () => {
-    if (stop.aborted) {
+      return false;
+    }
+  }
+
+  return false;
+};
+
+const onAllowHost = (host: string): void => {
+  void (async () => {
+    const ticket = runTicket;
+    const lookAgain =
+      pendingLookAgain && pendingLookAgain.ticket === ticket ? pendingLookAgain : null;
+    const target = lookAgain?.request ?? (lastRun?.kind === 'request' ? lastRun.request : null);
+
+    if (
+      !target ||
+      target.mediaType ||
+      target.dataPending ||
+      !target.srcUrl.startsWith('https://')
+    ) {
       return;
     }
 
+    let origin = '';
+
     try {
-      started = await runWithBytes(await fetchImageBytes(srcUrl, stop));
+      const parsed = new URL(target.srcUrl);
+
+      if (parsed.host !== host) {
+        return;
+      }
+
+      origin = parsed.origin;
     } catch {
-      announceAlert('fetchFailed');
+      return;
     }
-  });
 
-  if (!outcome.granted) {
-    announceAlert('fetchDenied');
-  }
+    // First await: the request itself, so the browser prompt keeps the click gesture.
+    const decision = await requestHostAccess(origin);
 
-  return started;
+    if (decision !== 'granted') {
+      showGrantCard(decision === 'denied' ? 'denied' : 'error', host, target);
+
+      return;
+    }
+
+    pendingLookAgain = null;
+
+    try {
+      await addHostGrant(origin);
+    } catch {
+      await releaseHostAccess(origin).catch(() => undefined);
+      showGrantCard('error', host, target);
+
+      return;
+    }
+
+    let bytes: Uint8Array | null = null;
+
+    try {
+      bytes = await fetchImageBytes(target.srcUrl, AbortSignal.timeout(FETCH_TIMEOUT_MS));
+    } catch {
+      bytes = null;
+    } finally {
+      await releaseHostAccess(origin).catch(() => undefined);
+    }
+
+    if (!bytes) {
+      showGrantCard('error', host, target);
+
+      return;
+    }
+
+    if (ticket !== runTicket) {
+      return;
+    }
+
+    if (lookAgain) {
+      const fresh = ++runTicket;
+      store.set({ resultBusy: true });
+      announceStatus('statusAnalyzing');
+
+      try {
+        await netLookAgain(target, fresh, lookAgain.cacheKey, lookAgain.rejectedPlace, bytes);
+      } finally {
+        store.set({ resultBusy: false });
+      }
+
+      return;
+    }
+
+    let dataUrl = '';
+
+    try {
+      dataUrl = await downscaleToJpegDataUrl(bytes);
+    } catch {
+      showGrantCard('error', host, target);
+
+      return;
+    }
+
+    if (ticket !== runTicket) {
+      return;
+    }
+
+    await runAnalysis({ ...target, srcUrl: dataUrl, dataPending: false }, 'panel');
+  })();
 };
 
 const FINDING_KEYS: Record<AlternateIntent, string> = {
@@ -2245,6 +2495,7 @@ const SidepanelApp = () => {
               callbacks={{
                 onReanalyze: () => void reanalyze(),
                 onRetry: () => void retry(),
+                onAllowHost: (host) => onAllowHost(host),
                 onLookAgain: () => void lookAgain(),
                 onAlternates: (intent) => void onAlternates(intent),
                 onCancelAlternates: onAlternatesCancel,

@@ -16,6 +16,9 @@ those runs reuse it), to `https://api.meta.ai`:
   the key alone to `GET /v1/models` to validate it.
 - The clicked image address, or its bytes when the page blocks
   remote fetch. Image bytes are fetched without cookies.
+- After agreement, the panel loads a small preview of the image
+  from its host without cookies. Remote previews never load
+  before consent.
 - Page hints: page title, image caption or alt text, nearest
   heading and paragraph, site name, topic words from the page
   address, image filename words, and up to three JSON-LD place
@@ -29,7 +32,7 @@ those runs reuse it), to `https://api.meta.ai`:
 
 AES-GCM encrypted Muse API key in this browser profile (or memory
 only in session-only mode), wrapping key in IndexedDB, settings,
-consent flags, monthly cost totals, the recent result cache
+consent flags, the temporary host-grant journal, monthly cost totals, the recent result cache
 (session storage: 7-day default expiry with a 1/7/30 day setting,
 at most 10 entries and 2 MB, least-recently-used eviction, plus
 a Clear control), and the short-lived tab handoff (session
@@ -51,10 +54,14 @@ addresses are hashed locally for cache keys and never sent.
 - `storage`: local key, settings, spend, and cache; session
   handoff between worker and panel.
 - Host `https://api.meta.ai/*`: the Muse API.
-- Optional host `https://*/*`: a one-time per-run grant to
-  download the clicked image when bytes are needed. The fetch runs
-  in the page without cookies; the grant is removed right after the
-  fetch, with a startup sweep for strays.
+- Optional host `https://*/*`: only after the user clicks
+  "Allow access to <host> and retry" on an explicit card, and
+  only when the page itself cannot supply the bytes, a one-time
+  grant downloads the clicked image. The grant covers the
+  download only, is removed and verified removed right after,
+  and a persistent journal plus a startup sweep retries strays.
+  Local `http://127.0.0.1/*` and `http://localhost/*` test
+  servers need no grant.
 
 ## Account deletion
 

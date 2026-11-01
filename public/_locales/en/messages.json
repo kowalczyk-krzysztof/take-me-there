@@ -256,7 +256,7 @@
     "description": "Consent gate heading."
   },
   "consentBody": {
-    "message": "Analyzing sends the clicked image (its web address or, for inline images, captured frames, and on-demand retries, its pixels), nearby page text (title, captions, metadata) to Meta's Muse API using your key. For private images, the image's address itself can grant access to it. Meta may run web searches while identifying the place and its alternatives. Per Meta's API terms, standard (non-contributor) models are not trained on your content.",
+    "message": "Analyzing sends the clicked image (its web address or, for inline images, captured frames, and on-demand retries, its pixels), nearby page text (title, captions, metadata) to Meta's Muse API using your key. For private images, the image's address itself can grant access to it. Meta may run web searches while identifying the place and its alternatives. Per Meta's API terms, standard (non-contributor) models are not trained on your content. The panel also loads a small preview of the image from its host without cookies.",
     "description": "Canonical data-transmission disclosure."
   },
   "onboardingHowto": {
@@ -298,7 +298,7 @@
     "description": "Options privacy section heading."
   },
   "optionsPrivacyBody": {
-    "message": "Your key is stored encrypted on this device. Page text and image addresses are sent to api.meta.ai only when you analyze something. Cost totals stay on this device. Nothing is sent anywhere else.",
+    "message": "Your key is stored encrypted on this device. Page text and image addresses are sent to api.meta.ai only when you analyze something. Cost totals stay on this device. Nothing is sent anywhere else. After you agree, the panel loads a small preview of the image from its host without cookies.",
     "description": "Options privacy disclosure."
   },
   "bestGuessBadge": {
@@ -545,10 +545,6 @@
       }
     }
   },
-  "fetchDenied": {
-    "message": "Image download permission was denied.",
-    "description": "Byte-fetch denial announcement."
-  },
   "fetchFailed": {
     "message": "Could not download the image for retry.",
     "description": "Byte-fetch failure announcement."
@@ -770,5 +766,53 @@
   "settingsLoadFailed": {
     "message": "Could not load privacy settings - retry to try again.",
     "description": "Settings section error when privacy settings fail to load."
+  },
+  "grantAllowTitle": {
+    "message": "Allow access to this image host?",
+    "description": "Title of the host-access card."
+  },
+  "grantAllowBody": {
+    "message": "The image could not be read directly. Allow one-time access to $1 to download it and retry. Access is removed right after the download.",
+    "description": "Body of the host-access card.",
+    "placeholders": {
+      "host": {
+        "content": "$1",
+        "example": "cdn.example.com"
+      }
+    }
+  },
+  "grantDeniedBody": {
+    "message": "Access to $1 was not allowed, so the image could not be downloaded. Allow access to try again, or retry to start over.",
+    "description": "Host-access card after denial.",
+    "placeholders": {
+      "host": {
+        "content": "$1",
+        "example": "cdn.example.com"
+      }
+    }
+  },
+  "grantErrorBody": {
+    "message": "The access request for $1 failed. Allow access to try again, or retry to start over.",
+    "description": "Host-access card after a request error.",
+    "placeholders": {
+      "host": {
+        "content": "$1",
+        "example": "cdn.example.com"
+      }
+    }
+  },
+  "grantAllowButton": {
+    "message": "Allow access to $1 and retry",
+    "description": "Host-access card button.",
+    "placeholders": {
+      "host": {
+        "content": "$1",
+        "example": "cdn.example.com"
+      }
+    }
+  },
+  "grantAllowPending": {
+    "message": "Requesting access...",
+    "description": "Host-access button while the browser prompt is open."
   }
 }

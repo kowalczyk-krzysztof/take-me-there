@@ -26,6 +26,7 @@ const fullCallbacks = (overrides: Partial<TripCardCallbacks> = {}): TripCardCall
   onCancelAlternates: noop,
   onCancelLoading: noop,
   onDismissError: noop,
+  onAllowHost: noop,
   ...overrides,
 });
 
@@ -388,6 +389,21 @@ describe('trip-card', () => {
     expect(onRetry).toHaveBeenCalledTimes(1);
     rerenderCard(rendered, { view: 'error', title: 'T', body: 'B', showRetry: false }, { onRetry });
     expect(root.querySelector('button')?.textContent).toBe('dismissErrorButton');
+  });
+
+  it('offers the host-access action on grant cards', () => {
+    const onAllowHost = vi.fn();
+
+    const root = renderCard(
+      { view: 'error', title: 'T', body: 'B', showRetry: true, grantHost: 'cdn.example.com' },
+      { onAllowHost }
+    ).container;
+
+    const buttons = root.querySelectorAll('button');
+    expect(buttons).toHaveLength(2);
+    expect(buttons[0]?.textContent).toBe('grantAllowButton(cdn.example.com)');
+    clickEl(buttons[0] as HTMLButtonElement);
+    expect(onAllowHost).toHaveBeenCalledWith('cdn.example.com');
   });
 
   it('dismisses dead-end errors back to start', () => {

@@ -15,6 +15,7 @@ import {
   type CacheRecord,
 } from './result_cache';
 import { readSettingsStrict, writeSettingsRecord } from './settings_store';
+import { addGrantJournal, reconcileTempGrants, releaseGrantJournal } from './grants';
 import { runUpdateMigrations } from './migrations';
 import {
   COMMAND_SCHEMAS,
@@ -27,6 +28,18 @@ import {
 } from './storage_commands';
 
 const invalid = (error: string): CommandResult => ({ ok: false, error });
+
+const isGrantableOrigin = (origin: string): boolean => {
+  if (!origin.startsWith('https://')) {
+    return false;
+  }
+
+  try {
+    return new URL(origin).origin === origin;
+  } catch {
+    return false;
+  }
+};
 
 // The bundled Chrome types omit the documented get(null) whole-area
 // form; the cast recovers it.
@@ -353,6 +366,27 @@ const execute = async (command: StorageCommand): Promise<CommandResult> => {
 
     case 'key.setMode':
       return setKeyMode(command.providerId, command.sessionOnly);
+
+    case 'grant.add': {
+      if (!isGrantableOrigin(command.origin)) {
+        return invalid('invalid origin');
+      }
+
+      await addGrantJournal(command.origin);
+
+      return { ok: true, value: undefined };
+    }
+
+    case 'grant.release': {
+      if (!isGrantableOrigin(command.origin)) {
+        return invalid('invalid origin');
+      }
+
+      await releaseGrantJournal(command.origin);
+      await reconcileTempGrants();
+
+      return { ok: true, value: undefined };
+    }
 
     case 'migrate.run':
       return { ok: true, value: await runUpdateMigrations() };

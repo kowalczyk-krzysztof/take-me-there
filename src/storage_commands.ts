@@ -50,6 +50,10 @@ const keyModeSchema = z.strictObject({
   sessionOnly: z.boolean(),
 });
 
+const grantOriginSchema = z.strictObject({
+  origin: z.string().check(z.maxLength(256)),
+});
+
 const emptySchema = z.strictObject({});
 
 export type StorageCommand =
@@ -61,6 +65,8 @@ export type StorageCommand =
   | { kind: 'key.persist'; providerId: string; key: string; sessionOnly: boolean }
   | { kind: 'key.clear'; providerId: string }
   | { kind: 'key.setMode'; providerId: string; sessionOnly: boolean }
+  | { kind: 'grant.add'; origin: string }
+  | { kind: 'grant.release'; origin: string }
   | { kind: 'migrate.run' };
 
 export type CommandKind = StorageCommand['kind'];
@@ -86,6 +92,8 @@ export const COMMAND_SCHEMAS: Record<CommandKind, PayloadSchema> = {
   'key.persist': keyPersistSchema,
   'key.clear': providerSchema,
   'key.setMode': keyModeSchema,
+  'grant.add': grantOriginSchema,
+  'grant.release': grantOriginSchema,
   'migrate.run': emptySchema,
 };
 

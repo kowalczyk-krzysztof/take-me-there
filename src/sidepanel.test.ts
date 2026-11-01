@@ -132,6 +132,10 @@ const READY = (overrides: Record<string, unknown> = {}) => {
 
 const fetchMock = vi.fn();
 
+// Consented remote runs fetch a credential-less preview first; tests that do
+// not cover the preview answer it with a miss so provider queues stay aligned.
+const previewMiss = (): Response => new Response('no preview', { status: 404 });
+
 // Rejects on abort, like a real fetch.
 const hangUntilAbort = (): void => {
   fetchMock.mockImplementationOnce(
@@ -212,6 +216,7 @@ describe('sidepanel', () => {
     expect(document.activeElement).toBe(tabMain);
     expect(tabMain.getAttribute('aria-selected')).toBe('true');
     clickEl(tabSettings);
+    fetchMock.mockResolvedValueOnce(previewMiss());
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitFor(() => {
@@ -316,14 +321,15 @@ describe('sidepanel', () => {
       expect(document.querySelector('#result-slot h2')?.textContent).toBe('consentTitle');
     });
 
+    fetchMock.mockResolvedValueOnce(previewMiss());
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
     const buttons = document.querySelector('#result-slot')?.querySelectorAll('button');
     clickEl(buttons?.[0] as HTMLButtonElement);
     await waitForHeading('Oia');
 
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(fetchMock.mock.calls[0][0]).toContain('/models');
-    expect(fetchMock.mock.calls[1][0]).toContain('/chat/completions');
+    expect(fetchMock.mock.calls[2][0]).toContain('/chat/completions');
   });
 
   it('shows inline key setup when no key is saved', async () => {
@@ -335,8 +341,9 @@ describe('sidepanel', () => {
     expect(document.querySelector('#settings-panel')?.hasAttribute('hidden')).toBe(false);
     expect(document.querySelector('#key-input')).not.toBeNull();
 
-    const img = document.querySelector('#preview-frame img') as HTMLImageElement | null;
-    expect(img?.src).toContain('oia.jpg');
+    expect(document.querySelector('#preview-frame img')).toBeNull();
+    expect(document.querySelector('#preview-frame')?.textContent).toContain('previewUnavailable');
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('reverts the session-only toggle when migration fails', async () => {
@@ -494,7 +501,9 @@ describe('sidepanel', () => {
     const mock = await setup();
     await plantKeyAndConsent();
     fetchMock
+      .mockResolvedValueOnce(previewMiss())
       .mockResolvedValueOnce(chatResponse(VALID_PLACE))
+      .mockResolvedValueOnce(previewMiss())
       .mockResolvedValueOnce(chatResponse(VALID_PLACE));
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
@@ -502,15 +511,15 @@ describe('sidepanel', () => {
     await settleWrite(mock.local.set({ settings: { v: 1, settings: { imageOnly: true } } }));
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(fetchMock).toHaveBeenCalledTimes(4);
     });
     await waitForHeading('Oia');
     const urls = fetchMock.mock.calls.map(([url]) => url as string);
-    expect(urls[0]).toContain('/chat/completions');
     expect(urls[1]).toContain('/chat/completions');
+    expect(urls[3]).toContain('/chat/completions');
   });
 
-  it('serves repeat images from cache without fetching', async () => {
+  it('serves repeat images from cache without provider calls', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
 
@@ -535,18 +544,21 @@ describe('sidepanel', () => {
       expect(document.querySelector('#settings-run-line')?.textContent).toBe('costLine($0.00)');
     });
     expect(document.querySelector('#status-region')?.textContent).toBe('statusCacheHit(Oia)');
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe('https://cdn.example.com/oia.jpg');
   });
 
   it('recovers from a rejected key through the inline fix', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
+    fetchMock.mockResolvedValueOnce(previewMiss());
     fetchMock.mockResolvedValueOnce(new Response('nope', { status: 401 }));
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('errorAuthTitle');
     expect(document.querySelector('#result-slot')).not.toBeNull();
     fetchMock
       .mockResolvedValueOnce(new Response('[]', { status: 200 }))
+      .mockResolvedValueOnce(previewMiss())
       .mockResolvedValueOnce(chatResponse(VALID_PLACE));
     (document.querySelector('#key-input') as HTMLInputElement).value = 'LLM_good';
     dispatchEl(
@@ -559,23 +571,64 @@ describe('sidepanel', () => {
   it('gates low-confidence guesses behind the no-place card', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
+    (chrome as unknown as { permissions: unknown }).permissions = {
+      request: vi.fn().mockResolvedValue(true),
+      remove: vi.fn().mockResolvedValue(undefined),
+      contains: vi.fn().mockResolvedValue(false),
+      getAll: vi.fn().mockResolvedValue({ origins: [] }),
+    };
+    vi.stubGlobal(
+      'createImageBitmap',
+      vi.fn().mockResolvedValue({ width: 400, height: 300, close: vi.fn() })
+    );
+    vi.stubGlobal(
+      'OffscreenCanvas',
+      vi.fn().mockImplementation(function (this: unknown) {
+        return {
+          getContext: () => ({ drawImage: vi.fn() }),
+          convertToBlob: async () => new Blob(['pixels']),
+        };
+      })
+    );
 
     const GUESS = { ...VALID_PLACE, confidence: 0.2 };
+    const samEmpty = new Response(
+      JSON.stringify({
+        output: [
+          { type: 'message', content: [{ type: 'output_text', text: '', annotations: [] }] },
+        ],
+        usage: { input_tokens: 900, output_tokens: 5 },
+      }),
+      { status: 200 }
+    );
     fetchMock
+      .mockResolvedValueOnce(previewMiss())
       .mockResolvedValueOnce(chatResponse(GUESS))
+      .mockResolvedValueOnce(
+        new Response(new Uint8Array([1, 2, 3]), { headers: { 'content-type': 'image/jpeg' } })
+      )
+      .mockResolvedValueOnce(samEmpty)
       .mockResolvedValueOnce(chatResponse(VALID_PLACE));
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('noPlaceTitle');
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
 
     const card = document.querySelector('#result-slot') as HTMLElement;
     clickEl(card.querySelector('.primary') as HTMLButtonElement);
     await waitFor(() => {
-      expect(card.querySelector('h2')?.textContent).toBe('Oia');
+      expect(document.querySelector('#result-slot h2')?.textContent).toBe('grantAllowTitle');
     });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
 
-    const init = fetchMock.mock.calls[1][1] as RequestInit;
+    const allow = [...document.querySelectorAll('#result-slot button')].find(
+      (button) => button.textContent === 'grantAllowButton(cdn.example.com)'
+    ) as HTMLButtonElement;
+    clickEl(allow);
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot h2')?.textContent).toBe('Oia');
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+
+    const init = fetchMock.mock.calls[4][1] as RequestInit;
 
     const body = JSON.parse(init.body as string) as {
       messages: Array<{ content: Array<{ text?: string }> | string }>;
@@ -590,6 +643,7 @@ describe('sidepanel', () => {
   it('records the run exactly once in the monthly total', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
+    fetchMock.mockResolvedValueOnce(previewMiss());
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
@@ -609,16 +663,18 @@ describe('sidepanel', () => {
   it('gates cached low-confidence guesses behind the no-place card', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
+    fetchMock.mockResolvedValueOnce(previewMiss());
     fetchMock.mockResolvedValueOnce(chatResponse({ ...VALID_PLACE, confidence: 0.2 }));
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('noPlaceTitle');
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
 
+    fetchMock.mockResolvedValueOnce(previewMiss());
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitFor(() => {
       expect(document.querySelector('#result-slot h2')?.textContent).toBe('noPlaceTitle');
     });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it('charges repeat alternates in the monthly total', async () => {
@@ -631,6 +687,7 @@ describe('sidepanel', () => {
       ],
     });
     fetchMock
+      .mockResolvedValueOnce(previewMiss())
       .mockResolvedValueOnce(chatResponse(VALID_PLACE))
       .mockResolvedValueOnce(batch)
       .mockResolvedValueOnce(
@@ -652,7 +709,7 @@ describe('sidepanel', () => {
     const fresh = document.querySelector('#result-slot') as HTMLElement;
     clickEl(fresh.querySelectorAll('.chips-row .chip')[1] as HTMLButtonElement);
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledTimes(3);
+      expect(fetchMock).toHaveBeenCalledTimes(4);
     });
 
     const { monthKey } = await settleWrite(import('./pricing'));
@@ -672,6 +729,7 @@ describe('sidepanel', () => {
 
     const { persistKey } = await settleWrite(import('./key_vault'));
     await settleWrite(persistKey('muse', 'LLM_x', false));
+    fetchMock.mockResolvedValueOnce(previewMiss());
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitFor(() => {
@@ -696,7 +754,7 @@ describe('sidepanel', () => {
     ) as HTMLButtonElement;
     clickEl(retry);
     await waitForHeading('Oia');
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('shows the consent gate without any network call', async () => {
@@ -719,6 +777,7 @@ describe('sidepanel', () => {
 
     const { hasConsented } = await settleWrite(import('./providers/index'));
     await settleWrite(persistKey('muse', 'LLM_x', false));
+    fetchMock.mockResolvedValueOnce(previewMiss());
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitFor(() => {
@@ -731,7 +790,7 @@ describe('sidepanel', () => {
     clickEl(agree);
     await waitForHeading('Oia');
     expect(await settleWrite(hasConsented())).toBe(true);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('leaves consent unset when declined', async () => {
@@ -929,7 +988,8 @@ describe('sidepanel', () => {
     expect(fetchMock).not.toHaveBeenCalled();
     expect(document.querySelector('#result-slot')?.textContent).toContain('panelIdle');
     expect(document.querySelector('#status-region')?.textContent).toBe('');
-    // A distinct image, so only a true ignore keeps the total at one.
+    // A distinct image, so only a true ignore keeps the total at two.
+    fetchMock.mockResolvedValueOnce(previewMiss());
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
     await settleWrite(
       mock.session.set({
@@ -937,36 +997,39 @@ describe('sidepanel', () => {
       })
     );
     await waitForHeading('Oia');
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('delivers a stored record on startup without any storage event', async () => {
     await setup(async (mock) => {
       // The startup chain must never observe an unmocked fetch.
+      fetchMock.mockResolvedValueOnce(previewMiss());
       fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
       await plantKeyAndConsent();
       await settleWrite(mock.session.set({ [SLOT]: READY({ requestId: '500-1' }) }));
     });
     await waitForHeading('Oia');
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('runs handoff records stamped for its own window', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
+    fetchMock.mockResolvedValueOnce(previewMiss());
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
     await settleWrite(mock.session.set({ [SLOT]: READY({ requestId: '200-2', windowId: 1 }) }));
     await waitForHeading('Oia');
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('drops older sequences even with fresher timestamps', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
+    fetchMock.mockResolvedValueOnce(previewMiss());
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
     await settleWrite(mock.session.set({ [SLOT]: READY({ requestId: '10-1', seq: 50 }) }));
     await waitForHeading('Oia');
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     // Newer timestamp on purpose: clocks order nothing here.
     await settleWrite(
       mock.session.set({
@@ -979,12 +1042,13 @@ describe('sidepanel', () => {
       })
     );
     await sleep(50);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('acks accepted handoffs so reopens never replay them', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
+    fetchMock.mockResolvedValueOnce(previewMiss());
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
     await settleWrite(mock.session.set({ [SLOT]: READY({ requestId: '200-2' }) }));
     await waitForHeading('Oia');
@@ -1003,11 +1067,13 @@ describe('sidepanel', () => {
     const gate = new Promise<Response>((resolve) => {
       resolveFirst = resolve;
     });
+    fetchMock.mockResolvedValueOnce(previewMiss());
     fetchMock.mockImplementationOnce(() => gate);
+    fetchMock.mockResolvedValueOnce(previewMiss());
     fetchMock.mockResolvedValueOnce(chatResponse(PLACE_B));
     await settleWrite(mock.session.set({ [SLOT]: READY({ requestId: '300-1' }) }));
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
     });
     await settleWrite(
       mock.session.set({
@@ -1020,7 +1086,7 @@ describe('sidepanel', () => {
     await waitForHeading('Fira');
     resolveFirst(chatResponse(VALID_PLACE));
     await sleep(50);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
     expect(document.querySelector('#result-slot')?.textContent).toContain('Fira');
     expect(document.querySelector('#result-slot')?.textContent).not.toContain('Oia');
   });
@@ -1028,6 +1094,7 @@ describe('sidepanel', () => {
   it('moves focus to the new heading when a swap removes the focused control', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
+    fetchMock.mockResolvedValueOnce(previewMiss());
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
     await settleWrite(mock.session.set({ [SLOT]: READY({ requestId: '400-1' }) }));
     await waitForHeading('Oia');
@@ -1056,6 +1123,7 @@ describe('sidepanel', () => {
     await waitFor(() => {
       expect(mock.session.data.has(SLOT)).toBe(false);
     });
+    fetchMock.mockResolvedValueOnce(previewMiss());
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
     await settleWrite(
       mock.session.set({
@@ -1063,7 +1131,7 @@ describe('sidepanel', () => {
       })
     );
     await waitForHeading('Oia');
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('shows a retryable error when the handoff fails', async () => {
@@ -1099,19 +1167,21 @@ describe('sidepanel', () => {
   it('identifies image-only when the scrape failed and signals are omitted', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
+    fetchMock.mockResolvedValueOnce(previewMiss());
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
 
     const record = READY({ requestId: '200-2' });
     delete (record as Record<string, unknown>).signals;
     await settleWrite(mock.session.set({ [SLOT]: record }));
     await waitForHeading('Oia');
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('cancels hanging alternates and restores the chips', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
     fetchMock
+      .mockResolvedValueOnce(previewMiss())
       .mockResolvedValueOnce(chatResponse(VALID_PLACE))
       .mockImplementationOnce(() => new Promise<Response>(() => {}));
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
@@ -1136,19 +1206,22 @@ describe('sidepanel', () => {
   it('finds alternates for an intent', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
-    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE)).mockResolvedValueOnce(
-      groundedResponse({
-        alternatives: [
-          {
-            placeName: 'Fira',
-            country: 'Greece',
-            why: 'Same caldera, lower prices.',
-            bestMonth: 'May',
-          },
-          { placeName: 'Naxos', country: 'Greece', why: 'Quiet beaches.', bestMonth: 'June' },
-        ],
-      })
-    );
+    fetchMock
+      .mockResolvedValueOnce(previewMiss())
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
+      .mockResolvedValueOnce(
+        groundedResponse({
+          alternatives: [
+            {
+              placeName: 'Fira',
+              country: 'Greece',
+              why: 'Same caldera, lower prices.',
+              bestMonth: 'May',
+            },
+            { placeName: 'Naxos', country: 'Greece', why: 'Quiet beaches.', bestMonth: 'June' },
+          ],
+        })
+      );
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
 
@@ -1166,7 +1239,7 @@ describe('sidepanel', () => {
     expect(document.querySelector('#privacy-line')?.textContent).toBe(
       "privacyNames(Meta's Muse API)"
     );
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it('finds alternates over plain chat in cheap mode', async () => {
@@ -1174,18 +1247,21 @@ describe('sidepanel', () => {
       await settleWrite(seed.local.set({ settings: { v: 1, settings: { skipWebSearch: true } } }));
     });
     await plantKeyAndConsent();
-    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE)).mockResolvedValueOnce(
-      chatResponse({
-        alternatives: [
-          {
-            placeName: 'Fira',
-            country: 'Greece',
-            why: 'Same caldera, lower prices.',
-            bestMonth: 'May',
-          },
-        ],
-      })
-    );
+    fetchMock
+      .mockResolvedValueOnce(previewMiss())
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
+      .mockResolvedValueOnce(
+        chatResponse({
+          alternatives: [
+            {
+              placeName: 'Fira',
+              country: 'Greece',
+              why: 'Same caldera, lower prices.',
+              bestMonth: 'May',
+            },
+          ],
+        })
+      );
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
 
@@ -1195,7 +1271,7 @@ describe('sidepanel', () => {
       expect(document.querySelector('#status-region')?.textContent).toBe('alternatesReady(1)');
     });
 
-    const [altUrl] = fetchMock.mock.calls[1] as [string, RequestInit];
+    const [altUrl] = fetchMock.mock.calls[2] as [string, RequestInit];
     expect(altUrl).toContain('/chat/completions');
   });
 
@@ -1203,6 +1279,7 @@ describe('sidepanel', () => {
     const mock = await setup();
     await plantKeyAndConsent();
     fetchMock
+      .mockResolvedValueOnce(previewMiss())
       .mockResolvedValueOnce(chatResponse(VALID_PLACE))
       .mockResolvedValueOnce(new Response('unsupported', { status: 400 }))
       .mockResolvedValueOnce(new Response('boom', { status: 500 }));
@@ -1220,13 +1297,14 @@ describe('sidepanel', () => {
     expect(fresh.querySelectorAll('.chips-row .chip')).toHaveLength(3);
     expect(fresh.querySelector('.chip[aria-disabled]')).toBeNull();
     expect(fresh.querySelector('.alternates-skeletons')).toBeNull();
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 
   it('identifies from page text when the image cannot load', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
     fetchMock
+      .mockResolvedValueOnce(previewMiss())
       .mockResolvedValueOnce(new Response('bad image', { status: 400 }))
       .mockResolvedValueOnce(chatResponse(VALID_PLACE));
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
@@ -1237,7 +1315,7 @@ describe('sidepanel', () => {
     const card = document.querySelector('#result-slot') as HTMLElement;
     expect(card.querySelector('h2 .badge')?.textContent).toBe('bestGuessBadge');
     expect(card.querySelector('#fetch-retry-button')).toBeNull();
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it('retries an image-400 with downloaded bytes', async () => {
@@ -1250,6 +1328,8 @@ describe('sidepanel', () => {
     (chrome as unknown as { permissions: unknown }).permissions = {
       request: permsRequest,
       remove: permsRemove,
+      contains: vi.fn().mockResolvedValue(false),
+      getAll: vi.fn().mockResolvedValue({ origins: [] }),
     };
     vi.stubGlobal(
       'createImageBitmap',
@@ -1265,6 +1345,7 @@ describe('sidepanel', () => {
       })
     );
     fetchMock
+      .mockResolvedValueOnce(previewMiss())
       .mockResolvedValueOnce(new Response('bad image', { status: 400 }))
       .mockResolvedValueOnce(new Response('boom', { status: 500 }))
       .mockResolvedValueOnce(
@@ -1272,6 +1353,16 @@ describe('sidepanel', () => {
       )
       .mockResolvedValueOnce(chatResponse(VALID_PLACE));
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot h2')?.textContent).toBe('grantAllowTitle');
+    });
+    expect(permsRequest).not.toHaveBeenCalled();
+
+    const allow = [...document.querySelectorAll('#result-slot button')].find(
+      (button) => button.textContent === 'grantAllowButton(cdn.example.com)'
+    ) as HTMLButtonElement;
+    clickEl(allow);
+
     await waitFor(() => {
       const retried = document.querySelector('#result-slot');
       expect(retried?.querySelector('h2')?.textContent).toBe('Oia');
@@ -1281,9 +1372,10 @@ describe('sidepanel', () => {
     );
     expect(permsRequest).toHaveBeenCalledWith({ origins: ['https://cdn.example.com/*'] });
     expect(permsRemove).toHaveBeenCalledWith({ origins: ['https://cdn.example.com/*'] });
-    expect(fetchMock).toHaveBeenCalledTimes(4);
-    expect(fetchMock.mock.calls[2][0]).toBe('https://cdn.example.com/oia.jpg');
-    const retryInit = fetchMock.mock.calls[3][1] as RequestInit;
+    expect(mock.local.data.get('tempGrants')).toEqual({});
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(fetchMock.mock.calls[3][0]).toBe('https://cdn.example.com/oia.jpg');
+    const retryInit = fetchMock.mock.calls[4][1] as RequestInit;
     const retryBody = JSON.parse(retryInit.body as string) as {
       messages: Array<{ content: Array<{ type: string; image_url?: { url: string } }> }>;
     };
@@ -1319,6 +1411,7 @@ describe('sidepanel', () => {
       })
     );
     fetchMock
+      .mockResolvedValueOnce(previewMiss())
       .mockResolvedValueOnce(new Response('bad image', { status: 400 }))
       .mockResolvedValueOnce(new Response('boom', { status: 500 }))
       .mockResolvedValueOnce(chatResponse(VALID_PLACE));
@@ -1330,7 +1423,7 @@ describe('sidepanel', () => {
     expect(permsRemove).not.toHaveBeenCalled();
     expect(mock.worker.scriptingCalls).toHaveLength(1);
     expect(mock.worker.scriptingCalls[0].target).toEqual({ tabId: 7, frameIds: [0] });
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 
   it('removes the origin grant when the byte fetch fails', async () => {
@@ -1341,18 +1434,35 @@ describe('sidepanel', () => {
     (chrome as unknown as { permissions: unknown }).permissions = {
       request: permsRequest,
       remove: permsRemove,
+      contains: vi.fn().mockResolvedValue(false),
+      getAll: vi.fn().mockResolvedValue({ origins: [] }),
     };
     fetchMock
+      .mockResolvedValueOnce(previewMiss())
       .mockResolvedValueOnce(new Response('bad image', { status: 400 }))
       .mockResolvedValueOnce(new Response('boom', { status: 500 }))
       .mockRejectedValueOnce(new Error('network down'));
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitFor(() => {
-      expect(document.querySelector('#alert-region')?.textContent).toBe('fetchFailed');
-      expect(document.querySelector('#result-slot h2')?.textContent).toBe('errorServerTitle');
+      expect(document.querySelector('#result-slot h2')?.textContent).toBe('grantAllowTitle');
     });
-    expect(document.querySelector('#result-slot')?.querySelectorAll('button')).toHaveLength(1);
+
+    const allow = [...document.querySelectorAll('#result-slot button')].find(
+      (button) => button.textContent === 'grantAllowButton(cdn.example.com)'
+    ) as HTMLButtonElement;
+    clickEl(allow);
+
+    await waitFor(() => {
+      expect(document.querySelector('#alert-region')?.textContent).toBe(
+        'grantErrorBody(cdn.example.com)'
+      );
+      expect(document.querySelector('#result-slot p')?.textContent).toBe(
+        'grantErrorBody(cdn.example.com)'
+      );
+    });
+    expect(document.querySelector('#result-slot')?.querySelectorAll('button')).toHaveLength(2);
     expect(permsRemove).toHaveBeenCalledWith({ origins: ['https://cdn.example.com/*'] });
+    expect(mock.local.data.get('tempGrants')).toEqual({});
   });
 
   it('fetches loopback http images without an origin grant', async () => {
@@ -1378,6 +1488,7 @@ describe('sidepanel', () => {
       })
     );
     fetchMock
+      .mockResolvedValueOnce(previewMiss())
       .mockResolvedValueOnce(new Response('bad image', { status: 400 }))
       .mockResolvedValueOnce(new Response('boom', { status: 500 }))
       .mockResolvedValueOnce(
@@ -1394,10 +1505,10 @@ describe('sidepanel', () => {
     });
     expect(permsRequest).not.toHaveBeenCalled();
     expect(permsRemove).not.toHaveBeenCalled();
-    expect(fetchMock.mock.calls[2][0]).toBe('http://localhost:8000/oia.jpg');
+    expect(fetchMock.mock.calls[3][0]).toBe('http://localhost:8000/oia.jpg');
   });
 
-  it('announces denial and shows a single retry on non-400 errors', async () => {
+  it('explains host denial and keeps a single retry on non-400 errors', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
     const permsRequest = vi.fn().mockResolvedValue(false);
@@ -1405,19 +1516,37 @@ describe('sidepanel', () => {
     (chrome as unknown as { permissions: unknown }).permissions = {
       request: permsRequest,
       remove: permsRemove,
+      contains: vi.fn().mockResolvedValue(false),
+      getAll: vi.fn().mockResolvedValue({ origins: [] }),
     };
     fetchMock
+      .mockResolvedValueOnce(previewMiss())
       .mockResolvedValueOnce(new Response('bad image', { status: 400 }))
       .mockResolvedValueOnce(new Response('boom', { status: 500 }));
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitFor(() => {
-      expect(document.querySelector('#alert-region')?.textContent).toBe('fetchDenied');
-      expect(document.querySelector('#result-slot h2')?.textContent).toBe('errorServerTitle');
+      expect(document.querySelector('#result-slot h2')?.textContent).toBe('grantAllowTitle');
     });
-    expect(document.querySelector('#result-slot')?.querySelectorAll('button')).toHaveLength(1);
+    expect(permsRequest).not.toHaveBeenCalled();
+
+    const allow = [...document.querySelectorAll('#result-slot button')].find(
+      (button) => button.textContent === 'grantAllowButton(cdn.example.com)'
+    ) as HTMLButtonElement;
+    clickEl(allow);
+
+    await waitFor(() => {
+      expect(document.querySelector('#alert-region')?.textContent).toBe(
+        'grantDeniedBody(cdn.example.com)'
+      );
+      expect(document.querySelector('#result-slot p')?.textContent).toBe(
+        'grantDeniedBody(cdn.example.com)'
+      );
+    });
+    expect(document.querySelector('#result-slot')?.querySelectorAll('button')).toHaveLength(2);
     expect(permsRemove).not.toHaveBeenCalled();
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     fetchMock.mockReset();
+    fetchMock.mockResolvedValueOnce(previewMiss());
     fetchMock.mockResolvedValueOnce(new Response('boom', { status: 500 }));
     await settleWrite(mock.session.set({ [SLOT]: READY({ requestId: '200-2' }) }));
     await waitFor(() => {
@@ -1425,6 +1554,172 @@ describe('sidepanel', () => {
       expect(retry?.querySelector('h2')?.textContent).toBe('errorServerTitle');
       expect(retry?.querySelectorAll('button')).toHaveLength(1);
     });
+  });
+
+  it('loads remote previews without credentials only after consent', async () => {
+    const mock = await setup();
+    const { persistKey } = await settleWrite(import('./key_vault'));
+    await settleWrite(persistKey('muse', 'LLM_x', false));
+
+    fetchMock.mockImplementation(async (url: unknown) => {
+      if (typeof url === 'string' && url.includes('api.meta.ai')) {
+        return chatResponse(VALID_PLACE);
+      }
+
+      return new Response(new Uint8Array([1, 2, 3]), {
+        status: 200,
+        headers: { 'content-type': 'image/jpeg' },
+      });
+    });
+
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot h2')?.textContent).toBe('consentTitle');
+    });
+    await sleep(50);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(document.querySelector('#preview-frame img')).toBeNull();
+
+    const agree = [...document.querySelectorAll('#result-slot button')].find(
+      (button) => button.textContent === 'agreeButton'
+    ) as HTMLButtonElement;
+    clickEl(agree);
+    await waitForHeading('Oia');
+
+    const imageCall = fetchMock.mock.calls.find(([url]) =>
+      (url as string).includes('cdn.example.com')
+    );
+    expect(imageCall).toBeDefined();
+    expect((imageCall?.[1] as RequestInit).credentials).toBe('omit');
+
+    await waitFor(() => {
+      expect(document.querySelector('#preview-frame img')?.getAttribute('src')).toMatch(/^blob:/);
+    });
+  });
+
+  it('keeps the preview placeholder when the image host blocks the fetch', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+
+    fetchMock.mockImplementation(async (url: unknown) => {
+      if (typeof url === 'string' && url.includes('api.meta.ai')) {
+        return chatResponse(VALID_PLACE);
+      }
+
+      throw new Error('CORS blocked');
+    });
+
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
+    await waitForHeading('Oia');
+    await sleep(50);
+
+    expect(document.querySelector('#preview-frame img')).toBeNull();
+    expect(document.querySelector('#preview-frame')?.textContent).toContain('previewUnavailable');
+  });
+
+  it('recovers when the access request errors and succeeds on retry', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    const permsRequest = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('no gesture'))
+      .mockResolvedValue(true);
+    (chrome as unknown as { permissions: unknown }).permissions = {
+      request: permsRequest,
+      remove: vi.fn().mockResolvedValue(undefined),
+      contains: vi.fn().mockResolvedValue(false),
+      getAll: vi.fn().mockResolvedValue({ origins: [] }),
+    };
+    vi.stubGlobal(
+      'createImageBitmap',
+      vi.fn().mockResolvedValue({ width: 400, height: 300, close: vi.fn() })
+    );
+    vi.stubGlobal(
+      'OffscreenCanvas',
+      vi.fn().mockImplementation(function (this: unknown) {
+        return {
+          getContext: () => ({ drawImage: vi.fn() }),
+          convertToBlob: async () => new Blob(['fakejpeg']),
+        };
+      })
+    );
+    fetchMock
+      .mockResolvedValueOnce(previewMiss())
+      .mockResolvedValueOnce(new Response('bad image', { status: 400 }))
+      .mockResolvedValueOnce(new Response('boom', { status: 500 }))
+      .mockResolvedValueOnce(
+        new Response(new Uint8Array([1, 2, 3]), { headers: { 'content-type': 'image/jpeg' } })
+      )
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE));
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot h2')?.textContent).toBe('grantAllowTitle');
+    });
+
+    const findAllow = () =>
+      [...document.querySelectorAll('#result-slot button')].find(
+        (button) => button.textContent === 'grantAllowButton(cdn.example.com)'
+      ) as HTMLButtonElement;
+    clickEl(findAllow());
+
+    await waitFor(() => {
+      expect(document.querySelector('#alert-region')?.textContent).toBe(
+        'grantErrorBody(cdn.example.com)'
+      );
+    });
+
+    clickEl(findAllow());
+    await waitForHeading('Oia');
+
+    expect(permsRequest).toHaveBeenCalledTimes(2);
+    expect(mock.local.data.get('tempGrants')).toEqual({});
+  });
+
+  it('keeps retry useful after look-again access is denied', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    const permsRemove = vi.fn().mockResolvedValue(undefined);
+    (chrome as unknown as { permissions: unknown }).permissions = {
+      request: vi.fn().mockResolvedValue(false),
+      remove: permsRemove,
+      contains: vi.fn().mockResolvedValue(false),
+      getAll: vi.fn().mockResolvedValue({ origins: [] }),
+    };
+
+    const GUESS = { ...VALID_PLACE, confidence: 0.2 };
+    fetchMock
+      .mockResolvedValueOnce(previewMiss())
+      .mockResolvedValueOnce(chatResponse(GUESS))
+      .mockResolvedValueOnce(previewMiss());
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
+    await waitForHeading('noPlaceTitle');
+
+    clickEl(document.querySelector('#result-slot .primary') as HTMLButtonElement);
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot h2')?.textContent).toBe('grantAllowTitle');
+    });
+
+    const allow = [...document.querySelectorAll('#result-slot button')].find(
+      (button) => button.textContent === 'grantAllowButton(cdn.example.com)'
+    ) as HTMLButtonElement;
+    clickEl(allow);
+
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot p')?.textContent).toBe(
+        'grantDeniedBody(cdn.example.com)'
+      );
+    });
+    expect(permsRemove).not.toHaveBeenCalled();
+    expect(mock.local.data.has('tempGrants')).toBe(false);
+
+    const retry = [...document.querySelectorAll('#result-slot button')].find(
+      (button) => button.textContent === 'retryButton'
+    ) as HTMLButtonElement;
+    clickEl(retry);
+    await waitForHeading('noPlaceTitle');
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(document.querySelector('#result-slot .primary')?.textContent).toBe('lookAgainButton');
   });
 
   it('looks again through a SAM crop', async () => {
@@ -1435,6 +1730,8 @@ describe('sidepanel', () => {
     (chrome as unknown as { permissions: unknown }).permissions = {
       request: permsRequest,
       remove: permsRemove,
+      contains: vi.fn().mockResolvedValue(false),
+      getAll: vi.fn().mockResolvedValue({ origins: [] }),
     };
     vi.stubGlobal(
       'createImageBitmap',
@@ -1451,6 +1748,7 @@ describe('sidepanel', () => {
     );
     const GUESS = { ...VALID_PLACE, confidence: 0.2 };
     fetchMock
+      .mockResolvedValueOnce(previewMiss())
       .mockResolvedValueOnce(chatResponse(GUESS))
       .mockResolvedValueOnce(
         new Response(new Uint8Array([1, 2, 3]), { headers: { 'content-type': 'image/jpeg' } })
@@ -1481,18 +1779,27 @@ describe('sidepanel', () => {
     const card = document.querySelector('#result-slot') as HTMLElement;
     clickEl(card.querySelector('.primary') as HTMLButtonElement);
     await waitFor(() => {
-      expect(card.querySelector('h2')?.textContent).toBe('Oia');
+      expect(document.querySelector('#result-slot h2')?.textContent).toBe('grantAllowTitle');
+    });
+    expect(permsRequest).not.toHaveBeenCalled();
+    clickEl(
+      [...document.querySelectorAll('#result-slot button')].find(
+        (button) => button.textContent === 'grantAllowButton(cdn.example.com)'
+      ) as HTMLButtonElement
+    );
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot h2')?.textContent).toBe('Oia');
     });
     expect(permsRequest).toHaveBeenCalledWith({ origins: ['https://cdn.example.com/*'] });
     expect(permsRemove).toHaveBeenCalledWith({ origins: ['https://cdn.example.com/*'] });
-    expect(fetchMock).toHaveBeenCalledTimes(4);
-    const samUrl = fetchMock.mock.calls[2][0] as string;
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+    const samUrl = fetchMock.mock.calls[3][0] as string;
     expect(samUrl).toContain('/responses');
-    const samInit = fetchMock.mock.calls[2][1] as RequestInit;
+    const samInit = fetchMock.mock.calls[3][1] as RequestInit;
     expect(JSON.parse(samInit.body as string) as { model: string }).toMatchObject({
       model: 'sam-3.1',
     });
-    const retryInit = fetchMock.mock.calls[3][1] as RequestInit;
+    const retryInit = fetchMock.mock.calls[4][1] as RequestInit;
     const retryBody = JSON.parse(retryInit.body as string) as {
       messages: Array<{ content: Array<{ type: string; image_url?: { url: string } }> }>;
     };
@@ -1511,6 +1818,8 @@ describe('sidepanel', () => {
     (chrome as unknown as { permissions: unknown }).permissions = {
       request: permsRequest,
       remove: vi.fn().mockResolvedValue(undefined),
+      contains: vi.fn().mockResolvedValue(false),
+      getAll: vi.fn().mockResolvedValue({ origins: [] }),
     };
     vi.stubGlobal(
       'createImageBitmap',
@@ -1536,12 +1845,14 @@ describe('sidepanel', () => {
       { status: 200 }
     );
     fetchMock
+      .mockResolvedValueOnce(previewMiss())
       .mockResolvedValueOnce(chatResponse(GUESS))
       .mockResolvedValueOnce(
         new Response(new Uint8Array([1, 2, 3]), { headers: { 'content-type': 'image/jpeg' } })
       )
       .mockResolvedValueOnce(new Response('boom', { status: 500 }))
       .mockResolvedValueOnce(chatResponse(VALID_PLACE))
+      .mockResolvedValueOnce(previewMiss())
       .mockResolvedValueOnce(chatResponse(GUESS))
       .mockResolvedValueOnce(
         new Response(new Uint8Array([1, 2, 3]), { headers: { 'content-type': 'image/jpeg' } })
@@ -1560,9 +1871,17 @@ describe('sidepanel', () => {
     let card = document.querySelector('#result-slot') as HTMLElement;
     clickEl(card.querySelector('.primary') as HTMLButtonElement);
     await waitFor(() => {
-      expect(card.querySelector('h2')?.textContent).toBe('Oia');
+      expect(document.querySelector('#result-slot h2')?.textContent).toBe('grantAllowTitle');
     });
-    expect(imageOf(3)).toBe('https://cdn.example.com/oia.jpg');
+    clickEl(
+      [...document.querySelectorAll('#result-slot button')].find(
+        (button) => button.textContent === 'grantAllowButton(cdn.example.com)'
+      ) as HTMLButtonElement
+    );
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot h2')?.textContent).toBe('Oia');
+    });
+    expect(imageOf(4)).toBe('https://cdn.example.com/oia.jpg');
     await settleWrite(
       mock.session.set({
         [SLOT]: READY({ requestId: '200-2', srcUrl: 'https://cdn.example.com/fira.jpg' }),
@@ -1575,10 +1894,18 @@ describe('sidepanel', () => {
     card = document.querySelector('#result-slot') as HTMLElement;
     clickEl(card.querySelector('.primary') as HTMLButtonElement);
     await waitFor(() => {
-      expect(card.querySelector('h2')?.textContent).toBe('Oia');
+      expect(document.querySelector('#result-slot h2')?.textContent).toBe('grantAllowTitle');
     });
-    expect(imageOf(7)).toBe('https://cdn.example.com/fira.jpg');
-    expect(fetchMock).toHaveBeenCalledTimes(8);
+    clickEl(
+      [...document.querySelectorAll('#result-slot button')].find(
+        (button) => button.textContent === 'grantAllowButton(cdn.example.com)'
+      ) as HTMLButtonElement
+    );
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot h2')?.textContent).toBe('Oia');
+    });
+    expect(imageOf(9)).toBe('https://cdn.example.com/fira.jpg');
+    expect(fetchMock).toHaveBeenCalledTimes(10);
   });
 
   it('renders honest cards with fallback links for unreadable video', async () => {
@@ -1868,6 +2195,7 @@ describe('sidepanel', () => {
   it('cancels a hanging identify from the loading card', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
+    fetchMock.mockResolvedValueOnce(previewMiss());
     hangUntilAbort();
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
 
@@ -1962,6 +2290,7 @@ describe('sidepanel', () => {
         bodyController = controller;
       },
     });
+    fetchMock.mockResolvedValueOnce(previewMiss());
     fetchMock.mockResolvedValueOnce(
       new Response(body, { status: 200, headers: { 'Content-Type': 'application/json' } })
     );
@@ -1973,7 +2302,7 @@ describe('sidepanel', () => {
         'cancelButton'
       );
     });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
 
     clickEl(document.querySelector('#result-slot .cancel-button') as HTMLButtonElement);
 
@@ -1994,7 +2323,7 @@ describe('sidepanel', () => {
 
     await sleep(50);
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(document.querySelector('#result-slot .hint')?.textContent).toBe('panelIdle');
 
     const { monthKey } = await settleWrite(import('./pricing'));
@@ -2018,7 +2347,9 @@ describe('sidepanel', () => {
     const gate = new Promise<Response>((resolve) => {
       resolveFirst = resolve;
     });
+    fetchMock.mockResolvedValueOnce(previewMiss());
     fetchMock.mockImplementationOnce(() => gate);
+    fetchMock.mockResolvedValueOnce(previewMiss());
     fetchMock.mockResolvedValueOnce(chatResponse(PLACE_B));
 
     await settleWrite(mock.session.set({ [SLOT]: READY({ requestId: '600-1' }) }));
@@ -2048,7 +2379,7 @@ describe('sidepanel', () => {
     resolveFirst(chatResponse(VALID_PLACE));
     await sleep(50);
 
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
     expect(document.querySelector('#result-slot')?.textContent).toContain('Fira');
     expect(document.querySelector('#result-slot')?.textContent).not.toContain('Oia');
   });
@@ -2056,6 +2387,7 @@ describe('sidepanel', () => {
   it('keeps recorded spend after canceling the next run', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
+    fetchMock.mockResolvedValueOnce(previewMiss());
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
 
     await settleWrite(mock.session.set({ [SLOT]: READY({ requestId: '700-1' }) }));
@@ -2072,6 +2404,7 @@ describe('sidepanel', () => {
       expect(record.months[key]).toBeCloseTo(0.0003375, 10);
     });
 
+    fetchMock.mockResolvedValueOnce(previewMiss());
     hangUntilAbort();
 
     await settleWrite(
@@ -2105,6 +2438,7 @@ describe('sidepanel', () => {
   it('shows a loading state while analyzing again', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
+    fetchMock.mockResolvedValueOnce(previewMiss());
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
@@ -2139,6 +2473,8 @@ describe('sidepanel', () => {
     (chrome as unknown as { permissions: unknown }).permissions = {
       request: vi.fn().mockResolvedValue(true),
       remove: vi.fn().mockResolvedValue(undefined),
+      contains: vi.fn().mockResolvedValue(false),
+      getAll: vi.fn().mockResolvedValue({ origins: [] }),
     };
     vi.stubGlobal(
       'createImageBitmap',
@@ -2155,6 +2491,7 @@ describe('sidepanel', () => {
     );
     const GUESS = { ...VALID_PLACE, confidence: 0.2 };
     fetchMock
+      .mockResolvedValueOnce(previewMiss())
       .mockResolvedValueOnce(chatResponse(GUESS))
       .mockResolvedValueOnce(
         new Response(new Uint8Array([1, 2, 3]), { headers: { 'content-type': 'image/jpeg' } })
@@ -2186,6 +2523,15 @@ describe('sidepanel', () => {
     clickEl(document.querySelector('#result-slot .primary') as HTMLButtonElement);
 
     await waitFor(() => {
+      expect(document.querySelector('#result-slot h2')?.textContent).toBe('grantAllowTitle');
+    });
+
+    const allow = [...document.querySelectorAll('#result-slot button')].find(
+      (button) => button.textContent === 'grantAllowButton(cdn.example.com)'
+    ) as HTMLButtonElement;
+    clickEl(allow);
+
+    await waitFor(() => {
       expect(document.querySelector('#result-slot .cancel-button')?.textContent).toBe(
         'cancelButton'
       );
@@ -2205,6 +2551,7 @@ describe('sidepanel', () => {
   it('drops the type-a-destination instruction and prices retries honestly', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
+    fetchMock.mockResolvedValueOnce(previewMiss());
     fetchMock.mockResolvedValueOnce(chatResponse({ ...VALID_PLACE, confidence: 0.1 }));
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
 
@@ -2224,6 +2571,7 @@ describe('sidepanel', () => {
   it('shows confidence and source', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
+    fetchMock.mockResolvedValueOnce(previewMiss());
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
@@ -2240,6 +2588,7 @@ describe('sidepanel', () => {
   it('shows booking tiles for the identified place', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
+    fetchMock.mockResolvedValueOnce(previewMiss());
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
@@ -2274,6 +2623,7 @@ describe('sidepanel', () => {
   it('falls back to the preview heading after headingless loading', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
+    fetchMock.mockResolvedValueOnce(previewMiss());
     fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
@@ -2282,6 +2632,7 @@ describe('sidepanel', () => {
     focusEl(chip);
     expect(document.activeElement).toBe(chip);
 
+    fetchMock.mockResolvedValueOnce(previewMiss());
     hangUntilAbort();
     await settleWrite(
       mock.session.set({
@@ -2306,18 +2657,21 @@ describe('sidepanel', () => {
     const mock = await setup();
     await plantKeyAndConsent();
 
-    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE)).mockResolvedValueOnce(
-      groundedResponse({
-        alternatives: [
-          {
-            placeName: 'Fira',
-            country: 'Greece',
-            why: 'Same caldera, lower prices.',
-            bestMonth: 'May',
-          },
-        ],
-      })
-    );
+    fetchMock
+      .mockResolvedValueOnce(previewMiss())
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
+      .mockResolvedValueOnce(
+        groundedResponse({
+          alternatives: [
+            {
+              placeName: 'Fira',
+              country: 'Greece',
+              why: 'Same caldera, lower prices.',
+              bestMonth: 'May',
+            },
+          ],
+        })
+      );
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
 

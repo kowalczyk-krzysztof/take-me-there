@@ -154,6 +154,7 @@ const collect = (): { uses: KeyUse[]; unknownSubs: string[] } => {
       ['ERROR_CARD_KEYS', 0],
       ['ERROR_CARD_FALLBACK', 0],
       ['LOADING_LINES', 0],
+      ['GRANT_BODY_KEYS', 1],
     ] as Array<[string, number]>) {
       const anchor = text.indexOf(`const ${name}`);
       if (anchor < 0) {

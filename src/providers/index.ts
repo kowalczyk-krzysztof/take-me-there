@@ -857,7 +857,7 @@ export { SETTINGS_STORAGE_KEY, SETTINGS_VERSION } from '../settings_store';
 export const CONSENT_STORAGE_KEY = 'consentGiven';
 // Bump when the consent copy or the consented data flows change: stored
 // grants below this version stop counting and the gate re-appears.
-export const CONSENT_VERSION: number = 2;
+export const CONSENT_VERSION: number = 3;
 
 import { loadSettings, readSettingsStrict } from '../settings_store';
 import type { ExtensionSettings } from '../settings_store';

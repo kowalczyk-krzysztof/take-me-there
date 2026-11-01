@@ -31,6 +31,7 @@ vi.mock('idb-keyval', () => {
 });
 
 import * as idbKeyval from 'idb-keyval';
+import { addHostGrant, releaseHostAccess } from './grants';
 import { loadKey, persistKey, setKeyMode } from './key_vault';
 import { readMonthSpend, recordMonthSpend } from './pricing';
 import { clearCacheEntries, getCacheEntry, setCacheEntry, type CacheEntry } from './result_cache';
@@ -473,5 +474,58 @@ describe('storage service cache commands', () => {
     }
 
     expect((await getCacheEntry('hash0'))?.place.placeName).toBe('Oia');
+  });
+});
+
+describe('storage service grants', () => {
+  const permsContains = vi.fn();
+  const permsRemove = vi.fn();
+  const permsGetAll = vi.fn();
+
+  beforeEach(() => {
+    permsContains.mockReset();
+    permsRemove.mockReset();
+    permsGetAll.mockReset();
+    permsContains.mockResolvedValue(false);
+    permsGetAll.mockResolvedValue({ origins: [] });
+    (chrome as unknown as { permissions: unknown }).permissions = {
+      contains: permsContains,
+      remove: permsRemove,
+      getAll: permsGetAll,
+    };
+  });
+
+  afterEach(() => {
+    delete (chrome as unknown as { permissions?: unknown }).permissions;
+  });
+
+  it('serializes borrowers from different windows through the journal', async () => {
+    await addHostGrant('https://cdn.example.com');
+    await addHostGrant('https://cdn.example.com');
+
+    await releaseHostAccess('https://cdn.example.com');
+
+    expect(permsRemove).not.toHaveBeenCalled();
+
+    await releaseHostAccess('https://cdn.example.com');
+
+    expect(permsRemove).toHaveBeenCalledTimes(1);
+    expect(permsRemove).toHaveBeenCalledWith({ origins: ['https://cdn.example.com/*'] });
+  });
+
+  it('rejects invalid origins without touching permissions', async () => {
+    await expect(
+      enqueueLocalCommand({ kind: 'grant.add', origin: 'http://cdn.example.com' })
+    ).resolves.toMatchObject({
+      ok: false,
+    });
+    await expect(
+      enqueueLocalCommand({ kind: 'grant.add', origin: 'https://cdn.example.com/evil' })
+    ).resolves.toMatchObject({ ok: false });
+    await expect(
+      enqueueLocalCommand({ kind: 'grant.release', origin: 'not a url' })
+    ).resolves.toMatchObject({ ok: false });
+
+    expect(permsRemove).not.toHaveBeenCalled();
   });
 });
