@@ -34,7 +34,6 @@ import {
   compatErrorKey,
   saveCompatProvider,
   setMode,
-  storedCompatAdvanced,
   switchToClaude,
   type CompatFormValues,
 } from './settings_ops';
@@ -424,19 +423,6 @@ const refreshPanelSettings = async (): Promise<void> => {
         compat: {
           baseURL: settings.openaiCompat.baseURL,
           model: settings.openaiCompat.model,
-          structured: settings.openaiCompat.structuredOutput,
-          inputRate:
-            settings.openaiCompat.inputRatePerM === undefined
-              ? ''
-              : String(settings.openaiCompat.inputRatePerM),
-          outputRate:
-            settings.openaiCompat.outputRatePerM === undefined
-              ? ''
-              : String(settings.openaiCompat.outputRatePerM),
-          cachedRate:
-            settings.openaiCompat.cachedRatePerM === undefined
-              ? ''
-              : String(settings.openaiCompat.cachedRatePerM),
         },
         costText: msg('optionsCostMonth', formatUsd(spend)),
       },
@@ -492,7 +478,6 @@ const onSettingsCompatSave = (): void => {
       {
         baseURL: settingsInputValue('compat-base-url'),
         model: settingsInputValue('compat-model'),
-        ...(await storedCompatAdvanced()),
       },
       store.get().panelSettings.compatConfirmHost
     );

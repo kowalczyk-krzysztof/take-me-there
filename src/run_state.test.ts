@@ -40,7 +40,7 @@ const provider = (rates?: { inputUsdPerMTok: number; outputUsdPerMTok: number })
 
 const settings = (): ExtensionSettings => ({
   activeProviderId: 'muse',
-  openaiCompat: { baseURL: '', model: '', structuredOutput: 'json_object' },
+  openaiCompat: { baseURL: '', model: '' },
   imageOnly: false,
   sessionOnly: false,
   skipWebSearch: false,

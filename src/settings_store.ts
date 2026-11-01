@@ -50,10 +50,6 @@ export const migrateSettings = async (): Promise<void> => {
 export interface OpenAiCompatSettings {
   baseURL: string;
   model: string;
-  structuredOutput: 'json_schema' | 'json_object';
-  inputRatePerM?: number;
-  outputRatePerM?: number;
-  cachedRatePerM?: number;
 }
 
 export interface ExtensionSettings {
@@ -76,7 +72,7 @@ const normalizeTtlDays = (value: unknown): CacheTtlDays =>
 
 const DEFAULT_SETTINGS: ExtensionSettings = {
   activeProviderId: 'muse',
-  openaiCompat: { baseURL: '', model: '', structuredOutput: 'json_object' },
+  openaiCompat: { baseURL: '', model: '' },
   imageOnly: false,
   sessionOnly: false,
   skipWebSearch: false,
@@ -123,16 +119,6 @@ export const loadSettings = async (): Promise<ExtensionSettings> => {
       openaiCompat: {
         baseURL: typeof compat.baseURL === 'string' ? compat.baseURL : '',
         model: typeof compat.model === 'string' ? compat.model : '',
-        structuredOutput: compat.structuredOutput === 'json_schema' ? 'json_schema' : 'json_object',
-        ...(typeof compat.inputRatePerM === 'number'
-          ? { inputRatePerM: compat.inputRatePerM }
-          : {}),
-        ...(typeof compat.cachedRatePerM === 'number'
-          ? { cachedRatePerM: compat.cachedRatePerM }
-          : {}),
-        ...(typeof compat.outputRatePerM === 'number'
-          ? { outputRatePerM: compat.outputRatePerM }
-          : {}),
       },
       imageOnly: s.imageOnly === true,
       sessionOnly: s.sessionOnly === true,

@@ -228,29 +228,7 @@ describe('options', () => {
   });
 
   it('saves a custom server after the origin grant', async () => {
-    const mock = await setup(async (inner) => {
-      await settleWrite(
-        inner.local.set({
-          settings: {
-            v: 1,
-            settings: {
-              activeProviderId: 'muse',
-              openaiCompat: {
-                baseURL: '',
-                model: '',
-                structuredOutput: 'json_schema',
-                inputRatePerM: 1.5,
-                cachedRatePerM: 0.2,
-              },
-              imageOnly: false,
-              sessionOnly: false,
-              skipWebSearch: false,
-              cacheTtlDays: 7,
-            },
-          },
-        })
-      );
-    });
+    const mock = await setup();
 
     const permsRequest = vi.fn().mockResolvedValue(true);
     (chrome as unknown as { permissions: unknown }).permissions = { request: permsRequest };
@@ -270,10 +248,7 @@ describe('options', () => {
     });
     expect(document.querySelector('#compat-save')?.textContent).toBe('compatSaveAnyway');
     expect(permsRequest).not.toHaveBeenCalled();
-    expect(
-      (mock.local.data.get('settings') as { settings: { activeProviderId: string } }).settings
-        .activeProviderId
-    ).toBe('muse');
+    expect(mock.local.data.get('settings')).toBeUndefined();
     clickEl(document.querySelector('#compat-save') as HTMLButtonElement);
     await waitFor(() => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusProviderSaved');
@@ -286,9 +261,6 @@ describe('options', () => {
         openaiCompat: {
           baseURL: 'https://llm.example.com/v1',
           model: 'test-model',
-          structuredOutput: 'json_schema',
-          inputRatePerM: 1.5,
-          cachedRatePerM: 0.2,
         },
         imageOnly: false,
         sessionOnly: false,
@@ -347,7 +319,6 @@ describe('options', () => {
             openaiCompat: {
               baseURL: 'https://llm.example.com/v1',
               model: 'm',
-              structuredOutput: 'json_object',
             },
             imageOnly: false,
             sessionOnly: false,
@@ -455,7 +426,6 @@ describe('options', () => {
               openaiCompat: {
                 baseURL: 'https://old.example.com/v1',
                 model: 'm',
-                structuredOutput: 'json_object',
               },
               imageOnly: false,
               sessionOnly: false,
@@ -503,7 +473,6 @@ describe('options', () => {
               openaiCompat: {
                 baseURL: 'https://llm.example.com/v1',
                 model: 'm',
-                structuredOutput: 'json_object',
               },
               imageOnly: false,
               sessionOnly: false,

@@ -3117,7 +3117,7 @@ describe('sidepanel', () => {
     expect(imagePart?.image_url?.url.startsWith('data:image/jpeg;base64,')).toBe(true);
   });
 
-  it('keeps zero-rate providers at zero cost', async () => {
+  it('shows token counts without dollar figures for custom servers', async () => {
     const mock = await setup(async (seed) => {
       await settleWrite(
         seed.local.set({
@@ -3128,9 +3128,6 @@ describe('sidepanel', () => {
               openaiCompat: {
                 baseURL: 'https://llm.example.com/v1',
                 model: 'test-model',
-                structuredOutput: 'json_object',
-                inputRatePerM: 0,
-                outputRatePerM: 0,
               },
               imageOnly: false,
               sessionOnly: false,
@@ -3148,7 +3145,7 @@ describe('sidepanel', () => {
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitForHeading('Oia');
     expect(document.querySelector('#settings-run-line')?.textContent).toBe(
-      'costLine($0.00 | $0.00)'
+      'costLineTokens(100 | 50)'
     );
   });
 
@@ -3163,7 +3160,6 @@ describe('sidepanel', () => {
               openaiCompat: {
                 baseURL: 'https://cdn.example.com/v1',
                 model: 'test-model',
-                structuredOutput: 'json_object',
               },
               imageOnly: false,
               sessionOnly: false,
@@ -3696,7 +3692,6 @@ describe('sidepanel', () => {
         openaiCompat: {
           baseURL: 'https://llm.example.com/v1',
           model: 'm',
-          structuredOutput: 'json_object',
         },
         imageOnly: false,
         sessionOnly: false,
@@ -3732,7 +3727,7 @@ describe('sidepanel', () => {
     await settleWrite(
       saveSettings({
         activeProviderId: 'muse',
-        openaiCompat: { baseURL: '', model: '', structuredOutput: 'json_object' },
+        openaiCompat: { baseURL: '', model: '' },
         imageOnly: true,
         sessionOnly: false,
         skipWebSearch: false,

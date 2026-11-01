@@ -170,7 +170,6 @@ describe('onboarding', () => {
         openaiCompat: {
           baseURL: 'https://llm.example.com/v1',
           model: 'm',
-          structuredOutput: 'json_object',
         },
         imageOnly: false,
         sessionOnly: false,

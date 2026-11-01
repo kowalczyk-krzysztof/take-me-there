@@ -75,21 +75,13 @@ export class OpenAiCompatProvider implements Provider {
       video: false,
       webGrounding: false,
       segmentation: false,
-      structuredOutput: config.structuredOutput,
+      structuredOutput: 'json_schema',
     };
   }
 
+  // Custom servers never report pricing: runs show token counts with no
+  // dollar figure, and the monthly total stays untouched.
   getRates(): ModelRates | undefined {
-    const { inputRatePerM, outputRatePerM, cachedRatePerM } = this.config;
-
-    if (typeof inputRatePerM === 'number' && typeof outputRatePerM === 'number') {
-      return {
-        inputUsdPerMTok: inputRatePerM,
-        outputUsdPerMTok: outputRatePerM,
-        ...(typeof cachedRatePerM === 'number' ? { cachedInputUsdPerMTok: cachedRatePerM } : {}),
-      };
-    }
-
     return undefined;
   }
 
@@ -132,10 +124,10 @@ export class OpenAiCompatProvider implements Provider {
         prompt_cache_key: PROMPT_CACHE_KEY,
         max_completion_tokens: IDENTIFY_MAX_TOKENS,
         messages,
-        response_format:
-          this.config.structuredOutput === 'json_schema'
-            ? { type: 'json_schema', json_schema: { name: 'place_identification', schema } }
-            : { type: 'json_object' },
+        response_format: {
+          type: 'json_schema',
+          json_schema: { name: 'place_identification', schema },
+        },
       },
     };
   }
@@ -163,13 +155,10 @@ export class OpenAiCompatProvider implements Provider {
           prompt_cache_key: PROMPT_CACHE_KEY,
           max_completion_tokens: ITINERARY_MAX_TOKENS,
           messages: buildItineraryMessages(input.pins, strictReminder),
-          response_format:
-            this.config.structuredOutput === 'json_schema'
-              ? {
-                  type: 'json_schema',
-                  json_schema: { name: 'itinerary', schema: itineraryJsonSchema(stopNames) },
-                }
-              : { type: 'json_object' },
+          response_format: {
+            type: 'json_schema',
+            json_schema: { name: 'itinerary', schema: itineraryJsonSchema(stopNames) },
+          },
         },
         input.signal,
         usage
@@ -213,13 +202,10 @@ export class OpenAiCompatProvider implements Provider {
           prompt_cache_key: PROMPT_CACHE_KEY,
           max_completion_tokens: ITINERARY_MAX_TOKENS,
           messages: buildScanMessages(kept, strictReminder),
-          response_format:
-            this.config.structuredOutput === 'json_schema'
-              ? {
-                  type: 'json_schema',
-                  json_schema: { name: 'scan_batch', schema: scanBatchJsonSchema() },
-                }
-              : { type: 'json_object' },
+          response_format: {
+            type: 'json_schema',
+            json_schema: { name: 'scan_batch', schema: scanBatchJsonSchema() },
+          },
         },
         input.signal,
         usage
@@ -258,13 +244,10 @@ export class OpenAiCompatProvider implements Provider {
           prompt_cache_key: PROMPT_CACHE_KEY,
           max_completion_tokens: IDENTIFY_MAX_TOKENS,
           messages: messages(strictReminder),
-          response_format:
-            this.config.structuredOutput === 'json_schema'
-              ? {
-                  type: 'json_schema',
-                  json_schema: { name, schema },
-                }
-              : { type: 'json_object' },
+          response_format: {
+            type: 'json_schema',
+            json_schema: { name, schema },
+          },
         },
         signal,
         usage

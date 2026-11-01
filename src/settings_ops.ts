@@ -12,32 +12,20 @@ import { customHostOf } from './providers/index';
 export interface CompatFormValues {
   baseURL: string;
   model: string;
-  structured: string;
-  inputRate: string;
-  outputRate: string;
-  cachedRate: string;
 }
 
 export const EMPTY_COMPAT_FORM: CompatFormValues = {
   baseURL: '',
   model: '',
-  structured: '',
-  inputRate: '',
-  outputRate: '',
-  cachedRate: '',
 };
 
-export const compatErrorKey = (error: 'url' | 'model' | 'rates' | 'denied' | 'save'): string => {
+export const compatErrorKey = (error: 'url' | 'model' | 'denied' | 'save'): string => {
   if (error === 'url') {
     return 'providerErrorUrl';
   }
 
   if (error === 'model') {
     return 'providerErrorModel';
-  }
-
-  if (error === 'rates') {
-    return 'providerErrorRates';
   }
 
   if (error === 'denied') {
@@ -50,7 +38,7 @@ export const compatErrorKey = (error: 'url' | 'model' | 'rates' | 'denied' | 'sa
 export type CompatSaveOutcome =
   | { status: 'saved' }
   | { status: 'confirm'; host: string }
-  | { status: 'error'; error: 'url' | 'model' | 'rates' | 'denied' | 'save' };
+  | { status: 'error'; error: 'url' | 'model' | 'denied' | 'save' };
 
 export const customOriginOf = (settings: ExtensionSettings): string => {
   if (settings.activeProviderId !== 'openai_compat' || !settings.openaiCompat.baseURL) {
@@ -91,41 +79,6 @@ export const switchToClaude = async (): Promise<void> => {
   }
 };
 
-const parseRate = (raw: string): number | undefined => {
-  const trimmed = raw.trim();
-
-  if (!trimmed) {
-    return undefined;
-  }
-
-  const value = Number(trimmed);
-
-  return Number.isFinite(value) && value >= 0 ? value : NaN;
-};
-
-// The server form only edits the endpoint and model: structured output
-// and rates keep their stored values across saves.
-export const storedCompatAdvanced = async (): Promise<
-  Pick<CompatFormValues, 'structured' | 'inputRate' | 'outputRate' | 'cachedRate'>
-> => {
-  let settings: ExtensionSettings | null = null;
-
-  try {
-    settings = await loadSettings();
-  } catch {
-    settings = null;
-  }
-
-  const compat = settings?.openaiCompat;
-
-  return {
-    structured: compat?.structuredOutput ?? 'json_schema',
-    inputRate: compat?.inputRatePerM === undefined ? '' : String(compat.inputRatePerM),
-    outputRate: compat?.outputRatePerM === undefined ? '' : String(compat.outputRatePerM),
-    cachedRate: compat?.cachedRatePerM === undefined ? '' : String(compat.cachedRatePerM),
-  };
-};
-
 export const saveCompatProvider = async (
   values: CompatFormValues,
   confirmHost: string | null
@@ -144,16 +97,6 @@ export const saveCompatProvider = async (
 
   if (!model) {
     return { status: 'error', error: 'model' };
-  }
-
-  const inputRatePerM = parseRate(values.inputRate);
-
-  const outputRatePerM = parseRate(values.outputRate);
-
-  const cachedRatePerM = parseRate(values.cachedRate);
-
-  if (Number.isNaN(inputRatePerM) || Number.isNaN(outputRatePerM) || Number.isNaN(cachedRatePerM)) {
-    return { status: 'error', error: 'rates' };
   }
 
   const host = new URL(origin).host;
@@ -193,14 +136,7 @@ export const saveCompatProvider = async (
   const next: ExtensionSettings = {
     ...settings,
     activeProviderId: 'openai_compat',
-    openaiCompat: {
-      baseURL,
-      model,
-      structuredOutput: values.structured === 'json_schema' ? 'json_schema' : 'json_object',
-      ...(inputRatePerM === undefined ? {} : { inputRatePerM }),
-      ...(outputRatePerM === undefined ? {} : { outputRatePerM }),
-      ...(cachedRatePerM === undefined ? {} : { cachedRatePerM }),
-    },
+    openaiCompat: { baseURL, model },
   };
 
   try {

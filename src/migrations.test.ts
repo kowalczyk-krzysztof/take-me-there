@@ -14,7 +14,7 @@ afterEach(() => {
 
 const LEGACY_SETTINGS = {
   activeProviderId: 'muse',
-  openaiCompat: { baseURL: '', model: '', structuredOutput: 'json_object' },
+  openaiCompat: { baseURL: '', model: '' },
   imageOnly: false,
   sessionOnly: false,
 };

@@ -122,10 +122,6 @@ const onCompatSave = (): void => {
       {
         baseURL: inputValue('compat-base-url'),
         model: inputValue('compat-model'),
-        structured: inputValue('compat-structured'),
-        inputRate: inputValue('compat-input-rate'),
-        outputRate: inputValue('compat-output-rate'),
-        cachedRate: inputValue('compat-cached-rate'),
       },
       store.get().compatConfirmHost
     );
@@ -309,19 +305,6 @@ export const initOnboarding = (): void => {
         compat: {
           baseURL: settings.openaiCompat.baseURL,
           model: settings.openaiCompat.model,
-          structured: settings.openaiCompat.structuredOutput,
-          inputRate:
-            settings.openaiCompat.inputRatePerM === undefined
-              ? ''
-              : String(settings.openaiCompat.inputRatePerM),
-          outputRate:
-            settings.openaiCompat.outputRatePerM === undefined
-              ? ''
-              : String(settings.openaiCompat.outputRatePerM),
-          cachedRate:
-            settings.openaiCompat.cachedRatePerM === undefined
-              ? ''
-              : String(settings.openaiCompat.cachedRatePerM),
         },
       },
     });

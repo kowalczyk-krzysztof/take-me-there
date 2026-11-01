@@ -16,7 +16,6 @@ const VALID_PLACE = {
 const config = (overrides: Partial<OpenAiCompatSettings> = {}): OpenAiCompatSettings => ({
   baseURL: 'https://llm.example.com/v1/',
   model: 'test-model',
-  structuredOutput: 'json_object',
   ...overrides,
 });
 
@@ -52,7 +51,7 @@ const collect = async (gen: AsyncGenerator<GuideEvent, void, void>): Promise<Gui
 };
 
 describe('openai_compat', () => {
-  it('identifies with json_object and client-side validation', async () => {
+  it('identifies with json_schema and client-side validation', async () => {
     await setConsented();
     fetchMock.mockResolvedValue(chatResponse(VALID_PLACE));
 
@@ -66,7 +65,7 @@ describe('openai_compat', () => {
       searchCount: 0,
       flatFeesUsd: 0,
     });
-    expect(provider.capabilities.structuredOutput).toBe('json_object');
+    expect(provider.capabilities.structuredOutput).toBe('json_schema');
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe('https://llm.example.com/v1/chat/completions');
@@ -75,23 +74,10 @@ describe('openai_compat', () => {
     expect(body.model).toBe('test-model');
     expect(body.prompt_cache_key).toBe('take-me-there');
     expect(body.prompt_cache_retention).toBeUndefined();
-    expect(body.response_format).toEqual({ type: 'json_object' });
-    expect(body.reasoning_effort).toBeUndefined();
-  });
-
-  it('supports json_schema mode without vendor flags', async () => {
-    await setConsented();
-    fetchMock.mockResolvedValue(chatResponse(VALID_PLACE));
-
-    const provider = new OpenAiCompatProvider(config({ structuredOutput: 'json_schema' }));
-    await provider.identifyPlace('sk_key', input());
-
-    const init = fetchMock.mock.calls[0][1] as RequestInit;
-
-    const body = JSON.parse(init.body as string) as Record<string, any>;
     expect(body.response_format.type).toBe('json_schema');
     expect(body.response_format.json_schema.schema.additionalProperties).toBe(false);
     expect(body.response_format.json_schema.strict).toBeUndefined();
+    expect(body.reasoning_effort).toBeUndefined();
   });
 
   it('inherits the text-only image retry', async () => {
@@ -157,11 +143,8 @@ describe('openai_compat', () => {
     expect(fetchMock.mock.calls[0][0]).toBe('http://127.0.0.1:11434/v1/models');
   });
 
-  it('exposes user-supplied rates or nothing', () => {
+  it('reports no rates', () => {
     expect(new OpenAiCompatProvider(config()).getRates()).toBeUndefined();
-    expect(
-      new OpenAiCompatProvider(config({ inputRatePerM: 2, outputRatePerM: 6 })).getRates()
-    ).toEqual({ inputUsdPerMTok: 2, outputUsdPerMTok: 6 });
   });
 
   it('streams guides over chat completions', async () => {
@@ -273,11 +256,11 @@ describe('compat planItinerary', () => {
     signal: new AbortController().signal,
   });
 
-  it('uses the configured envelope and validates client-side', async () => {
+  it('uses the schema envelope and validates client-side', async () => {
     await setConsented();
     fetchMock.mockResolvedValue(chatResponse(VALID_PLAN));
 
-    const provider = new OpenAiCompatProvider(config({ structuredOutput: 'json_schema' }));
+    const provider = new OpenAiCompatProvider(config());
 
     const result = await provider.planItinerary('sk_key', planInput());
     expect(result.plan.stops).toEqual(['Oia', 'Fira']);
@@ -290,21 +273,6 @@ describe('compat planItinerary', () => {
     expect(body.prompt_cache_key).toBe('take-me-there');
     expect(body.prompt_cache_retention).toBeUndefined();
     expect(body.max_completion_tokens).toBe(4096);
-  });
-
-  it('falls back to json_object with the same client validation', async () => {
-    await setConsented();
-    fetchMock.mockResolvedValue(chatResponse(VALID_PLAN));
-
-    const provider = new OpenAiCompatProvider(config({ structuredOutput: 'json_object' }));
-
-    const result = await provider.planItinerary('sk_key', planInput());
-    expect(result.plan.stops).toEqual(['Oia', 'Fira']);
-
-    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-
-    const body = JSON.parse(init.body as string) as Record<string, Record<string, unknown>>;
-    expect((body.response_format as Record<string, string>).type).toBe('json_object');
   });
 
   it('honors prompt overrides in streamed guides', async () => {
@@ -353,7 +321,7 @@ describe('compat scanPlaces', () => {
     signal: new AbortController().signal,
   });
 
-  it('uses the configured envelope for batches', async () => {
+  it('uses the schema envelope for batches', async () => {
     await setConsented();
     fetchMock.mockResolvedValue(chatResponse(VALID_BATCH));
 
@@ -366,7 +334,7 @@ describe('compat scanPlaces', () => {
     expect(url).toBe('https://llm.example.com/v1/chat/completions');
 
     const body = JSON.parse(init.body as string) as Record<string, Record<string, unknown>>;
-    expect((body.response_format as Record<string, string>).type).toBe('json_object');
+    expect((body.response_format as Record<string, string>).type).toBe('json_schema');
     expect(body.prompt_cache_key).toBe('take-me-there');
     expect(body.prompt_cache_retention).toBeUndefined();
     expect(body.max_completion_tokens).toBe(4096);
@@ -442,7 +410,7 @@ describe('compat duelPlaces', () => {
     await setConsented();
     fetchMock.mockResolvedValue(chatResponse(VALID_DUEL));
 
-    const provider = new OpenAiCompatProvider(config({ structuredOutput: 'json_schema' }));
+    const provider = new OpenAiCompatProvider(config());
 
     const result = await provider.duelPlaces('sk_key', duelInput());
     expect(result.criteria).toHaveLength(1);

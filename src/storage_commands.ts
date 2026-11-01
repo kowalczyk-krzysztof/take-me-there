@@ -66,10 +66,6 @@ const settingsSchema = z.strictObject({
   openaiCompat: z.strictObject({
     baseURL: z.string().check(z.maxLength(2000)),
     model: z.string().check(z.maxLength(200)),
-    structuredOutput: z.enum(['json_object', 'json_schema']),
-    inputRatePerM: z.optional(z.number()),
-    outputRatePerM: z.optional(z.number()),
-    cachedRatePerM: z.optional(z.number()),
   }),
   imageOnly: z.boolean(),
   sessionOnly: z.boolean(),

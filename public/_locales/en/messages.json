@@ -953,10 +953,6 @@
     "message": "Enter a model name.",
     "description": "Custom server model error."
   },
-  "providerErrorRates": {
-    "message": "Rates must be blank or non-negative numbers.",
-    "description": "Custom server rates error."
-  },
   "providerErrorDenied": {
     "message": "Permission for that server was denied.",
     "description": "Custom server denial error."

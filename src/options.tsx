@@ -13,7 +13,6 @@ import {
   saveCompatProvider,
   setCacheTtlDays,
   setMode,
-  storedCompatAdvanced,
   switchToClaude,
   type CompatFormValues,
 } from './settings_ops';
@@ -208,7 +207,6 @@ const onCompatSave = (): void => {
       {
         baseURL: inputValue('compat-base-url'),
         model: inputValue('compat-model'),
-        ...(await storedCompatAdvanced()),
       },
       store.get().compatConfirmHost
     );
@@ -507,19 +505,6 @@ export const initOptions = (): void => {
         compat: {
           baseURL: settings.openaiCompat.baseURL,
           model: settings.openaiCompat.model,
-          structured: settings.openaiCompat.structuredOutput,
-          inputRate:
-            settings.openaiCompat.inputRatePerM === undefined
-              ? ''
-              : String(settings.openaiCompat.inputRatePerM),
-          outputRate:
-            settings.openaiCompat.outputRatePerM === undefined
-              ? ''
-              : String(settings.openaiCompat.outputRatePerM),
-          cachedRate:
-            settings.openaiCompat.cachedRatePerM === undefined
-              ? ''
-              : String(settings.openaiCompat.cachedRatePerM),
         },
         cacheTtlDays: settings.cacheTtlDays,
       },
