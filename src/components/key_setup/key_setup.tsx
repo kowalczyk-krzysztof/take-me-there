@@ -20,10 +20,19 @@ interface Props {
   error: string | null;
   sessionOnly: boolean;
   resetKey: number;
+  laterNote?: string;
   callbacks: KeySetupCallbacks;
 }
 
-export const KeySetup = ({ mode, pending, error, sessionOnly, resetKey, callbacks }: Props) => {
+export const KeySetup = ({
+  mode,
+  pending,
+  error,
+  sessionOnly,
+  resetKey,
+  laterNote,
+  callbacks,
+}: Props) => {
   const [revealed, setRevealed] = useState(false);
 
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -146,6 +155,11 @@ export const KeySetup = ({ mode, pending, error, sessionOnly, resetKey, callback
             />
             <span>{msg('sessionOnlyLabel')}</span>
           </label>
+          {laterNote ? (
+            <p className={styles.hint} id="key-later">
+              {laterNote}
+            </p>
+          ) : null}
           <div className={styles['button-row']}>
             <button type="submit" className={styles.primary} aria-disabled={pending || undefined}>
               {msg(pending ? 'validatingButton' : 'saveKeyButton')}

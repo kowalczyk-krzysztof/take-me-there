@@ -93,6 +93,7 @@ const OnboardingApp = () => {
           error={state.keyError}
           sessionOnly={state.sessionOnly}
           resetKey={state.keyReset}
+          laterNote={msg('onboardingKeyLater')}
           callbacks={{
             onSave: onSaveKey,
             onError: (text) => store.set({ keyError: text }),
@@ -128,7 +129,6 @@ const OnboardingApp = () => {
       <div id="status-region" role="status" className="visually-hidden">
         {state.status}
       </div>
-      <p id="key-later">{msg('onboardingKeyLater')}</p>
     </main>
   );
 };

@@ -10,6 +10,7 @@ interface SetupProps {
   error?: string | null;
   sessionOnly?: boolean;
   resetKey?: number;
+  laterNote?: string;
 }
 
 const noop = () => {};
@@ -25,6 +26,7 @@ const renderSetup = (
       error={props.error ?? null}
       sessionOnly={props.sessionOnly ?? false}
       resetKey={props.resetKey ?? 0}
+      laterNote={props.laterNote}
       callbacks={{
         onSave: callbacks.onSave ?? noop,
         onError: callbacks.onError ?? noop,
@@ -47,6 +49,7 @@ const rerenderSetup = (
       error={props.error ?? null}
       sessionOnly={props.sessionOnly ?? false}
       resetKey={props.resetKey ?? 0}
+      laterNote={props.laterNote}
       callbacks={{
         onSave: callbacks.onSave ?? noop,
         onError: callbacks.onError ?? noop,
@@ -87,6 +90,17 @@ describe('key-setup', () => {
       expect(link.getAttribute('href')).toBe('https://dev.meta.ai');
       expect(link.target).toBe('_blank');
     }
+  });
+
+  it('renders the later note between the session toggle and save', () => {
+    const root = renderSetup({ laterNote: 'later!' }).container;
+    expect(root.querySelector('#key-later')?.textContent).toBe('later!');
+
+    const order = [
+      ...root.querySelectorAll('#session-only, #key-later, button[type="submit"]'),
+    ].map((el) => el.id || (el as HTMLButtonElement).type);
+    expect(order).toEqual(['session-only', 'key-later', 'submit']);
+    expect(renderSetup().container.querySelector('#key-later')).toBeNull();
   });
 
   it('rejects empty submits without emitting', () => {
