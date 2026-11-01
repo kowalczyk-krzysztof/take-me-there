@@ -26,33 +26,13 @@ export const captureVideoFrame = (srcUrl: string): CaptureVideoFrameResult => {
     }
   };
 
-  const strip = (u: string): string => {
-    const href = abs(u);
-
-    const cut = href.search(/[?#]/);
-
-    return cut < 0 ? href : href.slice(0, cut);
-  };
-
   const target = abs(srcUrl);
-
-  const bare = strip(srcUrl);
 
   const videos = [...document.querySelectorAll('video')].slice(0, 500);
 
-  const byExact = videos.find((v) => abs(v.currentSrc) === target || abs(v.src) === target) ?? null;
-
-  const byBare =
-    byExact ??
-    videos.find((v) => {
-      if (!bare) {
-        return false;
-      }
-
-      return strip(v.currentSrc) === bare || strip(v.src) === bare;
-    }) ??
-    null;
-  const video = byBare;
+  // Exact identity only: query parameters name the clip, so a pathname-only
+  // fallback can capture a different video. No match means no pixels.
+  const video = videos.find((v) => abs(v.currentSrc) === target || abs(v.src) === target) ?? null;
 
   if (!video) {
     return { ok: false, reason: 'no-match' };

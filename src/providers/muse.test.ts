@@ -448,6 +448,30 @@ describe('muse findAlternates', () => {
     ]);
   });
 
+  it('labels zero-search Responses output as generated without search', async () => {
+    await consented();
+
+    const unsearched = new Response(
+      JSON.stringify({
+        output: [
+          {
+            type: 'message',
+            content: [{ type: 'output_text', text: JSON.stringify(VALID_ALTERNATES) }],
+          },
+        ],
+        usage: { input_tokens: 200, output_tokens: 80 },
+      }),
+      { status: 200 }
+    );
+    fetchMock.mockResolvedValue(unsearched);
+
+    const result = await provider.findAlternates('LLM_key', alternatesInput());
+    expect(result.alternatives).toHaveLength(2);
+    expect(result.grounded).toBe(false);
+    expect(result.sources).toEqual([]);
+    expect(result.usage.searchCount).toBe(0);
+  });
+
   it('returns an empty result when both alternates passes agree', async () => {
     await consented();
     fetchMock
@@ -479,6 +503,28 @@ describe('muse findAlternates', () => {
     await expect(provider.findAlternates('LLM_key', alternatesInput())).rejects.toMatchObject({
       code: 'network',
       usage: { inputTokens: 200, outputTokens: 80 },
+    });
+  });
+
+  it('carries grounded usage and searches when the chat fallback is canceled', async () => {
+    await consented();
+    const controller = new AbortController();
+    fetchMock
+      .mockResolvedValueOnce(groundedResponse({ alternatives: [] }))
+      .mockImplementationOnce(async () => {
+        controller.abort();
+
+        throw new DOMException('aborted', 'AbortError');
+      });
+
+    await expect(
+      provider.findAlternates('LLM_key', {
+        ...alternatesInput(),
+        signal: controller.signal,
+      })
+    ).rejects.toMatchObject({
+      code: 'aborted',
+      usage: { inputTokens: 200, outputTokens: 80, searchCount: 1 },
     });
   });
 

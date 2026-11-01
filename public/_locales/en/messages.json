@@ -501,6 +501,14 @@
     "message": "Could not load alternatives.",
     "description": "Alternates failure announcement."
   },
+  "alternatesAuthBody": {
+    "message": "The key was rejected. Update it and the alternatives search resumes.",
+    "description": "Alternates error body for rejected keys."
+  },
+  "updateKeyButton": {
+    "message": "Update key",
+    "description": "Alternates auth error button opening key repair."
+  },
   "alternatesBestMonth": {
     "message": "Best month: $1",
     "description": "Alternate card best month.",

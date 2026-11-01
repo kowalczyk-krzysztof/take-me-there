@@ -59,14 +59,26 @@ Text-only fallbacks:
 
 ## Scoring
 
+Expectations model place, locality, and country separately with
+constrained aliases; all three must hit. A bare country hit, or a
+shared landmark name in the wrong locality, scores
+confident-incorrect — never a pass.
+
 - Successful match: correct place, confidence at least 0.6.
 - Confident incorrect: wrong place at 0.6 or above (the failure
   that matters most; must stay near zero). Any confident
   identification on cases 4-6 or 12 counts here.
-- Correct abstention: no-place on cases 4-6 and 12.
+- Correct abstention: a true refusal on cases 4-6 and 12
+  (unidentified, or below the 0.35 display floor). A hedged named
+  guess at 0.35–0.6 fails: the product would show it.
 - Image-first: cases 7-10 follow the pixels, not the text.
+- Operational errors stay errors, even on needs-review cases.
 
 ## Thresholds (evaluated 2026-11-01, `muse-spark-1.3`)
+
+> Stale: the scorer below changed after this run (location-aware
+> matching, hedged-guess abstention, error-preserving review).
+> Re-run before relying on the summary.
 
 Evidence: `docs/recognition-eval-results.json` — 11 pass,
 0 confident-incorrect, 1 needs-review (run cost $0.07).

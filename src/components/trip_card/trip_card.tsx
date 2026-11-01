@@ -36,7 +36,13 @@ export type AlternatesView =
       cards: AlternateCardView[];
     }
   | { state: 'empty'; intent: AlternateIntentView }
-  | { state: 'error'; intent: AlternateIntentView; title: string; body: string };
+  | {
+      state: 'error';
+      intent: AlternateIntentView;
+      title: string;
+      body: string;
+      auth: boolean;
+    };
 
 export type LoadingPhase = 'collecting' | 'identifying';
 
@@ -46,6 +52,7 @@ export interface TripCardCallbacks {
   onAllowHost: (host: string) => void;
   onLookAgain: () => void;
   onAlternates: (intent: AlternateIntentView) => void;
+  onAlternatesKey: (intent: AlternateIntentView) => void;
   onCancelAlternates: () => void;
   onCancelLoading: () => void;
   onDismissError: () => void;

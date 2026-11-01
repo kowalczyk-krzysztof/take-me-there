@@ -22,6 +22,7 @@ import {
   readBoundedJson,
   readChatUsage,
   fetchChatCompletion,
+  ProviderError,
   responseError,
   toNetworkError,
   withUsage,
@@ -595,6 +596,32 @@ describe('transport timeouts', () => {
     await expect(
       readBoundedJson(res, emptyUsage(), 'response', new AbortController().signal)
     ).rejects.toMatchObject({ name: 'ProviderError', code: 'network', retryable: true });
+  });
+
+  it('carries accumulated usage through body-read failures', async () => {
+    const usage = { ...emptyUsage(), inputTokens: 100, outputTokens: 50 };
+
+    const res = new Response(
+      new ReadableStream({
+        start(controller) {
+          controller.error(new Error('socket reset'));
+        },
+      }),
+      { status: 200 }
+    );
+
+    const failure = await readBoundedJson(
+      res,
+      usage,
+      'response',
+      new AbortController().signal
+    ).then(
+      () => null,
+      (err: unknown) => err as ProviderError
+    );
+
+    expect(failure).toBeInstanceOf(ProviderError);
+    expect(failure?.usage).toEqual(usage);
   });
 
   it('sends the key probe with a timeout signal', async () => {

@@ -29,9 +29,16 @@ import {
   type PlaceResult,
   type TripRequest,
 } from './types';
-import { frameCacheSeed, hasVideoConsented, isRung2Usable, setVideoConsented } from './video';
+import {
+  frameCacheSeed,
+  hasFullVideoConsented,
+  hasVideoConsented,
+  isRung2Usable,
+  setFullVideoConsented,
+  setVideoConsented,
+} from './video';
 import { HANDOFF_TTL_MS, ackRequest, handoffSlotKey } from './handoff';
-import { addHostGrant, releaseHostAccess, requestHostAccess } from './grants';
+import { addHostGrant, cancelHostGrant, releaseHostAccess, requestHostAccess } from './grants';
 import {
   absorbRunUsage,
   activeRun,
@@ -107,7 +114,12 @@ let currentAlternates: {
   sources: Array<{ title: string; url: string }>;
 } | null = null;
 
-let alternatesError: { intent: AlternateIntent; titleKey: string; bodyKey: string } | null = null;
+let alternatesError: {
+  intent: AlternateIntent;
+  titleKey: string;
+  bodyKey: string;
+  auth: boolean;
+} | null = null;
 
 let alternatesLoading: AlternateIntent | null = null;
 
@@ -415,6 +427,10 @@ let lastSeenRank = -1;
 // Collecting sequence awaiting its terminal, if any; canceled sequences
 // whose late terminals must never run.
 let collectingSeq: number | null = null;
+
+// Ready sequence awaiting handoff acknowledgement; a cancel during the ack
+// marks it so the late continuation never runs.
+let ackSeq: number | null = null;
 
 const canceledSeqs = new Set<number>();
 
@@ -756,20 +772,31 @@ const showVideoConfirm = (rung2: boolean, imageOnly: boolean, focusGate: boolean
   }
 };
 
+// Scope of the currently displayed video confirm: full-media agreement
+// unlocks rung 2, frame agreement unlocks stills only.
+let pendingVideoFull = false;
+
 const onVideoConfirmAgree = async (): Promise<void> => {
+  const full = pendingVideoFull;
   try {
     await setVideoConsented();
+
+    if (full) {
+      await setFullVideoConsented();
+    }
   } catch {
     setKeyForm({ error: msg('settingsSaveFailed') });
     announceAlert('settingsSaveFailed');
 
     return;
   }
+  pendingVideoFull = false;
   await resumePending();
 };
 
 const onVideoConfirmCancel = (): void => {
   pendingRun = null;
+  pendingVideoFull = false;
   updatePreview(null);
   showIdle();
   announceStatus('statusVideoConfirmDeclined');
@@ -852,6 +879,7 @@ const onCancelLoading = (): void => {
   runTicket += 1;
   pendingRun = null;
   pendingLookAgain = null;
+  pendingVideoFull = false;
 
   if (collectingSeq !== null) {
     for (const seq of canceledSeqs) {
@@ -862,6 +890,11 @@ const onCancelLoading = (): void => {
 
     canceledSeqs.add(collectingSeq);
     collectingSeq = null;
+  }
+
+  if (ackSeq !== null) {
+    canceledSeqs.add(ackSeq);
+    ackSeq = null;
   }
 
   cancelActiveRun();
@@ -1478,22 +1511,11 @@ const runVideoAnalysis = async (
     updatePrivacy('idle');
     return;
   }
-  if (!(await hasVideoConsented())) {
-    if (!ownsUi(run)) {
-      return;
-    }
-
-    pendingRun = { kind: 'request', request };
-    updatePreview(request.frame?.dataUrl ?? null, request.frame ? 'frame' : 'image');
-    showVideoConfirm(route.kind === 'rung2', run.settings.imageOnly, origin === 'panel');
-    announceStatus('statusVideoConfirmNeeded');
-    return;
-  }
-
   if (!ownsUi(run)) {
     return;
   }
 
+  // Cache before consent: a saved result needs no new disclosure and no remote work.
   if (route.kind === 'frame' && request.frame) {
     updatePreview(request.frame.dataUrl, 'frame');
     run.cacheKey = await identifyKeyFor(run, frameCacheSeed(request.frame.time, request.srcUrl));
@@ -1516,6 +1538,28 @@ const runVideoAnalysis = async (
     await renderCached(run, cached, origin);
     return;
   }
+
+  // Frame consent never unlocks full-media expansion: each route carries its own approval.
+  const full = route.kind === 'rung2';
+  const consented = full ? await hasFullVideoConsented() : await hasVideoConsented();
+
+  if (!consented) {
+    if (!ownsUi(run)) {
+      return;
+    }
+
+    pendingRun = { kind: 'request', request };
+    pendingVideoFull = full;
+    updatePreview(request.frame?.dataUrl ?? null, request.frame ? 'frame' : 'image');
+    showVideoConfirm(full, run.settings.imageOnly, origin === 'panel');
+    announceStatus('statusVideoConfirmNeeded');
+    return;
+  }
+
+  if (!ownsUi(run)) {
+    return;
+  }
+
   announceStatus(
     superseded
       ? 'statusCanceledNew'
@@ -1649,7 +1693,16 @@ const handle = async (value: unknown): Promise<void> => {
   }
   collectingSeq = null;
   // Ack before running so a reopen can never replay (and rebill) a finished run.
-  await ackRequest(request.windowId, request.seq);
+  // Ownership is rechecked after the await: a cancel or a newer request during
+  // the ack must start no paid work and touch no UI.
+  const ownedSeq = request.seq;
+  const ownedTicket = runTicket;
+  ackSeq = ownedSeq;
+  await ackRequest(request.windowId, ownedSeq);
+  ackSeq = null;
+  if (canceledSeqs.has(ownedSeq) || ownedTicket !== runTicket || ownedSeq !== lastSeenSeq) {
+    return;
+  }
   try {
     await runAnalysis(request, 'gesture');
   } catch (err) {
@@ -1680,7 +1733,11 @@ const trySamCrop = async (
 ): Promise<SamCrop | 'needs-grant' | null> => {
   try {
     return await samCropAttempt(run, request, grantedBytes);
-  } catch {
+  } catch (err) {
+    // A canceled SAM call may still carry reported usage: keep it for settlement.
+    if (err instanceof ProviderError && err.usage) {
+      absorbRunUsage(run, err.usage);
+    }
     return null;
   }
 };
@@ -2126,24 +2183,66 @@ const onAllowHost = (host: string): void => {
       return;
     }
 
+    // Journal before acquiring: the worker entry exists before the permission
+    // does, so no racing reconcile can mistake the new grant for a leak. This
+    // promise is created, not awaited: the request below stays the first
+    // await, keeping the click gesture.
+    const journaling = addHostGrant(origin).then(
+      () => true,
+      () => false
+    );
+
     // First await: the request itself, so the browser prompt keeps the click gesture.
     const decision = await requestHostAccess(origin);
+    const journaled = await journaling;
 
-    if (decision !== 'granted') {
-      showGrantCard(decision === 'denied' ? 'denied' : 'error', host, target);
+    // Balance the speculative journal entry without touching UI: denied
+    // prompts cancel (nothing was granted, so nothing is revoked), while
+    // granted or unknown outcomes release (revoking at zero if needed).
+    const balanceStale = async (): Promise<void> => {
+      if (decision === 'denied') {
+        if (journaled) {
+          await cancelHostGrant(origin).catch(() => undefined);
+        }
+
+        return;
+      }
+
+      await releaseHostAccess(origin).catch(() => undefined);
+    };
+
+    if (ticket !== runTicket) {
+      await balanceStale();
 
       return;
     }
 
-    pendingLookAgain = null;
+    if (decision === 'denied') {
+      if (journaled) {
+        await cancelHostGrant(origin).catch(() => undefined);
+      }
 
-    try {
-      await addHostGrant(origin);
-    } catch {
+      showGrantCard('denied', host, target);
+
+      return;
+    }
+
+    if (decision !== 'granted') {
       await releaseHostAccess(origin).catch(() => undefined);
       showGrantCard('error', host, target);
 
       return;
+    }
+
+    if (!journaled) {
+      await releaseHostAccess(origin).catch(() => undefined);
+      showGrantCard('error', host, target);
+
+      return;
+    }
+
+    if (pendingLookAgain?.ticket === ticket) {
+      pendingLookAgain = null;
     }
 
     let bytes: Uint8Array | null = null;
@@ -2156,13 +2255,13 @@ const onAllowHost = (host: string): void => {
       await releaseHostAccess(origin).catch(() => undefined);
     }
 
-    if (!bytes) {
-      showGrantCard('error', host, target);
-
+    if (ticket !== runTicket) {
       return;
     }
 
-    if (ticket !== runTicket) {
+    if (!bytes) {
+      showGrantCard('error', host, target);
+
       return;
     }
 
@@ -2185,6 +2284,10 @@ const onAllowHost = (host: string): void => {
     try {
       dataUrl = await downscaleToJpegDataUrl(bytes);
     } catch {
+      if (ticket !== runTicket) {
+        return;
+      }
+
       renderInvalidMedia(target);
 
       return;
@@ -2222,6 +2325,7 @@ const alternatesView = (): AlternatesView => {
       intent: alternatesError.intent,
       title: msg(alternatesError.titleKey),
       body: msg(alternatesError.bodyKey),
+      auth: alternatesError.auth,
     };
   }
   if (currentAlternates) {
@@ -2364,18 +2468,25 @@ const runAlternates = async (intent: AlternateIntent): Promise<void> => {
       alternatesController = null;
     }
     if (err instanceof ProviderError && err.code === 'aborted') {
+      // Settle before returning: grounding may have reported usage and a
+      // search before the chat fallback was canceled.
+      await recordPartialUsage(bucket, stage, err);
       return;
     }
     void recordPartialUsage(bucket, stage, err);
     if (mine !== alternatesRunId || (host && activeRun() !== host)) {
       return;
     }
-    const [titleKey, bodyKey] =
-      err instanceof ProviderError
+    // Rejected credentials get a repair path, not a dead-end Retry: the
+    // destination and intent are preserved for resumption after the fix.
+    const auth = err instanceof ProviderError && err.code === 'auth';
+    const [titleKey, bodyKey] = auth
+      ? (['errorAuthTitle', 'alternatesAuthBody'] as const)
+      : err instanceof ProviderError
         ? (ALTERNATES_ERROR_KEYS[err.code] ?? ALTERNATES_ERROR_FALLBACK)
         : ALTERNATES_ERROR_FALLBACK;
     alternatesLoading = null;
-    alternatesError = { intent, titleKey, bodyKey };
+    alternatesError = { intent, titleKey, bodyKey, auth };
     await refreshResultCard();
     updatePrivacy('names');
     announceAlert('alternatesFail');
@@ -2415,10 +2526,31 @@ const onAlternates = async (intent: AlternateIntent): Promise<void> => {
       intent,
       titleKey: ALTERNATES_ERROR_FALLBACK[0],
       bodyKey: ALTERNATES_ERROR_FALLBACK[1],
+      auth: false,
     };
     await refreshResultCard();
     announceAlert('alternatesFail');
   }
+};
+
+// Alternates run waiting on a key repair: the destination pins it to the
+// displayed result so a newer analysis drops the stale resumption.
+let pendingAlternates: { intent: AlternateIntent; placeName: string; destination: string } | null =
+  null;
+
+const onAlternatesKey = (intent: AlternateIntent): void => {
+  if (!currentPlace) {
+    return;
+  }
+  pendingAlternates = {
+    intent,
+    placeName: currentPlace.placeName,
+    destination: currentDestination,
+  };
+  store.set({ replacing: true, showOrphaned: false });
+  setKeyForm({ sessionOnly: runSettings?.sessionOnly ?? false });
+  selectTab('settings');
+  announceStatus('statusKeyNeeded');
 };
 
 const onAlternatesCancel = (): void => {
@@ -2433,7 +2565,19 @@ const onAlternatesCancel = (): void => {
 const resumePending = async (): Promise<void> => {
   const pending = pendingRun;
   pendingRun = null;
+  const alternates = pendingAlternates;
+  pendingAlternates = null;
   if (!pending) {
+    if (
+      alternates &&
+      currentPlace &&
+      currentPlace.placeName === alternates.placeName &&
+      currentDestination === alternates.destination
+    ) {
+      selectTab('main');
+      await runAlternates(alternates.intent);
+      return;
+    }
     showIdle();
     return;
   }
@@ -2667,6 +2811,7 @@ const SidepanelApp = () => {
                 onAllowHost: (host) => onAllowHost(host),
                 onLookAgain: () => void lookAgain(),
                 onAlternates: (intent) => void onAlternates(intent),
+                onAlternatesKey: (intent) => onAlternatesKey(intent),
                 onCancelAlternates: onAlternatesCancel,
                 onCancelLoading: () => onCancelLoading(),
                 onDismissError: () => showIdle(),

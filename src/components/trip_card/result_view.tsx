@@ -86,6 +86,7 @@ export const ResultView = ({
           alternates={alternates}
           onCancel={callbacks.onCancelAlternates}
           onRetry={callbacks.onAlternates}
+          onUpdateKey={callbacks.onAlternatesKey}
         />
       </section>
     </>

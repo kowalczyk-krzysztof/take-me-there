@@ -1,6 +1,13 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { installChromeMock, uninstallChromeMock } from './test/chrome_mock';
-import { frameCacheSeed, hasVideoConsented, isRung2Usable, setVideoConsented } from './video';
+import {
+  frameCacheSeed,
+  hasFullVideoConsented,
+  hasVideoConsented,
+  isRung2Usable,
+  setFullVideoConsented,
+  setVideoConsented,
+} from './video';
 
 afterEach(() => {
   uninstallChromeMock();
@@ -69,6 +76,18 @@ describe('video confirm flag', () => {
     installChromeMock();
     expect(await hasVideoConsented()).toBe(false);
     await setVideoConsented();
+    expect(await hasVideoConsented()).toBe(true);
+  });
+});
+
+describe('full-media consent', () => {
+  it('is independent of frame consent', async () => {
+    installChromeMock();
+    expect(await hasFullVideoConsented()).toBe(false);
+    await setVideoConsented();
+    expect(await hasFullVideoConsented()).toBe(false);
+    await setFullVideoConsented();
+    expect(await hasFullVideoConsented()).toBe(true);
     expect(await hasVideoConsented()).toBe(true);
   });
 });

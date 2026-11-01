@@ -513,6 +513,16 @@ describe('storage service grants', () => {
     expect(permsRemove).toHaveBeenCalledWith({ origins: ['https://cdn.example.com/*'] });
   });
 
+  it('runs reconciliation through the same queue', async () => {
+    await addHostGrant('https://cdn.example.com');
+    await releaseHostAccess('https://cdn.example.com');
+    expect(permsRemove).toHaveBeenCalledTimes(1);
+
+    await expect(enqueueLocalCommand({ kind: 'grant.reconcile' })).resolves.toMatchObject({
+      ok: true,
+    });
+  });
+
   it('rejects invalid origins without touching permissions', async () => {
     await expect(
       enqueueLocalCommand({ kind: 'grant.add', origin: 'http://cdn.example.com' })
@@ -524,6 +534,9 @@ describe('storage service grants', () => {
     ).resolves.toMatchObject({ ok: false });
     await expect(
       enqueueLocalCommand({ kind: 'grant.release', origin: 'not a url' })
+    ).resolves.toMatchObject({ ok: false });
+    await expect(
+      enqueueLocalCommand({ kind: 'grant.cancel', origin: 'not a url' })
     ).resolves.toMatchObject({ ok: false });
 
     expect(permsRemove).not.toHaveBeenCalled();

@@ -93,10 +93,20 @@ describe('captureVideoFrame', () => {
     expect(out.ok).toBe(true);
   });
 
-  it('matches with the query string stripped on either side', () => {
-    addVideo({ currentSrc: 'https://cdn.example.com/trip.mp4?sig=new' });
+  it('treats a different query-identified clip as no-match without drawing', () => {
+    addVideo({ currentSrc: 'https://cdn.example.com/video?id=private-B' });
 
-    const out = captureVideoFrame('https://cdn.example.com/trip.mp4?sig=old');
+    const out = captureVideoFrame('https://cdn.example.com/video?id=clicked-A');
+
+    expect(out).toEqual({ ok: false, reason: 'no-match' });
+    expect(drawImage).not.toHaveBeenCalled();
+    expect(toDataURL).not.toHaveBeenCalled();
+  });
+
+  it('matches the identical query-identified URL', () => {
+    addVideo({ currentSrc: 'https://cdn.example.com/video?id=clicked-A' });
+
+    const out = captureVideoFrame('https://cdn.example.com/video?id=clicked-A');
 
     expect(out.ok).toBe(true);
   });

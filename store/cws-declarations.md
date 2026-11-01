@@ -47,6 +47,8 @@ addresses are hashed locally for cache keys and never sent.
 
 ## Permission justifications
 
+- `alarms`: retries temporary host-grant cleanup while journal
+  entries remain, so abandoned leases clear without user activity.
 - `contextMenus`: the right-click "Take me there" entry point.
 - `sidePanel`: renders results next to the page.
 - `scripting` + `activeTab`: run the page readers (signals,

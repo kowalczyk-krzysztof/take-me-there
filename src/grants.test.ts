@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  GRANT_RETRY_ALARM,
   TEMP_GRANT_KEY,
   TEMP_GRANT_TTL_MS,
   addGrantJournal,
+  cancelGrantJournal,
   reconcileTempGrants,
   releaseGrantJournal,
   removeGrantVerified,
@@ -119,6 +121,23 @@ describe('grant journal', () => {
     expect(await readJournal()).toEqual({});
   });
 
+  it('cancels a speculative entry without touching permissions', async () => {
+    await addGrantJournal(ORIGIN);
+    await addGrantJournal(ORIGIN);
+
+    await cancelGrantJournal(ORIGIN);
+
+    expect(permsRemove).not.toHaveBeenCalled();
+    expect((await readJournal())[ORIGIN]?.count).toBe(1);
+
+    await cancelGrantJournal(ORIGIN);
+
+    expect(permsRemove).not.toHaveBeenCalled();
+    expect(await readJournal()).toEqual({});
+
+    await expect(cancelGrantJournal(ORIGIN)).resolves.toBeUndefined();
+  });
+
   it('reports verification truthfully', async () => {
     permsContains.mockResolvedValue(false);
 
@@ -190,5 +209,76 @@ describe('reconcileTempGrants', () => {
 
     mock.local.fault = () => undefined;
     mock.session.fault = () => undefined;
+  });
+
+  it('serializes reconciliation with a racing acquisition', async () => {
+    const OTHER = 'https://other.example.com';
+    await mock.local.set({ [TEMP_GRANT_KEY]: { [OTHER]: { count: 0, at: 0 } } });
+
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    permsRemove.mockImplementationOnce(async () => {
+      await gate;
+    });
+
+    const reconciling = reconcileTempGrants();
+    const adding = addGrantJournal(ORIGIN);
+    release();
+    await Promise.all([reconciling, adding]);
+
+    expect((await readJournal())[ORIGIN]).toEqual({ count: 1, at: expect.any(Number) });
+    expect(await readJournal()).not.toHaveProperty(OTHER);
+  });
+
+  it('schedules an expiry retry while a fresh orphan remains', async () => {
+    const alarmsCreate = vi.fn();
+    const alarmsClear = vi.fn();
+    (chrome as unknown as { alarms: unknown }).alarms = {
+      create: alarmsCreate,
+      clear: alarmsClear,
+    };
+
+    const at = Date.now();
+    await mock.local.set({ [TEMP_GRANT_KEY]: { [ORIGIN]: { count: 1, at } } });
+
+    await reconcileTempGrants(at + 1000);
+
+    expect((await readJournal())[ORIGIN]?.count).toBe(1);
+    expect(alarmsCreate).toHaveBeenCalledTimes(1);
+    expect(alarmsCreate.mock.calls[0][0]).toBe(GRANT_RETRY_ALARM);
+    const when = (alarmsCreate.mock.calls[0][1] as { when: number }).when;
+    expect(Math.abs(when - (at + TEMP_GRANT_TTL_MS))).toBeLessThan(5000);
+    expect(alarmsClear).not.toHaveBeenCalled();
+
+    delete (chrome as unknown as { alarms?: unknown }).alarms;
+  });
+
+  it('cleans a failed revocation after recovery without another user action', async () => {
+    const alarmsCreate = vi.fn();
+    const alarmsClear = vi.fn();
+    (chrome as unknown as { alarms: unknown }).alarms = {
+      create: alarmsCreate,
+      clear: alarmsClear,
+    };
+    permsContains.mockResolvedValue(true);
+
+    await mock.local.set({ [TEMP_GRANT_KEY]: { [ORIGIN]: { count: 0, at: 0 } } });
+
+    await reconcileTempGrants();
+
+    expect((await readJournal())[ORIGIN]?.count).toBe(0);
+    expect(alarmsCreate).toHaveBeenCalledTimes(1);
+
+    permsContains.mockResolvedValue(false);
+
+    // The scheduled alarm fires: the worker reconciles again on its own.
+    await reconcileTempGrants();
+
+    expect(await readJournal()).toEqual({});
+    expect(alarmsClear).toHaveBeenCalledWith(GRANT_RETRY_ALARM);
+
+    delete (chrome as unknown as { alarms?: unknown }).alarms;
   });
 });

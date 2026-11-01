@@ -89,6 +89,44 @@ describe('service-worker', () => {
     expect(await mock.local.get(TEMP_GRANT_KEY)).toEqual({ [TEMP_GRANT_KEY]: {} });
   });
 
+  it('reconciles journal strays when the retry alarm fires', async () => {
+    vi.resetModules();
+
+    const mock = installChromeMock();
+
+    const permsRemove = vi.fn().mockResolvedValue(undefined);
+    (chrome as unknown as { permissions: unknown }).permissions = {
+      remove: permsRemove,
+      contains: vi.fn().mockResolvedValue(false),
+      getAll: vi.fn().mockResolvedValue({ origins: [] }),
+    };
+
+    const listeners: Array<(alarm: { name: string }) => void> = [];
+    (chrome as unknown as { alarms: unknown }).alarms = {
+      onAlarm: {
+        addListener: (fn: (alarm: { name: string }) => void): void => {
+          listeners.push(fn);
+        },
+      },
+    };
+
+    await import('./service-worker');
+    await flush();
+    expect(listeners).toHaveLength(1);
+
+    await mock.local.set({
+      [TEMP_GRANT_KEY]: { 'https://stray.example.com': { count: 0, at: 0 } },
+    });
+
+    for (const fn of listeners) {
+      fn({ name: 'take-me-there-grant-reconcile' });
+    }
+    await flush();
+
+    expect(permsRemove).toHaveBeenCalledWith({ origins: ['https://stray.example.com/*'] });
+    expect(await mock.local.get(TEMP_GRANT_KEY)).toEqual({ [TEMP_GRANT_KEY]: {} });
+  });
+
   it('wires menus, panel behavior, and onboarding on install', async () => {
     const mock = await setup();
 

@@ -261,7 +261,7 @@ export class MuseProvider implements Provider {
     schema: Record<string, unknown>,
     prompt: string,
     parse: (json: unknown) => T | undefined
-  ): Promise<{ value: T; sources: SourceLink[] } | null> {
+  ): Promise<{ value: T; sources: SourceLink[]; searchCount: number } | null> {
     let res: Response;
 
     try {
@@ -323,7 +323,7 @@ export class MuseProvider implements Provider {
       return null;
     }
 
-    return { value, sources: extracted.sources };
+    return { value, sources: extracted.sources, searchCount: extracted.searchCount };
   }
 
   private async chatStructured<T>(
@@ -386,11 +386,15 @@ export class MuseProvider implements Provider {
           parseAlternatesContent
         );
 
+    // Provenance follows tool activity, not the endpoint: a Responses
+    // answer with zero searches is generated without search.
     if (grounded && grounded.value.length > 0) {
+      const searched = grounded.searchCount > 0;
+
       return {
         alternatives: grounded.value,
-        grounded: true,
-        sources: grounded.sources,
+        grounded: searched,
+        sources: searched ? grounded.sources : [],
         usage: { ...usage },
       };
     }
@@ -411,10 +415,12 @@ export class MuseProvider implements Provider {
     }
 
     if (grounded || chat) {
+      const searched = (grounded?.searchCount ?? 0) > 0;
+
       return {
         alternatives: [],
-        grounded: grounded !== null,
-        sources: grounded?.sources ?? [],
+        grounded: searched,
+        sources: searched ? (grounded?.sources ?? []) : [],
         usage: { ...usage },
       };
     }

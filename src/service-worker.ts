@@ -10,12 +10,26 @@ import {
   handoffSlotKey,
   withHandoffSlot,
 } from './handoff';
-import { reconcileTempGrants } from './grants';
+import { GRANT_RETRY_ALARM } from './grants';
 
-void reconcileTempGrants();
+// Queued with everything else, so startup cleanup can never interleave
+// mid-journal with an acquisition.
+void enqueueLocalCommand({ kind: 'grant.reconcile' }).catch(() => undefined);
 
 // Queued first, so no cache use precedes the purge.
 void enqueueLocalCommand({ kind: 'migrate.run' }).catch(() => undefined);
+
+// Durable retry: while journal entries remain, reconciliation reschedules
+// this alarm, so orphans and failed revocations clear without user activity.
+try {
+  chrome.alarms?.onAlarm.addListener((alarm) => {
+    if (alarm?.name === GRANT_RETRY_ALARM) {
+      void enqueueLocalCommand({ kind: 'grant.reconcile' }).catch(() => undefined);
+    }
+  });
+} catch {
+  // No alarm surface: journal cleanup still runs on worker commands.
+}
 
 const MENU_ID = 'plan-trip';
 

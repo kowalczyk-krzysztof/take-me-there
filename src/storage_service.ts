@@ -15,7 +15,12 @@ import {
   type CacheRecord,
 } from './result_cache';
 import { readSettingsStrict, writeSettingsRecord } from './settings_store';
-import { addGrantJournal, reconcileTempGrants, releaseGrantJournal } from './grants';
+import {
+  addGrantJournal,
+  cancelGrantJournal,
+  reconcileTempGrants,
+  releaseGrantJournal,
+} from './grants';
 import { runUpdateMigrations } from './migrations';
 import {
   COMMAND_SCHEMAS,
@@ -383,6 +388,22 @@ const execute = async (command: StorageCommand): Promise<CommandResult> => {
       }
 
       await releaseGrantJournal(command.origin);
+      await reconcileTempGrants();
+
+      return { ok: true, value: undefined };
+    }
+
+    case 'grant.cancel': {
+      if (!isGrantableOrigin(command.origin)) {
+        return invalid('invalid origin');
+      }
+
+      await cancelGrantJournal(command.origin);
+
+      return { ok: true, value: undefined };
+    }
+
+    case 'grant.reconcile': {
       await reconcileTempGrants();
 
       return { ok: true, value: undefined };

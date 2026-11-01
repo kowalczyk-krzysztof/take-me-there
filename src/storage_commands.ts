@@ -67,6 +67,8 @@ export type StorageCommand =
   | { kind: 'key.setMode'; providerId: string; sessionOnly: boolean }
   | { kind: 'grant.add'; origin: string }
   | { kind: 'grant.release'; origin: string }
+  | { kind: 'grant.cancel'; origin: string }
+  | { kind: 'grant.reconcile' }
   | { kind: 'migrate.run' };
 
 export type CommandKind = StorageCommand['kind'];
@@ -94,6 +96,8 @@ export const COMMAND_SCHEMAS: Record<CommandKind, PayloadSchema> = {
   'key.setMode': keyModeSchema,
   'grant.add': grantOriginSchema,
   'grant.release': grantOriginSchema,
+  'grant.cancel': grantOriginSchema,
+  'grant.reconcile': emptySchema,
   'migrate.run': emptySchema,
 };
 

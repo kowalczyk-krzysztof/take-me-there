@@ -2,7 +2,7 @@
 // (the eval harness imports TypeScript sources directly). Only handles
 // relative specifiers; everything else passes through untouched.
 import { existsSync, statSync } from 'node:fs';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, resolve as resolvePath } from 'node:path';
 
 export const resolve = async (specifier, context, next) => {
@@ -13,7 +13,8 @@ export const resolve = async (specifier, context, next) => {
     if (!specifier.startsWith('.')) throw err;
   }
 
-  const parentDir = dirname(new URL(context.parentURL).pathname);
+  // fileURLToPath decodes URL escapes (%20 for spaces); raw pathname keeps them and misses real files.
+  const parentDir = dirname(fileURLToPath(context.parentURL));
   const base = resolvePath(parentDir, specifier);
   const candidates = [`${base}.ts`, `${base}.tsx`, `${base}/index.ts`];
 

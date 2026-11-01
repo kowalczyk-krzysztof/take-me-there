@@ -13,7 +13,12 @@
         "ogSiteName": "Example Photos",
         "imgFileSlug": "1280px blue domed church oia santorini greece july"
       },
-      "expect": { "kind": "match", "tokens": ["oia", "santorini", "greece"] }
+      "expect": {
+        "kind": "match",
+        "place": ["oia", "blue dom"],
+        "locality": ["oia", "santorini"],
+        "country": ["greece"]
+      }
     },
     {
       "id": "eiffel",
@@ -27,7 +32,12 @@
         "ogSiteName": "Example Photos",
         "imgFileSlug": "1280px tour eiffel sunrise trocadero"
       },
-      "expect": { "kind": "match", "tokens": ["eiffel", "paris", "france"] }
+      "expect": {
+        "kind": "match",
+        "place": ["eiffel"],
+        "locality": ["paris"],
+        "country": ["france"]
+      }
     },
     {
       "id": "mdina",
@@ -41,7 +51,12 @@
         "ogSiteName": "Example Photos",
         "imgFileSlug": "1280px catedral san pablo mdina malta"
       },
-      "expect": { "kind": "match", "tokens": ["mdina", "malta"] }
+      "expect": {
+        "kind": "match",
+        "place": ["mdina", "paul", "cathedral"],
+        "locality": ["mdina"],
+        "country": ["malta"]
+      }
     },
     {
       "id": "street",
@@ -98,7 +113,12 @@
         "ogSiteName": "Example Travel",
         "imgFileSlug": "mykonos guide cover"
       },
-      "expect": { "kind": "image-first", "tokens": ["oia", "santorini", "greece"] }
+      "expect": {
+        "kind": "image-first",
+        "place": ["oia", "blue dom"],
+        "locality": ["oia", "santorini"],
+        "country": ["greece"]
+      }
     },
     {
       "id": "eiffel-lie",
@@ -113,7 +133,12 @@
         "ogSiteName": "Example Travel",
         "imgFileSlug": "las vegas replica tower"
       },
-      "expect": { "kind": "image-first", "tokens": ["eiffel", "paris", "france"] }
+      "expect": {
+        "kind": "image-first",
+        "place": ["eiffel"],
+        "locality": ["paris"],
+        "country": ["france"]
+      }
     },
     {
       "id": "filename-lie",
@@ -127,7 +152,12 @@
         "ogSiteName": "Example Photos",
         "imgFileSlug": "mykonos harbour sunset"
       },
-      "expect": { "kind": "image-first", "tokens": ["oia", "santorini", "greece"] }
+      "expect": {
+        "kind": "image-first",
+        "place": ["oia", "blue dom"],
+        "locality": ["oia", "santorini"],
+        "country": ["greece"]
+      }
     },
     {
       "id": "jsonld-lie",
@@ -151,7 +181,12 @@
           }
         ]
       },
-      "expect": { "kind": "image-first", "tokens": ["eiffel", "paris", "france"] }
+      "expect": {
+        "kind": "image-first",
+        "place": ["eiffel"],
+        "locality": ["paris"],
+        "country": ["france"]
+      }
     },
     {
       "id": "broken-400",

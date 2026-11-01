@@ -1,23 +1,27 @@
 const VIDEO_CONFIRM_KEY = 'videoFrameConsent';
-// Bump when the video confirm copy or the consented video flows change.
+// Frame-only consent: the captured still plus page text.
 const VIDEO_CONSENT_VERSION: number = 1;
+
+// Full-media consent: the video URL leaves the device for remote
+// processing of the whole clip and its soundtrack. A separate flag so
+// legacy frame consent never establishes full-media approval.
+const VIDEO_FULL_KEY = 'videoFullConsent';
+const VIDEO_FULL_VERSION: number = 1;
 
 const MAX_DATA_VIDEO_LENGTH = 50000000;
 
-export const hasVideoConsented = async (): Promise<boolean> => {
+const readVersionedFlag = async (key: string, version: number): Promise<boolean> => {
   try {
-    const stored = (await chrome.storage.local.get(VIDEO_CONFIRM_KEY)) as {
-      videoFrameConsent?: unknown;
-    };
+    const stored = (await chrome.storage.local.get(key)) as Record<string, unknown>;
 
-    const value = stored.videoFrameConsent;
+    const value = stored[key];
 
     if (value === true) {
-      return VIDEO_CONSENT_VERSION === 1;
+      return version === 1;
     }
 
     if (typeof value === 'object' && value !== null) {
-      return (value as { v?: unknown }).v === VIDEO_CONSENT_VERSION;
+      return (value as { v?: unknown }).v === version;
     }
 
     return false;
@@ -26,9 +30,21 @@ export const hasVideoConsented = async (): Promise<boolean> => {
   }
 };
 
+export const hasVideoConsented = async (): Promise<boolean> =>
+  readVersionedFlag(VIDEO_CONFIRM_KEY, VIDEO_CONSENT_VERSION);
+
 export const setVideoConsented = async (): Promise<void> => {
   await chrome.storage.local.set({
     [VIDEO_CONFIRM_KEY]: { v: VIDEO_CONSENT_VERSION, at: new Date().toISOString() },
+  });
+};
+
+export const hasFullVideoConsented = async (): Promise<boolean> =>
+  readVersionedFlag(VIDEO_FULL_KEY, VIDEO_FULL_VERSION);
+
+export const setFullVideoConsented = async (): Promise<void> => {
+  await chrome.storage.local.set({
+    [VIDEO_FULL_KEY]: { v: VIDEO_FULL_VERSION, at: new Date().toISOString() },
   });
 };
 

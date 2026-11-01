@@ -144,7 +144,7 @@ export const readBoundedJson = async (
       throw invalidResponse(usage, `${label} exceeds the size cap`);
     }
 
-    throw toNetworkError(err, signal);
+    throw toNetworkError(err, signal, usage);
   }
 
   try {

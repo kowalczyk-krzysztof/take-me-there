@@ -9,9 +9,10 @@ interface Props {
   alternates: AlternatesState;
   onCancel: () => void;
   onRetry: (intent: AlternateIntentView) => void;
+  onUpdateKey: (intent: AlternateIntentView) => void;
 }
 
-export const AlternatesView = ({ alternates, onCancel, onRetry }: Props) => {
+export const AlternatesView = ({ alternates, onCancel, onRetry, onUpdateKey }: Props) => {
   if (alternates.state === 'idle') {
     return null;
   }
@@ -21,9 +22,15 @@ export const AlternatesView = ({ alternates, onCancel, onRetry }: Props) => {
       <div className={styles.alternates}>
         <p className={styles['alternates-error-title']}>{alternates.title}</p>
         <p className={styles['alternates-error-body']}>{alternates.body}</p>
-        <button type="button" onClick={() => onRetry(alternates.intent)}>
-          {msg('retryButton')}
-        </button>
+        {alternates.auth ? (
+          <button type="button" onClick={() => onUpdateKey(alternates.intent)}>
+            {msg('updateKeyButton')}
+          </button>
+        ) : (
+          <button type="button" onClick={() => onRetry(alternates.intent)}>
+            {msg('retryButton')}
+          </button>
+        )}
       </div>
     );
   }

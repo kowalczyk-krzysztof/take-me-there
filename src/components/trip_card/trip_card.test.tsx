@@ -23,6 +23,7 @@ const fullCallbacks = (overrides: Partial<TripCardCallbacks> = {}): TripCardCall
   onRetry: noop,
   onLookAgain: noop,
   onAlternates: noop,
+  onAlternatesKey: noop,
   onCancelAlternates: noop,
   onCancelLoading: noop,
   onDismissError: noop,
@@ -403,6 +404,7 @@ describe('trip-card', () => {
           intent: 'quieter',
           title: 'Network down',
           body: 'Check the connection.',
+          auth: false,
         },
       },
       { onAlternates }
@@ -416,6 +418,37 @@ describe('trip-card', () => {
     expect(retry.textContent).toBe('retryButton');
     clickEl(retry);
     expect(onAlternates).toHaveBeenCalledWith('quieter');
+  });
+
+  it('renders alternates auth errors with an update-key repair', () => {
+    const onAlternatesKey = vi.fn();
+
+    const root = renderCard(
+      {
+        view: 'result',
+        place: PLACE,
+        lowConfidence: false,
+        canReanalyze: true,
+        confidence: CONF,
+        sourceHost: null,
+        destination: null,
+        runCost: null,
+        cached: false,
+        alternates: {
+          state: 'error',
+          intent: 'cheaper',
+          title: 'Check your key',
+          body: 'The key was rejected.',
+          auth: true,
+        },
+      },
+      { onAlternatesKey }
+    ).container;
+
+    const repair = root.querySelector('.alternates button') as HTMLButtonElement;
+    expect(repair.textContent).toBe('updateKeyButton');
+    clickEl(repair);
+    expect(onAlternatesKey).toHaveBeenCalledWith('cheaper');
   });
 
   it('renders empty alternates with a retry', () => {
