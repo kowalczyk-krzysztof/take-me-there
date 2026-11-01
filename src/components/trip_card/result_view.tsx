@@ -49,8 +49,6 @@ export const ResultView = ({
         </p>
       ) : null}
       <section className={styles.secondary} aria-label={msg('secondaryHeading')}>
-        <ChipsRow alternates={alternates} onAlternates={callbacks.onAlternates} />
-        <AlternatesList alternates={alternates} onCancel={callbacks.onCancelAlternates} />
         {canReanalyze ? (
           <div className={styles['disagree-row']}>
             <span>{msg('notThisPlace')}</span>
@@ -59,6 +57,8 @@ export const ResultView = ({
             </button>
           </div>
         ) : null}
+        <ChipsRow alternates={alternates} onAlternates={callbacks.onAlternates} />
+        <AlternatesList alternates={alternates} onCancel={callbacks.onCancelAlternates} />
       </section>
     </>
   );

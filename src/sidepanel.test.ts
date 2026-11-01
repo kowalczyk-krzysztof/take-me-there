@@ -2407,7 +2407,7 @@ describe('sidepanel', () => {
     }
 
     expect(fresh.querySelectorAll('[role="button"]')).toHaveLength(0);
-    expect((controls[0] as HTMLElement).className).toContain('chip');
+    expect((controls[0] as HTMLElement).textContent).toBe('reanalyzeButton');
 
     const chip = fresh.querySelector('.chips-row .chip') as HTMLButtonElement;
     focusEl(chip);

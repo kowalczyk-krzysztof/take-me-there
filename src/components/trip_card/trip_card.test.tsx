@@ -286,7 +286,12 @@ describe('trip-card', () => {
       },
     }).container;
     expect(root.querySelector('.alternates-skeletons')).toBeNull();
-    expect(root.querySelector('.alternate-name')?.textContent).toBe('Fira, Greece');
+    const name = root.querySelector('.alternate-name') as HTMLAnchorElement;
+    expect(name.tagName).toBe('A');
+    expect(name.textContent?.replace('newTabSuffix', '')).toBe('Fira, Greece');
+    expect(name.href).toContain('https://www.google.com/maps/search/');
+    expect(name.href).toContain(encodeURIComponent('Fira, Greece'));
+    expect(name.target).toBe('_blank');
     expect(root.querySelector('.alternate-why')?.textContent).toBe('Same caldera, lower prices.');
     expect(root.querySelector('.alternate-month')?.textContent).toBe('alternatesBestMonth(May)');
   });

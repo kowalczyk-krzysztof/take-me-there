@@ -38,13 +38,16 @@ export const buildDestination = (placeName: string, city: string, country: strin
 export const capDestination = (destination: string): string =>
   truncateCodePoints(destination.trim().replace(/\s+/g, ' '), MAX_DESTINATION_CHARS);
 
+export const mapsSearchUrl = (destination: string): string =>
+  `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(capDestination(destination))}`;
+
 export const buildLinks = (destination: string): BookingLink[] => {
   const capped = capDestination(destination);
 
   const query = encodeURIComponent(capped);
 
   const links: BookingLink[] = [
-    { id: 'maps', href: `https://www.google.com/maps/search/?api=1&query=${query}` },
+    { id: 'maps', href: mapsSearchUrl(destination) },
     { id: 'hotels', href: `https://www.google.com/travel/hotels?q=${query}&hl=en` },
   ];
 

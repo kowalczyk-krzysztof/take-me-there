@@ -1,5 +1,7 @@
 import styles from './trip_card.module.css';
 import { msg } from '../../utils/i18n';
+import { mapsSearchUrl } from '../../deep_links';
+import { ExternalLink } from '../external_link/external_link';
 import { Monogram } from '../thumb_image/monogram';
 import type { AlternatesView as AlternatesState } from './trip_card';
 
@@ -34,7 +36,9 @@ export const AlternatesView = ({ alternates, onCancel }: Props) => {
         <div key={card.name} className={styles['alternate-card']}>
           <div className={styles['alternate-head']}>
             <Monogram name={card.name} />
-            <p className={styles['alternate-name']}>{card.name}</p>
+            <ExternalLink href={mapsSearchUrl(card.name)} className={styles['alternate-name']}>
+              {card.name}
+            </ExternalLink>
           </div>
           <p className={styles['alternate-why']}>{card.why}</p>
           <p className={styles['alternate-month']}>{msg('alternatesBestMonth', card.bestMonth)}</p>

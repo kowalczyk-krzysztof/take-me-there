@@ -87,6 +87,9 @@ main {
   align-items: center;
   justify-content: center;
   position: relative;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto;
   min-height: 96px;
   border: 1px solid var(--border);
   border-radius: 12px;
