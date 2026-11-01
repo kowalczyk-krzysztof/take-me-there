@@ -445,6 +445,54 @@ describe('transport timeouts', () => {
     ).rejects.toMatchObject({ code: 'aborted' });
   });
 
+  it('maps body-read aborts to typed cancellation', async () => {
+    const res = new Response(
+      new ReadableStream({
+        start(controller) {
+          controller.error(new DOMException('aborted', 'AbortError'));
+        },
+      }),
+      { status: 200 }
+    );
+
+    await expect(
+      readBoundedJson(res, emptyUsage(), 'response', new AbortController().signal)
+    ).rejects.toMatchObject({ name: 'ProviderError', code: 'aborted', retryable: false });
+  });
+
+  it('maps body-read failures to typed cancellation when the signal aborted', async () => {
+    const controller = new AbortController();
+    controller.abort();
+
+    const res = new Response(
+      new ReadableStream({
+        start(child) {
+          child.error(new Error('socket reset'));
+        },
+      }),
+      { status: 200 }
+    );
+
+    await expect(
+      readBoundedJson(res, emptyUsage(), 'response', controller.signal)
+    ).rejects.toMatchObject({ code: 'aborted' });
+  });
+
+  it('maps body-read failures to retryable network errors', async () => {
+    const res = new Response(
+      new ReadableStream({
+        start(controller) {
+          controller.error(new Error('socket reset'));
+        },
+      }),
+      { status: 200 }
+    );
+
+    await expect(
+      readBoundedJson(res, emptyUsage(), 'response', new AbortController().signal)
+    ).rejects.toMatchObject({ name: 'ProviderError', code: 'network', retryable: true });
+  });
+
   it('sends the key probe with a timeout signal', async () => {
     localFetch.mockResolvedValue(new Response('{}', { status: 200 }));
     await testModelsEndpoint('https://x.test', 'k');

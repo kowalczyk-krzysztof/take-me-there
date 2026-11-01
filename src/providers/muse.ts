@@ -147,7 +147,7 @@ export class MuseProvider implements Provider {
       throw responseError(res);
     }
 
-    const data = await readBoundedJson(res, usage, 'video description');
+    const data = await readBoundedJson(res, usage, 'video description', input.signal);
 
     const tokens = readChatUsage(data);
 
@@ -212,7 +212,7 @@ export class MuseProvider implements Provider {
         throw responseError(res);
       }
 
-      const data = await readBoundedJson(res, usage, 'normalize response');
+      const data = await readBoundedJson(res, usage, 'normalize response', input.signal);
 
       const tokens = readChatUsage(data);
 
@@ -297,8 +297,12 @@ export class MuseProvider implements Provider {
     let data: unknown;
 
     try {
-      data = await readBoundedJson(res, usage, 'grounded response');
-    } catch {
+      data = await readBoundedJson(res, usage, 'grounded response', signal);
+    } catch (err) {
+      if (err instanceof ProviderError && err.code === 'aborted') {
+        throw err;
+      }
+
       return null;
     }
 
@@ -437,7 +441,7 @@ export class MuseProvider implements Provider {
       throw responseError(res);
     }
 
-    const data = await readBoundedJson(res, usage, 'segmentation response');
+    const data = await readBoundedJson(res, usage, 'segmentation response', input.signal);
 
     const extracted = extractResponsesText(data);
 

@@ -1888,6 +1888,220 @@ describe('sidepanel', () => {
     expect(document.querySelector('#result-slot .hint')?.textContent).toBe('panelIdle');
   });
 
+  it('discards a late ready after canceling collection', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    fetchMock.mockResolvedValue(chatResponse(VALID_PLACE));
+
+    await settleWrite(mock.session.set({ [SLOT]: READY({ status: 'collecting', seq: 5001 }) }));
+
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot .cancel-button')?.textContent).toBe(
+        'cancelButton'
+      );
+    });
+
+    clickEl(document.querySelector('#result-slot .cancel-button') as HTMLButtonElement);
+
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot .hint')?.textContent).toBe('panelIdle');
+    });
+
+    await settleWrite(mock.session.set({ [SLOT]: READY({ status: 'ready', seq: 5001 }) }));
+    await sleep(50);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(document.querySelector('#result-slot .hint')?.textContent).toBe('panelIdle');
+
+    await waitFor(() => {
+      expect(mock.session.data.has(SLOT)).toBe(false);
+    });
+  });
+
+  it('discards a late handoff error after canceling collection', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+
+    await settleWrite(mock.session.set({ [SLOT]: READY({ status: 'collecting', seq: 5002 }) }));
+
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot .cancel-button')?.textContent).toBe(
+        'cancelButton'
+      );
+    });
+
+    clickEl(document.querySelector('#result-slot .cancel-button') as HTMLButtonElement);
+
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot .hint')?.textContent).toBe('panelIdle');
+    });
+
+    await settleWrite(
+      mock.session.set({
+        [SLOT]: READY({ status: 'error', reason: 'collecting-failed', seq: 5002 }),
+      })
+    );
+    await sleep(50);
+
+    expect(document.querySelector('#result-slot .hint')?.textContent).toBe('panelIdle');
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    await waitFor(() => {
+      expect(mock.session.data.has(SLOT)).toBe(false);
+    });
+  });
+
+  it('clears loading while the body stalls and settles the late body quietly', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+
+    let bodyController!: ReadableStreamDefaultController<Uint8Array>;
+
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        bodyController = controller;
+      },
+    });
+    fetchMock.mockResolvedValueOnce(
+      new Response(body, { status: 200, headers: { 'Content-Type': 'application/json' } })
+    );
+
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
+
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot .cancel-button')?.textContent).toBe(
+        'cancelButton'
+      );
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    clickEl(document.querySelector('#result-slot .cancel-button') as HTMLButtonElement);
+
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot .hint')?.textContent).toBe('panelIdle');
+    });
+    expect(document.querySelector('#status-region')?.textContent).toBe('statusCanceled');
+
+    bodyController.enqueue(
+      new TextEncoder().encode(
+        JSON.stringify({
+          choices: [{ message: { content: JSON.stringify(VALID_PLACE) } }],
+          usage: { prompt_tokens: 100, completion_tokens: 50 },
+        })
+      )
+    );
+    bodyController.close();
+
+    await sleep(50);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(document.querySelector('#result-slot .hint')?.textContent).toBe('panelIdle');
+
+    const { monthKey } = await settleWrite(import('./pricing'));
+
+    await waitFor(() => {
+      const record = mock.local.data.get('costTotals') as {
+        v: number;
+        months: Record<string, number>;
+      };
+
+      expect(record.months[monthKey(new Date())]).toBeCloseTo(0.0003375, 10);
+    });
+  });
+
+  it('keeps the newer result when a canceled identify resolves late', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+
+    let resolveFirst: (value: Response) => void = () => {};
+
+    const gate = new Promise<Response>((resolve) => {
+      resolveFirst = resolve;
+    });
+    fetchMock.mockImplementationOnce(() => gate);
+    fetchMock.mockResolvedValueOnce(chatResponse(PLACE_B));
+
+    await settleWrite(mock.session.set({ [SLOT]: READY({ requestId: '600-1' }) }));
+
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot .cancel-button')?.textContent).toBe(
+        'cancelButton'
+      );
+    });
+
+    clickEl(document.querySelector('#result-slot .cancel-button') as HTMLButtonElement);
+
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot .hint')?.textContent).toBe('panelIdle');
+    });
+
+    await settleWrite(
+      mock.session.set({
+        [SLOT]: READY({
+          requestId: '600-2',
+          srcUrl: 'https://cdn.example.com/fira.jpg',
+        }),
+      })
+    );
+    await waitForHeading('Fira');
+
+    resolveFirst(chatResponse(VALID_PLACE));
+    await sleep(50);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(document.querySelector('#result-slot')?.textContent).toContain('Fira');
+    expect(document.querySelector('#result-slot')?.textContent).not.toContain('Oia');
+  });
+
+  it('keeps recorded spend after canceling the next run', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
+
+    await settleWrite(mock.session.set({ [SLOT]: READY({ requestId: '700-1' }) }));
+    await waitForHeading('Oia');
+
+    const { monthKey } = await settleWrite(import('./pricing'));
+    const key = monthKey(new Date());
+
+    await waitFor(() => {
+      const record = mock.local.data.get('costTotals') as {
+        months: Record<string, number>;
+      };
+
+      expect(record.months[key]).toBeCloseTo(0.0003375, 10);
+    });
+
+    hangUntilAbort();
+
+    await settleWrite(
+      mock.session.set({
+        [SLOT]: READY({
+          requestId: '700-2',
+          srcUrl: 'https://cdn.example.com/other.jpg',
+        }),
+      })
+    );
+
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot .cancel-button')?.textContent).toBe(
+        'cancelButton'
+      );
+    });
+
+    clickEl(document.querySelector('#result-slot .cancel-button') as HTMLButtonElement);
+
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot .hint')?.textContent).toBe('panelIdle');
+    });
+    await sleep(50);
+
+    const record = mock.local.data.get('costTotals') as {
+      months: Record<string, number>;
+    };
+    expect(record.months[key]).toBeCloseTo(0.0003375, 10);
+  });
+
   it('shows a loading state while analyzing again', async () => {
     const mock = await setup();
     await plantKeyAndConsent();

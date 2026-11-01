@@ -116,7 +116,8 @@ export const JSON_MAX_BYTES = 2 * 1024 * 1024;
 export const readBoundedJson = async (
   res: Response,
   usage: Usage,
-  label: string
+  label: string,
+  signal?: AbortSignal
 ): Promise<unknown> => {
   if (!res.body) {
     throw invalidResponse(usage, `${label} is not JSON`);
@@ -131,8 +132,7 @@ export const readBoundedJson = async (
       throw invalidResponse(usage, `${label} exceeds the size cap`);
     }
 
-    // Reader failures propagate raw: the caller's catch maps aborts.
-    throw err;
+    throw toNetworkError(err, signal);
   }
 
   try {
@@ -751,7 +751,7 @@ const identifyAttempt = async (
     throw responseError(res);
   }
 
-  const data = await readBoundedJson(res, usage, 'identify response');
+  const data = await readBoundedJson(res, usage, 'identify response', input.signal);
 
   const tokens = readChatUsage(data);
 
@@ -842,7 +842,7 @@ export const fetchChatCompletion = async (
     throw responseError(res);
   }
 
-  const data = await readBoundedJson(res, usage, 'response');
+  const data = await readBoundedJson(res, usage, 'response', signal);
 
   const tokens = readChatUsage(data);
 

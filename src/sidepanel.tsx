@@ -314,6 +314,12 @@ let lastSeenSeq = 0;
 
 let lastSeenRank = -1;
 
+// Collecting sequence awaiting its terminal, if any; canceled sequences
+// whose late terminals must never run.
+let collectingSeq: number | null = null;
+
+const canceledSeqs = new Set<number>();
+
 let panelWindowPromise: Promise<number | undefined> | null = null;
 
 // Handoff storage is global; each panel only runs its own window's records.
@@ -679,17 +685,30 @@ const cancelAllWork = (): void => {
   abortSiblings();
 };
 
+// Terminal: the ticket kills in-flight continuations, clearing pendingRun
+// kills gate restarts, and marking the collecting sequence kills late
+// terminals. The UI idles immediately instead of waiting for aborts.
 const onCancelLoading = (): void => {
-  const hadRun = cancelActiveRun() !== null;
+  runTicket += 1;
+  pendingRun = null;
 
-  abortSiblings();
+  if (collectingSeq !== null) {
+    for (const seq of canceledSeqs) {
+      if (seq < collectingSeq) {
+        canceledSeqs.delete(seq);
+      }
+    }
 
-  if (!hadRun) {
-    clearStaleTimer();
-    updatePreview(null);
-    showIdle();
-    announceStatus('statusCanceled');
+    canceledSeqs.add(collectingSeq);
+    collectingSeq = null;
   }
+
+  cancelActiveRun();
+  abortSiblings();
+  clearStaleTimer();
+  updatePreview(null);
+  showIdle();
+  announceStatus('statusCanceled');
 };
 
 // Follow-ups inherit the live run's usage so the run figure stays cumulative; anything else starts clean.
@@ -1350,9 +1369,14 @@ const handle = async (value: unknown): Promise<void> => {
   if (request.seq === lastSeenSeq && rank <= lastSeenRank) {
     return;
   }
+  if (canceledSeqs.has(request.seq)) {
+    await ackRequest(request.windowId, request.seq);
+    return;
+  }
   lastSeenSeq = request.seq;
   lastSeenRank = rank;
   if (request.status === 'error') {
+    collectingSeq = null;
     await ackRequest(request.windowId, request.seq);
     renderErrorCard('handoffFailedTitle', 'handoffFailedBody', false, false);
     announceAlert('handoffFailedBody');
@@ -1361,6 +1385,7 @@ const handle = async (value: unknown): Promise<void> => {
   }
   updatePreview(request.srcUrl || null);
   if (request.status === 'collecting') {
+    collectingSeq = request.seq;
     announceStatus('statusAnalyzing');
     showSkeleton(request.requestId);
     clearStaleTimer();
@@ -1368,12 +1393,14 @@ const handle = async (value: unknown): Promise<void> => {
     staleTimer = setTimeout(() => {
       if (lastSeenSeq === seq && lastSeenRank === 0) {
         lastSeenRank = -1;
+        collectingSeq = null;
         updatePreview(null);
         showIdle();
       }
     }, STALE_COLLECTING_MS);
     return;
   }
+  collectingSeq = null;
   // Ack before running so a reopen can never replay (and rebill) a finished run.
   await ackRequest(request.windowId, request.seq);
   try {
