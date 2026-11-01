@@ -17,7 +17,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "zip": "npm run build && node scripts/verify-bundle.mjs && cd dist && zip -qr ../take-me-there.zip .",
-    "verify-injected": "node scripts/verify-injected.mjs"
+    "verify-injected": "node scripts/verify-injected.mjs",
+    "smoke:chrome": "node scripts/smoke-chrome.mjs"
   },
   "dependencies": {
     "idb-keyval": "6.3.0",

@@ -248,7 +248,7 @@
     "description": "Consent gate heading."
   },
   "consentBody": {
-    "message": "Analyzing sends the clicked image (its web address or, for inline images, captured frames, and on-demand retries, its pixels), nearby page text (title, captions, metadata) to Meta's Muse API using your key. For private images, the image's address itself can grant access to it. Meta may run web searches while identifying the place and its alternatives. Per Meta's API terms, standard (non-contributor) models are not trained on your content. The panel also loads a small preview of the image from its host without cookies.",
+    "message": "Analyzing sends the clicked image (its web address or, for inline images, captured frames, and on-demand retries, its pixels), nearby page text (title, captions, metadata) to Meta's Muse API using your key. For private images, the image's address itself can grant access to it. Meta may run web searches while finding alternatives. Per Meta's API terms, standard (non-contributor) models are not trained on your content. The panel also loads a small preview of the image from its host without cookies.",
     "description": "Canonical data-transmission disclosure."
   },
   "onboardingHowto": {

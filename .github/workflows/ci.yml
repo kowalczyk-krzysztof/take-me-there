@@ -20,4 +20,5 @@ jobs:
       - run: npm run build
       - run: node scripts/verify-bundle.mjs
       - run: node scripts/verify-injected.mjs
+      - run: npm run smoke:chrome
       - run: npm audit

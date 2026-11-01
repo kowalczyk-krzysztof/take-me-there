@@ -126,6 +126,9 @@ describe('prompt builders', () => {
     expect(text).toContain('image caption: Caldera view');
     expect(text).not.toContain('nearby text');
     expect(text).not.toContain('undefined');
+    expect(text).not.toContain('https://example.com/guide');
+    expect(text).not.toContain('example.com/guide');
+    expect(text).toContain('page topic: santorini guide');
   });
 
   it('withholds page text in image-only mode and handles empty signals', () => {

@@ -13,7 +13,7 @@ identifies the place, right in Chrome's side panel.
 - **Alternatives.** Ask for cheaper, quieter, or similar options
   near the identified place.
 - **Booking links.** Every result carries map and hotel deep links.
-- **Honest pricing.** Every analysis shows exactly what it cost.
+- **Honest pricing.** Every analysis shows an estimated cost.
   Repeat views load from a local cache and cost nothing.
 
 ## Install
@@ -63,7 +63,7 @@ and sends nothing else. Analysis uses `POST /v1/chat/completions`
 to name the place and suggest alternatives, plus `POST /v1/responses`
 for web-grounded alternatives and second looks. A typical run costs
 a few cents (about $0.0025 per web search or second look); cached
-repeats are free, and the panel shows the exact figure every time.
+repeats are free, and the panel shows the estimate every time.
 
 ## Develop
 
@@ -73,3 +73,7 @@ repeats are free, and the panel shows the exact figure every time.
 - `npm run format` - Prettier across the repo.
 - `node scripts/verify-bundle.mjs` - sanity-checks the built bundles
   (no forbidden code, page readers included).
+- `node scripts/verify-injected.mjs` - executes the serialized page
+  readers in fresh contexts, dev and production.
+- `npm run smoke:chrome` - boots the built pages in headless Chrome
+  and checks errors, narrow layout, dark theme, and reduced motion.

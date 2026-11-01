@@ -14,8 +14,9 @@ those runs reuse it), to `https://api.meta.ai`:
 
 - The Muse API key, to authenticate each call. Saving a key also sends
   the key alone to `GET /v1/models` to validate it.
-- The clicked image address, or its bytes when the page blocks
-  remote fetch. Image bytes are fetched without cookies.
+- The clicked image address, or its pixels for inline images and
+  on-demand retries. Image bytes are fetched without cookies.
+  Unparsable addresses fall back to page text only.
 - After agreement, the panel loads a small preview of the image
   from its host without cookies. Remote previews never load
   before consent.
