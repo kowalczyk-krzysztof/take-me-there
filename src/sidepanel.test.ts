@@ -3946,6 +3946,75 @@ describe('sidepanel', () => {
     expect(document.querySelector('#result-slot .hint')?.textContent).toBe('panelIdle');
   });
 
+  it('shows a loading state while looking again', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    (chrome as unknown as { permissions: unknown }).permissions = {
+      request: vi.fn().mockResolvedValue(true),
+      remove: vi.fn().mockResolvedValue(undefined),
+    };
+    vi.stubGlobal(
+      'createImageBitmap',
+      vi.fn().mockResolvedValue({ width: 400, height: 300, close: vi.fn() })
+    );
+    vi.stubGlobal(
+      'OffscreenCanvas',
+      vi.fn().mockImplementation(function (this: unknown) {
+        return {
+          getContext: () => ({ drawImage: vi.fn() }),
+          convertToBlob: async () => new Blob(['pixels']),
+        };
+      })
+    );
+    const GUESS = { ...VALID_PLACE, confidence: 0.2 };
+    fetchMock
+      .mockResolvedValueOnce(chatResponse(GUESS))
+      .mockResolvedValueOnce(
+        new Response(new Uint8Array([1, 2, 3]), { headers: { 'content-type': 'image/jpeg' } })
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            output: [
+              {
+                type: 'message',
+                content: [
+                  {
+                    type: 'output_text',
+                    text: 'Crop <|box;x1=100;y1=100;x2=600;y2=500;w=1000;h=1000|> here.',
+                    annotations: [],
+                  },
+                ],
+              },
+            ],
+            usage: { input_tokens: 900, output_tokens: 40 },
+          }),
+          { status: 200 }
+        )
+      );
+    hangUntilAbort();
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
+    await waitForHeading('noPlaceTitle');
+
+    clickEl(document.querySelector('#result-slot .primary') as HTMLButtonElement);
+
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot .cancel-button')?.textContent).toBe(
+        'cancelButton'
+      );
+    });
+    expect(document.querySelector('#result-slot .cosmetic')?.textContent).toBe(
+      'loadingPhaseIdentifying'
+    );
+
+    clickEl(document.querySelector('#result-slot .cancel-button') as HTMLButtonElement);
+
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('statusCanceled');
+    });
+    expect(document.querySelector('#result-slot .hint')?.textContent).toBe('panelIdle');
+  });
+
   it('cancels a hanging guide and returns the plan button', async () => {
     const mock = await setup();
     await plantKeyAndConsent();

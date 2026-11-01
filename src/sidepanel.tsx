@@ -2712,11 +2712,22 @@ const lookAgain = async (): Promise<void> => {
       },
       { inheritFrom: pickInherit(request.requestId, provider, key), abortSiblings }
     );
+    showSkeleton(request.requestId, 'identifying');
     let samCrop: SamCrop | null = null;
     if (provider.capabilities.segmentation) {
       samCrop = await trySamCrop(run, request);
 
       if (!ownsUi(run)) {
+        // A cancel during the SAM overlay settles like an aborted
+        // identify (the SAM spend counts); a superseding run owns the UI.
+        await priceAndRecord(run, 'identify');
+
+        if (activeRun() === null) {
+          cancelSkeleton();
+          showIdle();
+          announceStatus('statusCanceled');
+        }
+
         return;
       }
     }
