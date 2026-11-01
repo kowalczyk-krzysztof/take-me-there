@@ -217,6 +217,19 @@ describe('sidepanel', () => {
     });
   });
 
+  it('keeps every Explore section visible with empty states', async () => {
+    await setup();
+    expect(document.querySelector('#booking-heading')?.textContent).toBe('bookingHeading');
+    expect(document.querySelector('#links-slot .slot-empty')?.textContent).toBe('bookingEmpty');
+    expect(document.querySelector('#guide-heading')?.textContent).toBe('guideHeading');
+    expect(document.querySelector('#guide-slot .slot-empty')?.textContent).toBe('guideEmpty');
+    expect(document.querySelector('#guide-content')?.hasAttribute('hidden')).toBe(true);
+    expect(document.querySelector('#duel-heading')?.textContent).toBe('duelHeading');
+    expect(document.querySelector('#duel-slot .slot-empty')?.textContent).toBe('duelEmpty');
+    expect(document.querySelector('#sources-heading')?.textContent).toBe('sourcesHeading');
+    expect(document.querySelector('#sources-slot .slot-empty')?.textContent).toBe('sourcesEmpty');
+  });
+
   it('switches tabs with roving focus, counts pins, and surfaces runs', async () => {
     const mock = await setup();
 
@@ -652,7 +665,7 @@ describe('sidepanel', () => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusFoundPlan(Oia)');
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(document.querySelector('#guide-slot')?.hasAttribute('hidden')).toBe(true);
+    expect(document.querySelector('#guide-slot .slot-empty')?.textContent).toBe('guideEmpty');
     expect(document.querySelector('#guide-content')?.textContent).toBe('');
     expect(document.querySelector('#links-slot a.tile')).not.toBeNull();
 
@@ -672,7 +685,7 @@ describe('sidepanel', () => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusCacheHit(Oia)');
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(document.querySelector('#guide-slot')?.hasAttribute('hidden')).toBe(true);
+    expect(document.querySelector('#guide-slot .slot-empty')?.textContent).toBe('guideEmpty');
     expect(document.querySelector('#result-slot .plan-trip-button')).not.toBeNull();
   });
 
@@ -2705,7 +2718,7 @@ describe('sidepanel', () => {
     });
     clickEl(document.querySelector('#duel-slot button') as HTMLButtonElement);
     await waitFor(() => {
-      expect(document.querySelector('#duel-slot')?.hasAttribute('hidden')).toBe(true);
+      expect(document.querySelector('#duel-slot .slot-empty')?.textContent).toBe('duelEmpty');
     });
     expect(document.querySelector('#status-region')?.textContent).toBe('statusCanceled');
   });
@@ -2768,7 +2781,7 @@ describe('sidepanel', () => {
       expect(table?.querySelectorAll('tbody tr')).toHaveLength(2);
     });
     expect(fetchMock).toHaveBeenCalledTimes(3);
-    expect(document.querySelector('#sources-slot')?.hasAttribute('hidden')).toBe(true);
+    expect(document.querySelector('#sources-slot .slot-empty')?.textContent).toBe('sourcesEmpty');
   });
 
   it('retries a failed duel inline without losing the result', async () => {

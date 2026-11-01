@@ -4245,15 +4245,20 @@ const SidepanelApp = () => {
             </>
           ) : null}
         </div>
-        <div id="links-slot" hidden={state.links === null || undefined}>
+        <div id="links-slot">
           <h2 id="booking-heading">{msg('bookingHeading')}</h2>
-          {state.links !== null ? <BookingGrid destination={state.links} /> : null}
+          {state.links !== null ? (
+            <BookingGrid destination={state.links} />
+          ) : (
+            <p className="slot-empty">{msg('bookingEmpty')}</p>
+          )}
         </div>
-        <div id="guide-slot" hidden={!state.guideVisible || undefined}>
+        <div id="guide-slot">
           <h2 id="guide-heading">{msg('guideHeading')}</h2>
           <p id="search-line" hidden={!state.searching || undefined}>
             {state.searching ? msg('statusSearchingWeb') : null}
           </p>
+          {state.guideVisible ? null : <p className="slot-empty">{msg('guideEmpty')}</p>}
           <div
             id="guide-content"
             lang={chrome.i18n.getUILanguage()}
@@ -4262,20 +4267,28 @@ const SidepanelApp = () => {
             role="region"
             aria-labelledby="guide-heading"
             aria-busy={state.guideBusy || undefined}
+            hidden={!state.guideVisible || undefined}
           />
         </div>
-        <div id="duel-slot" hidden={state.duel === null || undefined}>
+        <div id="duel-slot">
+          <h2 id="duel-heading">{msg('duelHeading')}</h2>
           {state.duel ? (
             <CompareTable
               table={state.duel}
               onRetry={() => void onDuelRetry()}
               onCancel={onDuelCancel}
             />
-          ) : null}
+          ) : (
+            <p className="slot-empty">{msg('duelEmpty')}</p>
+          )}
         </div>
-        <div id="sources-slot" hidden={state.sources.length === 0 || undefined}>
+        <div id="sources-slot">
           <h2 id="sources-heading">{msg('sourcesHeading')}</h2>
-          <SourceChips sources={state.sources} />
+          {state.sources.length === 0 ? (
+            <p className="slot-empty">{msg('sourcesEmpty')}</p>
+          ) : (
+            <SourceChips sources={state.sources} />
+          )}
         </div>
       </section>
       <section

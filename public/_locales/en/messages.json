@@ -1556,5 +1556,25 @@
   "privacyGuideSearch": {
     "message": "Your search is sent to $1 with your key: this place name, also searched on the web for the trip guide.",
     "description": "Footer disclosure for a web-grounded guide."
+  },
+  "bookingEmpty": {
+    "message": "Booking links appear here once a place is found.",
+    "description": "Empty state for the booking section."
+  },
+  "guideEmpty": {
+    "message": "The trip guide appears here after you press Build a guide.",
+    "description": "Empty state for the guide section."
+  },
+  "duelHeading": {
+    "message": "Compare places",
+    "description": "Compare section heading."
+  },
+  "duelEmpty": {
+    "message": "Compare this place against a saved pin to see them side by side.",
+    "description": "Empty state for the compare section."
+  },
+  "sourcesEmpty": {
+    "message": "Web sources appear here with grounded guides.",
+    "description": "Empty state for the sources section."
   }
 }
