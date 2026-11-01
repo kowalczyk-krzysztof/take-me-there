@@ -1053,6 +1053,13 @@ const showGrantCard = (kind: GrantCardKind, host: string, request: TripRequest):
   updatePrivacy(errorPrivacy(request));
 };
 
+// Unreadable bytes are a media problem, not an access problem: no grant button.
+const renderInvalidMedia = (request: TripRequest): void => {
+  renderErrorCard('invalidMediaTitle', 'invalidMediaBody', true, false);
+  announceAlert('invalidMediaBody');
+  updatePrivacy(errorPrivacy(request));
+};
+
 const showProviderError = (
   err: unknown,
   request: TripRequest | null,
@@ -1211,17 +1218,24 @@ const runIdentify = async (args: IdentifyArgs): Promise<RunOutcome> => {
   }
   absorbRunUsage(run, identify.usage);
 
-  if (!ownsUi(run)) {
-    await priceAndRecord(run, 'identify');
+  // The provider work is done: settle before any ownership check or
+  // optional write, so supersession during cache or render keeps the usage.
+  await priceAndRecord(run, 'identify');
 
+  if (!ownsUi(run)) {
     return 'aborted';
   }
 
   run.place = identify.place;
-  await setCacheEntry(run.cacheKey, {
-    place: identify.place,
-    usage: { ...run.usage },
-  });
+
+  try {
+    await setCacheEntry(run.cacheKey, {
+      place: identify.place,
+      usage: { ...run.usage },
+    });
+  } catch {
+    // Best effort: a cache failure must not fail a completed analysis.
+  }
 
   if (!ownsUi(run)) {
     return 'aborted';
@@ -1927,8 +1941,20 @@ const fetchRetry = async (signal?: AbortSignal): Promise<boolean> => {
   const ticket = runTicket;
 
   // A cancel during the downscale must not resurrect as a replacement run.
-  const runWithBytes = async (bytes: Uint8Array): Promise<boolean> => {
-    const dataUrl = await downscaleToJpegDataUrl(bytes);
+  const runWithBytes = async (bytes: Uint8Array, source: 'tab' | 'direct'): Promise<boolean> => {
+    let dataUrl = '';
+
+    try {
+      dataUrl = await downscaleToJpegDataUrl(bytes);
+    } catch (err) {
+      if (source === 'direct' && !stop.aborted && runTicket === ticket) {
+        renderInvalidMedia(target);
+
+        return true;
+      }
+
+      throw err;
+    }
 
     if (!stop.aborted && runTicket === ticket) {
       announceStatus('statusAnalyzing');
@@ -1948,7 +1974,7 @@ const fetchRetry = async (signal?: AbortSignal): Promise<boolean> => {
     }
 
     try {
-      return await runWithBytes(bytes);
+      return await runWithBytes(bytes, 'tab');
     } catch {
       announceAlert('fetchFailed');
 
@@ -1966,7 +1992,7 @@ const fetchRetry = async (signal?: AbortSignal): Promise<boolean> => {
 
   if (loopback) {
     try {
-      return await runWithBytes(await fetchImageBytes(srcUrl, stop));
+      return await runWithBytes(await fetchImageBytes(srcUrl, stop), 'direct');
     } catch {
       announceAlert('fetchFailed');
 
@@ -2066,7 +2092,7 @@ const onAllowHost = (host: string): void => {
     try {
       dataUrl = await downscaleToJpegDataUrl(bytes);
     } catch {
-      showGrantCard('error', host, target);
+      renderInvalidMedia(target);
 
       return;
     }
@@ -2237,8 +2263,8 @@ const runAlternates = async (intent: AlternateIntent): Promise<void> => {
   }
   currentAlternates = { intent, alternatives: result.alternatives };
   alternatesLoading = null;
-  await refreshResultCard();
   await priceAndRecord(bucket, stage);
+  await refreshResultCard();
   updatePrivacy('names');
   announceStatus('alternatesReady', String(result.alternatives.length));
 };

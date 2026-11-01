@@ -201,7 +201,7 @@ describe('muse identify', () => {
     });
   });
 
-  it('maps network failures and aborts', async () => {
+  it('maps network failures and timeouts', async () => {
     await consented();
     fetchMock.mockRejectedValue(new TypeError('fetch failed'));
     await expect(provider.identifyPlace('LLM_key', identifyInput())).rejects.toMatchObject({
@@ -210,8 +210,8 @@ describe('muse identify', () => {
     });
     fetchMock.mockRejectedValue(new DOMException('aborted', 'AbortError'));
     await expect(provider.identifyPlace('LLM_key', identifyInput())).rejects.toMatchObject({
-      code: 'aborted',
-      retryable: false,
+      code: 'network',
+      retryable: true,
     });
   });
 
@@ -405,6 +405,28 @@ describe('muse findAlternates', () => {
     const result = await provider.findAlternates('LLM_key', alternatesInput());
     expect(result.alternatives).toHaveLength(2);
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('carries grounded usage when alternates grounding is malformed and chat fails', async () => {
+    await consented();
+
+    const malformed = new Response(
+      JSON.stringify({
+        output: [
+          { type: 'web_search_call' },
+          { type: 'message', content: [{ type: 'output_text', text: '{broken' }] },
+        ],
+        usage: { input_tokens: 200, output_tokens: 80 },
+      }),
+      { status: 200 }
+    );
+
+    fetchMock.mockResolvedValueOnce(malformed).mockRejectedValueOnce(new TypeError('down'));
+
+    await expect(provider.findAlternates('LLM_key', alternatesInput())).rejects.toMatchObject({
+      code: 'network',
+      usage: { inputTokens: 200, outputTokens: 80 },
+    });
   });
 
   it('skips the grounded attempt in cheap mode', async () => {

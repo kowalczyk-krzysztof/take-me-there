@@ -814,5 +814,13 @@
   "grantAllowPending": {
     "message": "Requesting access...",
     "description": "Host-access button while the browser prompt is open."
+  },
+  "invalidMediaTitle": {
+    "message": "This image could not be read",
+    "description": "Title when downloaded image bytes are unreadable."
+  },
+  "invalidMediaBody": {
+    "message": "The downloaded image data was unreadable, so it cannot be analyzed. Retry to start over.",
+    "description": "Body when downloaded image bytes are unreadable."
   }
 }

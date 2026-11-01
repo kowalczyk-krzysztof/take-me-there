@@ -548,6 +548,25 @@ describe('sidepanel', () => {
     expect(fetchMock.mock.calls[0][0]).toBe('https://cdn.example.com/oia.jpg');
   });
 
+  it('renders the place when the cache write fails', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    fetchMock.mockResolvedValueOnce(previewMiss());
+    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
+    mock.session.fault = (op, keys) => {
+      if (op === 'set' && keys.some((key) => key.startsWith('cache:'))) {
+        throw new Error('quota exceeded');
+      }
+    };
+
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
+    await waitForHeading('Oia');
+
+    expect(document.querySelector('#settings-run-line')?.textContent).toContain('costLine(');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    mock.session.fault = () => undefined;
+  });
+
   it('recovers from a rejected key through the inline fix', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
@@ -1089,6 +1108,17 @@ describe('sidepanel', () => {
     expect(fetchMock).toHaveBeenCalledTimes(4);
     expect(document.querySelector('#result-slot')?.textContent).toContain('Fira');
     expect(document.querySelector('#result-slot')?.textContent).not.toContain('Oia');
+
+    const { monthKey } = await settleWrite(import('./pricing'));
+    const key = monthKey(new Date());
+
+    await waitFor(() => {
+      const record = mock.local.data.get('costTotals') as {
+        months: Record<string, number>;
+      };
+
+      expect(record.months[key]).toBeCloseTo(0.000675, 10);
+    });
   });
 
   it('moves focus to the new heading when a swap removes the focused control', async () => {
@@ -1506,6 +1536,59 @@ describe('sidepanel', () => {
     expect(permsRequest).not.toHaveBeenCalled();
     expect(permsRemove).not.toHaveBeenCalled();
     expect(fetchMock.mock.calls[3][0]).toBe('http://localhost:8000/oia.jpg');
+  });
+
+  it('shows the media card when loopback bytes cannot be decoded', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    vi.stubGlobal('createImageBitmap', vi.fn().mockRejectedValue(new Error('unreadable')));
+    fetchMock
+      .mockResolvedValueOnce(previewMiss())
+      .mockResolvedValueOnce(new Response('bad image', { status: 400 }))
+      .mockResolvedValueOnce(new Response('boom', { status: 500 }))
+      .mockResolvedValueOnce(
+        new Response(new Uint8Array([9, 9, 9]), { headers: { 'content-type': 'image/jpeg' } })
+      );
+
+    await settleWrite(
+      mock.session.set({
+        [SLOT]: READY({ srcUrl: 'http://localhost:8000/oia.jpg' }),
+      })
+    );
+
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot h2')?.textContent).toBe('invalidMediaTitle');
+    });
+
+    const buttons = [...document.querySelectorAll('#result-slot button')].map(
+      (button) => button.textContent
+    );
+    expect(buttons).toContain('retryButton');
+    expect(buttons.some((text) => text?.startsWith('grantAllowButton('))).toBe(false);
+  });
+
+  it('recovers from a timeout with the network card retry', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    fetchMock.mockResolvedValueOnce(previewMiss());
+    fetchMock.mockRejectedValueOnce(new DOMException('timed out', 'TimeoutError'));
+
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
+
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot h2')?.textContent).toBe('errorNetworkTitle');
+    });
+
+    fetchMock.mockResolvedValueOnce(previewMiss());
+    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
+
+    const retry = [...document.querySelectorAll('#result-slot button')].find(
+      (button) => button.textContent === 'retryButton'
+    ) as HTMLButtonElement;
+    clickEl(retry);
+
+    await waitForHeading('Oia');
+    expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 
   it('explains host denial and keeps a single retry on non-400 errors', async () => {

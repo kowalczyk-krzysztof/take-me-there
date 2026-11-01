@@ -84,26 +84,38 @@ export const requireKey = (key: string): void => {
   }
 };
 
+export const withUsage = (err: ProviderError, usage?: Usage): ProviderError => {
+  if (usage) {
+    err.usage = { ...usage };
+  }
+
+  return err;
+};
+
 // Map by status only: error bodies can echo request details.
-export const responseError = (res: Response): ProviderError => {
+export const responseError = (res: Response, usage?: Usage): ProviderError => {
   if (res.status === 401 || res.status === 403) {
-    return new ProviderError(
-      'auth',
-      `request rejected with status ${res.status}`,
-      false,
-      res.status
+    return withUsage(
+      new ProviderError('auth', `request rejected with status ${res.status}`, false, res.status),
+      usage
     );
   }
 
   if (res.status === 429) {
-    return new ProviderError('rate_limited', 'rate limited', true, res.status);
+    return withUsage(new ProviderError('rate_limited', 'rate limited', true, res.status), usage);
   }
 
   if (res.status >= 500) {
-    return new ProviderError('server', `server error ${res.status}`, true, res.status);
+    return withUsage(
+      new ProviderError('server', `server error ${res.status}`, true, res.status),
+      usage
+    );
   }
 
-  return new ProviderError('server', `unexpected status ${res.status}`, false, res.status);
+  return withUsage(
+    new ProviderError('server', `unexpected status ${res.status}`, false, res.status),
+    usage
+  );
 };
 
 export const FETCH_TIMEOUT_MS = 30_000;
@@ -142,12 +154,24 @@ export const readBoundedJson = async (
   }
 };
 
-export const toNetworkError = (err: unknown, signal?: AbortSignal): ProviderError => {
-  if (signal?.aborted || (err as { name?: string })?.name === 'AbortError') {
-    return new ProviderError('aborted', 'request aborted', false);
+export const toNetworkError = (
+  err: unknown,
+  signal?: AbortSignal,
+  usage?: Usage
+): ProviderError => {
+  if (signal?.aborted) {
+    return withUsage(new ProviderError('aborted', 'request aborted', false), usage);
   }
 
-  return new ProviderError('network', 'network request failed', true);
+  const name = (err as { name?: unknown } | null)?.name;
+
+  // The run signal is alive, so an abort-named failure can only come from
+  // the timeout wrapper: a retryable timeout, never a silent abort.
+  if (name === 'AbortError' || name === 'TimeoutError') {
+    return withUsage(new ProviderError('network', 'request timed out', true), usage);
+  }
+
+  return withUsage(new ProviderError('network', 'network request failed', true), usage);
 };
 
 export const testModelsEndpoint = async (base: string, key: string): Promise<void> => {
@@ -538,6 +562,26 @@ export interface ResponsesText {
   outputTokens: number;
 }
 
+export const extractResponsesUsage = (
+  data: unknown
+): { inputTokens: number; outputTokens: number; cachedInputTokens: number } => {
+  const root = (data ?? {}) as {
+    usage?: {
+      input_tokens?: unknown;
+      output_tokens?: unknown;
+      input_tokens_details?: { cached_tokens?: unknown };
+    };
+  };
+
+  const cached = root.usage?.input_tokens_details?.cached_tokens;
+
+  return {
+    inputTokens: typeof root.usage?.input_tokens === 'number' ? root.usage.input_tokens : 0,
+    outputTokens: typeof root.usage?.output_tokens === 'number' ? root.usage.output_tokens : 0,
+    cachedInputTokens: typeof cached === 'number' && cached > 0 ? cached : 0,
+  };
+};
+
 export const extractResponsesText = (data: unknown): ResponsesText | undefined => {
   const root = (data ?? {}) as {
     output?: unknown;
@@ -702,7 +746,7 @@ const identifyAttempt = async (
       signal: fetchTimeout(input.signal),
     });
   } catch (err) {
-    throw toNetworkError(err, input.signal);
+    throw toNetworkError(err, input.signal, usage);
   }
 
   if (res.status === 400 && !textOnly && !input.videoUrl) {
@@ -748,7 +792,7 @@ const identifyAttempt = async (
   }
 
   if (!res.ok) {
-    throw responseError(res);
+    throw responseError(res, usage);
   }
 
   const data = await readBoundedJson(res, usage, 'identify response', input.signal);
@@ -835,11 +879,11 @@ export const fetchChatCompletion = async (
       signal: fetchTimeout(signal),
     });
   } catch (err) {
-    throw toNetworkError(err, signal);
+    throw toNetworkError(err, signal, usage);
   }
 
   if (!res.ok) {
-    throw responseError(res);
+    throw responseError(res, usage);
   }
 
   const data = await readBoundedJson(res, usage, 'response', signal);

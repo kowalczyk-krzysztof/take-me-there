@@ -9,6 +9,7 @@ import {
   extractChatJson,
   extractResponsesStructured,
   extractResponsesText,
+  extractResponsesUsage,
   formatSignalsForPrompt,
   getActiveProviderStrict,
   getProvider,
@@ -22,6 +23,8 @@ import {
   readChatUsage,
   fetchChatCompletion,
   responseError,
+  toNetworkError,
+  withUsage,
   sanitizePromptHint,
   setConsented,
   testModelsEndpoint,
@@ -433,6 +436,15 @@ describe('transport timeouts', () => {
   });
 
   it('maps caller aborts through the combined signal', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    localFetch.mockRejectedValueOnce(new DOMException('aborted', 'AbortError'));
+    await expect(
+      fetchChatCompletion('https://x.test/chat', 'k', {}, controller.signal, emptyUsage())
+    ).rejects.toMatchObject({ code: 'aborted' });
+  });
+
+  it('maps abort-named failures with a live signal to retryable timeouts', async () => {
     localFetch.mockRejectedValueOnce(new DOMException('aborted', 'AbortError'));
     await expect(
       fetchChatCompletion(
@@ -442,10 +454,28 @@ describe('transport timeouts', () => {
         new AbortController().signal,
         emptyUsage()
       )
-    ).rejects.toMatchObject({ code: 'aborted' });
+    ).rejects.toMatchObject({ code: 'network', retryable: true });
   });
 
   it('maps body-read aborts to typed cancellation', async () => {
+    const controller = new AbortController();
+    controller.abort();
+
+    const res = new Response(
+      new ReadableStream({
+        start(child) {
+          child.error(new DOMException('aborted', 'AbortError'));
+        },
+      }),
+      { status: 200 }
+    );
+
+    await expect(
+      readBoundedJson(res, emptyUsage(), 'response', controller.signal)
+    ).rejects.toMatchObject({ name: 'ProviderError', code: 'aborted', retryable: false });
+  });
+
+  it('maps body-read aborts with a live signal to retryable timeouts', async () => {
     const res = new Response(
       new ReadableStream({
         start(controller) {
@@ -457,7 +487,7 @@ describe('transport timeouts', () => {
 
     await expect(
       readBoundedJson(res, emptyUsage(), 'response', new AbortController().signal)
-    ).rejects.toMatchObject({ name: 'ProviderError', code: 'aborted', retryable: false });
+    ).rejects.toMatchObject({ code: 'network', retryable: true });
   });
 
   it('maps body-read failures to typed cancellation when the signal aborted', async () => {
@@ -476,6 +506,34 @@ describe('transport timeouts', () => {
     await expect(
       readBoundedJson(res, emptyUsage(), 'response', controller.signal)
     ).rejects.toMatchObject({ code: 'aborted' });
+  });
+
+  it('attaches accumulated usage to mapped failures', async () => {
+    const usage = { ...emptyUsage(), inputTokens: 100, outputTokens: 50 };
+
+    const network = toNetworkError(new Error('down'), new AbortController().signal, usage);
+    expect(network.usage).toEqual(usage);
+
+    const http = responseError(new Response(null, { status: 500 }), usage);
+    expect(http.usage).toEqual(usage);
+
+    const bare = withUsage(responseError(new Response(null, { status: 500 })), undefined);
+    expect(bare.usage).toBeUndefined();
+  });
+
+  it('extracts response usage without valid text', () => {
+    expect(
+      extractResponsesUsage({
+        output: [{ type: 'message', content: [{ type: 'output_text', text: 'not json' }] }],
+        usage: { input_tokens: 900, output_tokens: 40 },
+      })
+    ).toEqual({ inputTokens: 900, outputTokens: 40, cachedInputTokens: 0 });
+
+    expect(extractResponsesUsage({})).toEqual({
+      inputTokens: 0,
+      outputTokens: 0,
+      cachedInputTokens: 0,
+    });
   });
 
   it('maps body-read failures to retryable network errors', async () => {

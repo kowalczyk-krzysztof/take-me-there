@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   FETCH_JPEG_QUALITY,
   FETCH_MAX_BYTES,
+  IMAGE_TAB_TIMEOUT_MS,
   downscaleToJpegDataUrl,
   fetchImageBytes,
   fetchImageBytesViaTab,
@@ -38,6 +39,7 @@ describe('fetchImageBytesViaTab', () => {
     expect(mock.worker.scriptingCalls[0].args).toEqual([
       'https://cdn.example.com/oia.jpg',
       FETCH_MAX_BYTES,
+      IMAGE_TAB_TIMEOUT_MS,
     ]);
   });
 

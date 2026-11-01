@@ -14,6 +14,7 @@ import {
   extractChatText,
   extractResponsesStructured,
   extractResponsesText,
+  extractResponsesUsage,
   fetchChatCompletion,
   invalidResponse,
   parseAlternatesContent,
@@ -140,11 +141,11 @@ export class MuseProvider implements Provider {
         signal: fetchTimeout(input.signal),
       });
     } catch (err) {
-      throw toNetworkError(err, input.signal);
+      throw toNetworkError(err, input.signal, usage);
     }
 
     if (!res.ok) {
-      throw responseError(res);
+      throw responseError(res, usage);
     }
 
     const data = await readBoundedJson(res, usage, 'video description', input.signal);
@@ -205,11 +206,11 @@ export class MuseProvider implements Provider {
           signal: fetchTimeout(input.signal),
         });
       } catch (err) {
-        throw toNetworkError(err, input.signal);
+        throw toNetworkError(err, input.signal, usage);
       }
 
       if (!res.ok) {
-        throw responseError(res);
+        throw responseError(res, usage);
       }
 
       const data = await readBoundedJson(res, usage, 'normalize response', input.signal);
@@ -287,7 +288,7 @@ export class MuseProvider implements Provider {
         signal: fetchTimeout(signal),
       });
     } catch (err) {
-      throw toNetworkError(err, signal);
+      throw toNetworkError(err, signal, usage);
     }
 
     if (!res.ok) {
@@ -306,12 +307,13 @@ export class MuseProvider implements Provider {
       return null;
     }
 
+    absorbUsage(usage, extractResponsesUsage(data));
+
     const extracted = extractResponsesStructured(data);
 
     if (!extracted) {
       return null;
     }
-    absorbUsage(usage, extracted);
     usage.searchCount += extracted.searchCount;
 
     const value = parse(extracted.json);
@@ -434,14 +436,16 @@ export class MuseProvider implements Provider {
         signal: fetchTimeout(input.signal),
       });
     } catch (err) {
-      throw toNetworkError(err, input.signal);
+      throw toNetworkError(err, input.signal, usage);
     }
 
     if (!res.ok) {
-      throw responseError(res);
+      throw responseError(res, usage);
     }
 
     const data = await readBoundedJson(res, usage, 'segmentation response', input.signal);
+
+    absorbUsage(usage, extractResponsesUsage(data));
 
     const extracted = extractResponsesText(data);
 
@@ -449,8 +453,6 @@ export class MuseProvider implements Provider {
       throw invalidResponse(usage, 'segmentation response has no text');
     }
 
-    usage.inputTokens += extracted.inputTokens;
-    usage.outputTokens += extracted.outputTokens;
     usage.flatFeesUsd += SAM_IMAGE_COST_USD;
 
     return { text: extracted.text, usage: { ...usage } };

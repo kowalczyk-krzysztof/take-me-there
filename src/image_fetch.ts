@@ -5,6 +5,8 @@ import { CapExceededError, readCappedBytes } from './utils/stream';
 
 export const FETCH_MAX_BYTES = 10000000;
 
+export const IMAGE_TAB_TIMEOUT_MS = 30_000;
+
 export const dataUrlToBytes = (dataUrl: string): Uint8Array | null => {
   const marker = ';base64,';
 
@@ -76,7 +78,7 @@ export const fetchImageBytesViaTab = async (
     chrome.scripting.executeScript({
       target: { tabId, frameIds: [frameId] },
       func: fetchImageAsDataUrl as unknown as (...args: never[]) => unknown,
-      args: [url, FETCH_MAX_BYTES],
+      args: [url, FETCH_MAX_BYTES, IMAGE_TAB_TIMEOUT_MS],
     })
   );
 

@@ -16,7 +16,8 @@
     "test:watch": "vitest",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "zip": "npm run build && node scripts/verify-bundle.mjs && cd dist && zip -qr ../take-me-there.zip ."
+    "zip": "npm run build && node scripts/verify-bundle.mjs && cd dist && zip -qr ../take-me-there.zip .",
+    "verify-injected": "node scripts/verify-injected.mjs"
   },
   "dependencies": {
     "idb-keyval": "6.3.0",
