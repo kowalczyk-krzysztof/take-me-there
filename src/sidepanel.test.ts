@@ -3003,6 +3003,23 @@ describe('sidepanel', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it('identifies from page text when the image cannot load', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    fetchMock
+      .mockResolvedValueOnce(new Response('bad image', { status: 400 }))
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE));
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot h2')?.textContent).toContain('Oia');
+    });
+
+    const card = document.querySelector('#result-slot') as HTMLElement;
+    expect(card.querySelector('h2 .badge')?.textContent).toBe('bestGuessBadge');
+    expect(card.querySelector('#fetch-retry-button')).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it('retries an image-400 with downloaded bytes', async () => {
     const mock = await setup();
     await plantKeyAndConsent();

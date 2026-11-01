@@ -104,7 +104,7 @@ describe('openai_compat', () => {
 
     const result = await provider.identifyPlace('sk_key', input());
     expect(result.textFallback).toBe(true);
-    expect(result.place.confidence).toBe(0.4);
+    expect(result.place.confidence).toBe(0.5);
   });
 
   it('rejects invalid model output after one re-ask', async () => {

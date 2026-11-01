@@ -196,7 +196,7 @@ describe('prompt builders', () => {
   });
 
   it('builds text-only messages with rejected and reminder variants', () => {
-    const [, user] = buildIdentifyMessages({
+    const [developer, user] = buildIdentifyMessages({
       signalsText: 'signals',
       imageUrl: null,
       rejectedPlace: 'Paris',
@@ -208,6 +208,9 @@ describe('prompt builders', () => {
     expect(text).toContain('NOT Paris');
     expect(text).toContain('low confidence instead of returning identified:false');
     expect(text).toContain('ONLY JSON');
+    expect(developer.content).toContain('could not be loaded');
+    expect(text).toContain('described by the page context below');
+    expect(text).not.toContain('shown in this image');
   });
 
   it('builds the guide prompt with an optional language', () => {

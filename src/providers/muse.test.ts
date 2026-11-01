@@ -117,7 +117,7 @@ describe('muse identify', () => {
 
       const result = await provider.identifyPlace('LLM_key', identifyInput({ imageUrl: hostile }));
       expect(result.textFallback).toBe(true);
-      expect(result.place.confidence).toBeLessThanOrEqual(0.4);
+      expect(result.place.confidence).toBeLessThanOrEqual(0.5);
 
       expect(fetchMock).toHaveBeenCalledTimes(1);
 
@@ -196,7 +196,7 @@ describe('muse identify', () => {
 
     const result = await provider.identifyPlace('LLM_key', identifyInput());
     expect(result.textFallback).toBe(true);
-    expect(result.place.confidence).toBe(0.4);
+    expect(result.place.confidence).toBe(0.5);
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(typeof requestBody(1).messages[1].content).toBe('string');
   });
