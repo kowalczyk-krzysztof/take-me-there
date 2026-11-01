@@ -2,7 +2,6 @@ import { EventSourceParserStream, type EventSourceMessage } from 'eventsource-pa
 import { MUSE_SPARK_RATES, SAM_IMAGE_COST_USD, type ModelRates } from '../pricing';
 import {
   alternatesJsonSchema,
-  duelJsonSchema,
   itineraryJsonSchema,
   placeJsonSchema,
   scanBatchJsonSchema,
@@ -19,8 +18,6 @@ import {
   assertConsent,
   buildAlternatesMessages,
   buildAlternatesPrompt,
-  buildDuelMessages,
-  buildDuelPrompt,
   buildGuidePrompt,
   buildItineraryMessages,
   buildScanMessages,
@@ -33,7 +30,6 @@ import {
   filterScanImages,
   invalidResponse,
   parseAlternatesContent,
-  parseDuelContent,
   parseItineraryPlan,
   parseScanBatch,
   postChatStream,
@@ -55,8 +51,6 @@ import {
   type AlternatesInput,
   type AlternatesResult,
   type ChatMessage,
-  type DuelInput,
-  type DuelResult,
   type GuideEvent,
   type GuideInput,
   type GuideSource,
@@ -513,49 +507,6 @@ export class MuseProvider implements Provider {
     }
 
     return null;
-  }
-
-  async duelPlaces(key: string, input: DuelInput): Promise<DuelResult> {
-    requireKey(key);
-    await assertConsent();
-
-    const usage = emptyUsage();
-
-    const schema = duelJsonSchema();
-
-    const prompt = buildDuelPrompt(input.a, input.b);
-
-    const grounded = input.skipWebSearch
-      ? null
-      : await this.groundedStructured(
-          key,
-          input.signal,
-          usage,
-          'duel',
-          schema,
-          prompt,
-          parseDuelContent
-        );
-
-    if (grounded) {
-      return { ...grounded.value, sources: grounded.sources, usage: { ...usage } };
-    }
-
-    const chat = await this.chatStructured(
-      key,
-      input.signal,
-      usage,
-      'duel',
-      schema,
-      (strictReminder) => buildDuelMessages(input.a, input.b, strictReminder),
-      parseDuelContent
-    );
-
-    if (chat) {
-      return { ...chat.value, sources: chat.sources, usage: { ...usage } };
-    }
-
-    throw invalidResponse(usage, 'model output failed validation');
   }
 
   async findAlternates(key: string, input: AlternatesInput): Promise<AlternatesResult> {

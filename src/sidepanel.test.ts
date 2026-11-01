@@ -224,8 +224,6 @@ describe('sidepanel', () => {
     expect(document.querySelector('#guide-heading')?.textContent).toBe('guideHeading');
     expect(document.querySelector('#guide-slot .slot-empty')?.textContent).toBe('guideEmpty');
     expect(document.querySelector('#guide-content')?.hasAttribute('hidden')).toBe(true);
-    expect(document.querySelector('#duel-heading')?.textContent).toBe('duelHeading');
-    expect(document.querySelector('#duel-slot .slot-empty')?.textContent).toBe('duelEmpty');
     expect(document.querySelector('#sources-heading')?.textContent).toBe('sourcesHeading');
     expect(document.querySelector('#sources-slot .slot-empty')?.textContent).toBe('sourcesEmpty');
   });
@@ -2662,90 +2660,6 @@ describe('sidepanel', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it('duels the result against a pinned place', async () => {
-    const mock = await setup();
-    await plantKeyAndConsent();
-
-    const { pinPlace } = await cover(import('./board_store'));
-    await settleWrite(
-      pinPlace({
-        place: { ...VALID_PLACE, placeName: 'Fira', city: 'Fira', confidence: 0.8 },
-        sourceHost: 'example.com',
-      })
-    );
-    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE)).mockResolvedValueOnce(
-      groundedResponse(
-        {
-          criteria: [{ criterion: 'Cost', a: 'Pricey sunsets.', b: 'Cheaper stays.' }],
-          verdict: 'Pick Oia for views; pick Fira for budget.',
-        },
-        [{ type: 'url_citation', url: 'https://example.com/cost', title: 'Costs' }]
-      )
-    );
-    await settleWrite(mock.session.set({ [SLOT]: READY() }));
-    await waitForHeading('Oia');
-
-    const card = document.querySelector('#result-slot') as HTMLElement;
-    await waitFor(() => {
-      expect(card.querySelectorAll('.compare-row option')).toHaveLength(1);
-    });
-    expect(card.querySelector('.compare-row option')?.textContent).toBe('Fira, Greece');
-    clickEl(card.querySelector('.compare-go') as HTMLButtonElement);
-    await waitFor(() => {
-      const table = document.querySelector('#duel-slot');
-      expect(table?.querySelectorAll('tbody tr')).toHaveLength(2);
-    });
-    expect(document.querySelector('#status-region')?.textContent).toBe('duelReady');
-    expect(document.querySelector('#privacy-line')?.textContent).toBe(
-      "privacyNames(Meta's Muse API)"
-    );
-
-    const table = document.querySelector('#duel-slot');
-    expect(table?.querySelector('caption')?.textContent).toBe(
-      'duelCaption(Oia, Greece | Fira, Greece)'
-    );
-    expect(table?.querySelector('table')?.getAttribute('aria-busy')).toBe('false');
-
-    const chips = document.querySelector('#sources-slot');
-    expect(chips?.querySelectorAll('a.chip')).toHaveLength(1);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-
-    const duelUrl = fetchMock.mock.calls[1][0] as string;
-    expect(duelUrl).toContain('/responses');
-  });
-
-  it('cancels a hanging duel and clears the slot', async () => {
-    const mock = await setup();
-    await plantKeyAndConsent();
-
-    const { pinPlace } = await cover(import('./board_store'));
-    await settleWrite(
-      pinPlace({
-        place: { ...VALID_PLACE, placeName: 'Fira', city: 'Fira', confidence: 0.8 },
-        sourceHost: 'example.com',
-      })
-    );
-    fetchMock
-      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
-      .mockImplementationOnce(() => new Promise<Response>(() => {}));
-    await settleWrite(mock.session.set({ [SLOT]: READY() }));
-    await waitForHeading('Oia');
-
-    const card = document.querySelector('#result-slot') as HTMLElement;
-    await waitFor(() => {
-      expect(card.querySelectorAll('.compare-row option')).toHaveLength(1);
-    });
-    clickEl(card.querySelector('.compare-go') as HTMLButtonElement);
-    await waitFor(() => {
-      expect(document.querySelector('#duel-slot button')?.textContent).toBe('cancelButton');
-    });
-    clickEl(document.querySelector('#duel-slot button') as HTMLButtonElement);
-    await waitFor(() => {
-      expect(document.querySelector('#duel-slot .slot-empty')?.textContent).toBe('duelEmpty');
-    });
-    expect(document.querySelector('#status-region')?.textContent).toBe('statusCanceled');
-  });
-
   it('cancels hanging alternates and restores the chips', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
@@ -2769,89 +2683,6 @@ describe('sidepanel', () => {
     });
     expect(document.querySelector('#status-region')?.textContent).toBe('statusCanceled');
     expect(card.querySelectorAll('.chips-row .chip')).toHaveLength(chips.length);
-  });
-
-  it('falls back to chat when duel grounding is rejected', async () => {
-    const mock = await setup();
-    await plantKeyAndConsent();
-
-    const { pinPlace } = await cover(import('./board_store'));
-    await settleWrite(
-      pinPlace({
-        place: { ...VALID_PLACE, placeName: 'Fira', city: 'Fira', confidence: 0.8 },
-        sourceHost: 'example.com',
-      })
-    );
-    fetchMock
-      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
-      .mockResolvedValueOnce(new Response('unsupported', { status: 400 }))
-      .mockResolvedValueOnce(
-        chatResponse({
-          criteria: [{ criterion: 'Cost', a: 'Pricey.', b: 'Cheap.' }],
-          verdict: 'Pick Oia for views.',
-        })
-      );
-    await settleWrite(mock.session.set({ [SLOT]: READY() }));
-    await waitFor(() => {
-      const card = document.querySelector('#result-slot');
-      expect(card?.querySelector('.compare-go')).not.toBeNull();
-    });
-
-    const card = document.querySelector('#result-slot') as HTMLElement;
-    clickEl(card.querySelector('.compare-go') as HTMLButtonElement);
-    await waitFor(() => {
-      const table = document.querySelector('#duel-slot');
-      expect(table?.querySelectorAll('tbody tr')).toHaveLength(2);
-    });
-    expect(fetchMock).toHaveBeenCalledTimes(3);
-    expect(document.querySelector('#sources-slot .slot-empty')?.textContent).toBe('sourcesEmpty');
-  });
-
-  it('retries a failed duel inline without losing the result', async () => {
-    const mock = await setup();
-    await plantKeyAndConsent();
-
-    const { pinPlace } = await cover(import('./board_store'));
-    await settleWrite(
-      pinPlace({
-        place: { ...VALID_PLACE, placeName: 'Fira', city: 'Fira', confidence: 0.8 },
-        sourceHost: 'example.com',
-      })
-    );
-    fetchMock
-      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
-      .mockResolvedValueOnce(new Response('unsupported', { status: 400 }))
-      .mockResolvedValueOnce(new Response('boom', { status: 500 }))
-      .mockResolvedValueOnce(new Response('unsupported', { status: 400 }))
-      .mockResolvedValueOnce(
-        chatResponse({
-          criteria: [{ criterion: 'Cost', a: 'Pricey.', b: 'Cheap.' }],
-          verdict: 'Pick Oia for views.',
-        })
-      );
-    await settleWrite(mock.session.set({ [SLOT]: READY() }));
-    await waitFor(() => {
-      const card = document.querySelector('#result-slot');
-      expect(card?.querySelector('.compare-go')).not.toBeNull();
-    });
-
-    const card = document.querySelector('#result-slot') as HTMLElement;
-    clickEl(card.querySelector('.compare-go') as HTMLButtonElement);
-    await waitFor(() => {
-      const table = document.querySelector('#duel-slot');
-      expect(table?.querySelector('.duel-error p')?.textContent).toBe(
-        'duelError(Oia, Greece | Fira, Greece)'
-      );
-    });
-    expect(card.querySelector('h2')?.textContent).toBe('Oia');
-
-    const table = document.querySelector('#duel-slot') as HTMLElement;
-    clickEl(table.querySelector('.duel-error button') as HTMLButtonElement);
-    await waitFor(() => {
-      const retried = document.querySelector('#duel-slot');
-      expect(retried?.querySelectorAll('tbody tr')).toHaveLength(2);
-    });
-    expect(fetchMock).toHaveBeenCalledTimes(5);
   });
 
   it('finds alternates and re-plans the trip instead', async () => {
@@ -3013,36 +2844,6 @@ describe('sidepanel', () => {
     expect(fresh.querySelector('.chip[aria-disabled]')).toBeNull();
     expect(fresh.querySelector('.alternates-skeletons')).toBeNull();
     expect(fetchMock).toHaveBeenCalledTimes(3);
-  });
-
-  it('excludes the current place from duel targets and handles stale picks', async () => {
-    const mock = await setup();
-    await plantKeyAndConsent();
-
-    const { pinPlace, removePin } = await cover(import('./board_store'));
-    await settleWrite(pinPlace({ place: VALID_PLACE, sourceHost: 'example.com' }));
-    await settleWrite(
-      pinPlace({
-        place: { ...VALID_PLACE, placeName: 'Fira', city: 'Fira', confidence: 0.8 },
-        sourceHost: 'example.com',
-      })
-    );
-    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
-    await settleWrite(mock.session.set({ [SLOT]: READY() }));
-    await waitFor(() => {
-      const card = document.querySelector('#result-slot');
-      expect(card?.querySelectorAll('.compare-row option')).toHaveLength(1);
-    });
-
-    const card = document.querySelector('#result-slot') as HTMLElement;
-    expect(card.querySelector('.compare-row option')?.textContent).toBe('Fira, Greece');
-    await settleWrite(removePin('Fira', 'Greece'));
-    clickEl(card.querySelector('.compare-go') as HTMLButtonElement);
-    await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe('compareStale');
-    });
-    expect(document.querySelector('#duel-slot table')).toBeNull();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('identifies from page text when the image cannot load', async () => {
@@ -3793,99 +3594,6 @@ describe('sidepanel', () => {
     expect(document.querySelector('#privacy-line')?.textContent).toBe(
       "privacyVideoUrl(Meta's Muse API)"
     );
-  });
-
-  it('swaps the whole result to the instead-place, then pins and compares', async () => {
-    const mock = await setup();
-    await plantKeyAndConsent();
-    fetchMock
-      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
-      .mockResolvedValueOnce(
-        groundedResponse({
-          alternatives: [
-            {
-              placeName: 'Fira',
-              country: 'Greece',
-              why: 'Same caldera, lower prices.',
-              bestMonth: 'May',
-            },
-          ],
-        })
-      )
-      .mockResolvedValueOnce(sseResponse([GUIDE_SSE]))
-      .mockResolvedValueOnce(
-        groundedResponse(
-          {
-            criteria: [{ criterion: 'Cost', a: 'Cheaper stays.', b: 'Pricey sunsets.' }],
-            verdict: 'Pick Fira for budget; pick Oia for views.',
-          },
-          []
-        )
-      );
-    await settleWrite(mock.session.set({ [SLOT]: READY() }));
-    await waitForHeading('Oia');
-
-    const card = document.querySelector('#result-slot') as HTMLElement;
-    clickEl(card.querySelector('.pin-button') as HTMLButtonElement);
-    await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned(Oia | 1)');
-    });
-
-    clickEl(card.querySelector('.chips-row .chip') as HTMLButtonElement);
-    await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe('alternatesReady(1)');
-    });
-
-    const fresh = document.querySelector('#result-slot') as HTMLElement;
-    clickEl(fresh.querySelector('.alternate-actions button:not(.pin-button)') as HTMLButtonElement);
-    await waitForHeading('Fira');
-
-    const swapped = document.querySelector('#result-slot') as HTMLElement;
-    expect(swapped.querySelector('.disagree-row')).toBeNull();
-    expect(swapped.querySelector('.confidence')?.textContent).toBe('confidenceChosen');
-    expect(swapped.querySelector('.source')).toBeNull();
-    expect(swapped.querySelector('.pin-button')?.textContent).toBe('pinButton(Fira)');
-    expect(swapped.querySelector('.alternate-card')).toBeNull();
-    expect(document.querySelector('#preview-frame img')).toBeNull();
-    expect(document.querySelector('#guide-content')?.textContent).toBe('Hello world');
-
-    const tiles = document.querySelector('#links-slot')?.querySelectorAll('a.tile');
-    expect(tiles?.length).toBeGreaterThan(0);
-    expect((tiles?.[0] as HTMLAnchorElement).href).toContain('Fira');
-
-    clickEl(swapped.querySelector('.pin-button') as HTMLButtonElement);
-    await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe('statusPinned(Fira | 2)');
-    });
-
-    const board = document.querySelector('#board-slot') as HTMLElement;
-    const items = [...board.querySelectorAll('li')];
-    expect(items).toHaveLength(2);
-    expect(items[1].querySelector('.item-name')?.textContent).toBe('Fira, Greece');
-
-    const compared = document.querySelector('#result-slot') as HTMLElement;
-    await waitFor(() => {
-      expect(compared.querySelectorAll('.compare-row option')).toHaveLength(1);
-    });
-    expect(compared.querySelector('.compare-row option')?.textContent).toBe('Oia, Greece');
-    clickEl(compared.querySelector('.compare-go') as HTMLButtonElement);
-    await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe('duelReady');
-    });
-    expect(document.querySelector('#duel-slot caption')?.textContent).toBe(
-      'duelCaption(Fira, Greece | Oia, Greece)'
-    );
-    expect(fetchMock).toHaveBeenCalledTimes(4);
-
-    const records = [...mock.session.data.values()] as Array<{
-      entry?: { guide?: string; place?: { placeName?: string } };
-    }>;
-    expect(
-      records.some(
-        (record) =>
-          record.entry?.guide === 'Hello world' && record.entry?.place?.placeName === 'Fira'
-      )
-    ).toBe(true);
   });
 
   it('cancels a hanging identify from the loading card', async () => {

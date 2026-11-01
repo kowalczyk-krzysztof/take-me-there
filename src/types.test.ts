@@ -6,8 +6,6 @@ import {
   TRIP_REQUEST_SCHEMA,
   alternatesJsonSchema,
   alternatesSchema,
-  duelJsonSchema,
-  duelSchema,
   itineraryJsonSchema,
   itinerarySchema,
   placeJsonSchema,
@@ -273,31 +271,6 @@ describe('scan batch pipeline', () => {
     expect(schema.safeParse({ ...valid, imageIndex: -1 }).success).toBe(false);
     expect(schema.safeParse({ ...valid, imageIndex: 1.5 }).success).toBe(false);
     expect(schema.safeParse({ ...valid, placeName: 'x'.repeat(101) }).success).toBe(false);
-  });
-});
-
-describe('duel pipeline', () => {
-  it('emits the strict subset', () => {
-    const schema = duelJsonSchema();
-    assertStrictSubset(schema);
-    expect(forbiddenKeys(schema)).toEqual([]);
-  });
-
-  it('validates verdicts and rejects oversized strings', () => {
-    const schema = duelSchema();
-
-    const valid = {
-      criteria: [{ criterion: 'Cost', a: 'Pricey sunsets.', b: 'Cheaper stays.' }],
-      verdict: 'Pick Oia for views, Fira for budget.',
-    };
-    expect(schema.safeParse(valid).success).toBe(true);
-    expect(schema.safeParse({ ...valid, verdict: 'x'.repeat(301) }).success).toBe(false);
-    expect(
-      schema.safeParse({
-        ...valid,
-        criteria: [{ criterion: 'x'.repeat(41), a: 'a', b: 'b' }],
-      }).success
-    ).toBe(false);
   });
 });
 

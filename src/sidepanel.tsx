@@ -4,14 +4,12 @@ import { useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent } from '
 import { createRoot, type Root } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import { BookingGrid } from './components/booking_grid/booking_grid';
-import { CompareTable, type DuelTableState } from './components/compare_table/compare_table';
 import type { ScanItemView } from './components/scan_list/scan_list';
 import { ScanList } from './components/scan_list/scan_list';
 import type {
   AlternateCardView,
   AlternatesView,
   CardState,
-  CompareOptionView,
   ConfidenceView,
   PlanState,
 } from './components/trip_card/trip_card';
@@ -114,7 +112,6 @@ import {
   SETTINGS_STORAGE_KEY,
   sanitizePromptHint,
   type AlternateIntent,
-  type DuelSide,
   type ExtensionSettings,
   type GuideSource,
   type Provider,
@@ -173,19 +170,11 @@ let scanPlaces: ScannedPlace[] = [];
 
 let scanThumbs: Array<string | null> = [];
 
-let currentCompareOptions: BoardPin[] = [];
-
 let currentAlternates: { intent: AlternateIntent; alternatives: PlaceAlternate[] } | null = null;
 
 let alternatesLoading: AlternateIntent | null = null;
 
-let lastDuel: { a: DuelSide; b: DuelSide; aTitle: string; bTitle: string } | null = null;
-
-let duelRunId = 0;
-
 let alternatesRunId = 0;
-
-let duelController: AbortController | null = null;
 
 let alternatesController: AbortController | null = null;
 
@@ -257,7 +246,6 @@ interface PanelState {
   guideBusy: boolean;
   searching: boolean;
   sources: GuideSource[];
-  duel: DuelTableState | null;
   boardItems: BoardItemView[];
   boardCanPlan: boolean;
   boardPlanStale: boolean;
@@ -303,7 +291,6 @@ const store = createStore<PanelState>({
   guideBusy: false,
   searching: false,
   sources: [],
-  duel: null,
   boardItems: [],
   boardCanPlan: false,
   boardPlanStale: false,
@@ -682,7 +669,6 @@ const clearContentSlots = (): void => {
     guideBusy: false,
     searching: false,
     sources: [],
-    duel: null,
   });
 };
 
@@ -979,15 +965,11 @@ export const isLoopbackHttp = (srcUrl: string): boolean => {
   }
 };
 
-// Duel and alternates belong to the displayed result: a new analysis run
-// aborts their controllers alongside the previous analysis. Ready alternate
+// Alternates belong to the displayed result: a new analysis run aborts
+// their controller alongside the previous analysis. Ready alternate
 // cards survive (their indices stay valid); only the in-flight marker
 // resets, and the loser of a run race bows out by id.
 const abortSiblings = (): void => {
-  if (duelController) {
-    duelController.abort();
-    duelController = null;
-  }
   if (alternatesController) {
     alternatesController.abort();
     alternatesController = null;
@@ -2894,8 +2876,6 @@ const fetchRetry = async (signal?: AbortSignal): Promise<boolean> => {
   return started;
 };
 
-// ---- Destination duel + alternates ----
-
 const FINDING_KEYS: Record<AlternateIntent, string> = {
   cheaper: 'alternatesFindingCheaper',
   quieter: 'alternatesFindingQuieter',
@@ -2930,29 +2910,6 @@ const alternatesView = async (): Promise<AlternatesView> => {
   return { state: 'idle' };
 };
 
-// Duel targets: every pin except the current result. Options are indexed
-// (never name-keyed) so hostile pin text cannot collide or forge a target.
-const compareOptionViews = async (place: PlaceResult): Promise<CompareOptionView[]> => {
-  try {
-    const pins = await listPins();
-    const current = await dedupeKeyFor(place.placeName, place.country);
-    currentCompareOptions = [];
-    for (const pin of pins) {
-      if ((await dedupeKeyFor(pin.place.placeName, pin.place.country)) === current) {
-        continue;
-      }
-      currentCompareOptions.push(pin);
-    }
-  } catch {
-    // Fail closed: an unreadable board hides the picker.
-    currentCompareOptions = [];
-  }
-  return currentCompareOptions.map((pin, index) => ({
-    value: String(index),
-    label: pinDisplayName(pin),
-  }));
-};
-
 const confidenceView = (place: PlaceResult): ConfidenceView => {
   if (currentPlaceKind === 'instead') {
     return { line: msg('confidenceChosen'), showScale: false };
@@ -2982,16 +2939,11 @@ const resultCardProps = async (
   canReanalyze: boolean;
   confidence: ConfidenceView;
   sourceHost: string | null;
-  compareOptions: CompareOptionView[];
   alternates: AlternatesView;
 }> => {
   const host = sourceHostFor(displayedRequest);
 
-  const [pinned, compareOptions, alternates] = await Promise.all([
-    isPlacePinned(place),
-    compareOptionViews(place),
-    alternatesView(),
-  ]);
+  const [pinned, alternates] = await Promise.all([isPlacePinned(place), alternatesView()]);
 
   return {
     view: 'result',
@@ -3002,7 +2954,6 @@ const resultCardProps = async (
     canReanalyze: (displayedRequest?.srcUrl ?? '') !== '',
     confidence: confidenceView(place),
     sourceHost: host === '' ? null : host,
-    compareOptions,
     alternates,
   };
 };
@@ -3019,126 +2970,6 @@ const refreshResultCard = async (): Promise<void> => {
   }
 
   store.set({ result: { ...blankResultSlot(), card: props } });
-};
-
-const runDuel = async (a: DuelSide, b: DuelSide, aTitle: string, bTitle: string): Promise<void> => {
-  duelController?.abort();
-  const controller = new AbortController();
-  duelController = controller;
-  duelRunId += 1;
-  const mine = duelRunId;
-  lastDuel = { a, b, aTitle, bTitle };
-  // The duel settles into the displayed run when it is still live, so the
-  // cost figure stays cumulative; a detached duel settles silently.
-  const host = activeRun();
-  const gate = await gateRun(null);
-  if (!gate.ready) {
-    if (mine === duelRunId && (!host || activeRun() === host)) {
-      announceGate(gate.reason);
-    }
-    return;
-  }
-  if (host && activeRun() !== host) {
-    return;
-  }
-  const { provider, key, settings } = gate;
-  const bucket = host ?? createEphemeralRun('duel', provider, settings, key);
-  store.set({ duel: { mode: 'loading', a: aTitle, b: bTitle } });
-  announceStatus('duelStatus', [a.name, b.name]);
-  let result;
-  try {
-    result = await provider.duelPlaces(key, {
-      a,
-      b,
-      skipWebSearch: settings.skipWebSearch,
-      signal: controller.signal,
-    });
-  } catch (err) {
-    if (duelController === controller) {
-      duelController = null;
-    }
-    if (err instanceof ProviderError && err.code === 'aborted') {
-      return;
-    }
-    recordPartialUsage(bucket, 'duel', err);
-    if (mine !== duelRunId || (host && activeRun() !== host)) {
-      return;
-    }
-    updatePrivacy('names');
-    store.set({ duel: { mode: 'error', a: aTitle, b: bTitle } });
-    if (err instanceof ProviderError && err.code === 'no_key') {
-      announceAlert('statusKeyNeeded');
-    } else if (err instanceof ProviderError && err.code === 'consent_required') {
-      announceAlert('statusConsentNeeded');
-    } else {
-      announceAlert('duelError', [aTitle, bTitle]);
-    }
-    return;
-  }
-  if (duelController === controller) {
-    duelController = null;
-  }
-  absorbRunUsage(bucket, result.usage);
-  if (mine !== duelRunId || (host && activeRun() !== host)) {
-    await priceAndRecord(bucket, 'duel');
-    return;
-  }
-  showSources(result.sources);
-  store.set({
-    duel: { mode: 'ready', a: aTitle, b: bTitle, rows: result.criteria, verdict: result.verdict },
-  });
-  await priceAndRecord(bucket, 'duel');
-  updatePrivacy('names');
-  announceStatus('duelReady');
-};
-
-const onCompare = async (value: string): Promise<void> => {
-  const snapshot = currentCompareOptions[Number(value)];
-  const current = currentPlace;
-  // The picker snapshot re-verifies against the live board: a pin removed
-  // since render (another tab, a race) misses and goes stale, never duels
-  // the wrong target through a shifted index.
-  let pin: BoardPin | undefined;
-  if (snapshot) {
-    try {
-      const wanted = await dedupeKeyFor(snapshot.place.placeName, snapshot.place.country);
-      const pins = await listPins();
-      for (const candidate of pins) {
-        if ((await dedupeKeyFor(candidate.place.placeName, candidate.place.country)) === wanted) {
-          pin = candidate;
-          break;
-        }
-      }
-    } catch {
-      pin = undefined;
-    }
-  }
-  if (!current?.identified || !pin) {
-    await refreshResultCard();
-    announceStatus('compareStale');
-    return;
-  }
-  await runDuel(
-    { name: current.placeName, country: current.country },
-    { name: pin.place.placeName, country: pin.place.country },
-    buildDestination(current.placeName, current.city, current.country),
-    pinDisplayName(pin)
-  );
-};
-
-const onDuelRetry = async (): Promise<void> => {
-  if (lastDuel) {
-    await runDuel(lastDuel.a, lastDuel.b, lastDuel.aTitle, lastDuel.bTitle);
-  }
-};
-
-const onDuelCancel = (): void => {
-  duelRunId += 1;
-  duelController?.abort();
-  duelController = null;
-  lastDuel = null;
-  store.set({ duel: null });
-  announceStatus('statusCanceled');
 };
 
 const runAlternates = async (intent: AlternateIntent): Promise<void> => {
@@ -3376,8 +3207,6 @@ const syncBoardPlan = async (pins: BoardPin[]): Promise<void> => {
 };
 
 const syncPinButton = async (): Promise<void> => {
-  // Pin state and duel targets refresh together: every board write lands
-  // here, so the compare picker never goes stale behind the card.
   await refreshResultCard();
 };
 
@@ -4120,7 +3949,6 @@ const SidepanelApp = () => {
                 onRetry: () => void retry(),
                 onLookAgain: () => void lookAgain(),
                 onAlternates: (intent) => void onAlternates(intent),
-                onCompare: (value) => void onCompare(value),
                 onPinAlternate: (index) => void onPinAlternate(index),
                 onPlanInstead: (index) => void onPlanInstead(index),
                 onCancelAlternates: onAlternatesCancel,
@@ -4204,18 +4032,6 @@ const SidepanelApp = () => {
             aria-busy={state.guideBusy || undefined}
             hidden={!state.guideVisible || undefined}
           />
-        </div>
-        <div id="duel-slot">
-          <h2 id="duel-heading">{msg('duelHeading')}</h2>
-          {state.duel ? (
-            <CompareTable
-              table={state.duel}
-              onRetry={() => void onDuelRetry()}
-              onCancel={onDuelCancel}
-            />
-          ) : (
-            <p className="slot-empty">{msg('duelEmpty')}</p>
-          )}
         </div>
         <div id="sources-slot">
           <h2 id="sources-heading">{msg('sourcesHeading')}</h2>

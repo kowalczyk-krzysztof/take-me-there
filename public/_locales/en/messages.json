@@ -759,79 +759,9 @@
       }
     }
   },
-  "duelCaption": {
-    "message": "Comparing $1 and $2",
-    "description": "Duel table caption.",
-    "placeholders": {
-      "a": {
-        "content": "$1",
-        "example": "Oia, Greece"
-      },
-      "b": {
-        "content": "$2",
-        "example": "Fira, Greece"
-      }
-    }
-  },
-  "duelVerdict": {
-    "message": "Verdict",
-    "description": "Duel verdict row header."
-  },
-  "duelError": {
-    "message": "Could not compare $1 and $2.",
-    "description": "Duel inline error.",
-    "placeholders": {
-      "a": {
-        "content": "$1",
-        "example": "Oia, Greece"
-      },
-      "b": {
-        "content": "$2",
-        "example": "Fira, Greece"
-      }
-    }
-  },
-  "duelRetry": {
-    "message": "Retry comparison",
-    "description": "Duel inline retry button."
-  },
-  "duelStatus": {
-    "message": "Comparing $1 and $2...",
-    "description": "Duel start announcement.",
-    "placeholders": {
-      "a": {
-        "content": "$1",
-        "example": "Oia"
-      },
-      "b": {
-        "content": "$2",
-        "example": "Fira"
-      }
-    }
-  },
-  "duelReady": {
-    "message": "Comparison ready",
-    "description": "Duel completion announcement."
-  },
-  "compareLabel": {
-    "message": "Compare with",
-    "description": "Duel picker label."
-  },
-  "compareGo": {
-    "message": "Compare",
-    "description": "Duel picker Go button."
-  },
-  "compareEmpty": {
-    "message": "Nothing to compare yet",
-    "description": "Disabled duel picker text when the board holds no other place."
-  },
   "alternatesLabel": {
     "message": "Find alternatives",
     "description": "Label above the alternates intent chips."
-  },
-  "compareStale": {
-    "message": "That place is no longer on the board.",
-    "description": "Announcement when a duel target vanished."
   },
   "alternatesCheaper": {
     "message": "Cheaper",
@@ -1528,14 +1458,6 @@
   "guideEmpty": {
     "message": "The trip guide appears here after you press Build a guide.",
     "description": "Empty state for the guide section."
-  },
-  "duelHeading": {
-    "message": "Compare places",
-    "description": "Compare section heading."
-  },
-  "duelEmpty": {
-    "message": "Compare this place against a saved pin to see them side by side.",
-    "description": "Empty state for the compare section."
   },
   "sourcesEmpty": {
     "message": "Web sources appear here with grounded guides.",

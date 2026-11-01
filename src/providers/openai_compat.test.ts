@@ -394,41 +394,6 @@ describe('compat scan media boundary', () => {
   });
 });
 
-describe('compat duelPlaces', () => {
-  const VALID_DUEL = {
-    criteria: [{ criterion: 'Cost', a: 'Pricey sunsets.', b: 'Cheaper stays.' }],
-    verdict: 'Pick Oia for views; pick Fira for budget.',
-  };
-
-  const duelInput = () => ({
-    a: { name: 'Oia', country: 'Greece' },
-    b: { name: 'Fira', country: 'Greece' },
-    signal: new AbortController().signal,
-  });
-
-  it('duels over structured chat with no citations', async () => {
-    await setConsented();
-    fetchMock.mockResolvedValue(chatResponse(VALID_DUEL));
-
-    const provider = new OpenAiCompatProvider(config());
-
-    const result = await provider.duelPlaces('sk_key', duelInput());
-    expect(result.criteria).toHaveLength(1);
-    expect(result.sources).toEqual([]);
-
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe('https://llm.example.com/v1/chat/completions');
-
-    const body = JSON.parse(init.body as string) as {
-      response_format: { type: string; json_schema: { name: string } };
-      prompt_cache_key: string;
-    };
-    expect(body.response_format.type).toBe('json_schema');
-    expect(body.response_format.json_schema.name).toBe('duel');
-    expect(body.prompt_cache_key).toBe('take-me-there');
-  });
-});
-
 describe('compat findAlternates', () => {
   const VALID_ALTERNATES = {
     alternatives: [

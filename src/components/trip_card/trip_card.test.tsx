@@ -25,7 +25,6 @@ const fullCallbacks = (overrides: Partial<TripCardCallbacks> = {}): TripCardCall
   onRetry: noop,
   onLookAgain: noop,
   onAlternates: noop,
-  onCompare: noop,
   onPinAlternate: noop,
   onPlanInstead: noop,
   onCancelAlternates: noop,
@@ -120,7 +119,6 @@ describe('trip-card', () => {
     const secondary = root.querySelector('section.secondary') as HTMLElement;
     expect(secondary?.getAttribute('aria-label')).toBe('secondaryHeading');
     expect(secondary?.querySelector('.disagree-row')).not.toBeNull();
-    expect(secondary?.querySelector('.compare-row')).not.toBeNull();
   });
 
   it('hides source and scale for chosen places', () => {
@@ -369,54 +367,6 @@ describe('trip-card', () => {
     expect(pins[1]?.getAttribute('aria-pressed')).toBe('true');
     clickEl(pins[0]);
     expect(onPinAlternate).toHaveBeenCalledWith(0);
-  });
-
-  it('disables the compare picker without options', () => {
-    const onCompare = vi.fn();
-
-    const rendered = renderCard(
-      {
-        view: 'result',
-        place: PLACE,
-        lowConfidence: false,
-        pinned: false,
-        planState: 'ready',
-        canReanalyze: true,
-        confidence: CONF,
-        sourceHost: 'example.com',
-      },
-      { onCompare }
-    );
-
-    const root = rendered.container;
-
-    const empty = root.querySelector('.compare-row') as HTMLElement;
-    expect(empty.querySelector('select')?.hasAttribute('disabled')).toBe(true);
-    expect(empty.querySelector('option')?.textContent).toBe('compareEmpty');
-    expect(empty.querySelector('.compare-go')?.hasAttribute('disabled')).toBe(true);
-    clickEl(empty.querySelector('.compare-go') as HTMLButtonElement);
-    expect(onCompare).not.toHaveBeenCalled();
-    rerenderCard(
-      rendered,
-      {
-        view: 'result',
-        place: PLACE,
-        lowConfidence: false,
-        pinned: false,
-        planState: 'ready',
-        canReanalyze: true,
-        confidence: CONF,
-        sourceHost: 'example.com',
-        compareOptions: [{ value: 'Fira|||Greece', label: 'Fira, Greece' }],
-      },
-      { onCompare }
-    );
-
-    const row = root.querySelector('.compare-row');
-    expect(row?.querySelector('label')?.textContent).toContain('compareLabel');
-    expect(row?.querySelector('.compare-go')?.textContent).toBe('compareGo');
-    clickEl(row?.querySelector('.compare-go') as HTMLButtonElement);
-    expect(onCompare).toHaveBeenCalledWith('Fira|||Greece');
   });
 
   it('renders no-place cards with escapes', () => {

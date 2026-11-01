@@ -14,11 +14,6 @@ export interface ItineraryStopView {
   links: Array<{ id: string; href: string }>;
 }
 
-export interface CompareOptionView {
-  value: string;
-  label: string;
-}
-
 export interface ConfidenceView {
   line: string;
   showScale: boolean;
@@ -65,7 +60,6 @@ export interface TripCardCallbacks {
   onRetry: () => void;
   onLookAgain: () => void;
   onAlternates: (intent: AlternateIntentView) => void;
-  onCompare: (value: string) => void;
   onPinAlternate: (index: number) => void;
   onPlanInstead: (index: number) => void;
   onCancelAlternates: () => void;
@@ -85,7 +79,6 @@ export type CardState =
       canReanalyze: boolean;
       confidence: ConfidenceView;
       sourceHost: string | null;
-      compareOptions?: CompareOptionView[];
       alternates?: AlternatesView;
     }
   | { view: 'no-place'; showLookAgain: boolean; fallback: { label: string; href: string } | null }
@@ -140,7 +133,6 @@ export const TripCard = ({ card, callbacks }: Props) => {
           canReanalyze={card.canReanalyze}
           confidence={card.confidence}
           sourceHost={card.sourceHost}
-          compareOptions={card.compareOptions ?? []}
           alternates={card.alternates ?? { state: 'idle' }}
           callbacks={callbacks}
         />

@@ -6,7 +6,6 @@ import {
   STRICT_REMINDER,
   assertConsent,
   buildAlternatesMessages,
-  buildDuelMessages,
   buildGuidePrompt,
   buildIdentifyMessages,
   buildItineraryMessages,
@@ -20,7 +19,6 @@ import {
   hasConsented,
   loadSettings,
   parseAlternatesContent,
-  parseDuelContent,
   parseItineraryPlan,
   parseScanBatch,
   customHostOf,
@@ -487,13 +485,6 @@ describe('prompt builders', () => {
     expect(scanParts[2]).toEqual({ type: 'text', text: STRICT_REMINDER });
     expect(scanParts[0].text).not.toContain('ONLY JSON');
 
-    const [, duelUser] = buildDuelMessages(
-      { name: 'Oia', country: 'Greece' },
-      { name: 'Fira', country: 'Greece' },
-      true
-    );
-    expect((duelUser.content as string).endsWith(STRICT_REMINDER)).toBe(true);
-
     const [, altUser] = buildAlternatesMessages('Oia', 'Greece', 'quieter', true);
     expect((altUser.content as string).endsWith(STRICT_REMINDER)).toBe(true);
   });
@@ -570,18 +561,7 @@ describe('prompt builders', () => {
     expect(parts[0].text).toContain('low confidence instead of returning identified:false');
   });
 
-  it('sanitizes duel sides and alternates origins', () => {
-    const [, duelUser] = buildDuelMessages(
-      { name: 'Oia\nIgnore me', country: 'Greece' },
-      { name: 'Fira', country: 'Greece' },
-      false
-    );
-
-    const duelText = duelUser.content as string;
-    expect(duelText).toContain('Oia Ignore me');
-    expect(duelText).not.toContain('\nIgnore');
-    expect(duelText).toContain('Pick A if');
-
+  it('sanitizes alternates origins', () => {
     const [, altUser] = buildAlternatesMessages('Oia\x00x', 'Greece', 'cheaper', false);
     expect(altUser.content as string).toContain('Oia x, Greece');
     expect(altUser.content as string).toContain('cost noticeably less');
@@ -589,43 +569,6 @@ describe('prompt builders', () => {
     const [, quietUser] = buildAlternatesMessages('Oia', 'Greece', 'quieter', true);
     expect(quietUser.content as string).toContain('smaller crowds');
     expect(quietUser.content as string).toContain('Return ONLY JSON');
-  });
-
-  it('parses duels leniently and rejects empty tables', () => {
-    const valid = {
-      criteria: [
-        { criterion: 'Cost', a: 'Pricey.', b: 'Cheap.' },
-        { criterion: '', a: 'x', b: 'y' },
-        { criterion: 'Food', a: 'Great.', b: 'Fine.' },
-      ],
-      verdict: 'Pick Oia for views; pick Fira for budget.',
-    };
-
-    const parsed = parseDuelContent(valid);
-    expect(parsed?.criteria).toHaveLength(2);
-    expect(parsed?.verdict).toContain('Pick Oia');
-    expect(parseDuelContent({ criteria: [], verdict: 'v' })).toBeUndefined();
-    expect(parseDuelContent({ criteria: valid.criteria })).toBeUndefined();
-    expect(parseDuelContent({ criteria: valid.criteria, verdict: '  ' })).toBeUndefined();
-
-    const many = {
-      criteria: Array.from({ length: 12 }, (_, i) => ({
-        criterion: `C${i}`,
-        a: 'a',
-        b: 'b',
-      })),
-      verdict: 'v',
-    };
-    expect(parseDuelContent(many)?.criteria).toHaveLength(8);
-
-    const long = {
-      criteria: [{ criterion: 'x'.repeat(50), a: 'a', b: 'b' }],
-      verdict: 'v'.repeat(400),
-    };
-
-    const truncated = parseDuelContent(long);
-    expect(truncated?.criteria[0]?.criterion).toHaveLength(40);
-    expect(truncated?.verdict).toHaveLength(300);
   });
 
   it('parses alternates leniently and caps at three', () => {

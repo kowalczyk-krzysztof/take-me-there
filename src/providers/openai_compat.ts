@@ -1,17 +1,11 @@
 import type { ModelRates } from '../pricing';
 import { parseEndpointOrigin } from '../settings_store';
-import {
-  alternatesJsonSchema,
-  duelJsonSchema,
-  itineraryJsonSchema,
-  scanBatchJsonSchema,
-} from '../types';
+import { alternatesJsonSchema, itineraryJsonSchema, scanBatchJsonSchema } from '../types';
 import {
   PROMPT_CACHE_KEY,
   ProviderError,
   assertConsent,
   buildAlternatesMessages,
-  buildDuelMessages,
   buildGuidePrompt,
   buildItineraryMessages,
   buildScanMessages,
@@ -21,7 +15,6 @@ import {
   filterScanImages,
   invalidResponse,
   parseAlternatesContent,
-  parseDuelContent,
   parseItineraryPlan,
   parseScanBatch,
   postChatStream,
@@ -32,8 +25,6 @@ import {
   type AlternatesInput,
   type AlternatesResult,
   type ChatMessage,
-  type DuelInput,
-  type DuelResult,
   type GuideEvent,
   type GuideInput,
   type IdentifyInput,
@@ -222,7 +213,7 @@ export class OpenAiCompatProvider implements Provider {
   }
 
   // Structured chat only: generic endpoints vary too much to assume a
-  // grounded Responses shape, so duels and alternates run ungrounded here
+  // grounded Responses shape, so alternates run ungrounded here
   // with client-side validation doing the real work.
   private async chatStructured<T>(
     key: string,
@@ -261,26 +252,6 @@ export class OpenAiCompatProvider implements Provider {
     }
 
     throw invalidResponse(usage, 'model output failed validation');
-  }
-
-  async duelPlaces(key: string, input: DuelInput): Promise<DuelResult> {
-    requireKey(key);
-
-    await assertConsent();
-
-    const usage = emptyUsage();
-
-    const verdict = await this.chatStructured(
-      key,
-      input.signal,
-      usage,
-      'duel',
-      duelJsonSchema(),
-      (strictReminder) => buildDuelMessages(input.a, input.b, strictReminder),
-      parseDuelContent
-    );
-
-    return { ...verdict, sources: [], usage: { ...usage } };
   }
 
   async findAlternates(key: string, input: AlternatesInput): Promise<AlternatesResult> {

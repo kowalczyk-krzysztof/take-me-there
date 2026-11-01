@@ -1,16 +1,9 @@
 import type { PlaceResult } from '../../types';
 import styles from './trip_card.module.css';
 import { msg } from '../../utils/i18n';
-import type {
-  AlternatesView,
-  CompareOptionView,
-  ConfidenceView,
-  PlanState,
-  TripCardCallbacks,
-} from './trip_card';
+import type { AlternatesView, ConfidenceView, PlanState, TripCardCallbacks } from './trip_card';
 import { ChipsRow } from './chips_row';
 import { AlternatesView as AlternatesList } from './alternates_view';
-import { CompareRow } from './compare_row';
 
 interface Props {
   place: PlaceResult;
@@ -20,7 +13,6 @@ interface Props {
   canReanalyze: boolean;
   confidence: ConfidenceView;
   sourceHost: string | null;
-  compareOptions: CompareOptionView[];
   alternates: AlternatesView;
   callbacks: TripCardCallbacks;
 }
@@ -33,7 +25,6 @@ export const ResultView = ({
   canReanalyze,
   confidence,
   sourceHost,
-  compareOptions,
   alternates,
   callbacks,
 }: Props) => {
@@ -114,7 +105,6 @@ export const ResultView = ({
           onPlanInstead={callbacks.onPlanInstead}
           onCancel={callbacks.onCancelAlternates}
         />
-        <CompareRow options={compareOptions} onCompare={callbacks.onCompare} />
         {canReanalyze ? (
           <div className={styles['disagree-row']}>
             <span>{msg('notThisPlace')}</span>

@@ -18,7 +18,7 @@ import type { PlaceResult, TripRequest } from './types';
 import { createMutex } from './utils/mutex';
 
 export type RunKind =
-  'identify' | 'video' | 'scan' | 'guide' | 'scan-guide' | 'itinerary' | 'duel' | 'alternates';
+  'identify' | 'video' | 'scan' | 'guide' | 'scan-guide' | 'itinerary' | 'alternates';
 
 export interface RunContext {
   readonly runId: string;
@@ -125,8 +125,8 @@ export const createRun = (init: RunInit): RunContext => {
   };
 };
 
-// Usage-only bucket for flows without an owning analysis run (a duel on a
-// cached result): settles through the same idempotent path, never owns UI.
+// Usage-only bucket for flows without an owning analysis run:
+// settles through the same idempotent path, never owns UI.
 export const createEphemeralRun = (
   kind: RunKind,
   provider: Provider,
@@ -184,7 +184,7 @@ export const absorbRunUsage = (run: RunContext, usage: Usage): void => {
 // zero deltas only re-read the total. A failed write leaves the watermark
 // and the settled mark untouched, so the next stage retries instead of
 // losing the spend. Concurrent settles on one run serialize on its mutex,
-// so a duel settling mid-guide cannot double-count the shared base. Stale
+// so an alternate settling mid-guide cannot double-count the shared base. Stale
 // runs settle exactly like live ones: the spend happened, so the month
 // total owes it, but the caller must skip UI work.
 export const settleStage = async (run: RunContext, stage: string): Promise<number> => {

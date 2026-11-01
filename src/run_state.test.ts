@@ -135,13 +135,13 @@ describe('run lifecycle', () => {
   it('builds ephemeral buckets that never own UI', () => {
     const live = startRun(init({ runId: 'run-a' }));
 
-    const bucket = createEphemeralRun('duel', live.provider, live.settings, live.key);
+    const bucket = createEphemeralRun('alternates', live.provider, live.settings, live.key);
     expect(activeRun()).toBe(live);
     expect(ownsUi(bucket)).toBe(false);
-    expect(bucket.runId).toContain('ephemeral:duel:');
+    expect(bucket.runId).toContain('ephemeral:alternates:');
   });
 
-  it('tracks the displayed run for late duel and alternates checks', () => {
+  it('tracks the displayed run for late alternates checks', () => {
     expect(displayedRun()).toBeNull();
     markDisplayed('run-a');
     expect(displayedRun()).toBe('run-a');
@@ -201,7 +201,7 @@ describe('run accounting', () => {
     const run = startRun(init());
     absorbRunUsage(run, usage(1000));
 
-    const [a, b] = await Promise.all([settleStage(run, 'duel'), settleStage(run, 'guide')]);
+    const [a, b] = await Promise.all([settleStage(run, 'identify'), settleStage(run, 'guide')]);
 
     expect(a).toBeCloseTo(0.001, 9);
     expect(b).toBeCloseTo(0.001, 9);

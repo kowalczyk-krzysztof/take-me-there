@@ -245,40 +245,7 @@ export const scanPlaceSchema = () =>
     imageIndex: z.int().check(z.minimum(0), z.maximum(11)),
   });
 
-export const DUEL_MAX_CRITERIA = 8;
-
 export const ALTERNATES_MAX_COUNT = 3;
-
-export interface DuelCriterion {
-  criterion: string;
-  a: string;
-  b: string;
-}
-
-export interface DuelVerdict {
-  criteria: DuelCriterion[];
-  verdict: string;
-}
-
-export const duelSchema = () =>
-  z.strictObject({
-    criteria: z.array(
-      z.strictObject({
-        criterion: z.string().check(z.maxLength(40)),
-        a: z.string().check(z.maxLength(140)),
-        b: z.string().check(z.maxLength(140)),
-      })
-    ),
-    verdict: z.string().check(z.maxLength(300)),
-  });
-
-export const duelJsonSchema = (): Record<string, unknown> => {
-  const emitted = z.toJSONSchema(duelSchema()) as unknown as Record<string, unknown>;
-
-  const { $schema: _dropped, ...schema } = emitted;
-
-  return schema;
-};
 
 export interface PlaceAlternate {
   placeName: string;
