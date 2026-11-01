@@ -609,6 +609,67 @@ describe('sidepanel', () => {
     });
   });
 
+  it('gates cached low-confidence guesses behind the no-place card', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    fetchMock.mockResolvedValueOnce(chatResponse({ ...VALID_PLACE, confidence: 0.2 }));
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
+    await waitForHeading('noPlaceTitle');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot h2')?.textContent).toBe('noPlaceTitle');
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('charges repeat alternates in the monthly total', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+
+    const batch = groundedResponse({
+      alternatives: [
+        { placeName: 'Fira', country: 'Greece', why: 'Same caldera.', bestMonth: 'May' },
+      ],
+    });
+    fetchMock
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
+      .mockResolvedValueOnce(batch)
+      .mockResolvedValueOnce(
+        groundedResponse({
+          alternatives: [
+            { placeName: 'Naxos', country: 'Greece', why: 'Quiet beaches.', bestMonth: 'June' },
+          ],
+        })
+      );
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
+    await waitForHeading('Oia');
+
+    const card = document.querySelector('#result-slot') as HTMLElement;
+    clickEl(card.querySelectorAll('.chips-row .chip')[0] as HTMLButtonElement);
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('alternatesReady(1)');
+    });
+
+    const fresh = document.querySelector('#result-slot') as HTMLElement;
+    clickEl(fresh.querySelectorAll('.chips-row .chip')[1] as HTMLButtonElement);
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+    });
+
+    const { monthKey } = await cover(import('./pricing'));
+
+    await waitFor(() => {
+      const record = mock.local.data.get('costTotals') as {
+        v: number;
+        months: Record<string, number>;
+      };
+      // Identify plus two grounded alternates (tokens plus one search each).
+      expect(record.months[monthKey(new Date())]).toBeCloseTo(0.0065175, 10);
+    });
+  });
+
   it('keeps the consent gate for re-click when the flag write fails', async () => {
     const mock = await setup();
 

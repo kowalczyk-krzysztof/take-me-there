@@ -1168,7 +1168,9 @@ const renderCached = async (
 
   cancelSkeleton();
   run.place = entry.place;
-  if (!entry.place.identified) {
+  // Same refusal line as a live run: a cached low-confidence guess shows
+  // the no-place card instead of flipping to a result on revisit.
+  if (!entry.place.identified || entry.place.confidence < NO_PLACE_MIN_CONFIDENCE) {
     commitDisplayed(run, 'no-place');
     swapResultSlot(() => {
       store.set({
@@ -1906,6 +1908,10 @@ const runAlternates = async (intent: AlternateIntent): Promise<void> => {
   alternatesController = controller;
   alternatesRunId += 1;
   const mine = alternatesRunId;
+  // Unique stage per alternates call: settlement dedupes on run+stage,
+  // so a shared name would drop every repeat after the first from the
+  // monthly total.
+  const stage = `alternates:${mine}`;
   alternatesLoading = intent;
   currentAlternates = null;
   await refreshResultCard();
@@ -1943,7 +1949,7 @@ const runAlternates = async (intent: AlternateIntent): Promise<void> => {
     if (err instanceof ProviderError && err.code === 'aborted') {
       return;
     }
-    recordPartialUsage(bucket, 'alternates', err);
+    recordPartialUsage(bucket, stage, err);
     if (mine !== alternatesRunId || (host && activeRun() !== host)) {
       return;
     }
@@ -1958,13 +1964,13 @@ const runAlternates = async (intent: AlternateIntent): Promise<void> => {
   }
   absorbRunUsage(bucket, result.usage);
   if (mine !== alternatesRunId || (host && activeRun() !== host)) {
-    await priceAndRecord(bucket, 'alternates');
+    await priceAndRecord(bucket, stage);
     return;
   }
   currentAlternates = { intent, alternatives: result.alternatives };
   alternatesLoading = null;
   await refreshResultCard();
-  await priceAndRecord(bucket, 'alternates');
+  await priceAndRecord(bucket, stage);
   updatePrivacy('names');
   announceStatus('alternatesReady', String(result.alternatives.length));
 };
