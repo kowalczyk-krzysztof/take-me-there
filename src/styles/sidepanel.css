@@ -126,13 +126,25 @@ main {
 
 #booking-heading,
 #guide-heading,
+#duel-heading,
 #sources-heading,
-#settings-heading,
-#panel-settings-sections h2 {
+#settings-panel h2 {
   font-size: 1rem;
   line-height: 1.4;
   font-weight: 600;
   margin: 4px 0 8px;
+}
+
+.settings-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  padding: 12px;
+}
+
+.settings-card > h2:first-child {
+  margin-top: 0;
 }
 
 .slot-empty {

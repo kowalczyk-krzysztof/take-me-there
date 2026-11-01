@@ -4109,12 +4109,6 @@ const SidepanelApp = () => {
             <PreviewFrame preview={state.preview} />
           </div>
         </header>
-        <ModesSection
-          key={state.panelSettings.loaded ? 'modes-ready' : 'modes-loading'}
-          heading={msg('settingsModesHeading')}
-          imageOnly={state.panelSettings.imageOnly}
-          skipWebSearch={state.panelSettings.skipWebSearch}
-        />
         <div id="result-slot" aria-busy={state.resultBusy || undefined}>
           {state.result.card ? (
             <TripCard
@@ -4260,7 +4254,7 @@ const SidepanelApp = () => {
         aria-labelledby="tab-settings"
         hidden={selected('settings') ? undefined : true}
       >
-        <section aria-labelledby="settings-heading">
+        <section aria-labelledby="settings-heading" className="settings-card">
           <h2 id="settings-heading">{msg('settingsKeyHeading')}</h2>
           {state.showOrphaned ? <p className="key-notice">{msg('keyReenterNotice')}</p> : null}
           {!state.keySaved || state.replacing ? (
@@ -4311,7 +4305,15 @@ const SidepanelApp = () => {
             />
           </div>
         </section>
-        <section aria-labelledby="settings-cost-heading">
+        <section aria-labelledby="modes-heading" className="settings-card">
+          <ModesSection
+            key={state.panelSettings.loaded ? 'modes-ready' : 'modes-loading'}
+            heading={msg('settingsModesHeading')}
+            imageOnly={state.panelSettings.imageOnly}
+            skipWebSearch={state.panelSettings.skipWebSearch}
+          />
+        </section>
+        <section aria-labelledby="settings-cost-heading" className="settings-card">
           <CostSection
             heading={msg('settingsCostHeading')}
             headingId="settings-cost-heading"

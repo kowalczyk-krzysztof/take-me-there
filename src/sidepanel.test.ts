@@ -230,13 +230,14 @@ describe('sidepanel', () => {
     expect(document.querySelector('#sources-slot .slot-empty')?.textContent).toBe('sourcesEmpty');
   });
 
-  it('keeps settings to key and costs with modes on Explore', async () => {
+  it('keeps settings in key, modes, and cost cards', async () => {
     await setup();
     await waitForSettings();
-    expect(document.querySelector('#main-panel #modes-heading')?.textContent).toBe(
+    expect(document.querySelector('#main-panel #modes-heading')).toBeNull();
+    expect(document.querySelector('#settings-panel #modes-heading')?.textContent).toBe(
       'settingsModesHeading'
     );
-    expect(document.querySelector('#settings-panel #modes-heading')).toBeNull();
+    expect(document.querySelectorAll('#settings-panel .settings-card')).toHaveLength(3);
     expect(document.querySelector('#settings-panel #retention-select')).toBeNull();
     expect(document.querySelector('#settings-panel #provider-group')).not.toBeNull();
     expect(document.querySelector('#settings-panel #settings-cost-heading')).not.toBeNull();
