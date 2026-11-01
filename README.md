@@ -10,8 +10,6 @@ side panel.
 
 - **Place identification.** Right-click any image (or a video frame)
   and Meta's Muse AI tells you where it is, with a confidence score.
-- **Page scan.** Right-click any page to find every place pictured
-  on it.
 - **Alternatives.** Ask for cheaper, quieter, or similar options
   near the identified place.
 - **Booking links.** Every result carries map and hotel deep links.
@@ -61,7 +59,7 @@ calls above:
 
 ```mermaid
 flowchart TB
-    user(["You right-click a photo, video, or page"]) --> worker["Service worker"]
+    user(["You right-click a photo or video"]) --> worker["Service worker"]
     worker -->|"1. opens the panel at once"| panel["Side panel"]
     worker -->|"2. reads the page"| readers["Page readers<br/>(captions, headings, video frame)"]
     readers --> handoff[("Request handoff<br/>(short-lived tab storage)")]
@@ -69,7 +67,7 @@ flowchart TB
 
     subgraph Panel ["Side panel - two tabs"]
         direction TB
-        main["Main<br/>identify, alternatives, scan, links"]
+        main["Main<br/>identify, alternatives, links"]
         settingsTab["Settings<br/>key, modes, cache, cost"]
     end
 
@@ -88,7 +86,7 @@ extension talks to.
 | Call                        | What it does                                               | What is sent                                 |
 | --------------------------- | ---------------------------------------------------------- | -------------------------------------------- |
 | `GET /v1/models`            | Checks your key when you save it                           | Key only, nothing else                       |
-| `POST /v1/chat/completions` | Identifies the place, scans pages, suggests alternatives   | Image plus page text (never without consent) |
+| `POST /v1/chat/completions` | Identifies the place and suggests alternatives             | Image plus page text (never without consent) |
 | `POST /v1/responses`        | Grounds alternatives with live web search, crops landmarks | Place name plus your question                |
 
 A typical analysis costs a few cents: tokens plus about $0.0025 per

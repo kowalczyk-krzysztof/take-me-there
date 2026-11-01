@@ -17,7 +17,7 @@ import {
 import type { PlaceResult, TripRequest } from './types';
 import { createMutex } from './utils/mutex';
 
-export type RunKind = 'identify' | 'video' | 'scan' | 'alternates';
+export type RunKind = 'identify' | 'video' | 'alternates';
 
 export interface RunContext {
   readonly runId: string;

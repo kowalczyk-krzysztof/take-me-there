@@ -1,10 +1,5 @@
 import { MUSE_SPARK_RATES, SAM_IMAGE_COST_USD, type ModelRates } from '../pricing';
-import {
-  alternatesJsonSchema,
-  placeJsonSchema,
-  scanBatchJsonSchema,
-  type PlaceResult,
-} from '../types';
+import { alternatesJsonSchema, placeJsonSchema, type PlaceResult } from '../types';
 import {
   ProviderError,
   PROMPT_CACHE_KEY,
@@ -14,18 +9,14 @@ import {
   assertConsent,
   buildAlternatesMessages,
   buildAlternatesPrompt,
-  buildScanMessages,
   emptyUsage,
   extractChatJson,
   extractResponsesStructured,
   extractResponsesText,
   fetchChatCompletion,
-  filterScanImages,
   invalidResponse,
   parseAlternatesContent,
-  parseScanBatch,
   readBoundedJson,
-  remapScanPlaces,
   fetchTimeout,
   absorbUsage,
   readChatUsage,
@@ -44,8 +35,6 @@ import {
   type IdentifyResult,
   type Provider,
   type ProviderCapabilities,
-  type ScanInput,
-  type ScanResult,
   type SegmentInput,
   type SegmentResult,
   type Usage,
@@ -263,51 +252,6 @@ export class MuseProvider implements Provider {
         },
       },
     };
-  }
-
-  async scanPlaces(key: string, input: ScanInput): Promise<ScanResult> {
-    requireKey(key);
-    await assertConsent();
-
-    const usage = emptyUsage();
-
-    if (input.images.length === 0) {
-      throw invalidResponse(usage, 'no images to scan');
-    }
-
-    const { kept, originalIndex } = filterScanImages(input.images);
-
-    if (kept.length === 0) {
-      return { places: [], usage: { ...usage } };
-    }
-
-    for (const strictReminder of [false, true]) {
-      const data = await fetchChatCompletion(
-        `${API_BASE}/chat/completions`,
-        key,
-        {
-          model: MODEL,
-          prompt_cache_key: PROMPT_CACHE_KEY,
-          reasoning_effort: 'low',
-          max_completion_tokens: STRUCTURED_MAX_TOKENS,
-          messages: buildScanMessages(kept, strictReminder),
-          response_format: {
-            type: 'json_schema',
-            json_schema: { name: 'scan_batch', strict: true, schema: scanBatchJsonSchema() },
-          },
-        },
-        input.signal,
-        usage
-      );
-
-      const places = parseScanBatch(data, kept.length);
-
-      if (places) {
-        return { places: remapScanPlaces(places, originalIndex), usage: { ...usage } };
-      }
-    }
-
-    throw invalidResponse(usage, 'model output failed validation');
   }
 
   // One web-grounded structured call: the Responses shape carries the schema

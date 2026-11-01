@@ -864,87 +864,6 @@ describe('sidepanel', () => {
     );
   });
 
-  it('renders the scan skeleton while the harvest is collecting', async () => {
-    const mock = await setup();
-    await plantKeyAndConsent();
-    await settleWrite(
-      mock.session.set({
-        [SLOT]: READY({
-          status: 'collecting',
-          srcUrl: '',
-          signals: undefined,
-          scanImages: [],
-        }),
-      })
-    );
-    await waitFor(() => {
-      const list = document.querySelector('#result-slot');
-      expect(list?.querySelector('h2')?.textContent).toBe('scanTitle');
-    });
-
-    const list = document.querySelector('#result-slot');
-
-    const grid = list?.querySelector('.skeleton-grid');
-    expect(grid?.getAttribute('aria-hidden')).toBe('true');
-    expect(grid?.querySelectorAll('.scan-card')).toHaveLength(3);
-    expect(grid?.querySelectorAll('.skeleton-block')).toHaveLength(9);
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it('scans the harvest into a paired shortlist', async () => {
-    const mock = await setup();
-    await plantKeyAndConsent();
-    fetchMock.mockResolvedValueOnce(
-      chatResponse({
-        places: [
-          { placeName: 'Oia', city: 'Oia', country: 'Greece', confidence: 0.9, imageIndex: 1 },
-          { placeName: 'Fira', city: 'Fira', country: 'Greece', confidence: 0.8, imageIndex: 9 },
-        ],
-      })
-    );
-    await settleWrite(
-      mock.session.set({
-        [SLOT]: READY({
-          srcUrl: '',
-          signals: undefined,
-          scanImages: [
-            {
-              url: 'https://img.example.com/a.jpg',
-              caption: '',
-              heading: '',
-              width: 800,
-              height: 600,
-            },
-            {
-              url: 'https://img.example.com/b.jpg',
-              caption: '',
-              heading: '',
-              width: 800,
-              height: 600,
-            },
-          ],
-        }),
-      })
-    );
-    await waitFor(() => {
-      const list = document.querySelector('#result-slot');
-      expect(list?.querySelectorAll('.scan-card')).toHaveLength(2);
-    });
-    expect(document.querySelector('#status-region')?.textContent).toBe('scanFound(2)');
-
-    const list = document.querySelector('#result-slot');
-
-    const cards = list?.querySelectorAll('.scan-card');
-    expect(cards?.[0]?.querySelector('img')?.getAttribute('src')).toBe(
-      'https://img.example.com/b.jpg'
-    );
-    expect(cards?.[1]?.querySelector('img')).toBeNull();
-    expect(cards?.[1]?.querySelector('.thumb-placeholder')).not.toBeNull();
-    expect(document.querySelector('#privacy-line')?.textContent).toBe(
-      "privacyScan(Meta's Muse API)"
-    );
-  });
-
   it('ignores handoff records stamped for another window', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
@@ -1134,77 +1053,6 @@ describe('sidepanel', () => {
     await settleWrite(mock.session.set({ [SLOT]: record }));
     await waitForHeading('Oia');
     expect(fetchMock).toHaveBeenCalledTimes(1);
-  });
-
-  it('shows honest cards for empty harvests and empty results', async () => {
-    const mock = await setup();
-    await plantKeyAndConsent();
-    await settleWrite(
-      mock.session.set({
-        [SLOT]: READY({ srcUrl: '', signals: undefined, scanImages: [] }),
-      })
-    );
-    await waitForHeading('scanEmptyTitle');
-    expect(fetchMock).not.toHaveBeenCalled();
-    fetchMock.mockResolvedValueOnce(chatResponse({ places: [] }));
-    await settleWrite(
-      mock.session.set({
-        [SLOT]: READY({
-          requestId: '200-2',
-          srcUrl: '',
-          signals: undefined,
-          scanImages: [
-            {
-              url: 'https://img.example.com/a.jpg',
-              caption: '',
-              heading: '',
-              width: 800,
-              height: 600,
-            },
-          ],
-        }),
-      })
-    );
-    await waitForHeading('scanNoneTitle');
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-  });
-
-  it('retries a failed scan from the error card', async () => {
-    const mock = await setup();
-    await plantKeyAndConsent();
-    fetchMock.mockResolvedValueOnce(new Response('boom', { status: 500 })).mockResolvedValueOnce(
-      chatResponse({
-        places: [
-          { placeName: 'Oia', city: 'Oia', country: 'Greece', confidence: 0.9, imageIndex: 0 },
-        ],
-      })
-    );
-    await settleWrite(
-      mock.session.set({
-        [SLOT]: READY({
-          srcUrl: '',
-          signals: undefined,
-          scanImages: [
-            {
-              url: 'https://img.example.com/a.jpg',
-              caption: '',
-              heading: '',
-              width: 800,
-              height: 600,
-            },
-          ],
-        }),
-      })
-    );
-    await waitForHeading('errorServerTitle');
-
-    const card = document.querySelector('#result-slot') as HTMLElement;
-    clickEl(card.querySelector('.primary') as HTMLButtonElement);
-    await waitFor(() => {
-      const list = document.querySelector('#result-slot');
-      expect(list?.querySelectorAll('.scan-card')).toHaveLength(1);
-    });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('cancels hanging alternates and restores the chips', async () => {
@@ -1987,42 +1835,6 @@ describe('sidepanel', () => {
     expect(document.querySelector('#result-slot .hint')?.textContent).toBe('panelIdle');
   });
 
-  it('cancels a hanging scan from the scan skeleton', async () => {
-    const mock = await setup();
-    await plantKeyAndConsent();
-    hangUntilAbort();
-    await settleWrite(
-      mock.session.set({
-        [SLOT]: READY({
-          srcUrl: '',
-          signals: undefined,
-          scanImages: [
-            {
-              url: 'https://img.example.com/a.jpg',
-              caption: '',
-              heading: '',
-              width: 800,
-              height: 600,
-            },
-          ],
-        }),
-      })
-    );
-
-    await waitFor(() => {
-      expect(document.querySelector('#result-slot section > button')?.textContent).toBe(
-        'cancelButton'
-      );
-    });
-
-    clickEl(document.querySelector('#result-slot section > button') as HTMLButtonElement);
-
-    await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe('statusCanceled');
-    });
-    expect(document.querySelector('#result-slot .hint')?.textContent).toBe('panelIdle');
-  });
-
   it('drops the type-a-destination instruction and prices retries honestly', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
@@ -2069,41 +1881,6 @@ describe('sidepanel', () => {
     });
     const tiles = document.querySelectorAll('#links-slot a.tile');
     expect((tiles[0] as HTMLAnchorElement).href).toContain(encodeURIComponent('Oia, Greece'));
-  });
-
-  it('retries an empty scan from the error card', async () => {
-    const mock = await setup();
-    await plantKeyAndConsent();
-    fetchMock.mockResolvedValueOnce(chatResponse({ places: [] })).mockResolvedValueOnce(
-      chatResponse({
-        places: [
-          { placeName: 'Oia', city: 'Oia', country: 'Greece', confidence: 0.9, imageIndex: 0 },
-        ],
-      })
-    );
-    const record = {
-      srcUrl: '',
-      signals: undefined,
-      scanImages: [
-        {
-          url: 'https://img.example.com/a.jpg',
-          caption: '',
-          heading: '',
-          width: 800,
-          height: 600,
-        },
-      ],
-    };
-    await settleWrite(mock.session.set({ [SLOT]: READY(record) }));
-    await waitFor(() => {
-      expect(document.querySelector('#result-slot h2')?.textContent).toBe('scanNoneTitle');
-    });
-
-    clickEl(document.querySelector('#result-slot button') as HTMLButtonElement);
-    await waitFor(() => {
-      expect(document.querySelectorAll('#result-slot .scan-card')).toHaveLength(1);
-    });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('dismisses dead-end errors back to idle', async () => {

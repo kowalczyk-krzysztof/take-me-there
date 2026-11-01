@@ -95,20 +95,9 @@ export const FRAME_FAILURE_SCHEMA = z.enum([
 
 export type FrameFailureReason = z.infer<typeof FRAME_FAILURE_SCHEMA>;
 
-export const SCANNED_IMAGE_SCHEMA = z.strictObject({
-  url: z.string(),
-  caption: z.string(),
-  heading: z.string(),
-  width: z.number(),
-  height: z.number(),
-});
-
-export type ScannedImage = z.infer<typeof SCANNED_IMAGE_SCHEMA>;
-
 // The worker-to-panel handoff record. Signals ride along only once the
 // scrape settles (the 'ready' terminal write); video clicks add the media
-// marker plus either the captured frame or its failure reason; page scans
-// add the harvested image list.
+// marker plus either the captured frame or its failure reason.
 export const TRIP_REQUEST_SCHEMA = z.strictObject({
   requestId: z.string(),
   seq: z.number(),
@@ -130,30 +119,9 @@ export const TRIP_REQUEST_SCHEMA = z.strictObject({
     })
   ),
   frameError: z.optional(FRAME_FAILURE_SCHEMA),
-  scanImages: z.optional(z.array(SCANNED_IMAGE_SCHEMA)),
 });
 
 export type TripRequest = z.infer<typeof TRIP_REQUEST_SCHEMA>;
-
-// Page-scan batch: per-image place guesses with the harvest index bounded
-// to the collector's dozen. The array rides inside a {places} wrapper:
-// top-level arrays are outside the conservative strict subset.
-export interface ScannedPlace {
-  placeName: string;
-  city: string;
-  country: string;
-  confidence: number;
-  imageIndex: number;
-}
-
-export const scanPlaceSchema = () =>
-  z.strictObject({
-    placeName: z.string().check(z.maxLength(100)),
-    city: z.string().check(z.maxLength(100)),
-    country: z.string().check(z.maxLength(100)),
-    confidence: z.number(),
-    imageIndex: z.int().check(z.minimum(0), z.maximum(11)),
-  });
 
 export const ALTERNATES_MAX_COUNT = 3;
 
@@ -178,16 +146,6 @@ export const alternatesSchema = () =>
 
 export const alternatesJsonSchema = (): Record<string, unknown> => {
   const emitted = z.toJSONSchema(alternatesSchema()) as unknown as Record<string, unknown>;
-
-  const { $schema: _dropped, ...schema } = emitted;
-
-  return schema;
-};
-
-export const scanBatchJsonSchema = (): Record<string, unknown> => {
-  const emitted = z.toJSONSchema(
-    z.strictObject({ places: z.array(scanPlaceSchema()) })
-  ) as unknown as Record<string, unknown>;
 
   const { $schema: _dropped, ...schema } = emitted;
 

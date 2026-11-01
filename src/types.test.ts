@@ -7,8 +7,6 @@ import {
   alternatesJsonSchema,
   alternatesSchema,
   placeJsonSchema,
-  scanBatchJsonSchema,
-  scanPlaceSchema,
 } from './types';
 
 const forbiddenKeys = (value: unknown, path = '$'): string[] => {
@@ -131,22 +129,12 @@ describe('handoff schemas', () => {
         .success
     ).toBe(true);
     // Worker contract: every record shape the worker writes must parse.
-    // Failed scrapes, page scans, and quota-slimmed retries omit `signals`
+    // Failed scrapes and quota-slimmed retries omit `signals`
     // entirely rather than writing a partial object. Records carry the
     // source window so foreign panels ignore them.
     expect(TRIP_REQUEST_SCHEMA.safeParse({ ...collecting, status: 'ready' }).success).toBe(true);
     expect(
       TRIP_REQUEST_SCHEMA.safeParse({ ...collecting, status: 'ready', windowId: 2 }).success
-    ).toBe(true);
-    expect(
-      TRIP_REQUEST_SCHEMA.safeParse({
-        ...collecting,
-        status: 'ready',
-        srcUrl: '',
-        scanImages: [
-          { url: 'https://cdn.example.com/a.jpg', caption: '', heading: '', width: 1, height: 1 },
-        ],
-      }).success
     ).toBe(true);
     expect(
       TRIP_REQUEST_SCHEMA.safeParse({ ...collecting, status: 'error', reason: 'collecting-failed' })
@@ -189,38 +177,6 @@ describe('handoff schemas', () => {
         structuredOutput: 'xml',
       }).success
     ).toBe(false);
-  });
-});
-
-describe('scan batch pipeline', () => {
-  it('emits the strict subset with a bounded index', () => {
-    const schema = scanBatchJsonSchema();
-    assertStrictSubset(schema);
-    expect(forbiddenKeys(schema)).toEqual([]);
-
-    const props = schema.properties as Record<string, Record<string, unknown>>;
-
-    const items = props.places.items as Record<string, unknown>;
-
-    const itemProps = items.properties as Record<string, unknown>;
-    expect(itemProps.imageIndex).toMatchObject({ type: 'integer', minimum: 0, maximum: 11 });
-  });
-
-  it('validates scan entries and rejects bad indices', () => {
-    const schema = scanPlaceSchema();
-
-    const valid = {
-      placeName: 'Oia',
-      city: 'Oia',
-      country: 'Greece',
-      confidence: 0.9,
-      imageIndex: 3,
-    };
-    expect(schema.safeParse(valid).success).toBe(true);
-    expect(schema.safeParse({ ...valid, imageIndex: 12 }).success).toBe(false);
-    expect(schema.safeParse({ ...valid, imageIndex: -1 }).success).toBe(false);
-    expect(schema.safeParse({ ...valid, imageIndex: 1.5 }).success).toBe(false);
-    expect(schema.safeParse({ ...valid, placeName: 'x'.repeat(101) }).success).toBe(false);
   });
 });
 

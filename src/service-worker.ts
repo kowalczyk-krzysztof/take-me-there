@@ -1,7 +1,5 @@
 import { captureVideoFrame, type CaptureVideoFrameResult } from './injected/capture_video_frame';
-import { collectPageImages } from './injected/collect_page_images';
 import { collectSignals } from './injected/collect_signals';
-import type { ScannedImage } from './types';
 import { msg } from './utils/i18n';
 import { STORAGE_MESSAGE_SCOPE } from './storage_commands';
 import { enqueueLocalCommand, handleStorageMessage } from './storage_service';
@@ -24,8 +22,6 @@ void enqueueLocalCommand({ kind: 'migrate.run' }).catch(() => undefined);
 
 const MENU_ID = 'plan-trip';
 
-const SCAN_MENU_ID = 'scan-page';
-
 const INJECT_TIMEOUT_MS = 2000;
 
 const MAX_INLINE_DATA_URL = 100000;
@@ -44,11 +40,6 @@ chrome.runtime.onInstalled.addListener((details) => {
       id: MENU_ID,
       title: msg('menuTitle'),
       contexts: ['image', 'video'],
-    });
-    chrome.contextMenus.create({
-      id: SCAN_MENU_ID,
-      title: msg('scanMenuTitle'),
-      contexts: ['page'],
     });
   });
   chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => undefined);
@@ -97,14 +88,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // Registered at the top level so a cold-start click still wakes the worker.
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (tab?.id === undefined) {
-    return;
-  }
-
-  if (info.menuItemId === SCAN_MENU_ID) {
-    // GESTURE RULE: sidePanel.open must run before any await in this handler.
-    void chrome.sidePanel.open({ tabId: tab.id }).catch(() => undefined);
-    void handleScanClick(info.pageUrl ?? null, info.frameId ?? 0, tab.id, tab.windowId);
-
     return;
   }
 
@@ -277,68 +260,6 @@ const handleVideoClick = async (
   });
 };
 
-const handleScanClick = async (
-  pageUrl: string | null,
-  frameId: number,
-  tabId: number,
-  windowId: number
-): Promise<void> => {
-  const seq = await allocateHandoffSeq();
-  latestSeqByWindow.set(windowId, seq);
-
-  const requestId = nextRequestId();
-  const slot = handoffSlotKey(windowId);
-  const collecting = await writeCollectingState(slot, {
-    requestId,
-    seq,
-    status: 'collecting',
-    srcUrl: '',
-    dataPending: false,
-    pageUrl,
-    tabId,
-    windowId,
-    at: Date.now(),
-    scanImages: [],
-  });
-
-  if (!collecting) {
-    return;
-  }
-
-  const scanImages = await harvestWithTimeout(tabId, frameId);
-  await writeTerminalState(windowId, seq, {
-    requestId,
-    seq,
-    status: 'ready',
-    srcUrl: '',
-    dataPending: false,
-    pageUrl,
-    tabId,
-    windowId,
-    at: Date.now(),
-    scanImages,
-  });
-};
-
-const harvestWithTimeout = async (tabId: number, frameId: number): Promise<ScannedImage[]> => {
-  try {
-    const results = await withTimeout(
-      chrome.scripting.executeScript({
-        target: { tabId, frameIds: [frameId] },
-        func: collectPageImages as unknown as () => void,
-        args: [],
-      }),
-      INJECT_TIMEOUT_MS
-    );
-
-    const images = (results[0]?.result ?? []) as ScannedImage[];
-
-    return Array.isArray(images) ? images : [];
-  } catch {
-    return [];
-  }
-};
-
 const scrapeWithTimeout = async (
   tabId: number,
   frameId: number,
@@ -415,7 +336,6 @@ interface TerminalRecord {
   mediaType?: 'video';
   frame?: { dataUrl: string; time: number };
   frameError?: string;
-  scanImages?: ScannedImage[];
 }
 
 const writeTerminalState = async (
@@ -441,10 +361,6 @@ const writeTerminalState = async (
         if (slim.frame) {
           delete slim.frame;
           slim.frameError = 'too-large';
-        }
-
-        if (slim.scanImages) {
-          delete slim.scanImages;
         }
         await chrome.storage.session.set({ [slot]: slim });
       }

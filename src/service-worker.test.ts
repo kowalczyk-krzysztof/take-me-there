@@ -91,9 +91,8 @@ describe('service-worker', () => {
       fn({ reason: 'install' });
     }
     await flush();
-    expect(mock.worker.menus.map((menu) => menu['id'])).toEqual(['plan-trip', 'scan-page']);
+    expect(mock.worker.menus.map((menu) => menu['id'])).toEqual(['plan-trip']);
     expect(mock.worker.menus[0]['contexts']).toEqual(['image', 'video']);
-    expect(mock.worker.menus[1]['contexts']).toEqual(['page']);
     expect(mock.worker.panelBehaviors).toEqual([{ openPanelOnActionClick: true }]);
     expect(mock.worker.tabsCreated).toEqual([{ url: 'chrome-extension://test/onboarding.html' }]);
   });
@@ -163,25 +162,6 @@ describe('service-worker', () => {
     const record = await storedRequest(mock);
     expect(TRIP_REQUEST_SCHEMA.safeParse(record).success).toBe(true);
     expect(record['signals']).toMatchObject({ imgFound: true, alt: 'Blue domes' });
-  });
-
-  it('hands off page scans with the harvested images', async () => {
-    const mock = await setup();
-
-    const images = [
-      { url: 'https://cdn.example.com/a.jpg', caption: '', heading: '', width: 4, height: 3 },
-    ];
-    mock.worker.scriptingImpl = async () => [{ result: images }];
-    fireClick(
-      mock,
-      { menuItemId: 'scan-page', pageUrl: 'https://example.com/guide', frameId: 0 },
-      { ...TAB }
-    );
-    await flush();
-
-    const record = await storedRequest(mock);
-    expect(TRIP_REQUEST_SCHEMA.safeParse(record).success).toBe(true);
-    expect(record['scanImages']).toEqual(images);
   });
 
   it('hands off video clicks with the captured frame', async () => {

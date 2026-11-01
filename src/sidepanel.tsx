@@ -4,8 +4,6 @@ import { useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent } from '
 import { createRoot, type Root } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import { BookingGrid } from './components/booking_grid/booking_grid';
-import type { ScanItemView } from './components/scan_list/scan_list';
-import { ScanList } from './components/scan_list/scan_list';
 import type { AlternatesView, CardState, ConfidenceView } from './components/trip_card/trip_card';
 import { TripCard } from './components/trip_card/trip_card';
 import { KeySetup } from './components/key_setup/key_setup';
@@ -29,8 +27,6 @@ import {
   type PageSignals,
   type PlaceAlternate,
   type PlaceResult,
-  type ScannedImage,
-  type ScannedPlace,
   type TripRequest,
 } from './types';
 import { frameCacheSeed, hasVideoConsented, isMp4RungUsable, setVideoConsented } from './video';
@@ -104,10 +100,6 @@ type PendingRun = { kind: 'request'; request: TripRequest };
 
 let initialized = false;
 
-let scanPlaces: ScannedPlace[] = [];
-
-let scanThumbs: Array<string | null> = [];
-
 let currentAlternates: { intent: AlternateIntent; alternatives: PlaceAlternate[] } | null = null;
 
 let alternatesLoading: AlternateIntent | null = null;
@@ -136,7 +128,6 @@ type PreviewState =
 
 interface ResultSlotState {
   card: CardState | null;
-  scan: { loading: boolean; items: ScanItemView[] } | null;
   consent: boolean;
   video: { rung2: boolean; imageOnly: boolean } | null;
 }
@@ -176,7 +167,6 @@ interface PanelState {
 
 const blankResultSlot = (): ResultSlotState => ({
   card: null,
-  scan: null,
   consent: false,
   video: null,
 });
@@ -349,7 +339,7 @@ const getPanelWindowId = (): Promise<number | undefined> => {
   return panelWindowPromise;
 };
 
-// Request behind the displayed result (or scan), for follow-up stages that
+// Request behind the displayed result, for follow-up stages that
 // must bind to what the user sees rather than to any live run.
 let displayedRequest: TripRequest | null = null;
 
@@ -472,7 +462,6 @@ type PrivacyMode =
   | 'image-only'
   | 'image-pixels'
   | 'image-pixels-only'
-  | 'scan'
   | 'cache'
   | 'idle'
   | 'video-frame'
@@ -488,7 +477,6 @@ const PRIVACY_KEYS: Record<PrivacyMode, string> = {
   'image-only': 'privacyImageOnly',
   'image-pixels': 'privacyImagePixels',
   'image-pixels-only': 'privacyImagePixelsOnly',
-  scan: 'privacyScan',
   cache: 'privacyCache',
   idle: 'privacyIdle',
   'video-frame': 'privacyVideoFrame',
@@ -562,17 +550,6 @@ const settleSkeleton = async (): Promise<void> => {
     }
     skeletonShownAt = 0;
   }
-};
-
-// Scan chrome renders immediately (no trip-card delay): the collecting
-// record already proved the harvest is underway.
-const showScanSkeleton = (): void => {
-  cancelSkeleton();
-  clearContentSlots();
-  currentView = 'scan';
-  swapResultSlot(() => {
-    store.set({ result: { ...blankResultSlot(), scan: { loading: true, items: [] } } });
-  });
 };
 
 const showIdle = (): void => {
@@ -1093,7 +1070,6 @@ const runIdentify = async (args: IdentifyArgs): Promise<RunOutcome> => {
       err instanceof ProviderError &&
       err.status === 400 &&
       !request.mediaType &&
-      !request.scanImages &&
       !request.frame &&
       !request.dataPending &&
       (request.srcUrl.startsWith('https://') || isLoopbackHttp(request.srcUrl))
@@ -1333,116 +1309,6 @@ const runVideoAnalysis = async (
   await runIdentify({ run, origin });
 };
 
-// ---- Page scan ----
-
-// Pair a scan guess with its harvest thumbnail. An out-of-range index or a
-// non-previewable URL yields the placeholder, never a wrong image.
-const pairScanThumb = (place: ScannedPlace, images: ScannedImage[]): string | null => {
-  const index = place.imageIndex;
-  if (!Number.isInteger(index) || index < 0 || index >= images.length) {
-    return null;
-  }
-  const url = images[index]?.url ?? '';
-  return url && isAllowedPreviewUrl(url) ? url : null;
-};
-
-const scanItemViews = (places: ScannedPlace[], thumbs: Array<string | null>): ScanItemView[] =>
-  places.map((place, index) => ({
-    placeName: place.placeName,
-    country: place.country,
-    title: buildDestination(place.placeName, place.city, place.country),
-    image: thumbs[index] ?? null,
-  }));
-
-const runScan = async (run: RunContext, origin: 'gesture' | 'panel'): Promise<void> => {
-  const request = run.request;
-
-  if (!request) {
-    return;
-  }
-
-  const images = request.scanImages ?? [];
-  const privacy: PrivacyMode = 'scan';
-  if (images.length === 0) {
-    renderErrorCard('scanEmptyTitle', 'scanEmptyBody', true, false);
-    announceAlert('scanEmptyBody');
-    updatePrivacy('idle');
-    return;
-  }
-  showScanSkeleton();
-  announceStatus('statusAnalyzing');
-  let result;
-  try {
-    result = await run.provider.scanPlaces(run.key, { images, signal: run.signal });
-  } catch (err) {
-    if (err instanceof ProviderError && err.code === 'aborted') {
-      recordPartialUsage(run, 'scan', err);
-
-      if (activeRun() !== null) {
-        return;
-      }
-
-      cancelSkeleton();
-      showIdle();
-      announceStatus('statusCanceled');
-
-      return;
-    }
-    recordPartialUsage(run, 'scan', err);
-    await priceAndRecord(run, 'scan');
-
-    if (!ownsUi(run)) {
-      return;
-    }
-
-    showProviderError(err, request, privacy);
-    return;
-  }
-  absorbRunUsage(run, result.usage);
-
-  if (!ownsUi(run)) {
-    await priceAndRecord(run, 'scan');
-
-    return;
-  }
-
-  if (result.places.length === 0) {
-    await priceAndRecord(run, 'scan');
-
-    if (!ownsUi(run)) {
-      return;
-    }
-
-    updatePrivacy(privacy);
-    renderErrorCard('scanNoneTitle', 'scanNoneBody', true, false);
-    announceAlert('scanNoneBody');
-    return;
-  }
-  scanPlaces = result.places;
-  scanThumbs = result.places.map((place) => pairScanThumb(place, images));
-  const views = scanItemViews(scanPlaces, scanThumbs);
-
-  if (!ownsUi(run)) {
-    return;
-  }
-
-  commitDisplayed(run, 'scan');
-  swapResultSlot(() => {
-    store.set({ result: { ...blankResultSlot(), scan: { loading: false, items: views } } });
-  });
-  await priceAndRecord(run, 'scan');
-
-  if (!ownsUi(run)) {
-    return;
-  }
-
-  updatePrivacy(privacy);
-  announceStatus('scanFound', String(scanPlaces.length));
-  if (origin === 'panel') {
-    document.getElementById('scan-heading')?.focus();
-  }
-};
-
 const runAnalysis = async (request: TripRequest, origin: 'gesture' | 'panel'): Promise<void> => {
   const superseded = activeRun() !== null;
   const ticket = ++runTicket;
@@ -1467,12 +1333,7 @@ const runAnalysis = async (request: TripRequest, origin: 'gesture' | 'panel'): P
     {
       runId: nextRunId(request.requestId),
       requestId: request.requestId,
-      kind:
-        request.scanImages !== undefined
-          ? 'scan'
-          : request.mediaType === 'video'
-            ? 'video'
-            : 'identify',
+      kind: request.mediaType === 'video' ? 'video' : 'identify',
       provider,
       settings,
       key,
@@ -1483,10 +1344,6 @@ const runAnalysis = async (request: TripRequest, origin: 'gesture' | 'panel'): P
   selectTab('main');
   if (request.mediaType === 'video') {
     await runVideoAnalysis(run, origin, superseded);
-    return;
-  }
-  if (request.scanImages !== undefined) {
-    await runScan(run, origin);
     return;
   }
   if (request.dataPending || !request.srcUrl) {
@@ -1551,11 +1408,7 @@ const handle = async (value: unknown): Promise<void> => {
   updatePreview(request.srcUrl || null);
   if (request.status === 'collecting') {
     announceStatus('statusAnalyzing');
-    if (request.scanImages !== undefined) {
-      showScanSkeleton();
-    } else {
-      showSkeleton(request.requestId);
-    }
+    showSkeleton(request.requestId);
     clearStaleTimer();
     const seq = request.seq;
     staleTimer = setTimeout(() => {
@@ -1611,11 +1464,7 @@ const samCropAttempt = async (run: RunContext, request: TripRequest): Promise<Sa
   let inputBytes = direct ? dataUrlToBytes(direct) : null;
   if (!inputBytes) {
     const loopback = isLoopbackHttp(request.srcUrl);
-    if (
-      request.mediaType ||
-      request.scanImages ||
-      (!request.srcUrl.startsWith('https://') && !loopback)
-    ) {
+    if (request.mediaType || (!request.srcUrl.startsWith('https://') && !loopback)) {
       return null;
     }
     let origin: string;
@@ -1871,7 +1720,6 @@ const fetchRetry = async (signal?: AbortSignal): Promise<boolean> => {
   if (
     !target ||
     target.mediaType ||
-    target.scanImages ||
     target.dataPending ||
     (!srcUrl.startsWith('https://') && !loopback)
   ) {
@@ -2403,13 +2251,6 @@ const SidepanelApp = () => {
                 onCancelLoading: () => onCancelLoading(),
                 onDismissError: () => showIdle(),
               }}
-            />
-          ) : null}
-          {state.result.scan ? (
-            <ScanList
-              loading={state.result.scan.loading}
-              items={state.result.scan.items}
-              onCancel={() => onCancelLoading()}
             />
           ) : null}
           {state.result.consent ? (

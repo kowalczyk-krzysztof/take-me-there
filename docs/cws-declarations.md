@@ -5,12 +5,12 @@ code paths. Update this file when a flow changes.
 
 ## Single purpose
 
-Identify travel places in photos, videos, and page images.
+Identify travel places in photos and videos.
 
 ## Data sent off the device
 
-Only after the user clicks "Agree & analyze" (or "Scan page",
-alternatives for those runs), to `https://api.meta.ai`:
+Only after the user clicks "Agree & analyze" (alternatives for
+those runs reuse it), to `https://api.meta.ai`:
 
 - The API key, to authenticate each call. Saving a key also sends
   the key alone to `GET /v1/models` to validate it.
@@ -46,8 +46,8 @@ addresses are hashed locally for cache keys and never sent.
 - `contextMenus`: the right-click "Take me there" entry point.
 - `sidePanel`: renders results next to the page.
 - `scripting` + `activeTab`: run the page readers (signals,
-  images, video frame) in the clicked tab only, after the
-  gesture. No standing access to browsing.
+  video frame) in the clicked tab only, after the gesture. No
+  standing access to browsing.
 - `storage`: local key, settings, spend, and cache; session
   handoff between worker and panel.
 - Host `https://api.meta.ai/*`: the Muse API.

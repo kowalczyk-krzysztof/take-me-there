@@ -256,7 +256,7 @@
     "description": "Consent gate heading."
   },
   "consentBody": {
-    "message": "Analyzing sends the clicked image (its web address or, for inline images, captured frames, and on-demand retries, its pixels), nearby page text (title, captions, metadata), and the page's address to Meta's Muse API using your key. For private images, the image's address itself can grant access to it. Scanning a page sends that page's travel images and their captions the same way (even when the \"image only\" toggle is on), and planning a trip from your board sends the pinned thumbnails, their place names, and the addresses of the sites you pinned them from. Meta may run web searches to ground the trip guide. Per Meta's API terms, standard (non-contributor) models are not trained on your content.",
+    "message": "Analyzing sends the clicked image (its web address or, for inline images, captured frames, and on-demand retries, its pixels), nearby page text (title, captions, metadata), and the page's address to Meta's Muse API using your key. For private images, the image's address itself can grant access to it. Meta may run web searches while identifying the place and its alternatives. Per Meta's API terms, standard (non-contributor) models are not trained on your content.",
     "description": "Canonical data-transmission disclosure."
   },
   "onboardingHowto": {
@@ -499,40 +499,6 @@
       }
     }
   },
-  "scanTitle": {
-    "message": "Places found on this page",
-    "description": "Scan state heading."
-  },
-  "scanMenuTitle": {
-    "message": "Scan page for places",
-    "description": "Page context menu item."
-  },
-  "scanEmptyTitle": {
-    "message": "No images to scan",
-    "description": "Scan error title when the harvest is empty."
-  },
-  "scanEmptyBody": {
-    "message": "This page has no large images to identify places from.",
-    "description": "Scan error body when the harvest is empty."
-  },
-  "scanNoneTitle": {
-    "message": "No places found",
-    "description": "Scan error title when no place was recognized."
-  },
-  "scanNoneBody": {
-    "message": "The scan finished but no recognizable places were found.",
-    "description": "Scan error body when no place was recognized."
-  },
-  "scanFound": {
-    "message": "Found $1 places on this page",
-    "description": "Scan completion announcement.",
-    "placeholders": {
-      "count": {
-        "content": "$1",
-        "example": "3"
-      }
-    }
-  },
   "alternatesLabel": {
     "message": "Find alternatives",
     "description": "Label above the alternates intent chips."
@@ -642,16 +608,6 @@
   "keyReplaceButton": {
     "message": "Use a different key",
     "description": "Settings button revealing the key form for replacement."
-  },
-  "privacyScan": {
-    "message": "Your search is sent to $1 with your key: this page's travel images with their captions and headings.",
-    "description": "Privacy footer for page scans.",
-    "placeholders": {
-      "destination": {
-        "content": "$1",
-        "example": "Meta's Muse API"
-      }
-    }
   },
   "privacyImagePixels": {
     "message": "Your search is sent to $1 with your key: this image's pixels, nearby page text, and the page address.",
@@ -797,10 +753,6 @@
     "message": "Scores run 0 to 1; 0.6 and up is a match, below is a best guess.",
     "description": "Confidence scale explanation."
   },
-  "confidenceChosen": {
-    "message": "Picked from the alternatives list.",
-    "description": "Provenance line for a Plan-instead place."
-  },
   "sourceLine": {
     "message": "Spotted on $1.",
     "description": "Photo source host line.",
@@ -818,10 +770,6 @@
   "dismissErrorButton": {
     "message": "Start over",
     "description": "Dismiss button on dead-end error cards."
-  },
-  "panelScanHint": {
-    "message": "Tip: right-click any page and choose “Scan page for places” to find every place pictured on it.",
-    "description": "Idle hint exposing page scan."
   },
   "linksEmpty": {
     "message": "Links appear here once a place is found.",

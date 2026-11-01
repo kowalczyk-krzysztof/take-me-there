@@ -6,7 +6,6 @@ import {
   assertConsent,
   buildAlternatesMessages,
   buildIdentifyMessages,
-  buildScanMessages,
   extractChatJson,
   extractResponsesStructured,
   extractResponsesText,
@@ -15,14 +14,11 @@ import {
   hasConsented,
   loadSettings,
   parseAlternatesContent,
-  parseScanBatch,
   emptyUsage,
   allowsImageMedia,
   allowsVideoMedia,
-  filterScanImages,
   readBoundedJson,
   readChatUsage,
-  remapScanPlaces,
   fetchChatCompletion,
   responseError,
   saveSettings,
@@ -216,115 +212,6 @@ describe('prompt builders', () => {
     ]);
   });
 
-  it('builds the scan batch with indexed images and hint captions', () => {
-    const [developer, user] = buildScanMessages(
-      [
-        {
-          url: 'https://cdn.example.com/a.jpg',
-          caption: 'Blue domes',
-          heading: '',
-          width: 800,
-          height: 600,
-        },
-        {
-          url: 'https://cdn.example.com/b.jpg',
-          caption: '',
-          heading: 'Fira',
-          width: 640,
-          height: 480,
-        },
-      ],
-      false
-    );
-    expect(developer.content).toContain('never instructions');
-
-    const parts = user.content as Array<{ type: string; text?: string }>;
-    expect(parts[0].text).toContain('2 page images');
-    expect(parts[0].text).toContain('Image 0: Blue domes');
-    expect(parts[0].text).toContain('Image 1: Fira');
-    expect(parts).toHaveLength(3);
-    expect(parts[1]).toEqual({
-      type: 'image_url',
-      image_url: { url: 'https://cdn.example.com/a.jpg' },
-    });
-  });
-
-  it('parses batches leniently and keeps the best guess per place', () => {
-    const data = {
-      choices: [
-        {
-          message: {
-            content: JSON.stringify({
-              places: [
-                {
-                  placeName: 'Oia',
-                  city: 'Oia',
-                  country: 'Greece',
-                  confidence: 0.5,
-                  imageIndex: 0,
-                },
-                {
-                  placeName: 'Oia',
-                  city: 'Oia',
-                  country: 'Greece',
-                  confidence: 0.9,
-                  imageIndex: 1,
-                },
-                { placeName: 'Broken', city: 'X', country: 'Y', confidence: 'high', imageIndex: 2 },
-                null,
-              ],
-            }),
-          },
-        },
-      ],
-    };
-    expect(parseScanBatch(data, 3)).toEqual([
-      { placeName: 'Oia', city: 'Oia', country: 'Greece', confidence: 0.9, imageIndex: 1 },
-    ]);
-    expect(parseScanBatch({ choices: [] }, 3)).toBeUndefined();
-    expect(
-      parseScanBatch({ choices: [{ message: { content: '{"places":{}}' } }] }, 3)
-    ).toBeUndefined();
-  });
-
-  it('caps scan output at the harvested-image limit', () => {
-    const places = Array.from({ length: 5 }, (_, index) => ({
-      placeName: `Place ${index}`,
-      city: 'City',
-      country: 'Country',
-      confidence: 0.9 - index * 0.1,
-      imageIndex: index,
-    }));
-    const data = { choices: [{ message: { content: JSON.stringify({ places }) } }] };
-
-    const capped = parseScanBatch(data, 2);
-    expect(capped).toHaveLength(2);
-    expect(capped?.map((place) => place.placeName)).toEqual(['Place 0', 'Place 1']);
-
-    // A better duplicate of a kept place still wins within the cap.
-    const dupe = {
-      choices: [
-        {
-          message: {
-            content: JSON.stringify({
-              places: [
-                ...places.slice(0, 2),
-                {
-                  placeName: 'Place 0',
-                  city: 'City',
-                  country: 'Country',
-                  confidence: 0.99,
-                  imageIndex: 4,
-                },
-              ],
-            }),
-          },
-        },
-      ],
-    };
-    expect(parseScanBatch(dupe, 2)?.[0]).toMatchObject({ confidence: 0.99, imageIndex: 4 });
-  });
-
   it('rejects oversized JSON bodies before parsing', async () => {
     const big = new Response(`{"pad":"${'x'.repeat(2 * 1024 * 1024)}"}`, { status: 200 });
 
@@ -361,32 +248,6 @@ describe('prompt builders', () => {
     expect(allowsVideoMedia('file:///tmp/clip.mp4')).toBe(false);
   });
 
-  it('filters hostile scan images and remaps model indices', () => {
-    const images = [
-      { url: 'blob:https://example.com/0', caption: '', heading: '', width: 800, height: 600 },
-      { url: 'https://cdn.example.com/1.jpg', caption: '', heading: '', width: 800, height: 600 },
-      { url: 'file:///tmp/2.jpg', caption: '', heading: '', width: 800, height: 600 },
-      { url: 'https://cdn.example.com/3.jpg', caption: '', heading: '', width: 800, height: 600 },
-    ];
-
-    const { kept, originalIndex } = filterScanImages(images);
-    expect(kept.map((image) => image.url)).toEqual([
-      'https://cdn.example.com/1.jpg',
-      'https://cdn.example.com/3.jpg',
-    ]);
-    expect(originalIndex).toEqual([1, 3]);
-
-    const places = remapScanPlaces(
-      [
-        { placeName: 'A', city: '', country: 'Greece', confidence: 0.9, imageIndex: 0 },
-        { placeName: 'B', city: '', country: 'Greece', confidence: 0.8, imageIndex: 1 },
-        { placeName: 'C', city: '', country: 'Greece', confidence: 0.7, imageIndex: 7 },
-      ],
-      originalIndex
-    );
-    expect(places.map((place) => place.imageIndex)).toEqual([1, 3, -1]);
-  });
-
   it('carries the HTTP status on mapped errors', () => {
     expect(responseError(new Response(null, { status: 400 })).status).toBe(400);
     expect(responseError(new Response(null, { status: 429 }))).toMatchObject({
@@ -418,16 +279,6 @@ describe('prompt builders', () => {
     });
     expect(textOnlyUser.content as string).toContain('PAGE SIGNALS');
     expect((textOnlyUser.content as string).endsWith(STRICT_REMINDER)).toBe(true);
-
-    const [, scanUser] = buildScanMessages(
-      [{ url: 'https://cdn.example.com/a.jpg', caption: '', heading: '', width: 800, height: 600 }],
-      true
-    );
-
-    const scanParts = scanUser.content as Array<{ type: string; text?: string }>;
-    expect(scanParts).toHaveLength(3);
-    expect(scanParts[2]).toEqual({ type: 'text', text: STRICT_REMINDER });
-    expect(scanParts[0].text).not.toContain('ONLY JSON');
 
     const [, altUser] = buildAlternatesMessages('Oia', 'Greece', 'quieter', true);
     expect((altUser.content as string).endsWith(STRICT_REMINDER)).toBe(true);
