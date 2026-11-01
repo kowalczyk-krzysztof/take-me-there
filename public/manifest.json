@@ -1,9 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "__MSG_appName__",
+  "name": "Take Me There",
   "version": "1.0.0",
-  "description": "__MSG_appDesc__",
-  "default_locale": "en",
+  "description": "Right-click any image to identify the place with Muse AI and plan a trip from the side panel.",
   "minimum_chrome_version": "116",
   "icons": { "16": "icons/16.png", "48": "icons/48.png", "128": "icons/128.png" },
   "background": { "service_worker": "service-worker.js" },
@@ -13,7 +12,7 @@
   "side_panel": { "default_path": "sidepanel.html" },
   "options_ui": { "page": "options.html", "open_in_tab": false },
   "action": {
-    "default_title": "__MSG_appName__",
+    "default_title": "Take Me There",
     "default_icon": { "16": "icons/16.png", "48": "icons/48.png" }
   },
   "commands": {

@@ -4376,8 +4376,6 @@ export const initPanel = (): void => {
     return;
   }
   initialized = true;
-
-  document.title = msg('appName');
   panelRoot = createRoot(host);
   const root = panelRoot;
   flushSync(() => {

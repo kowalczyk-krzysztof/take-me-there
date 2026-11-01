@@ -273,8 +273,6 @@ export const initOnboarding = (): void => {
 
   initialized = true;
 
-  document.title = msg('appName');
-
   onboardingRoot = createRoot(host);
   const root = onboardingRoot;
   flushSync(() => {

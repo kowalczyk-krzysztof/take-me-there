@@ -473,8 +473,6 @@ export const initOptions = (): void => {
     return;
   }
   initialized = true;
-
-  document.title = msg('appName');
   optionsRoot = createRoot(host);
   const root = optionsRoot;
   flushSync(() => {
