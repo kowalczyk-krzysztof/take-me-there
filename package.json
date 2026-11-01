@@ -18,7 +18,8 @@
     "format:check": "prettier --check .",
     "zip": "npm run build && node scripts/verify-bundle.mjs && cd dist && zip -qr ../take-me-there.zip .",
     "verify-injected": "node scripts/verify-injected.mjs",
-    "smoke:chrome": "node scripts/smoke-chrome.mjs"
+    "smoke:chrome": "node scripts/smoke-chrome.mjs",
+    "eval:recognition": "node scripts/recognition-eval.mjs"
   },
   "dependencies": {
     "idb-keyval": "6.3.0",

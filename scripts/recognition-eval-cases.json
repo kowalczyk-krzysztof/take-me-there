@@ -1,0 +1,188 @@
+{
+  "$comment": "Recognition eval corpus. Images are stable Wikimedia Commons URLs (publicly fetchable, so the API can retrieve them). Signals simulate the page text the extension would collect; expectations follow docs/recognition-eval.md.",
+  "cases": [
+    {
+      "id": "oia",
+      "group": "landmark",
+      "label": "Oia blue domes, Santorini (daylight, canonical angle)",
+      "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ea/Blue_Domed_Church_-_Oia%2C_Santorini%2C_Greece_-_20_July_2008.jpg/1280px-Blue_Domed_Church_-_Oia%2C_Santorini%2C_Greece_-_20_July_2008.jpg",
+      "signals": {
+        "docTitle": "Weekend photo album",
+        "pageHost": "photos.example.com",
+        "urlSlug": "weekend album",
+        "ogSiteName": "Example Photos",
+        "imgFileSlug": "1280px blue domed church oia santorini greece july"
+      },
+      "expect": { "kind": "match", "tokens": ["oia", "santorini", "greece"] }
+    },
+    {
+      "id": "eiffel",
+      "group": "landmark",
+      "label": "Eiffel Tower from Trocadero (daylight)",
+      "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/af/Tour_eiffel_at_sunrise_from_the_trocadero.jpg/1280px-Tour_eiffel_at_sunrise_from_the_trocadero.jpg",
+      "signals": {
+        "docTitle": "Paris weekend",
+        "pageHost": "photos.example.com",
+        "urlSlug": "paris weekend",
+        "ogSiteName": "Example Photos",
+        "imgFileSlug": "1280px tour eiffel sunrise trocadero"
+      },
+      "expect": { "kind": "match", "tokens": ["eiffel", "paris", "france"] }
+    },
+    {
+      "id": "mdina",
+      "group": "landmark",
+      "label": "Mdina old town, Malta (distinctive but less famous)",
+      "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e2/Catedral_de_San_Pablo%2C_Mdina%2C_isla_de_Malta%2C_Malta%2C_2021-08-25%2C_DD_137.jpg/1280px-Catedral_de_San_Pablo%2C_Mdina%2C_isla_de_Malta%2C_Malta%2C_2021-08-25%2C_DD_137.jpg",
+      "signals": {
+        "docTitle": "Old town walk",
+        "pageHost": "photos.example.com",
+        "urlSlug": "old town walk",
+        "ogSiteName": "Example Photos",
+        "imgFileSlug": "1280px catedral san pablo mdina malta"
+      },
+      "expect": { "kind": "match", "tokens": ["mdina", "malta"] }
+    },
+    {
+      "id": "street",
+      "group": "ordinary",
+      "label": "Ordinary suburban street, no signs or landmarks",
+      "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/87/A_bright_yellow_Hummer_H2_SUV_parked_on_a_suburban_residential_street.jpg/1280px-A_bright_yellow_Hummer_H2_SUV_parked_on_a_suburban_residential_street.jpg",
+      "signals": {
+        "docTitle": "Saturday drive",
+        "pageHost": "photos.example.com",
+        "urlSlug": "saturday drive",
+        "ogSiteName": "Example Photos",
+        "imgFileSlug": "1280px bright yellow hummer suv parked suburban residential street"
+      },
+      "expect": { "kind": "abstain" }
+    },
+    {
+      "id": "food",
+      "group": "ordinary",
+      "label": "Close-up of food on a table",
+      "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/80/Close_up_of_slice_of_lasagna.jpg/1280px-Close_up_of_slice_of_lasagna.jpg",
+      "signals": {
+        "docTitle": "Dinner tonight",
+        "pageHost": "photos.example.com",
+        "urlSlug": "dinner tonight",
+        "ogSiteName": "Example Photos",
+        "imgFileSlug": "1280px close up slice lasagna"
+      },
+      "expect": { "kind": "abstain" }
+    },
+    {
+      "id": "pet",
+      "group": "ordinary",
+      "label": "Dog portrait (painting, no location cues)",
+      "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/d/d8/Portrait_of_an_extraordinary_musical_dog_by_Philip_Reinagle_1805.jpg",
+      "signals": {
+        "docTitle": "Good boy",
+        "pageHost": "photos.example.com",
+        "urlSlug": "good boy",
+        "ogSiteName": "Example Photos",
+        "imgFileSlug": "portrait extraordinary musical dog"
+      },
+      "expect": { "kind": "abstain" }
+    },
+    {
+      "id": "santorini-lie",
+      "group": "misleading-caption",
+      "label": "Santorini photo on a page titled Mykonos (image must win)",
+      "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ea/Blue_Domed_Church_-_Oia%2C_Santorini%2C_Greece_-_20_July_2008.jpg/1280px-Blue_Domed_Church_-_Oia%2C_Santorini%2C_Greece_-_20_July_2008.jpg",
+      "signals": {
+        "docTitle": "Mykonos travel guide",
+        "alt": "Mykonos windmills at dusk",
+        "pageHost": "travel.example.com",
+        "urlSlug": "mykonos travel guide",
+        "ogSiteName": "Example Travel",
+        "imgFileSlug": "mykonos guide cover"
+      },
+      "expect": { "kind": "image-first", "tokens": ["oia", "santorini", "greece"] }
+    },
+    {
+      "id": "eiffel-lie",
+      "group": "misleading-caption",
+      "label": "Eiffel Tower photo with Las Vegas alt text (image must win)",
+      "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/af/Tour_eiffel_at_sunrise_from_the_trocadero.jpg/1280px-Tour_eiffel_at_sunrise_from_the_trocadero.jpg",
+      "signals": {
+        "docTitle": "Vegas trip 2025",
+        "alt": "Las Vegas replica",
+        "pageHost": "travel.example.com",
+        "urlSlug": "vegas trip",
+        "ogSiteName": "Example Travel",
+        "imgFileSlug": "las vegas replica tower"
+      },
+      "expect": { "kind": "image-first", "tokens": ["eiffel", "paris", "france"] }
+    },
+    {
+      "id": "filename-lie",
+      "group": "conflicting-metadata",
+      "label": "Santorini photo whose filename names the wrong city",
+      "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ea/Blue_Domed_Church_-_Oia%2C_Santorini%2C_Greece_-_20_July_2008.jpg/1280px-Blue_Domed_Church_-_Oia%2C_Santorini%2C_Greece_-_20_July_2008.jpg",
+      "signals": {
+        "docTitle": "Weekend photo album",
+        "pageHost": "photos.example.com",
+        "urlSlug": "weekend album",
+        "ogSiteName": "Example Photos",
+        "imgFileSlug": "mykonos harbour sunset"
+      },
+      "expect": { "kind": "image-first", "tokens": ["oia", "santorini", "greece"] }
+    },
+    {
+      "id": "jsonld-lie",
+      "group": "conflicting-metadata",
+      "label": "Eiffel Tower photo on a page whose JSON-LD names Rome",
+      "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/af/Tour_eiffel_at_sunrise_from_the_trocadero.jpg/1280px-Tour_eiffel_at_sunrise_from_the_trocadero.jpg",
+      "signals": {
+        "docTitle": "Weekend photo album",
+        "pageHost": "photos.example.com",
+        "urlSlug": "weekend album",
+        "ogSiteName": "Example Photos",
+        "imgFileSlug": "1280px tour eiffel sunrise trocadero",
+        "jsonLd": [
+          {
+            "types": ["TouristAttraction"],
+            "name": "Colosseum",
+            "locality": "Rome",
+            "country": "Italy",
+            "lat": null,
+            "lon": null
+          }
+        ]
+      },
+      "expect": { "kind": "image-first", "tokens": ["eiffel", "paris", "france"] }
+    },
+    {
+      "id": "broken-400",
+      "group": "text-fallback",
+      "label": "Image URL that 400s on a page naming a specific place",
+      "imageUrl": "https://httpbin.org/status/400",
+      "preflight": { "status": 400 },
+      "signals": {
+        "docTitle": "Oia Santorini blue domes guide",
+        "nearestHeading": "Blue domes of Oia",
+        "pageHost": "travel.example.com",
+        "urlSlug": "oia santorini guide",
+        "ogSiteName": "Example Travel",
+        "imgFileSlug": "oia blue domes"
+      },
+      "expect": { "kind": "needs-review" }
+    },
+    {
+      "id": "blob-no-place",
+      "group": "text-fallback",
+      "label": "Blob-URL image on a page naming no place",
+      "imageUrl": "blob:https://example.com/550e8400-e29b-41d4-a716-446655440000",
+      "preflight": { "skip": true },
+      "signals": {
+        "docTitle": "Weekend photo album",
+        "pageHost": "photos.example.com",
+        "urlSlug": "weekend album",
+        "ogSiteName": "Example Photos",
+        "imgFileSlug": "photo"
+      },
+      "expect": { "kind": "abstain" }
+    }
+  ]
+}
