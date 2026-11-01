@@ -26,7 +26,6 @@ import './components/shared_styles.css';
 
 interface OnboardingState {
   status: string;
-  shortcut: string;
   keyPending: boolean;
   keyError: string | null;
   sessionOnly: boolean;
@@ -43,7 +42,6 @@ interface OnboardingState {
 
 const store = createStore<OnboardingState>({
   status: '',
-  shortcut: '',
   keyPending: false,
   keyError: null,
   sessionOnly: false,
@@ -202,7 +200,6 @@ const OnboardingApp = () => {
           onSave={onCompatSave}
         />
       </div>
-      <p id="shortcut-line">{state.shortcut}</p>
       <div id="key-host">
         <KeySetup
           mode="setup"
@@ -307,18 +304,6 @@ export const initOnboarding = (): void => {
       },
     });
   });
-
-  void chrome.commands
-    .getAll()
-    .then((commands) => {
-      const action = commands.find((command) => command.name === '_execute_action');
-      store.set({
-        shortcut: action?.shortcut ? msg('shortcutLine', action.shortcut) : msg('shortcutUnset'),
-      });
-    })
-    .catch(() => {
-      store.set({ shortcut: msg('shortcutUnset') });
-    });
 };
 
 if (typeof document !== 'undefined') {

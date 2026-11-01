@@ -487,8 +487,6 @@ let currentDestination = '';
 
 let currentView = '';
 
-let shortcutText = '';
-
 let skeletonTimer: ReturnType<typeof setTimeout> | undefined;
 
 let skeletonFor = '';
@@ -747,7 +745,7 @@ const showIdle = (): void => {
     store.set({
       result: {
         ...blankResultSlot(),
-        card: { view: 'idle', hint: msg('panelIdle'), shortcut: shortcutText },
+        card: { view: 'idle', hint: msg('panelIdle') },
       },
     });
   });
@@ -2461,28 +2459,6 @@ const onSessionOnlyChange = async (checked: boolean): Promise<void> => {
   setKeyForm({ sessionOnly: result.sessionOnly, error: null });
 };
 
-const loadShortcutLine = async (): Promise<void> => {
-  let text = msg('shortcutUnset');
-  try {
-    const commands = await chrome.commands.getAll();
-    const action = commands.find((command) => command.name === '_execute_action');
-    if (action?.shortcut) {
-      text = msg('shortcutLine', action.shortcut);
-    }
-  } catch {
-    // Keep the unset line.
-  }
-  shortcutText = text;
-  if (currentView === 'idle') {
-    store.set({
-      result: {
-        ...blankResultSlot(),
-        card: { view: 'idle', hint: msg('panelIdle'), shortcut: text },
-      },
-    });
-  }
-};
-
 interface PreviewFrameProps {
   preview: PreviewState;
 }
@@ -2826,7 +2802,6 @@ export const initPanel = (): void => {
 
   updatePreview(null);
   showIdle();
-  void loadShortcutLine();
   void refreshLock();
   chrome.storage.local.onChanged.addListener(onLockAreaChanged);
   chrome.storage.session.onChanged.addListener(onLockAreaChanged);

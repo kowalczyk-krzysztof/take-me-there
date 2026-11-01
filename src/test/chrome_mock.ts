@@ -234,7 +234,6 @@ export const installChromeMock = (): ChromeMock => {
       getMessage,
       getUILanguage: (): string => 'en-US',
     },
-    commands: { getAll: async (): Promise<Array<{ name?: string }>> => [] },
     windows: { getCurrent: async (): Promise<{ id: number }> => ({ id: panelWindow.id }) },
     runtime: {
       getURL: (path: string): string => `chrome-extension://test/${path}`,

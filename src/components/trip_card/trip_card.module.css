@@ -38,12 +38,6 @@
 .root .hint {
   margin: 0 0 4px;
 }
-.root .shortcut {
-  margin: 0;
-  font-size: 0.75rem;
-  line-height: 1.5;
-  color: var(--muted);
-}
 .root .scanHint {
   margin: 0 0 4px;
   font-size: 0.75rem;

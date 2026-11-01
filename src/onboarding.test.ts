@@ -48,14 +48,11 @@ const setup = async (): Promise<ChromeMock> =>
 afterEach(teardownPage);
 
 describe('onboarding', () => {
-  it('renders copy, shortcut fallback, and the key form', async () => {
+  it('renders copy and the key form', async () => {
     await setup();
     expect(document.querySelector('#title')?.textContent).toBe('appName');
     expect(document.querySelector('#howto')?.textContent).toBe('onboardingHowto');
     expect(document.querySelector('#try-hint')?.textContent).toBe('onboardingTryHint');
-    await waitFor(() => {
-      expect(document.querySelector('#shortcut-line')?.textContent).toBe('shortcutUnset');
-    });
     expect(document.querySelector('#key-input')).not.toBeNull();
     expect(document.querySelector('#key-host button.primary')?.textContent).toBe('saveKeyButton');
   });

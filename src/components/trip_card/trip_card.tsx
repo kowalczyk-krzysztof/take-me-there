@@ -38,7 +38,7 @@ export interface TripCardCallbacks {
 }
 
 export type CardState =
-  | { view: 'idle'; hint: string; shortcut: string }
+  | { view: 'idle'; hint: string }
   | { view: 'loading'; phase: LoadingPhase }
   | {
       view: 'result';
@@ -77,7 +77,7 @@ export const TripCard = ({ card, callbacks }: Props) => {
 
   switch (card.view) {
     case 'idle':
-      view = <IdleView hint={card.hint} shortcut={card.shortcut} />;
+      view = <IdleView hint={card.hint} />;
 
       break;
     case 'loading':

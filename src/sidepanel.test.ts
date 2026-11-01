@@ -159,9 +159,6 @@ describe('sidepanel', () => {
 
     const card = document.querySelector('#result-slot');
     expect(card?.querySelector('.hint')?.textContent).toBe('panelIdle');
-    await waitFor(() => {
-      expect(card?.querySelector('.shortcut')?.textContent).toBe('shortcutUnset');
-    });
   });
 
   it('keeps every Explore section visible with empty states', async () => {

@@ -52,10 +52,9 @@ afterEach(() => {
 
 describe('trip-card', () => {
   it('renders idle hints', () => {
-    const root = renderCard({ view: 'idle', hint: 'hint', shortcut: 'keys' }).container;
+    const root = renderCard({ view: 'idle', hint: 'hint' }).container;
     expect(root.querySelector('.hint')?.textContent).toBe('hint');
     expect(root.querySelector('.scanHint')?.textContent).toBe('panelScanHint');
-    expect(root.querySelector('.shortcut')?.textContent).toBe('keys');
   });
 
   it('renders an aria-hidden skeleton while loading', () => {
