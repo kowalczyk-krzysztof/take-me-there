@@ -27,6 +27,7 @@ interface Props {
   resetKey: number;
   laterNote?: string;
   context?: SetupContext | null;
+  labelHidden?: boolean;
   callbacks: KeySetupCallbacks;
 }
 
@@ -38,6 +39,7 @@ export const KeySetup = ({
   resetKey,
   laterNote,
   context,
+  labelHidden,
   callbacks,
 }: Props) => {
   const [revealed, setRevealed] = useState(false);
@@ -122,7 +124,12 @@ export const KeySetup = ({
         >
           {context?.media ? <p className={styles.context}>{context.media}</p> : null}
           {context?.page ? <p className={styles.context}>{context.page}</p> : null}
-          <label className={styles['field-label']} htmlFor="key-input">
+          <label
+            className={
+              labelHidden ? `${styles['field-label']} visually-hidden` : styles['field-label']
+            }
+            htmlFor="key-input"
+          >
             {msg('keyLabel')}
           </label>
           <div className={styles['input-row']}>

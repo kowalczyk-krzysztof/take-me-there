@@ -2732,6 +2732,7 @@ const SidepanelApp = () => {
               error={keyForm.error}
               sessionOnly={keyForm.sessionOnly}
               resetKey={keyForm.resetKey}
+              labelHidden
               context={setupContextLines()}
               callbacks={{
                 onSave: (key) => void onKeySave(key),

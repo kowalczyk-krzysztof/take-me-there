@@ -12,6 +12,7 @@ interface SetupProps {
   resetKey?: number;
   laterNote?: string;
   context?: SetupContext | null;
+  labelHidden?: boolean;
 }
 
 const noop = () => {};
@@ -29,6 +30,7 @@ const renderSetup = (
       resetKey={props.resetKey ?? 0}
       laterNote={props.laterNote}
       context={props.context}
+      labelHidden={props.labelHidden}
       callbacks={{
         onSave: callbacks.onSave ?? noop,
         onError: callbacks.onError ?? noop,
@@ -99,6 +101,17 @@ describe('key-setup', () => {
       expect(link.getAttribute('href')).toBe('https://dev.meta.ai');
       expect(link.target).toBe('_blank');
     }
+  });
+
+  it('hides the field label visually without losing its association', () => {
+    const root = renderSetup({ labelHidden: true }).container;
+
+    const label = root.querySelector('label[for="key-input"]') as HTMLLabelElement;
+    expect(label.textContent).toBe('keyLabel');
+    expect(label.classList.contains('visually-hidden')).toBe(true);
+    expect(
+      renderSetup().container.querySelector('label')?.classList.contains('visually-hidden')
+    ).toBe(false);
   });
 
   it('shows staged context during setup and consent', () => {

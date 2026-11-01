@@ -4,4 +4,8 @@ interface Props {
   hint: string;
 }
 
-export const IdleView = ({ hint }: Props) => <p className={styles.hint}>{hint}</p>;
+export const IdleView = ({ hint }: Props) => (
+  <p id="idle-hint" className={styles.hint}>
+    {hint}
+  </p>
+);

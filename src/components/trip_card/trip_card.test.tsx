@@ -55,6 +55,7 @@ describe('trip-card', () => {
   it('renders the idle hint', () => {
     const root = renderCard({ view: 'idle', hint: 'hint' }).container;
     expect(root.querySelector('.hint')?.textContent).toBe('hint');
+    expect(root.querySelector('#idle-hint')?.textContent).toBe('hint');
   });
 
   it('keeps chip focus across alternates transitions', () => {

@@ -185,6 +185,20 @@ describe('sidepanel', () => {
     expect(document.querySelector('#page-footer #settings-run-line')).toBeNull();
   });
 
+  it('names the settings key field once, under the section heading', async () => {
+    await setup();
+    await waitFor(() => {
+      expect(document.querySelector('#settings-panel #key-input')).not.toBeNull();
+    });
+    expect(document.querySelector('#settings-heading')?.textContent).toBe('settingsKeyHeading');
+
+    const label = document.querySelector(
+      '#settings-panel label[for="key-input"]'
+    ) as HTMLLabelElement;
+    expect(label.textContent).toBe('keyLabel');
+    expect(label.classList.contains('visually-hidden')).toBe(true);
+  });
+
   it('switches tabs with roving focus and surfaces runs', async () => {
     const mock = await setup();
 

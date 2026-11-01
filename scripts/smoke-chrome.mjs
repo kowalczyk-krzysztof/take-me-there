@@ -77,6 +77,8 @@ const connectTarget = (wsUrl) =>
         ws.dispatchEvent(new CustomEvent('page-error', { detail: msg.params }));
       } else if (msg.method === 'Runtime.consoleAPICalled' && msg.params?.type === 'error') {
         ws.dispatchEvent(new CustomEvent('page-error', { detail: msg.params }));
+      } else if (msg.method === 'Log.entryAdded' && msg.params?.entry?.level === 'error') {
+        ws.dispatchEvent(new CustomEvent('log-entry', { detail: msg.params.entry }));
       }
     });
 
@@ -95,6 +97,7 @@ const connectTarget = (wsUrl) =>
             }, timeoutMs);
           }),
         onPageError: (fn) => ws.addEventListener('page-error', (event) => fn(event.detail)),
+        onLogEntry: (fn) => ws.addEventListener('log-entry', (event) => fn(event.detail)),
         close: () => ws.close(),
       });
     });
@@ -127,39 +130,40 @@ const main = async () => {
       '--disable-dev-shm-usage',
       `--remote-debugging-port=${port}`,
       `--user-data-dir=${profile}`,
-      `--load-extension=${dist}`,
       'about:blank',
     ],
     { stdio: 'ignore' }
   );
 
   try {
-    await waitForJson(`http://127.0.0.1:${port}/json/version`, 30000);
+    // Load through CDP: --load-extension is ignored by headless Chrome, and
+    // /json/list is crowded with component extensions, so take the id from
+    // the load call instead of sniffing targets.
+    const version = await waitForJson(`http://127.0.0.1:${port}/json/version`, 30000);
+    const browserSession = await connectTarget(version.webSocketDebuggerUrl);
 
-    let worker;
-    const started = Date.now();
+    let extensionId = '';
 
-    while (Date.now() - started < 15000) {
-      const targets = await waitForJson(`http://127.0.0.1:${port}/json/list`, 5000);
-      worker = targets.find((t) => t.url.startsWith('chrome-extension://'));
-
-      if (worker) {
-        break;
-      }
-      await sleep(500);
+    try {
+      ({ id: extensionId } = await browserSession.send('Extensions.loadUnpacked', {
+        path: dist,
+      }));
+    } catch (error) {
+      check('extension loads in Chrome', false, String(error));
+      throw error;
     }
-    check('extension loads in Chrome', Boolean(worker));
+    browserSession.close();
+    check('extension loads in Chrome', Boolean(extensionId));
 
-    if (!worker) {
-      throw new Error('extension target missing');
+    if (!extensionId) {
+      throw new Error('extension id missing');
     }
-    const extensionId = new URL(worker.url).host;
 
     const openPage = async (page) => {
       const created = await (
-        await fetch(
-          `http://127.0.0.1:${port}/json/new?${encodeURIComponent(`chrome-extension://${extensionId}/${page}`)}`
-        )
+        await fetch(`http://127.0.0.1:${port}/json/new?${encodeURIComponent('about:blank')}`, {
+          method: 'PUT',
+        })
       ).json();
 
       const session = await connectTarget(created.webSocketDebuggerUrl);
@@ -169,8 +173,15 @@ const main = async () => {
         const fromConsole = detail.args?.map((arg) => arg.value ?? arg.description ?? '').join(' ');
         errors.push(fromException ?? fromConsole ?? 'page error');
       });
+      session.onLogEntry((entry) => {
+        errors.push(`${entry.source ?? 'log'}: ${entry.text ?? entry.url ?? 'error'}`);
+      });
       await session.send('Runtime.enable');
       await session.send('Log.enable');
+      await session.send('Page.enable');
+      await session.send('Page.navigate', {
+        url: `chrome-extension://${extensionId}/${page}`,
+      });
 
       return { session, errors };
     };
@@ -204,13 +215,26 @@ const main = async () => {
       }
     };
 
+    const dumpPage = async (session) =>
+      evaluate(
+        session,
+        `location.href + ' | readyState=' + document.readyState + ' | scripts=' + document.scripts.length + ' | root=' + (document.getElementById('root')?.innerHTML.length ?? -1)`
+      );
+
     const { session: panel, errors: panelErrors } = await openPage('sidepanel.html');
+    const panelLoaded = await waitFor(panel, `document.readyState === 'complete'`);
+    const panelDump = String(await dumpPage(panel));
+    check(
+      'sidepanel loads',
+      panelLoaded && panelDump.includes(extensionId) && panelDump.includes('sidepanel.html'),
+      panelDump
+    );
     check('sidepanel boots without page errors', panelErrors.length === 0, panelErrors[0] ?? '');
     check(
       'sidepanel renders tabs and idle hint',
       await waitFor(
         panel,
-        `document.querySelectorAll('#tab-bar [role="tab"]').length === 2 && document.querySelector('#result-slot .hint') !== null`
+        `document.querySelectorAll('#tab-bar [role="tab"]').length === 2 && document.querySelector('#result-slot #idle-hint') !== null`
       )
     );
 
@@ -253,7 +277,13 @@ const main = async () => {
     panel.close();
 
     const { session: onboard, errors: onboardErrors } = await openPage('onboarding.html');
-    await sleep(1000);
+    const onboardLoaded = await waitFor(onboard, `document.readyState === 'complete'`);
+    const onboardDump = String(await dumpPage(onboard));
+    check(
+      'onboarding loads',
+      onboardLoaded && onboardDump.includes(extensionId) && onboardDump.includes('onboarding.html'),
+      onboardDump
+    );
     check(
       'onboarding boots without page errors',
       onboardErrors.length === 0,
@@ -261,15 +291,32 @@ const main = async () => {
     );
     check(
       'onboarding renders the key form',
-      (await evaluate(
+      await waitFor(
         onboard,
         `document.querySelector('#key-host #key-input') !== null && document.querySelector('#key-host button[type="submit"]') !== null`
-      )) === true
+      )
     );
     onboard.close();
   } finally {
-    child.kill('SIGKILL');
-    rmSync(profile, { recursive: true, force: true });
+    const exited = new Promise((resolve) => child.once('exit', resolve));
+
+    try {
+      child.kill('SIGKILL');
+    } catch {
+      // Already gone.
+    }
+
+    await Promise.race([exited, sleep(5000)]);
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      try {
+        rmSync(profile, { recursive: true, force: true });
+
+        break;
+      } catch {
+        await sleep(500);
+      }
+    }
   }
 
   if (failures.length > 0) {
