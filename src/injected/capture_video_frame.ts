@@ -52,10 +52,7 @@ export const captureVideoFrame = (srcUrl: string): CaptureVideoFrameResult => {
       return strip(v.currentSrc) === bare || strip(v.src) === bare;
     }) ??
     null;
-  // Only when exactly one candidate exists: a wrong guess could capture a webcam or meeting frame.
-  const playing = videos.filter((v) => !v.paused && !v.ended && v.readyState >= 2);
-
-  const video = byBare ?? (playing.length === 1 ? playing[0] : null);
+  const video = byBare;
 
   if (!video) {
     return { ok: false, reason: 'no-match' };

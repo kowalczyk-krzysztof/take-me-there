@@ -101,7 +101,7 @@ describe('captureVideoFrame', () => {
     expect(out.ok).toBe(true);
   });
 
-  it('falls back to the only playing video when nothing matches', () => {
+  it('returns no-match when only an unrelated video is playing', () => {
     addVideo({
       currentSrc: 'blob:https://example.com/other',
       paused: true,
@@ -111,7 +111,9 @@ describe('captureVideoFrame', () => {
 
     const out = captureVideoFrame('blob:https://example.com/gone');
 
-    expect(out.ok).toBe(true);
+    expect(out).toEqual({ ok: false, reason: 'no-match' });
+    expect(drawImage).not.toHaveBeenCalled();
+    expect(toDataURL).not.toHaveBeenCalled();
   });
 
   it('refuses to guess between two playing videos', () => {
@@ -121,6 +123,8 @@ describe('captureVideoFrame', () => {
     const out = captureVideoFrame('blob:https://example.com/gone');
 
     expect(out).toEqual({ ok: false, reason: 'no-match' });
+    expect(drawImage).not.toHaveBeenCalled();
+    expect(toDataURL).not.toHaveBeenCalled();
   });
 
   it('reports no-match when no video is playing', () => {
