@@ -3,10 +3,6 @@
     "message": "Take me there",
     "description": "Extension name."
   },
-  "appDesc": {
-    "message": "Right-click any image to identify the place with Muse AI and plan a trip from the side panel.",
-    "description": "Extension description."
-  },
   "menuTitle": {
     "message": "Take me there",
     "description": "Image context menu item."
@@ -14,20 +10,6 @@
   "panelIdle": {
     "message": "Right-click an image on any page, then choose Take me there.",
     "description": "Side panel idle hint."
-  },
-  "shortcutLine": {
-    "message": "Keyboard shortcut: $1",
-    "description": "Idle hint line showing the real panel shortcut.",
-    "placeholders": {
-      "shortcut": {
-        "content": "$1",
-        "example": "Ctrl+Shift+Period"
-      }
-    }
-  },
-  "shortcutUnset": {
-    "message": "No keyboard shortcut assigned - set one at chrome://extensions/shortcuts",
-    "description": "Idle hint line when no shortcut is assigned."
   },
   "statusAnalyzing": {
     "message": "Analyzing image…",
@@ -50,28 +32,6 @@
       "place": {
         "content": "$1",
         "example": "Oia"
-      }
-    }
-  },
-  "statusPlanningTrip": {
-    "message": "Building your guide…",
-    "description": "Status announcement when the guide starts loading."
-  },
-  "statusSearchingWeb": {
-    "message": "Searching the web…",
-    "description": "Status announcement when grounding starts."
-  },
-  "statusGuideReady": {
-    "message": "Trip guide ready",
-    "description": "Status announcement when the guide completes."
-  },
-  "statusGuideReadySources": {
-    "message": "Trip guide ready - $1 sources",
-    "description": "Status announcement when the guide completes with sources.",
-    "placeholders": {
-      "count": {
-        "content": "$1",
-        "example": "3"
       }
     }
   },
@@ -383,10 +343,6 @@
     "message": "Best guess",
     "description": "Low-confidence badge text."
   },
-  "sourcesHeading": {
-    "message": "Sources",
-    "description": "Sources row heading."
-  },
   "newTabSuffix": {
     "message": ", opens in new tab",
     "description": "Visually-hidden new-tab suffix for links."
@@ -414,18 +370,6 @@
   "bookingLink_expedia": {
     "message": "Expedia",
     "description": "Booking tile label."
-  },
-  "truncatedNotice": {
-    "message": "Guide truncated.",
-    "description": "Notice when the guide hits the character cap."
-  },
-  "guideInterrupted": {
-    "message": "Guide interrupted.",
-    "description": "Notice kept with partial guide text."
-  },
-  "guideHeading": {
-    "message": "Trip guide",
-    "description": "Guide section heading."
   },
   "bookingHeading": {
     "message": "Book your trip",
@@ -643,68 +587,6 @@
       }
     }
   },
-  "boardTitle": {
-    "message": "Trip board ($1)",
-    "description": "Board disclosure button label.",
-    "placeholders": {
-      "count": {
-        "content": "$1",
-        "example": "3"
-      }
-    }
-  },
-  "boardEmpty": {
-    "message": "No places pinned yet. Pin a result to start your board.",
-    "description": "Empty board text."
-  },
-  "boardPlan": {
-    "message": "Plan this trip",
-    "description": "Itinerary action button."
-  },
-  "planTripButton": {
-    "message": "Build a guide",
-    "description": "Result card button that loads the trip guide."
-  },
-  "planningButton": {
-    "message": "Building guide…",
-    "description": "Result card button label while the guide loads."
-  },
-  "startAgainButton": {
-    "message": "Start again",
-    "description": "Result card button that re-runs an interrupted guide."
-  },
-  "startAgainHint": {
-    "message": "Starting again makes a new request.",
-    "description": "Honest cost note under the start-again button."
-  },
-  "boardPlanNote": {
-    "message": "Pin at least 2 places to plan a trip.",
-    "description": "Explanation beside the disabled Plan button."
-  },
-  "boardClear": {
-    "message": "Clear board",
-    "description": "Board clear button."
-  },
-  "boardRemove": {
-    "message": "Remove $1",
-    "description": "Per-pin remove button.",
-    "placeholders": {
-      "place": {
-        "content": "$1",
-        "example": "Oia"
-      }
-    }
-  },
-  "pinButton": {
-    "message": "Save $1 to trip",
-    "description": "Result card pin toggle.",
-    "placeholders": {
-      "place": {
-        "content": "$1",
-        "example": "Oia"
-      }
-    }
-  },
   "scanTitle": {
     "message": "Places found on this page",
     "description": "Scan state heading."
@@ -712,26 +594,6 @@
   "scanMenuTitle": {
     "message": "Scan page for places",
     "description": "Page context menu item."
-  },
-  "scanGuide": {
-    "message": "Guide for $1",
-    "description": "Scan card Guide button.",
-    "placeholders": {
-      "place": {
-        "content": "$1",
-        "example": "Oia"
-      }
-    }
-  },
-  "scanPinSelected": {
-    "message": "Save selected ($1)",
-    "description": "Scan shortlist bulk-pin button.",
-    "placeholders": {
-      "count": {
-        "content": "$1",
-        "example": "2"
-      }
-    }
   },
   "scanEmptyTitle": {
     "message": "No images to scan",
@@ -808,16 +670,6 @@
       "month": {
         "content": "$1",
         "example": "May"
-      }
-    }
-  },
-  "alternatesInstead": {
-    "message": "Build a guide for $1 instead",
-    "description": "Alternate card re-plan action.",
-    "placeholders": {
-      "place": {
-        "content": "$1",
-        "example": "Fira, Greece"
       }
     }
   },
@@ -898,150 +750,6 @@
   "previewAltCrop": {
     "message": "Cropped view of the landmark being re-analyzed",
     "description": "SAM crop preview alt text."
-  },
-  "boardNoticePinFail": {
-    "message": "Couldn't save $1 - storage is unavailable.",
-    "description": "Visible pin-failure notice.",
-    "placeholders": {
-      "place": {
-        "content": "$1",
-        "example": "Oia"
-      }
-    }
-  },
-  "boardRetryNoThumb": {
-    "message": "Retry without thumbnail",
-    "description": "Pin retry action."
-  },
-  "boardRetryRemove": {
-    "message": "Try again",
-    "description": "Remove-pin retry action."
-  },
-  "boardClearTitle": {
-    "message": "Remove all $1 pins?",
-    "description": "Clear-board confirm heading.",
-    "placeholders": {
-      "count": {
-        "content": "$1",
-        "example": "3"
-      }
-    }
-  },
-  "boardCleared": {
-    "message": "Board cleared",
-    "description": "Status announcement after clearing."
-  },
-  "statusPinned": {
-    "message": "Saved $1 - $2 places on board",
-    "description": "Status announcement for a successful pin.",
-    "placeholders": {
-      "place": {
-        "content": "$1",
-        "example": "Oia"
-      },
-      "count": {
-        "content": "$2",
-        "example": "3"
-      }
-    }
-  },
-  "statusPinDuplicate": {
-    "message": "$1 is already on the board",
-    "description": "Status announcement for a dedupe hit.",
-    "placeholders": {
-      "place": {
-        "content": "$1",
-        "example": "Oia"
-      }
-    }
-  },
-  "alertPinFail": {
-    "message": "Couldn't save $1",
-    "description": "Alert announcement for a failed pin.",
-    "placeholders": {
-      "place": {
-        "content": "$1",
-        "example": "Oia"
-      }
-    }
-  },
-  "boardNoticeRemoveFail": {
-    "message": "Couldn't remove $1 - storage is unavailable.",
-    "description": "Visible remove-failure notice.",
-    "placeholders": {
-      "place": {
-        "content": "$1",
-        "example": "Oia"
-      }
-    }
-  },
-  "alertRemoveFail": {
-    "message": "Couldn't remove $1",
-    "description": "Alert announcement for a failed remove.",
-    "placeholders": {
-      "place": {
-        "content": "$1",
-        "example": "Oia"
-      }
-    }
-  },
-  "alertBoardClearFail": {
-    "message": "Couldn't clear the board.",
-    "description": "Alert announcement for a failed clear."
-  },
-  "statusPlanning": {
-    "message": "Planning your trip - $1 places…",
-    "description": "Status announcement when itinerary planning starts.",
-    "placeholders": {
-      "count": {
-        "content": "$1",
-        "example": "3"
-      }
-    }
-  },
-  "statusItineraryReady": {
-    "message": "Itinerary ready",
-    "description": "Status announcement when the itinerary lands."
-  },
-  "itineraryTitle": {
-    "message": "Trip plan - $1 stops",
-    "description": "Itinerary card heading.",
-    "placeholders": {
-      "count": {
-        "content": "$1",
-        "example": "3"
-      }
-    }
-  },
-  "itineraryNights": {
-    "message": "Nights: $1",
-    "description": "Per-stop nights line.",
-    "placeholders": {
-      "nights": {
-        "content": "$1",
-        "example": "2"
-      }
-    }
-  },
-  "mapsLink": {
-    "message": "Open route in Google Maps ($1 stops)",
-    "description": "Maps route link label.",
-    "placeholders": {
-      "count": {
-        "content": "$1",
-        "example": "3"
-      }
-    }
-  },
-  "privacyBoard": {
-    "message": "Your search is sent to $1 with your key: pinned thumbnails, place names, and source-site addresses.",
-    "description": "Privacy footer for board planning.",
-    "placeholders": {
-      "destination": {
-        "content": "$1",
-        "example": "Meta's Muse API"
-      }
-    }
   },
   "mainTab": {
     "message": "Explore",
@@ -1153,10 +861,6 @@
     "message": "Result cache",
     "description": "Options result-cache section heading."
   },
-  "settingsDataHeading": {
-    "message": "Result cache",
-    "description": "Panel settings result-cache section heading."
-  },
   "settingsCostHeading": {
     "message": "API cost",
     "description": "Panel settings cost heading."
@@ -1267,10 +971,6 @@
     "message": "Identifying the place…",
     "description": "Loading phase while the model names the place."
   },
-  "loadingPhaseWriting": {
-    "message": "Writing…",
-    "description": "Loading phase while the itinerary is written."
-  },
   "confidenceHigh": {
     "message": "High",
     "description": "Top identification-confidence band."
@@ -1319,16 +1019,6 @@
     "message": "More actions",
     "description": "Label for the secondary card actions area."
   },
-  "savedButton": {
-    "message": "Saved $1",
-    "description": "Pin button after saving.",
-    "placeholders": {
-      "name": {
-        "content": "$1",
-        "example": "Oia"
-      }
-    }
-  },
   "dismissErrorButton": {
     "message": "Start over",
     "description": "Dismiss button on dead-end error cards."
@@ -1337,130 +1027,8 @@
     "message": "Tip: right-click any page and choose “Scan page for places” to find every place pictured on it.",
     "description": "Idle hint exposing page scan."
   },
-  "boardNoticeFull": {
-    "message": "The board is full (24 places) - remove one to save another.",
-    "description": "Capacity rejection notice."
-  },
-  "boardRemoved": {
-    "message": "Removed $1.",
-    "description": "Pin removal notice.",
-    "placeholders": {
-      "name": {
-        "content": "$1",
-        "example": "Oia"
-      }
-    }
-  },
-  "boardUndo": {
-    "message": "Undo",
-    "description": "Removal undo button."
-  },
-  "boardRestored": {
-    "message": "Restored $1.",
-    "description": "Undo confirmation notice.",
-    "placeholders": {
-      "name": {
-        "content": "$1",
-        "example": "Oia"
-      }
-    }
-  },
-  "boardUndoFull": {
-    "message": "The board filled up - remove a pin to undo.",
-    "description": "Undo blocked by a full board."
-  },
-  "boardMoveUp": {
-    "message": "Move $1 up",
-    "description": "Move-pin-up button label.",
-    "placeholders": {
-      "name": {
-        "content": "$1",
-        "example": "Oia"
-      }
-    }
-  },
-  "boardMoveDown": {
-    "message": "Move $1 down",
-    "description": "Move-pin-down button label.",
-    "placeholders": {
-      "name": {
-        "content": "$1",
-        "example": "Oia"
-      }
-    }
-  },
-  "boardNoticeMoveFail": {
-    "message": "Could not move $1 - try again.",
-    "description": "Pin reorder failure notice.",
-    "placeholders": {
-      "name": {
-        "content": "$1",
-        "example": "Oia"
-      }
-    }
-  },
-  "boardCopy": {
-    "message": "Copy trip",
-    "description": "Copy-trip button."
-  },
-  "boardDownload": {
-    "message": "Download Markdown",
-    "description": "Download-Markdown button."
-  },
-  "boardCopied": {
-    "message": "Trip copied to the clipboard.",
-    "description": "Copy confirmation."
-  },
-  "boardDownloaded": {
-    "message": "Trip downloaded as Markdown.",
-    "description": "Download confirmation."
-  },
-  "boardCopyFail": {
-    "message": "Could not copy the trip.",
-    "description": "Copy failure notice."
-  },
-  "boardDownloadFail": {
-    "message": "Could not download the trip.",
-    "description": "Download failure notice."
-  },
-  "boardPlanStale": {
-    "message": "Saved plan is outdated - plan again.",
-    "description": "Stale itinerary note on the board."
-  },
-  "boardRemoteImage": {
-    "message": "Loads a remote image.",
-    "description": "Disclosure for pins without a stored thumbnail."
-  },
-  "boardMoveUpShort": {
-    "message": "Up",
-    "description": "Compact move-up button."
-  },
-  "boardMoveDownShort": {
-    "message": "Down",
-    "description": "Compact move-down button."
-  },
-  "boardRemoveShort": {
-    "message": "Remove",
-    "description": "Compact remove button."
-  },
-  "privacyGuide": {
-    "message": "Your search is sent to $1 with your key: this place name for the trip guide.",
-    "description": "Footer disclosure for an ungrounded guide."
-  },
-  "privacyGuideSearch": {
-    "message": "Your search is sent to $1 with your key: this place name, also searched on the web for the trip guide.",
-    "description": "Footer disclosure for a web-grounded guide."
-  },
   "bookingEmpty": {
     "message": "Booking links appear here once a place is found.",
     "description": "Empty state for the booking section."
-  },
-  "guideEmpty": {
-    "message": "The trip guide appears here after you press Build a guide.",
-    "description": "Empty state for the guide section."
-  },
-  "sourcesEmpty": {
-    "message": "Web sources appear here with grounded guides.",
-    "description": "Empty state for the sources section."
   }
 }

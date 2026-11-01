@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Take Me There",
   "version": "1.0.0",
-  "description": "Right-click any image to identify the place with Muse AI and plan a trip from the side panel.",
+  "description": "Right-click any image to identify the place with Muse AI.",
   "default_locale": "en",
   "minimum_chrome_version": "116",
   "icons": { "16": "icons/16.png", "48": "icons/48.png", "128": "icons/128.png" },
