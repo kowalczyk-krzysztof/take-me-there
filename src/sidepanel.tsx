@@ -10,18 +10,9 @@ import type { AlternatesView, CardState, ConfidenceView } from './components/tri
 import { TripCard } from './components/trip_card/trip_card';
 import { KeySetup } from './components/key_setup/key_setup';
 import type { LoadingPhase } from './components/trip_card/trip_card';
-import { ProviderSection } from './components/settings/provider_section';
 import { ModesSection } from './components/settings/modes_section';
 import { CostSection } from './components/settings/cost_section';
-import {
-  EMPTY_COMPAT_FORM,
-  attachSettingsInputs,
-  compatErrorKey,
-  saveCompatProvider,
-  setMode,
-  switchToClaude,
-  type CompatFormValues,
-} from './settings_ops';
+import { attachSettingsInputs, setMode } from './settings_ops';
 import { prefersReducedMotion } from './utils/dom';
 import { buildDestination } from './deep_links';
 import {
@@ -30,7 +21,7 @@ import {
   fetchImageBytes,
   fetchImageBytesViaTab,
 } from './image_fetch';
-import { clearAllKeys, clearKey, isVaultKey, loadKey, saveKey, setKeyMode } from './key_vault';
+import { clearKey, isVaultKey, loadKey, saveKey, setKeyMode } from './key_vault';
 import { cropToSamBox, parseSamBoxes, selectSamBox, type SamPixelBox } from './sam';
 import { estimateCostUsd, formatUsd, readMonthSpend } from './pricing';
 import {
@@ -58,7 +49,6 @@ import {
 } from './run_state';
 import {
   ProviderError,
-  customHostOf,
   formatSignalsForPrompt,
   getActiveProvider,
   hasConsented,
@@ -75,7 +65,6 @@ import {
   getCacheEntry,
   hashIdentifyKey,
   isAllowedPreviewUrl,
-  normalizeEndpoint,
   setCacheEntry,
   type CacheEntry,
 } from './result_cache';
@@ -163,11 +152,6 @@ interface PanelSettingsState {
   loaded: boolean;
   imageOnly: boolean;
   skipWebSearch: boolean;
-  providerMuse: boolean;
-  compatOpen: boolean;
-  compat: CompatFormValues;
-  compatError: string | null;
-  compatConfirmHost: string | null;
   costText: string;
 }
 
@@ -187,7 +171,6 @@ interface PanelState {
   links: string | null;
   privacy: string;
   cost: string;
-  customHost: string | null;
   keyForm: KeyFormState;
 }
 
@@ -204,11 +187,6 @@ const store = createStore<PanelState>({
     loaded: false,
     imageOnly: false,
     skipWebSearch: false,
-    providerMuse: true,
-    compatOpen: false,
-    compat: EMPTY_COMPAT_FORM,
-    compatError: null,
-    compatConfirmHost: null,
     costText: '',
   },
   keySaved: false,
@@ -224,7 +202,6 @@ const store = createStore<PanelState>({
   links: null,
   privacy: '',
   cost: '',
-  customHost: null,
   keyForm: {
     pending: false,
     error: null,
@@ -269,7 +246,7 @@ const refreshLock = async (): Promise<void> => {
   const epoch = ++lockEpoch;
 
   try {
-    const { provider, settings } = await getActiveProvider();
+    const { provider } = await getActiveProvider();
 
     const keyStatus = await loadKey(provider.id);
 
@@ -279,7 +256,6 @@ const refreshLock = async (): Promise<void> => {
 
     store.set({
       keySaved: keyStatus.state === 'ok',
-      customHost: customHostOf(settings),
     });
   } catch {
     // Keep the current lock on storage failure.
@@ -295,13 +271,6 @@ const onLockAreaChanged = (changes: Record<string, unknown>): void => {
 const setKeyForm = (patch: Partial<KeyFormState>): void => {
   store.set({ keyForm: { ...store.get().keyForm, ...patch } });
 };
-
-const setPanelSettings = (patch: Partial<PanelSettingsState>): void => {
-  store.set({ panelSettings: { ...store.get().panelSettings, ...patch } });
-};
-
-const settingsInputValue = (id: string): string =>
-  (document.getElementById(id) as HTMLInputElement | null)?.value ?? '';
 
 let panelSettingsEpoch = 0;
 
@@ -325,12 +294,6 @@ const refreshPanelSettings = async (): Promise<void> => {
         loaded: true,
         imageOnly: settings.imageOnly,
         skipWebSearch: settings.skipWebSearch,
-        providerMuse: settings.activeProviderId !== 'openai_compat',
-        compatOpen: prev.loaded ? prev.compatOpen : settings.activeProviderId === 'openai_compat',
-        compat: {
-          baseURL: settings.openaiCompat.baseURL,
-          model: settings.openaiCompat.model,
-        },
         costText: msg('optionsCostMonth', formatUsd(spend)),
       },
     });
@@ -352,56 +315,6 @@ const onSettingsMode = (mode: 'imageOnly' | 'skipWebSearch', box: HTMLInputEleme
   })();
 };
 
-const onSettingsMuse = (box: HTMLInputElement): void => {
-  void (async () => {
-    try {
-      await switchToClaude();
-    } catch {
-      box.checked = false;
-      announceAlert('settingsSaveFailed');
-
-      return;
-    }
-
-    setPanelSettings({ compatOpen: false, compatError: null, compatConfirmHost: null });
-    announceStatus('statusProviderSaved');
-    await refreshLock();
-  })();
-};
-
-const onSettingsCompatSave = (): void => {
-  void (async () => {
-    setPanelSettings({ compatError: null });
-
-    const outcome = await saveCompatProvider(
-      {
-        baseURL: settingsInputValue('compat-base-url'),
-        model: settingsInputValue('compat-model'),
-      },
-      store.get().panelSettings.compatConfirmHost
-    );
-
-    if (outcome.status === 'saved') {
-      setPanelSettings({ compatError: null, compatConfirmHost: null });
-      announceStatus('statusProviderSaved');
-      await refreshLock();
-
-      return;
-    }
-
-    if (outcome.status === 'confirm') {
-      setPanelSettings({
-        compatError: msg('compatHostWarning', outcome.host),
-        compatConfirmHost: outcome.host,
-      });
-
-      return;
-    }
-
-    setPanelSettings({ compatError: msg(compatErrorKey(outcome.error)) });
-  })();
-};
-
 const attachSettings = (el: HTMLElement | null): (() => void) | void => {
   if (!el) {
     return;
@@ -409,10 +322,6 @@ const attachSettings = (el: HTMLElement | null): (() => void) | void => {
 
   return attachSettingsInputs(el, {
     onMode: onSettingsMode,
-    onMuse: onSettingsMuse,
-    onCompat: () => {
-      setPanelSettings({ compatOpen: true });
-    },
   });
 };
 
@@ -572,17 +481,7 @@ type PrivacyMode =
   | 'video-url-only'
   | 'names';
 
-const privacyDestination = (): string => {
-  if (runSettings?.activeProviderId === 'openai_compat') {
-    try {
-      return new URL(runSettings.openaiCompat.baseURL).host || 'the custom server';
-    } catch {
-      return 'the custom server';
-    }
-  }
-
-  return "Meta's Muse API";
-};
+const privacyDestination = (): string => "Meta's Muse API";
 
 const PRIVACY_KEYS: Record<PrivacyMode, string> = {
   image: 'privacyImage',
@@ -613,15 +512,6 @@ const priceAndRecord = async (run: RunContext, stage: string): Promise<void> => 
   const rates = run.provider.getRates();
 
   const usd = estimateCostUsd(run.usage, rates);
-
-  if (usd === null) {
-    // Custom servers report no rates: show no figure rather than invent one.
-    if (ownsUi(run)) {
-      clearCost();
-    }
-
-    return;
-  }
 
   try {
     await settleStage(run, stage);
@@ -1116,13 +1006,6 @@ const showProviderError = (
     updatePrivacy(privacy);
     return;
   }
-  if (err.code === 'not_configured') {
-    pendingRun = request != null ? { kind: 'request', request } : pendingRun;
-    renderErrorCard('errorServerTitle', 'alertNotConfigured', true, true);
-    alert('alertNotConfigured');
-    updatePrivacy(privacy);
-    return;
-  }
   const [titleKey, bodyKey, alertKey] = ERROR_CARD_KEYS[err.code] ?? ERROR_CARD_FALLBACK;
   renderErrorCard(titleKey, bodyKey, true, false);
   alert(alertKey);
@@ -1295,9 +1178,6 @@ const identifyKeyFor = async (run: RunContext, mediaSeed: string): Promise<strin
   hashIdentifyKey({
     mediaSeed,
     pageUrl: run.request?.pageUrl ?? '',
-    providerId: run.provider.id,
-    endpoint: normalizeEndpoint(run.provider.id, run.settings.openaiCompat.baseURL),
-    model: run.provider.modelName,
     imageOnly: run.settings.imageOnly,
   });
 
@@ -2331,21 +2211,6 @@ const onRemoveKey = (): void => {
   })();
 };
 
-const onRemoveAllKeys = (): void => {
-  void (async () => {
-    try {
-      await clearAllKeys();
-    } catch {
-      setKeyForm({ pending: false, error: msg('settingsSaveFailed') });
-      announceAlert('settingsSaveFailed');
-
-      return;
-    }
-
-    showKeyCleared();
-  })();
-};
-
 const onConsentDecision = async (agreed: boolean): Promise<void> => {
   if (!agreed) {
     pendingRun = null;
@@ -2554,7 +2419,6 @@ const SidepanelApp = () => {
               error={keyForm.error}
               sessionOnly={keyForm.sessionOnly}
               resetKey={keyForm.resetKey}
-              customHost={state.customHost}
               callbacks={{
                 onSave: (key) => void onKeySave(key),
                 onError: (text) => setKeyForm({ error: text }),
@@ -2566,11 +2430,7 @@ const SidepanelApp = () => {
           {state.result.video ? (
             <>
               <h2 tabIndex={-1}>{msg('videoConfirmTitle')}</h2>
-              <p>
-                {state.customHost
-                  ? msg('videoConfirmBodyCustom', state.customHost)
-                  : msg('videoConfirmBody')}
-              </p>
+              <p>{msg('videoConfirmBody')}</p>
               {state.result.video.rung2 ? <p>{msg('videoConfirmRung2Note')}</p> : null}
               {state.result.video.imageOnly ? <p>{msg('videoConfirmImageOnly')}</p> : null}
               <div className="confirm-actions">
@@ -2613,7 +2473,6 @@ const SidepanelApp = () => {
               error={keyForm.error}
               sessionOnly={keyForm.sessionOnly}
               resetKey={keyForm.resetKey}
-              customHost={state.customHost}
               callbacks={{
                 onSave: (key) => void onKeySave(key),
                 onError: (text) => setKeyForm({ error: text }),
@@ -2632,27 +2491,9 @@ const SidepanelApp = () => {
                 <button type="button" onClick={() => onRemoveKey()}>
                   {msg('clearKeyButton')}
                 </button>
-                <button type="button" onClick={() => onRemoveAllKeys()}>
-                  {msg('clearAllKeysButton')}
-                </button>
               </div>
             </>
           )}
-          <div
-            key={state.panelSettings.loaded ? 'settings-ready' : 'settings-loading'}
-            id="panel-settings-sections"
-          >
-            <ProviderSection
-              heading={msg('settingsProviderHeading')}
-              ready={state.panelSettings.loaded}
-              providerMuse={state.panelSettings.providerMuse}
-              compatOpen={state.panelSettings.compatOpen}
-              compat={state.panelSettings.compat}
-              compatError={state.panelSettings.compatError}
-              confirmHost={state.panelSettings.compatConfirmHost}
-              onSave={onSettingsCompatSave}
-            />
-          </div>
         </section>
         <section aria-labelledby="modes-heading" className="panel-card">
           <ModesSection

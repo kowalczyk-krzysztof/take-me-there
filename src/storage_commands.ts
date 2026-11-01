@@ -34,11 +34,6 @@ const cacheSetSchema = z.strictObject({
 });
 
 const settingsSchema = z.strictObject({
-  activeProviderId: z.string().check(z.maxLength(64)),
-  openaiCompat: z.strictObject({
-    baseURL: z.string().check(z.maxLength(2000)),
-    model: z.string().check(z.maxLength(200)),
-  }),
   imageOnly: z.boolean(),
   sessionOnly: z.boolean(),
   skipWebSearch: z.boolean(),

@@ -25,6 +25,7 @@ main {
   display: flex;
   align-items: center;
   gap: 12px;
+  margin-bottom: 8px;
 }
 
 .title-row img {
@@ -57,25 +58,4 @@ h2 {
 
 p {
   margin: 0 0 8px;
-}
-
-#compat-fields {
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  box-shadow: var(--shadow);
-  background: var(--card);
-  padding: 12px;
-  margin: 8px 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-#compat-fields[hidden] {
-  display: none;
-}
-
-#compat-error {
-  color: var(--error);
-  margin: 0;
 }

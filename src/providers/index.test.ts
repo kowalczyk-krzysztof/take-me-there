@@ -12,12 +12,10 @@ import {
   extractResponsesText,
   formatSignalsForPrompt,
   getActiveProvider,
-  getProvider,
   hasConsented,
   loadSettings,
   parseAlternatesContent,
   parseScanBatch,
-  customHostOf,
   emptyUsage,
   allowsImageMedia,
   allowsVideoMedia,
@@ -60,8 +58,6 @@ const validSignals = (): PageSignals => {
 };
 
 const DEFAULTS: ExtensionSettings = {
-  activeProviderId: 'muse',
-  openaiCompat: { baseURL: '', model: '' },
   imageOnly: false,
   sessionOnly: false,
   skipWebSearch: false,
@@ -553,21 +549,6 @@ describe('tryParsePlaceJson', () => {
   });
 });
 
-describe('customHostOf', () => {
-  it('names the custom host only for compat servers', () => {
-    expect(customHostOf({ activeProviderId: 'muse', openaiCompat: { baseURL: '' } })).toBeNull();
-    expect(
-      customHostOf({
-        activeProviderId: 'openai_compat',
-        openaiCompat: { baseURL: 'https://llm.example.com/v1' },
-      })
-    ).toBe('llm.example.com');
-    expect(
-      customHostOf({ activeProviderId: 'openai_compat', openaiCompat: { baseURL: 'bogus' } })
-    ).toBeNull();
-  });
-});
-
 describe('transport timeouts', () => {
   const localFetch = vi.fn();
 
@@ -649,10 +630,9 @@ describe('settings and registry', () => {
   });
 
   it('merges stored settings over defaults', async () => {
-    await saveSettings({ ...DEFAULTS, activeProviderId: 'openai_compat', imageOnly: true });
+    await saveSettings({ ...DEFAULTS, imageOnly: true });
     expect(await loadSettings()).toEqual({
       ...DEFAULTS,
-      activeProviderId: 'openai_compat',
       imageOnly: true,
     });
   });
@@ -662,20 +642,13 @@ describe('settings and registry', () => {
     await local.set({
       settings: {
         v: 1,
-        settings: { activeProviderId: 'muse', imageOnly: false, sessionOnly: false },
+        settings: { imageOnly: false, sessionOnly: false },
       },
     });
     expect((await loadSettings()).skipWebSearch).toBe(false);
   });
 
-  it('resolves providers with muse as the fallback', async () => {
-    expect(getProvider(DEFAULTS).id).toBe('muse');
-    expect(getProvider(DEFAULTS, 'nope').id).toBe('muse');
-
-    const compat = getProvider({ ...DEFAULTS, activeProviderId: 'openai_compat' });
-    expect(compat.id).toBe('openai_compat');
-    expect(compat.capabilities.webGrounding).toBe(false);
-
+  it('resolves the Muse provider', async () => {
     const active = await getActiveProvider();
     expect(active.provider.id).toBe('muse');
     expect(active.settings).toEqual(DEFAULTS);

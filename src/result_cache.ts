@@ -39,23 +39,16 @@ export const CACHE_VERSION = 2;
 export interface IdentifyKeyParts {
   mediaSeed: string;
   pageUrl: string;
-  providerId: string;
-  endpoint: string;
-  model: string;
   imageOnly: boolean;
 }
 
-// Identify-cache identity: schema/prompt version, provider, normalized
-// endpoint, model, image-only mode, and media identity. Everything hashes;
-// raw identity fields are never stored.
+// Identify-cache identity: schema/prompt version, image-only mode, and
+// media identity. Everything hashes; raw identity fields are never stored.
 export const hashIdentifyKey = async (parts: IdentifyKeyParts): Promise<string> =>
   hashFields([
     String(CACHE_VERSION),
     'identify',
     String(PROMPT_VERSION),
-    parts.providerId,
-    parts.endpoint,
-    parts.model,
     parts.imageOnly ? 'image-only' : 'full',
     parts.mediaSeed,
     parts.pageUrl,
@@ -67,23 +60,6 @@ const hashFields = async (fields: string[]): Promise<string> => {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(encoded));
 
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
-};
-
-// Endpoint normalization for cache identity: the fixed Muse host folds to
-// one value; custom endpoints normalize to origin plus path so equivalent
-// spellings share entries.
-export const normalizeEndpoint = (providerId: string, baseURL: string): string => {
-  if (providerId !== 'openai_compat') {
-    return 'muse';
-  }
-
-  try {
-    const parsed = new URL(baseURL);
-
-    return `${parsed.origin}${parsed.pathname.replace(/\/+$/, '')}`;
-  } catch {
-    return baseURL;
-  }
 };
 
 export const cacheKeyFor = (hash: string): string => `cache:${hash}`;

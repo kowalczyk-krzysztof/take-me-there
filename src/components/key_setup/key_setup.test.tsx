@@ -10,7 +10,6 @@ interface SetupProps {
   error?: string | null;
   sessionOnly?: boolean;
   resetKey?: number;
-  customHost?: string | null;
 }
 
 const noop = () => {};
@@ -26,7 +25,6 @@ const renderSetup = (
       error={props.error ?? null}
       sessionOnly={props.sessionOnly ?? false}
       resetKey={props.resetKey ?? 0}
-      customHost={props.customHost ?? null}
       callbacks={{
         onSave: callbacks.onSave ?? noop,
         onError: callbacks.onError ?? noop,
@@ -49,7 +47,6 @@ const rerenderSetup = (
       error={props.error ?? null}
       sessionOnly={props.sessionOnly ?? false}
       resetKey={props.resetKey ?? 0}
-      customHost={props.customHost ?? null}
       callbacks={{
         onSave: callbacks.onSave ?? noop,
         onError: callbacks.onError ?? noop,
@@ -202,20 +199,6 @@ describe('key-setup', () => {
     expect(onConsentDecision).toHaveBeenCalledWith(true);
     clickEl(buttons[1] as HTMLButtonElement);
     expect(onConsentDecision).toHaveBeenCalledWith(false);
-  });
-
-  it('names the custom host instead of the Muse dashboard', () => {
-    const root = renderSetup({ customHost: 'my-server.example' }).container;
-    expect(root.querySelector('#key-hint')?.textContent).toBe('keyHintCustom');
-    expect(root.querySelector('.notice')?.textContent).toBe(
-      'securityNoticeCustom(my-server.example)'
-    );
-    expect(root.querySelector('.hygiene')?.textContent).toBe('keyHygieneCustom');
-
-    const consent = renderSetup({ mode: 'consent', customHost: 'my-server.example' }).container;
-    expect(consent.querySelector('.consent-body')?.textContent).toBe(
-      'consentBodyCustom(my-server.example)'
-    );
   });
 
   it('renders a focusable consent heading', () => {

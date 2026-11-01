@@ -5,7 +5,6 @@ import {
   getCacheEntry,
   hashIdentifyKey,
   isAllowedPreviewUrl,
-  normalizeEndpoint,
   setCacheEntry,
   type CacheEntry,
   type IdentifyKeyParts,
@@ -68,9 +67,6 @@ describe('cache key hashing', () => {
   const parts: IdentifyKeyParts = {
     mediaSeed: 'https://cdn.example.com/oia.jpg',
     pageUrl: 'https://example.com/g',
-    providerId: 'muse',
-    endpoint: normalizeEndpoint('muse', ''),
-    model: 'muse-spark-1.3',
     imageOnly: false,
   };
 
@@ -85,29 +81,13 @@ describe('cache key hashing', () => {
     ).not.toBe(first);
   });
 
-  it('scopes keys by provider, endpoint, model, and image-only mode', async () => {
+  it('scopes keys by media, page, and image-only mode', async () => {
     const base = await hashIdentifyKey(parts);
-    expect(await hashIdentifyKey({ ...parts, providerId: 'openai_compat' })).not.toBe(base);
     expect(
-      await hashIdentifyKey({
-        ...parts,
-        providerId: 'openai_compat',
-        endpoint: normalizeEndpoint('openai_compat', 'https://llm.example.com/v1'),
-      })
+      await hashIdentifyKey({ ...parts, mediaSeed: 'https://cdn.example.com/other.jpg' })
     ).not.toBe(base);
-    expect(await hashIdentifyKey({ ...parts, model: 'other-model' })).not.toBe(base);
+    expect(await hashIdentifyKey({ ...parts, pageUrl: 'https://example.com/h' })).not.toBe(base);
     expect(await hashIdentifyKey({ ...parts, imageOnly: true })).not.toBe(base);
-  });
-
-  it('normalizes equivalent custom endpoints together', () => {
-    expect(normalizeEndpoint('muse', '')).toBe('muse');
-    expect(normalizeEndpoint('openai_compat', 'https://LLM.example.com/v1/')).toBe(
-      normalizeEndpoint('openai_compat', 'https://llm.example.com/v1')
-    );
-    expect(normalizeEndpoint('openai_compat', 'https://llm.example.com/v1')).not.toBe(
-      normalizeEndpoint('openai_compat', 'https://llm.example.com/v2')
-    );
-    expect(normalizeEndpoint('openai_compat', 'not a url')).toBe('not a url');
   });
 
   it('keeps query-selected videos apart', async () => {

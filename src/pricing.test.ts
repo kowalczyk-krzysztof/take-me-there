@@ -145,12 +145,6 @@ describe('pricing', () => {
     ).toBe(0);
   });
 
-  it('returns null without a rate table so the UI shows tokens', () => {
-    expect(
-      estimateCostUsd({ inputTokens: 10, outputTokens: 10, searchCount: 0, flatFeesUsd: 0 })
-    ).toBeNull();
-  });
-
   it('accumulates and reads the monthly total', async () => {
     const day = new Date('2026-03-15T12:00:00Z');
     expect(await recordMonthSpend(0.5, day)).toBeCloseTo(0.5, 10);

@@ -35,11 +35,7 @@ export const cachedInputTokensOf = (usage: Usage): number =>
 const cachedRateOf = (rates: ModelRates): number =>
   rates.cachedInputUsdPerMTok ?? rates.inputUsdPerMTok;
 
-export const estimateCostUsd = (usage: Usage, rates?: ModelRates): number | null => {
-  if (!rates) {
-    return null;
-  }
-
+export const estimateCostUsd = (usage: Usage, rates: ModelRates): number => {
   const cached = cachedInputTokensOf(usage);
 
   const tokens =

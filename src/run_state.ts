@@ -191,7 +191,7 @@ export const settleStage = async (run: RunContext, stage: string): Promise<numbe
 
     const mark = `${run.runId}:${stage}`;
 
-    if (usd !== null && !run.settledStages.has(mark)) {
+    if (!run.settledStages.has(mark)) {
       const delta = Math.max(0, usd - run.recordedUsd);
 
       if (delta > 0) {

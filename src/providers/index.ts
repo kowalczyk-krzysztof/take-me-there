@@ -16,7 +16,6 @@ import {
   type ScannedPlace,
 } from '../types';
 import { MuseProvider } from './muse';
-import { OpenAiCompatProvider } from './openai_compat';
 
 export type { ProviderCapabilities } from '../types';
 
@@ -67,7 +66,6 @@ export type ProviderErrorCode =
   | 'invalid_response'
   | 'aborted'
   | 'no_key'
-  | 'not_configured'
   | 'consent_required';
 
 export class ProviderError extends Error {
@@ -300,7 +298,7 @@ export interface Provider {
   scanPlaces(key: string, input: ScanInput): Promise<ScanResult>;
   findAlternates(key: string, input: AlternatesInput): Promise<AlternatesResult>;
   segmentLandmark(key: string, input: SegmentInput): Promise<SegmentResult>;
-  getRates(): ModelRates | undefined;
+  getRates(): ModelRates;
 }
 
 export const formatSignalsForPrompt = (signals: PageSignals, imageOnly: boolean): string => {
@@ -1055,25 +1053,10 @@ export { SETTINGS_STORAGE_KEY, SETTINGS_VERSION } from '../settings_store';
 export const CONSENT_STORAGE_KEY = 'consentGiven';
 // Bump when the consent copy or the consented data flows change: stored
 // grants below this version stop counting and the gate re-appears.
-export const customHostOf = (settings: {
-  activeProviderId: string;
-  openaiCompat: { baseURL: string };
-}): string | null => {
-  if (settings.activeProviderId !== 'openai_compat') {
-    return null;
-  }
-
-  try {
-    return new URL(settings.openaiCompat.baseURL).host || null;
-  } catch {
-    return null;
-  }
-};
-
 export const CONSENT_VERSION: number = 2;
 
-export { loadSettings, parseEndpointOrigin, saveSettings } from '../settings_store';
-export type { ExtensionSettings, OpenAiCompatSettings } from '../settings_store';
+export { loadSettings, saveSettings } from '../settings_store';
+export type { ExtensionSettings } from '../settings_store';
 import { loadSettings } from '../settings_store';
 import type { ExtensionSettings } from '../settings_store';
 
@@ -1119,21 +1102,11 @@ export const assertConsent = async (): Promise<void> => {
 
 const museProvider = new MuseProvider();
 
-export const getProvider = (settings: ExtensionSettings, id?: string): Provider => {
-  const wanted = id ?? settings.activeProviderId;
-
-  if (wanted === 'openai_compat') {
-    return new OpenAiCompatProvider(settings.openaiCompat);
-  }
-
-  return museProvider;
-};
-
 export const getActiveProvider = async (): Promise<{
   provider: Provider;
   settings: ExtensionSettings;
 }> => {
   const settings = await loadSettings();
 
-  return { provider: getProvider(settings), settings };
+  return { provider: museProvider, settings };
 };

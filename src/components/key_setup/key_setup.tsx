@@ -20,19 +20,10 @@ interface Props {
   error: string | null;
   sessionOnly: boolean;
   resetKey: number;
-  customHost: string | null;
   callbacks: KeySetupCallbacks;
 }
 
-export const KeySetup = ({
-  mode,
-  pending,
-  error,
-  sessionOnly,
-  resetKey,
-  customHost,
-  callbacks,
-}: Props) => {
+export const KeySetup = ({ mode, pending, error, sessionOnly, resetKey, callbacks }: Props) => {
   const [revealed, setRevealed] = useState(false);
 
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -67,9 +58,7 @@ export const KeySetup = ({
       {mode === 'consent' ? (
         <>
           <h2 tabIndex={-1}>{msg('consentTitle')}</h2>
-          <p className={styles['consent-body']}>
-            {customHost ? msg('consentBodyCustom', customHost) : msg('consentBody')}
-          </p>
+          <p className={styles['consent-body']}>{msg('consentBody')}</p>
           <div className={styles['button-row']}>
             <button
               type="button"
@@ -109,7 +98,7 @@ export const KeySetup = ({
           }}
         >
           <label className={styles['field-label']} htmlFor="key-input">
-            {customHost ? msg('keyLabelCustom') : msg('keyLabel')}
+            {msg('keyLabel')}
           </label>
           <div className={styles['input-row']}>
             <input
@@ -121,7 +110,7 @@ export const KeySetup = ({
               spellCheck={false}
               aria-describedby={error === null ? 'key-hint' : 'key-hint key-error'}
               aria-invalid={error === null ? undefined : 'true'}
-              placeholder={msg(customHost ? 'keyPlaceholderCustom' : 'keyPlaceholder')}
+              placeholder={msg('keyPlaceholder')}
               onChange={(event) => callbacks.onDraftChange?.(event.currentTarget.value)}
             />
             <button
@@ -134,14 +123,8 @@ export const KeySetup = ({
             </button>
           </div>
           <p className={styles.hint} id="key-hint">
-            {customHost ? (
-              msg('keyHintCustom')
-            ) : (
-              <>
-                {msg('keyHintPrefix')}
-                <ExternalLink href={DASHBOARD_URL}>{msg('keyHintDashboard')}</ExternalLink>.
-              </>
-            )}
+            {msg('keyHintPrefix')}
+            <ExternalLink href={DASHBOARD_URL}>{msg('keyHintDashboard')}</ExternalLink>.
           </p>
           <p
             className={styles.error}
@@ -168,18 +151,10 @@ export const KeySetup = ({
               {msg(pending ? 'validatingButton' : 'saveKeyButton')}
             </button>
           </div>
-          <p className={styles.notice}>
-            {customHost ? msg('securityNoticeCustom', customHost) : msg('securityNotice')}
-          </p>
+          <p className={styles.notice}>{msg('securityNotice')}</p>
           <p className={styles.hygiene}>
-            {customHost ? (
-              msg('keyHygieneCustom')
-            ) : (
-              <>
-                {msg('keyHygienePrefix')}
-                <ExternalLink href={DASHBOARD_URL}>{msg('keyHintDashboard')}</ExternalLink>.
-              </>
-            )}
+            {msg('keyHygienePrefix')}
+            <ExternalLink href={DASHBOARD_URL}>{msg('keyHintDashboard')}</ExternalLink>.
           </p>
         </form>
       )}

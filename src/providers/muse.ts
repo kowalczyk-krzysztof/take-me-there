@@ -69,7 +69,7 @@ export class MuseProvider implements Provider {
     structuredOutput: 'json_schema',
   };
 
-  getRates(): ModelRates | undefined {
+  getRates(): ModelRates {
     return MUSE_SPARK_RATES[MODEL];
   }
 

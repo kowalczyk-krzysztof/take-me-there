@@ -39,8 +39,6 @@ const provider = (rates?: { inputUsdPerMTok: number; outputUsdPerMTok: number })
   ({ getRates: () => rates }) as unknown as Provider;
 
 const settings = (): ExtensionSettings => ({
-  activeProviderId: 'muse',
-  openaiCompat: { baseURL: '', model: '' },
   imageOnly: false,
   sessionOnly: false,
   skipWebSearch: false,
@@ -194,14 +192,5 @@ describe('run accounting', () => {
     expect(a).toBeCloseTo(0.001, 9);
     expect(b).toBeCloseTo(0.001, 9);
     expect(await readMonthSpend()).toBeCloseTo(0.001, 9);
-  });
-
-  it('records nothing for unpriced providers', async () => {
-    const run = startRun(init({ provider: provider(undefined) }));
-    absorbRunUsage(run, usage(1000));
-
-    await expect(settleStage(run, 'identify')).resolves.toBe(0);
-    expect(run.recordedUsd).toBe(0);
-    expect(mock.local.data.has('costTotals')).toBe(false);
   });
 });

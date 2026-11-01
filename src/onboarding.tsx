@@ -2,22 +2,8 @@ import { useSyncExternalStore } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import { KeySetup } from './components/key_setup/key_setup';
-import { ProviderSection } from './components/settings/provider_section';
-import {
-  attachSettingsInputs,
-  compatErrorKey,
-  saveCompatProvider,
-  switchToClaude,
-  type CompatFormValues,
-} from './settings_ops';
 import { saveKey, setKeyMode } from './key_vault';
-import {
-  ProviderError,
-  customHostOf,
-  getActiveProvider,
-  loadSettings,
-  saveSettings,
-} from './providers/index';
+import { ProviderError, getActiveProvider, loadSettings, saveSettings } from './providers/index';
 import { ErrorBoundary } from './components/error_boundary/error_boundary';
 import { msg } from './utils/i18n';
 import { createStore } from './utils/store';
@@ -30,14 +16,6 @@ interface OnboardingState {
   keyError: string | null;
   sessionOnly: boolean;
   keyReset: number;
-  customHost: string | null;
-  settings: {
-    providerMuse: boolean;
-    compat: CompatFormValues;
-  } | null;
-  compatOpen: boolean;
-  compatError: string | null;
-  compatConfirmHost: string | null;
 }
 
 const store = createStore<OnboardingState>({
@@ -46,23 +24,7 @@ const store = createStore<OnboardingState>({
   keyError: null,
   sessionOnly: false,
   keyReset: 0,
-  customHost: null,
-  settings: null,
-  compatOpen: false,
-  compatError: null,
-  compatConfirmHost: null,
 });
-
-const inputValue = (id: string): string =>
-  (document.getElementById(id) as HTMLInputElement | null)?.value ?? '';
-
-const refreshCustomHost = async (): Promise<void> => {
-  try {
-    store.set({ customHost: customHostOf(await loadSettings()) });
-  } catch {
-    // Keep the previous host on storage failure.
-  }
-};
 
 const onSaveKey = (key: string): void => {
   void (async () => {
@@ -112,98 +74,17 @@ const onSaveKey = (key: string): void => {
   })();
 };
 
-const onCompatSave = (): void => {
-  void (async () => {
-    store.set({ compatError: null });
-
-    const outcome = await saveCompatProvider(
-      {
-        baseURL: inputValue('compat-base-url'),
-        model: inputValue('compat-model'),
-      },
-      store.get().compatConfirmHost
-    );
-
-    if (outcome.status === 'saved') {
-      store.set({
-        compatError: null,
-        compatConfirmHost: null,
-        status: msg('statusProviderSaved'),
-      });
-      await refreshCustomHost();
-
-      return;
-    }
-
-    if (outcome.status === 'confirm') {
-      store.set({
-        compatError: msg('compatHostWarning', outcome.host),
-        compatConfirmHost: outcome.host,
-      });
-
-      return;
-    }
-
-    store.set({ compatError: msg(compatErrorKey(outcome.error)) });
-  })();
-};
-
 const OnboardingApp = () => {
   const state = useSyncExternalStore(store.subscribe, store.get);
-  const settings = state.settings;
-
-  const attach = (el: HTMLElement | null): (() => void) | void => {
-    if (!el) {
-      return;
-    }
-
-    return attachSettingsInputs(el, {
-      onMuse: (box) => {
-        void (async () => {
-          try {
-            await switchToClaude();
-          } catch {
-            box.checked = false;
-            store.set({ status: msg('settingsSaveFailed') });
-
-            return;
-          }
-
-          store.set({
-            compatOpen: false,
-            compatError: null,
-            compatConfirmHost: null,
-            status: msg('statusProviderSaved'),
-          });
-          await refreshCustomHost();
-        })();
-      },
-      onCompat: () => {
-        store.set({ compatOpen: true });
-      },
-    });
-  };
 
   return (
-    <main ref={attach}>
+    <main>
       <div className="panel-card title-card">
         <div className="title-row">
           <img src="icons/48.png" alt="" width={40} height={40} />
           <h1 id="title">{msg('appName')}</h1>
         </div>
         <p id="howto">{msg('onboardingHowto')}</p>
-      </div>
-      <div key={settings === null ? 'loading' : 'ready'}>
-        <ProviderSection
-          heading={msg('onboardingProviderHeading')}
-          ready={settings !== null}
-          providerMuse={settings?.providerMuse ?? false}
-          compatOpen={state.compatOpen}
-          compat={settings?.compat ?? null}
-          compatError={state.compatError}
-          confirmHost={state.compatConfirmHost}
-          onSave={onCompatSave}
-        />
       </div>
       <div id="key-host">
         <KeySetup
@@ -212,7 +93,6 @@ const OnboardingApp = () => {
           error={state.keyError}
           sessionOnly={state.sessionOnly}
           resetKey={state.keyReset}
-          customHost={state.customHost}
           callbacks={{
             onSave: onSaveKey,
             onError: (text) => store.set({ keyError: text }),
@@ -298,15 +178,6 @@ export const initOnboarding = (): void => {
   void loadSettings().then((settings) => {
     store.set({
       sessionOnly: settings.sessionOnly,
-      customHost: customHostOf(settings),
-      compatOpen: settings.activeProviderId === 'openai_compat',
-      settings: {
-        providerMuse: settings.activeProviderId !== 'openai_compat',
-        compat: {
-          baseURL: settings.openaiCompat.baseURL,
-          model: settings.openaiCompat.model,
-        },
-      },
     });
   });
 };

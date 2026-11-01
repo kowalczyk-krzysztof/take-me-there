@@ -2,29 +2,13 @@ import { useSyncExternalStore } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import { KeySetup } from './components/key_setup/key_setup';
-import { ProviderSection } from './components/settings/provider_section';
 import { ModesSection } from './components/settings/modes_section';
 import { DataSection } from './components/settings/data_section';
 import { CostSection } from './components/settings/cost_section';
-import {
-  attachSettingsInputs,
-  compatErrorKey,
-  clearResultCache,
-  saveCompatProvider,
-  setCacheTtlDays,
-  setMode,
-  switchToClaude,
-  type CompatFormValues,
-} from './settings_ops';
-import { clearAllKeys, clearKey, loadKey, saveKey, setKeyMode } from './key_vault';
+import { attachSettingsInputs, clearResultCache, setCacheTtlDays, setMode } from './settings_ops';
+import { clearKey, loadKey, saveKey, setKeyMode } from './key_vault';
 import { formatUsd, readMonthSpend } from './pricing';
-import {
-  ProviderError,
-  customHostOf,
-  getActiveProvider,
-  loadSettings,
-  saveSettings,
-} from './providers/index';
+import { ProviderError, getActiveProvider, loadSettings, saveSettings } from './providers/index';
 import { ErrorBoundary } from './components/error_boundary/error_boundary';
 import { msg } from './utils/i18n';
 import { createStore } from './utils/store';
@@ -41,13 +25,8 @@ interface OptionsState {
   settings: {
     imageOnly: boolean;
     skipWebSearch: boolean;
-    providerMuse: boolean;
-    compat: CompatFormValues;
     cacheTtlDays: number;
   } | null;
-  compatOpen: boolean;
-  compatError: string | null;
-  compatConfirmHost: string | null;
   cachePending: boolean;
   cacheResult: string | null;
 }
@@ -60,9 +39,6 @@ const store = createStore<OptionsState>({
   sessionOnly: false,
   keyReset: 0,
   settings: null,
-  compatOpen: false,
-  compatError: null,
-  compatConfirmHost: null,
   cachePending: false,
   cacheResult: null,
 });
@@ -185,55 +161,6 @@ const onClearKey = (): void => {
   })();
 };
 
-const onClearAllKeys = (): void => {
-  void (async () => {
-    try {
-      await clearAllKeys();
-    } catch {
-      store.set({ status: msg('settingsSaveFailed') });
-
-      return;
-    }
-
-    showKeyCleared();
-  })();
-};
-
-const onCompatSave = (): void => {
-  void (async () => {
-    store.set({ compatError: null });
-
-    const outcome = await saveCompatProvider(
-      {
-        baseURL: inputValue('compat-base-url'),
-        model: inputValue('compat-model'),
-      },
-      store.get().compatConfirmHost
-    );
-
-    if (outcome.status === 'saved') {
-      store.set({
-        compatError: null,
-        compatConfirmHost: null,
-        status: msg('statusProviderSaved'),
-      });
-
-      return;
-    }
-
-    if (outcome.status === 'confirm') {
-      store.set({
-        compatError: msg('compatHostWarning', outcome.host),
-        compatConfirmHost: outcome.host,
-      });
-
-      return;
-    }
-
-    store.set({ compatError: msg(compatErrorKey(outcome.error)) });
-  })();
-};
-
 const onRetention = (days: number, select: HTMLSelectElement): void => {
   const settings = store.get().settings;
 
@@ -309,28 +236,6 @@ const OptionsApp = () => {
           }
         })();
       },
-      onMuse: (box) => {
-        void (async () => {
-          try {
-            await switchToClaude();
-          } catch {
-            box.checked = false;
-            store.set({ status: msg('settingsSaveFailed') });
-
-            return;
-          }
-
-          store.set({
-            compatOpen: false,
-            compatError: null,
-            compatConfirmHost: null,
-            status: msg('statusProviderSaved'),
-          });
-        })();
-      },
-      onCompat: () => {
-        store.set({ compatOpen: true });
-      },
       onRetention,
     });
   };
@@ -345,14 +250,6 @@ const OptionsApp = () => {
           error={state.keyError}
           sessionOnly={state.sessionOnly}
           resetKey={state.keyReset}
-          customHost={
-            state.settings === null
-              ? null
-              : customHostOf({
-                  activeProviderId: state.settings.providerMuse ? 'muse' : 'openai_compat',
-                  openaiCompat: { baseURL: state.settings.compat.baseURL },
-                })
-          }
           callbacks={{
             onSave: onSaveKey,
             onError: (text) => store.set({ keyError: text }),
@@ -392,25 +289,12 @@ const OptionsApp = () => {
         <button id="clear-key" type="button" onClick={onClearKey}>
           {msg('clearKeyButton')}
         </button>
-        <button id="clear-all-keys" type="button" onClick={onClearAllKeys}>
-          {msg('clearAllKeysButton')}
-        </button>
       </div>
       <div key={settings === null ? 'loading' : 'ready'}>
         <ModesSection
           heading={msg('optionsModesHeading')}
           imageOnly={settings?.imageOnly ?? false}
           skipWebSearch={settings?.skipWebSearch ?? false}
-        />
-        <ProviderSection
-          heading={msg('optionsProviderHeading')}
-          ready={settings !== null}
-          providerMuse={settings?.providerMuse ?? false}
-          compatOpen={state.compatOpen}
-          compat={settings?.compat ?? null}
-          compatError={state.compatError}
-          confirmHost={state.compatConfirmHost}
-          onSave={onCompatSave}
         />
         <DataSection
           heading={msg('optionsDataHeading')}
@@ -477,15 +361,9 @@ export const initOptions = (): void => {
   void loadSettings().then((settings) => {
     store.set({
       sessionOnly: settings.sessionOnly,
-      compatOpen: settings.activeProviderId === 'openai_compat',
       settings: {
         imageOnly: settings.imageOnly,
         skipWebSearch: settings.skipWebSearch,
-        providerMuse: settings.activeProviderId !== 'openai_compat',
-        compat: {
-          baseURL: settings.openaiCompat.baseURL,
-          model: settings.openaiCompat.model,
-        },
         cacheTtlDays: settings.cacheTtlDays,
       },
     });

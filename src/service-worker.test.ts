@@ -101,7 +101,7 @@ describe('service-worker', () => {
   it('migrates legacy stores on update', async () => {
     const mock = await setup();
     await mock.local.set({
-      settings: { activeProviderId: 'muse' },
+      settings: { imageOnly: false },
       costTotals: { '2026-03': 1.5 },
     });
 
@@ -111,7 +111,7 @@ describe('service-worker', () => {
     await flush();
     expect(mock.local.data.get('settings')).toEqual({
       v: 1,
-      settings: { activeProviderId: 'muse' },
+      settings: { imageOnly: false },
     });
     expect(mock.local.data.get('costTotals')).toEqual({ v: 1, months: { '2026-03': 1.5 } });
   });

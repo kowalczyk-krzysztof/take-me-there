@@ -91,10 +91,6 @@
     "message": "Could not read the model's answer - retry.",
     "description": "Alert for validation failures."
   },
-  "alertNotConfigured": {
-    "message": "The custom provider is not configured.",
-    "description": "Alert for a misconfigured provider."
-  },
   "errorAuthTitle": {
     "message": "Check your API key",
     "description": "Error card title for rejected keys."
@@ -297,10 +293,6 @@
     "message": "Skip web search - cheaper but less current",
     "description": "Cheap-mode toggle label."
   },
-  "clearAllKeysButton": {
-    "message": "Clear all saved API keys",
-    "description": "Clear-all-keys button label."
-  },
   "optionsPrivacyHeading": {
     "message": "Storage and privacy",
     "description": "Options privacy section heading."
@@ -480,7 +472,7 @@
     "description": "Error card body when the video element is not found."
   },
   "errorVideoProviderBody": {
-    "message": "The frame could not be captured and the active provider cannot analyze video directly.",
+    "message": "The frame could not be captured and Muse cannot analyze video directly.",
     "description": "Error card body when rung 2 is unavailable."
   },
   "alertVideoUnreadable": {
@@ -611,53 +603,9 @@
     "message": "Could not download the image for retry.",
     "description": "Byte-fetch failure announcement."
   },
-  "optionsProviderHeading": {
-    "message": "AI provider",
-    "description": "Options provider section heading."
-  },
-  "providerMuse": {
-    "message": "Meta Muse (recommended)",
-    "description": "Muse provider radio label."
-  },
-  "providerCompat": {
-    "message": "OpenAI-compatible server",
-    "description": "Custom provider radio label."
-  },
-  "compatLegend": {
-    "message": "Custom server details",
-    "description": "Custom server fieldset legend."
-  },
-  "compatBaseUrl": {
-    "message": "Server URL",
-    "description": "Custom server URL label."
-  },
-  "compatModel": {
-    "message": "Model",
-    "description": "Custom server model label."
-  },
-  "compatSave": {
-    "message": "Save server",
-    "description": "Custom server save button."
-  },
-  "statusProviderSaved": {
-    "message": "Provider saved.",
-    "description": "Provider switch announcement."
-  },
   "settingsSaveFailed": {
     "message": "Could not save settings - try again.",
     "description": "Settings write failure."
-  },
-  "providerErrorUrl": {
-    "message": "Enter a valid https server URL (http works for localhost only).",
-    "description": "Custom server URL error."
-  },
-  "providerErrorModel": {
-    "message": "Enter a model name.",
-    "description": "Custom server model error."
-  },
-  "providerErrorDenied": {
-    "message": "Permission for that server was denied.",
-    "description": "Custom server denial error."
   },
   "samZoomed": {
     "message": "Zoomed in on the landmark for a second look",
@@ -715,48 +663,6 @@
       }
     }
   },
-  "securityNoticeCustom": {
-    "message": "Your API key is encrypted before it's saved (AES-GCM, with a non-extractable key kept in this browser profile) and never leaves this device except to authenticate requests to $1. Saving the key sends only the key itself to validate it - images and page text are never sent before you click 'Agree & analyze'. Someone with full access to your computer account could still recover it, so only save it on a trusted device - or enable session-only mode, which keeps the key in memory and forgets it when the browser closes.",
-    "description": "Key security notice naming the custom server.",
-    "placeholders": {
-      "host": {
-        "content": "$1",
-        "example": "my-server.example"
-      }
-    }
-  },
-  "keyHygieneCustom": {
-    "message": "Create a dedicated key just for this extension, paste it only into the official Web Store install or a build you made yourself from this repo (a modified clone could steal it), and revoke it anytime in your provider's dashboard.",
-    "description": "Key hygiene notice for custom servers."
-  },
-  "consentBodyCustom": {
-    "message": "Analyzing sends the clicked image (its web address or, for inline images, captured frames, and on-demand retries, its pixels), nearby page text (title, captions, metadata), and the page's address to your custom server at $1 using your key. For private images, the image's address itself can grant access to it. Scanning a page sends that page's travel images and their captions the same way (even when the \"image only\" toggle is on), and planning a trip from your board sends the pinned thumbnails, their place names, and the addresses of the sites you pinned them from. Your provider's data terms apply to everything sent.",
-    "description": "Consent body naming the custom server.",
-    "placeholders": {
-      "host": {
-        "content": "$1",
-        "example": "my-server.example"
-      }
-    }
-  },
-  "keyHintCustom": {
-    "message": "Created in your provider's dashboard.",
-    "description": "Key hint for custom servers."
-  },
-  "compatHostWarning": {
-    "message": "Keys, images, and page text will be sent to $1 instead of api.meta.ai. Click Save again to confirm.",
-    "description": "One-time warning before saving a new custom server.",
-    "placeholders": {
-      "host": {
-        "content": "$1",
-        "example": "my-server.example"
-      }
-    }
-  },
-  "compatSaveAnyway": {
-    "message": "Save anyway",
-    "description": "Custom server save button while the host warning is armed."
-  },
   "cancelButton": {
     "message": "Cancel",
     "description": "Cancel button for loading states."
@@ -772,10 +678,6 @@
   "settingsModesHeading": {
     "message": "Search modes",
     "description": "Panel settings search-mode toggles heading."
-  },
-  "settingsProviderHeading": {
-    "message": "AI provider",
-    "description": "Panel settings provider heading."
   },
   "optionsDataHeading": {
     "message": "Result cache",
@@ -823,20 +725,6 @@
     "message": "Could not clear the cache - try again.",
     "description": "Cache clear failure."
   },
-  "onboardingProviderHeading": {
-    "message": "Pick your AI provider",
-    "description": "Onboarding provider section heading."
-  },
-  "videoConfirmBodyCustom": {
-    "message": "This captures the current video frame and sends it to $1 - continue?",
-    "description": "First-video confirm disclosure naming the custom server.",
-    "placeholders": {
-      "host": {
-        "content": "$1",
-        "example": "my-server.example"
-      }
-    }
-  },
   "videoConfirmImageOnly": {
     "message": "Image-only mode is on: only the frame is sent, and page text stays on this device.",
     "description": "First-video confirm note when image-only mode is on."
@@ -870,14 +758,6 @@
         "example": "Meta's Muse API"
       }
     }
-  },
-  "keyLabelCustom": {
-    "message": "Custom server API key",
-    "description": "Key field label for a custom server."
-  },
-  "keyPlaceholderCustom": {
-    "message": "Your API key",
-    "description": "Key field placeholder for a custom server."
   },
   "loadingPhaseCollecting": {
     "message": "Collecting the photo…",

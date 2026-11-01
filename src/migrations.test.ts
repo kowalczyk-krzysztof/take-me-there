@@ -13,8 +13,6 @@ afterEach(() => {
 });
 
 const LEGACY_SETTINGS = {
-  activeProviderId: 'muse',
-  openaiCompat: { baseURL: '', model: '' },
   imageOnly: false,
   sessionOnly: false,
 };

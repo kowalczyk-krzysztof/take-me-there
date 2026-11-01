@@ -4,24 +4,6 @@ export const SETTINGS_STORAGE_KEY = 'settings';
 
 export const SETTINGS_VERSION = 1;
 
-// Custom endpoint rule, enforced both at save time and before any request
-// attaches credentials: HTTPS anywhere, or HTTP for the loopback hosts the
-// manifest narrowly permits. Returns the grantable origin.
-export const parseEndpointOrigin = (baseURL: string): string => {
-  const parsed = new URL(baseURL);
-
-  const loopback = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1';
-
-  if (
-    (parsed.protocol !== 'https:' && !(parsed.protocol === 'http:' && loopback)) ||
-    !parsed.hostname
-  ) {
-    throw new Error('unsupported server URL');
-  }
-
-  return parsed.origin;
-};
-
 export interface SettingsRecord {
   v: number;
   settings: Partial<ExtensionSettings>;
@@ -47,14 +29,7 @@ export const migrateSettings = async (): Promise<void> => {
   await chrome.storage.local.set({ [SETTINGS_STORAGE_KEY]: record });
 };
 
-export interface OpenAiCompatSettings {
-  baseURL: string;
-  model: string;
-}
-
 export interface ExtensionSettings {
-  activeProviderId: string;
-  openaiCompat: OpenAiCompatSettings;
   imageOnly: boolean;
   sessionOnly: boolean;
   skipWebSearch: boolean;
@@ -71,8 +46,6 @@ const normalizeTtlDays = (value: unknown): CacheTtlDays =>
   value === 1 || value === 7 || value === 30 ? value : DEFAULT_CACHE_TTL_DAYS;
 
 const DEFAULT_SETTINGS: ExtensionSettings = {
-  activeProviderId: 'muse',
-  openaiCompat: { baseURL: '', model: '' },
   imageOnly: false,
   sessionOnly: false,
   skipWebSearch: false,
@@ -109,17 +82,7 @@ export const loadSettings = async (): Promise<ExtensionSettings> => {
       return structuredClone(DEFAULT_SETTINGS);
     }
 
-    const compat =
-      s.openaiCompat && typeof s.openaiCompat === 'object'
-        ? (s.openaiCompat as Partial<OpenAiCompatSettings>)
-        : {};
-
     return {
-      activeProviderId: typeof s.activeProviderId === 'string' ? s.activeProviderId : 'muse',
-      openaiCompat: {
-        baseURL: typeof compat.baseURL === 'string' ? compat.baseURL : '',
-        model: typeof compat.model === 'string' ? compat.model : '',
-      },
       imageOnly: s.imageOnly === true,
       sessionOnly: s.sessionOnly === true,
       skipWebSearch: s.skipWebSearch === true,

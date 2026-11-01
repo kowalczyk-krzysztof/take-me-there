@@ -177,7 +177,6 @@ describe('sidepanel', () => {
     expect(document.querySelectorAll('#settings-panel .panel-card')).toHaveLength(3);
     expect(document.querySelector('#settings-panel #settings-cost-heading')).not.toBeNull();
     expect(document.querySelector('#settings-panel #retention-select')).toBeNull();
-    expect(document.querySelector('#settings-panel #provider-group')).not.toBeNull();
     expect(document.querySelector('#page-footer #privacy-line')).not.toBeNull();
     expect(document.querySelector('#page-footer #settings-run-line')).toBeNull();
   });
@@ -265,7 +264,6 @@ describe('sidepanel', () => {
     expect(actions.map((button) => button.textContent)).toEqual([
       'keyReplaceButton',
       'clearKeyButton',
-      'clearAllKeysButton',
     ]);
     clickEl(actions[0] as HTMLButtonElement);
     await waitFor(() => {
@@ -427,29 +425,6 @@ describe('sidepanel', () => {
     expect((await cover(loadSettings())).sessionOnly).toBe(false);
   });
 
-  it('clears every provider key from settings', async () => {
-    await setup();
-    await plantKeyAndConsent();
-
-    const { saveKey, loadKey } = await cover(import('./key_vault'));
-    await settleWrite(saveKey('openai_compat', 'LLM_y', false));
-
-    clickEl(document.querySelector('#tab-settings') as HTMLButtonElement);
-    await waitFor(() => {
-      expect(document.querySelector('#key-saved-status')).not.toBeNull();
-    });
-
-    const actions = [...document.querySelectorAll('#settings-panel .confirm-actions button')];
-    const clearAll = actions.find((button) => button.textContent === 'clearAllKeysButton');
-    clickEl(clearAll as HTMLButtonElement);
-    await waitFor(() => {
-      expect(document.querySelector('#settings-panel #key-input')).not.toBeNull();
-    });
-
-    expect((await cover(loadKey('muse'))).state).toBe('missing');
-    expect((await cover(loadKey('openai_compat'))).state).toBe('missing');
-  });
-
   it('shows a visible error when key clear fails', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
@@ -542,17 +517,12 @@ describe('sidepanel', () => {
     const mock = await setup();
     await plantKeyAndConsent();
 
-    const { hashIdentifyKey, normalizeEndpoint, setCacheEntry } = await cover(
-      import('./result_cache')
-    );
+    const { hashIdentifyKey, setCacheEntry } = await cover(import('./result_cache'));
 
     const identify = await cover(
       hashIdentifyKey({
         mediaSeed: 'https://cdn.example.com/oia.jpg',
         pageUrl: 'https://example.com/guide',
-        providerId: 'muse',
-        endpoint: normalizeEndpoint('muse', ''),
-        model: 'muse-spark-1.3',
         imageOnly: false,
       })
     );
@@ -1420,94 +1390,6 @@ describe('sidepanel', () => {
     expect(imagePart?.image_url?.url.startsWith('data:image/jpeg;base64,')).toBe(true);
   });
 
-  it('shows no run figure for custom servers', async () => {
-    const mock = await setup(async (seed) => {
-      await settleWrite(
-        seed.local.set({
-          settings: {
-            v: 1,
-            settings: {
-              activeProviderId: 'openai_compat',
-              openaiCompat: {
-                baseURL: 'https://llm.example.com/v1',
-                model: 'test-model',
-              },
-              imageOnly: false,
-              sessionOnly: false,
-              skipWebSearch: false,
-            },
-          },
-        })
-      );
-    });
-    const { saveKey } = await cover(import('./key_vault'));
-    await settleWrite(saveKey('openai_compat', 'sk_x', false));
-    await plantKeyAndConsent();
-
-    fetchMock.mockResolvedValueOnce(chatResponse(VALID_PLACE));
-    await settleWrite(mock.session.set({ [SLOT]: READY() }));
-    await waitForHeading('Oia');
-    expect(document.querySelector('#settings-run-line')).toBeNull();
-  });
-
-  it('keeps the provider grant when the image origin is the provider origin', async () => {
-    const mock = await setup(async (seed) => {
-      await settleWrite(
-        seed.local.set({
-          settings: {
-            v: 1,
-            settings: {
-              activeProviderId: 'openai_compat',
-              openaiCompat: {
-                baseURL: 'https://cdn.example.com/v1',
-                model: 'test-model',
-              },
-              imageOnly: false,
-              sessionOnly: false,
-              skipWebSearch: false,
-            },
-          },
-        })
-      );
-    });
-    const { saveKey } = await cover(import('./key_vault'));
-    await settleWrite(saveKey('openai_compat', 'sk_x', false));
-    await plantKeyAndConsent();
-
-    const permsRequest = vi.fn().mockResolvedValue(true);
-    const permsRemove = vi.fn().mockResolvedValue(undefined);
-    (chrome as unknown as { permissions: unknown }).permissions = {
-      request: permsRequest,
-      remove: permsRemove,
-    };
-    vi.stubGlobal(
-      'createImageBitmap',
-      vi.fn().mockResolvedValue({ width: 400, height: 300, close: vi.fn() })
-    );
-    vi.stubGlobal(
-      'OffscreenCanvas',
-      vi.fn().mockImplementation(function (this: unknown) {
-        return {
-          getContext: () => ({ drawImage: vi.fn() }),
-          convertToBlob: async () => new Blob(['fakejpeg']),
-        };
-      })
-    );
-    fetchMock
-      .mockResolvedValueOnce(new Response('bad image', { status: 400 }))
-      .mockResolvedValueOnce(new Response('boom', { status: 500 }))
-      .mockResolvedValueOnce(
-        new Response(new Uint8Array([1, 2, 3]), { headers: { 'content-type': 'image/jpeg' } })
-      )
-      .mockResolvedValueOnce(chatResponse(VALID_PLACE));
-    await settleWrite(mock.session.set({ [SLOT]: READY() }));
-    await waitFor(() => {
-      expect(document.querySelector('#result-slot h2')?.textContent).toBe('Oia');
-    });
-    expect(permsRequest).toHaveBeenCalledWith({ origins: ['https://cdn.example.com/*'] });
-    expect(permsRemove).not.toHaveBeenCalled();
-  });
-
   it('fetches retry bytes in the tab without a permission prompt', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
@@ -1883,61 +1765,6 @@ describe('sidepanel', () => {
     mock.local.fault = () => undefined;
   });
 
-  it('saves a custom server from the settings tab and switches back', async () => {
-    const mock = await setup();
-    selectSettingsTab();
-    await waitForSettings();
-
-    const permsRequest = vi.fn().mockResolvedValue(true);
-    const permsRemove = vi.fn().mockResolvedValue(undefined);
-    (chrome as unknown as { permissions: unknown }).permissions = {
-      request: permsRequest,
-      remove: permsRemove,
-    };
-
-    const compat = document.querySelector('#provider-compat') as HTMLInputElement;
-    compat.checked = true;
-    dispatchEl(compat, new Event('change', { bubbles: true }));
-    expect(document.querySelector('#compat-fields')?.hasAttribute('hidden')).toBe(false);
-
-    (document.querySelector('#compat-base-url') as HTMLInputElement).value =
-      'https://llm.example.com/v1';
-    (document.querySelector('#compat-model') as HTMLInputElement).value = 'test-model';
-    clickEl(document.querySelector('#compat-save') as HTMLButtonElement);
-
-    await waitFor(() => {
-      expect(document.querySelector('#compat-error')?.textContent).toBe(
-        'compatHostWarning(llm.example.com)'
-      );
-    });
-
-    clickEl(document.querySelector('#compat-save') as HTMLButtonElement);
-
-    await waitFor(() => {
-      expect(document.querySelector('#status-region')?.textContent).toBe('statusProviderSaved');
-    });
-
-    const stored = mock.local.data.get('settings') as {
-      settings: { activeProviderId: string };
-    };
-    expect(stored.settings.activeProviderId).toBe('openai_compat');
-    expect(document.querySelector('#compat-error')?.hasAttribute('hidden')).toBe(true);
-
-    const muse = document.querySelector('#provider-muse') as HTMLInputElement;
-    muse.checked = true;
-    dispatchEl(muse, new Event('change', { bubbles: true }));
-
-    await waitFor(() => {
-      const record = mock.local.data.get('settings') as {
-        settings: { activeProviderId: string };
-      };
-
-      expect(record.settings.activeProviderId).toBe('muse');
-    });
-    expect(permsRemove).toHaveBeenCalledWith({ origins: ['https://llm.example.com/*'] });
-    expect(document.querySelector('#compat-fields')?.hasAttribute('hidden')).toBe(true);
-  });
-
   it('re-announces a repeated status', async () => {
     const mock = await setup();
 
@@ -1970,53 +1797,11 @@ describe('sidepanel', () => {
     expect(document.querySelector('#status-region')?.textContent).toBe('statusConsentDeclined');
   });
 
-  it('names the custom server in the video confirm', async () => {
-    const mock = await setup();
-    const { saveSettings } = await cover(import('./providers/index'));
-    const { saveKey } = await cover(import('./key_vault'));
-    const { setConsented } = await cover(import('./providers/index'));
-    await settleWrite(
-      saveSettings({
-        activeProviderId: 'openai_compat',
-        openaiCompat: {
-          baseURL: 'https://llm.example.com/v1',
-          model: 'm',
-        },
-        imageOnly: false,
-        sessionOnly: false,
-        skipWebSearch: false,
-        cacheTtlDays: 7,
-      })
-    );
-    await settleWrite(saveKey('openai_compat', 'LLM_x', false));
-    await settleWrite(setConsented());
-
-    await settleWrite(
-      mock.session.set({
-        [SLOT]: READY({
-          srcUrl: 'blob:https://example.com/aaa',
-          mediaType: 'video',
-          frame: { dataUrl: 'data:image/jpeg;base64,ZnJhbWU=', time: 12.5 },
-        }),
-      })
-    );
-
-    await waitFor(() => {
-      expect(document.querySelector('#result-slot h2')?.textContent).toBe('videoConfirmTitle');
-    });
-
-    const paragraphs = [...document.querySelectorAll('#result-slot p')].map((p) => p.textContent);
-    expect(paragraphs).toContain('videoConfirmBodyCustom(llm.example.com)');
-    expect(paragraphs).not.toContain('videoConfirmImageOnly');
-  });
-
   it('explains image-only implications in the video confirm', async () => {
     const mock = await setup();
     const { saveSettings } = await cover(import('./providers/index'));
     await settleWrite(
       saveSettings({
-        activeProviderId: 'muse',
-        openaiCompat: { baseURL: '', model: '' },
         imageOnly: true,
         sessionOnly: false,
         skipWebSearch: false,

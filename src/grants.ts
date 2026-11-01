@@ -1,10 +1,6 @@
-// Temporary versus durable host permissions. Image byte-fetching borrows a
-// per-origin grant for seconds; the configured custom provider owns its
-// origin durably. Temp grants ledger in session storage so a worker
-// restart can reconcile abandoned ones; durable origins derive from the
-// saved settings and are never revoked by temp handling.
-import { loadSettings } from './settings_store';
-
+// Temporary host permissions for image byte-fetching: a per-origin
+// grant is borrowed for seconds. Temp grants ledger in session storage
+// so a worker restart can reconcile abandoned ones.
 export const TEMP_GRANT_KEY = 'tempGrants';
 
 // A byte fetch never holds a grant this long: older ledger entries belong
@@ -47,28 +43,6 @@ const writeLedger = async (ledger: TempLedger): Promise<void> => {
   }
 };
 
-// Origins the extension owns durably: the configured custom provider.
-// Empty when settings are unreadable, which only ever skips revocation.
-export const getDurableOrigins = async (): Promise<Set<string>> => {
-  const origins = new Set<string>();
-
-  try {
-    const settings = await loadSettings();
-
-    if (settings.activeProviderId === 'openai_compat' && settings.openaiCompat.baseURL) {
-      try {
-        origins.add(new URL(settings.openaiCompat.baseURL).origin);
-      } catch {
-        // Saved URLs were validated at save time; ignore garbage.
-      }
-    }
-  } catch {
-    // Settings unreadable: revoke nothing.
-  }
-
-  return origins;
-};
-
 const containsGrant = async (origin: string): Promise<boolean> => {
   try {
     return await chrome.permissions.contains({ origins: [`${origin}/*`] });
@@ -86,9 +60,9 @@ export const removeGrant = async (origin: string): Promise<void> => {
 };
 
 // One origin grant with guaranteed cleanup. Loopback http skips the grant
-// entirely: the fetch goes direct instead. Pre-existing grants (durable
-// provider origins, user approvals) are used but never revoked; only a
-// grant this call created is removed after the task.
+// entirely: the fetch goes direct instead. Pre-existing user approvals
+// are used but never revoked; only a grant this call created is removed
+// after the task.
 export const withTempGrant = async <T>(
   origin: string,
   loopback: boolean,
@@ -125,19 +99,12 @@ export const withTempGrant = async <T>(
     delete next[origin];
     await writeLedger(next);
 
-    // Re-check at release: the origin may have become a configured
-    // provider while the fetch ran, and durable grants are never revoked.
-    const durable = await getDurableOrigins();
-
-    if (!durable.has(origin)) {
-      await removeGrant(origin);
-    }
+    await removeGrant(origin);
   }
 };
 
 // Worker startup sweep: revoke abandoned temp grants. Fresh entries may
-// belong to a live panel and are left alone; durable origins are
-// unledgered but never revoked.
+// belong to a live panel and are left alone.
 export const reconcileTempGrants = async (now: number = Date.now()): Promise<void> => {
   const ledger = await readLedger();
 
@@ -147,16 +114,11 @@ export const reconcileTempGrants = async (now: number = Date.now()): Promise<voi
     return;
   }
 
-  const durable = await getDurableOrigins();
-
   const next: TempLedger = { ...ledger };
 
   for (const [origin] of stale) {
     delete next[origin];
-
-    if (!durable.has(origin)) {
-      await removeGrant(origin);
-    }
+    await removeGrant(origin);
   }
 
   await writeLedger(next);
