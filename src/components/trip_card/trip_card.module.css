@@ -190,6 +190,29 @@
   font-size: 0.75rem;
   line-height: 1.5;
 }
+.root .alternates-provenance {
+  margin: 0 0 8px;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.root .alternates-error-title {
+  margin: 0 0 4px;
+  font-weight: 600;
+}
+.root .alternates-error-body {
+  margin: 0 0 8px;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.root .alternates-sources {
+  margin: 8px 0 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
 .root .alternate-month {
   margin: 0;
   font-size: 0.75rem;

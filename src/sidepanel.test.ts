@@ -1273,6 +1273,7 @@ describe('sidepanel', () => {
 
     const fresh = document.querySelector('#result-slot') as HTMLElement;
     expect(fresh.querySelectorAll('.alternate-card')).toHaveLength(2);
+    expect(fresh.querySelector('.alternates-provenance')?.textContent).toBe('alternatesGrounded');
     expect(document.querySelector('#privacy-line')?.textContent).toBe(
       "privacyNames(Meta's Muse API)"
     );
@@ -1310,6 +1311,9 @@ describe('sidepanel', () => {
 
     const [altUrl] = fetchMock.mock.calls[2] as [string, RequestInit];
     expect(altUrl).toContain('/chat/completions');
+    expect(document.querySelector('#result-slot .alternates-provenance')?.textContent).toBe(
+      'alternatesUngrounded'
+    );
   });
 
   it('recovers from alternates failure with chips intact', async () => {
@@ -1334,6 +1338,59 @@ describe('sidepanel', () => {
     expect(fresh.querySelectorAll('.chips-row .chip')).toHaveLength(3);
     expect(fresh.querySelector('.chip[aria-disabled]')).toBeNull();
     expect(fresh.querySelector('.alternates-skeletons')).toBeNull();
+    expect(fresh.querySelector('.alternates-error-title')?.textContent).toBe('errorServerTitle');
+    expect(fresh.querySelector('.alternates-error-body')?.textContent).toBe('errorServerBody');
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+
+    fetchMock.mockResolvedValueOnce(
+      groundedResponse({
+        alternatives: [
+          {
+            placeName: 'Fira',
+            country: 'Greece',
+            why: 'Same caldera, lower prices.',
+            bestMonth: 'May',
+          },
+        ],
+      })
+    );
+
+    const retry = fresh.querySelector('.alternates button') as HTMLButtonElement;
+    expect(retry.textContent).toBe('retryButton');
+    clickEl(retry);
+
+    await waitFor(() => {
+      expect(document.querySelector('#status-region')?.textContent).toBe('alternatesReady(1)');
+    });
+    expect(document.querySelector('#result-slot h2')?.textContent).toBe('Oia');
+    expect(document.querySelectorAll('#result-slot .alternate-card')).toHaveLength(1);
+    expect(document.querySelector('#result-slot .alternates-error-title')).toBeNull();
+  });
+
+  it('shows an empty state when alternates come back empty', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    fetchMock
+      .mockResolvedValueOnce(previewMiss())
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
+      .mockResolvedValueOnce(groundedResponse({ alternatives: [] }))
+      .mockResolvedValueOnce(chatResponse({ alternatives: [] }));
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
+    await waitForHeading('Oia');
+
+    const card = document.querySelector('#result-slot') as HTMLElement;
+    clickEl(card.querySelector('.chips-row .chip') as HTMLButtonElement);
+
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot .alternates-error-title')?.textContent).toBe(
+        'alternatesEmptyTitle'
+      );
+    });
+    expect(document.querySelector('#result-slot .alternates-error-body')?.textContent).toBe(
+      'alternatesEmptyBody'
+    );
+    expect(document.querySelector('#result-slot h2')?.textContent).toBe('Oia');
+    expect(document.querySelector('#status-region')?.textContent).toBe('alternatesEmptyBody');
     expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 

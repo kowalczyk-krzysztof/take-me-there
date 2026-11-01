@@ -31,6 +31,7 @@ import {
   tryParsePlace,
   type AlternatesInput,
   type AlternatesResult,
+  type SourceLink,
   type ChatMessage,
   type IdentifyInput,
   type IdentifyRequest,
@@ -260,7 +261,7 @@ export class MuseProvider implements Provider {
     schema: Record<string, unknown>,
     prompt: string,
     parse: (json: unknown) => T | undefined
-  ): Promise<T | null> {
+  ): Promise<{ value: T; sources: SourceLink[] } | null> {
     let res: Response;
 
     try {
@@ -318,7 +319,11 @@ export class MuseProvider implements Provider {
 
     const value = parse(extracted.json);
 
-    return value ?? null;
+    if (value === undefined) {
+      return null;
+    }
+
+    return { value, sources: extracted.sources };
   }
 
   private async chatStructured<T>(
@@ -381,8 +386,13 @@ export class MuseProvider implements Provider {
           parseAlternatesContent
         );
 
-    if (grounded) {
-      return { alternatives: grounded, usage: { ...usage } };
+    if (grounded && grounded.value.length > 0) {
+      return {
+        alternatives: grounded.value,
+        grounded: true,
+        sources: grounded.sources,
+        usage: { ...usage },
+      };
     }
 
     const chat = await this.chatStructured(
@@ -396,8 +406,17 @@ export class MuseProvider implements Provider {
       parseAlternatesContent
     );
 
-    if (chat) {
-      return { alternatives: chat, usage: { ...usage } };
+    if (chat && chat.length > 0) {
+      return { alternatives: chat, grounded: false, sources: [], usage: { ...usage } };
+    }
+
+    if (grounded || chat) {
+      return {
+        alternatives: [],
+        grounded: grounded !== null,
+        sources: grounded?.sources ?? [],
+        usage: { ...usage },
+      };
     }
 
     throw invalidResponse(usage, 'model output failed validation');

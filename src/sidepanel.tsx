@@ -99,7 +99,14 @@ type PendingRun = { kind: 'request'; request: TripRequest };
 
 let initialized = false;
 
-let currentAlternates: { intent: AlternateIntent; alternatives: PlaceAlternate[] } | null = null;
+let currentAlternates: {
+  intent: AlternateIntent;
+  alternatives: PlaceAlternate[];
+  grounded: boolean;
+  sources: Array<{ title: string; url: string }>;
+} | null = null;
+
+let alternatesError: { intent: AlternateIntent; titleKey: string; bodyKey: string } | null = null;
 
 let alternatesLoading: AlternateIntent | null = null;
 
@@ -884,6 +891,7 @@ const renderResultHeader = async (
   cancelSkeleton();
   currentView = 'result';
   currentAlternates = null;
+  alternatesError = null;
   currentCached = false;
   const props = resultCardProps(place);
 
@@ -917,6 +925,7 @@ const renderNoPlace = async (
   cancelSkeleton();
   currentView = 'no-place';
   currentAlternates = null;
+  alternatesError = null;
   const signals = request.signals ?? EMPTY_SIGNALS;
   swapResultSlot(() => {
     store.set({
@@ -951,6 +960,7 @@ const renderErrorCard = (
   cancelSkeleton();
   currentView = 'error';
   currentAlternates = null;
+  alternatesError = null;
   swapResultSlot(() => {
     store.set({
       result: {
@@ -1016,6 +1026,7 @@ const renderGrantCard = (kind: GrantCardKind, host: string): void => {
   cancelSkeleton();
   currentView = 'error';
   currentAlternates = null;
+  alternatesError = null;
   swapResultSlot(() => {
     store.set({
       result: {
@@ -1302,6 +1313,7 @@ const renderCached = async (
   }
   run.destination = buildDestination(entry.place.placeName, entry.place.city, entry.place.country);
   currentAlternates = null;
+  alternatesError = null;
   commitDisplayed(run, 'result');
   currentCached = true;
   const props = resultCardProps(entry.place);
@@ -2096,14 +2108,35 @@ const FINDING_KEYS: Record<AlternateIntent, string> = {
   similar: 'alternatesFindingSimilar',
 };
 
+const ALTERNATES_ERROR_KEYS: Record<string, [string, string]> = {
+  rate_limited: ['errorRateTitle', 'errorRateBody'],
+  network: ['errorNetworkTitle', 'errorNetworkBody'],
+  invalid_response: ['errorInvalidTitle', 'errorInvalidBody'],
+};
+
+const ALTERNATES_ERROR_FALLBACK: [string, string] = ['errorServerTitle', 'errorServerBody'];
+
 const alternatesView = (): AlternatesView => {
   if (alternatesLoading) {
     return { state: 'loading', intent: alternatesLoading };
   }
+  if (alternatesError) {
+    return {
+      state: 'error',
+      intent: alternatesError.intent,
+      title: msg(alternatesError.titleKey),
+      body: msg(alternatesError.bodyKey),
+    };
+  }
   if (currentAlternates) {
+    if (currentAlternates.alternatives.length === 0) {
+      return { state: 'empty', intent: currentAlternates.intent };
+    }
     return {
       state: 'ready',
       intent: currentAlternates.intent,
+      grounded: currentAlternates.grounded,
+      sources: currentAlternates.sources,
       cards: currentAlternates.alternatives.map((alt) => ({
         name: buildDestination(alt.placeName, '', alt.country),
         why: alt.why,
@@ -2201,6 +2234,7 @@ const runAlternates = async (intent: AlternateIntent): Promise<void> => {
   const stage = `alternates:${mine}`;
   alternatesLoading = intent;
   currentAlternates = null;
+  alternatesError = null;
   await refreshResultCard();
   announceStatus(FINDING_KEYS[intent]);
   const host = activeRun();
@@ -2240,7 +2274,12 @@ const runAlternates = async (intent: AlternateIntent): Promise<void> => {
     if (mine !== alternatesRunId || (host && activeRun() !== host)) {
       return;
     }
+    const [titleKey, bodyKey] =
+      err instanceof ProviderError
+        ? (ALTERNATES_ERROR_KEYS[err.code] ?? ALTERNATES_ERROR_FALLBACK)
+        : ALTERNATES_ERROR_FALLBACK;
     alternatesLoading = null;
+    alternatesError = { intent, titleKey, bodyKey };
     await refreshResultCard();
     updatePrivacy('names');
     announceAlert('alternatesFail');
@@ -2254,12 +2293,21 @@ const runAlternates = async (intent: AlternateIntent): Promise<void> => {
     await priceAndRecord(bucket, stage);
     return;
   }
-  currentAlternates = { intent, alternatives: result.alternatives };
+  currentAlternates = {
+    intent,
+    alternatives: result.alternatives,
+    grounded: result.grounded,
+    sources: result.sources,
+  };
   alternatesLoading = null;
   await priceAndRecord(bucket, stage);
   await refreshResultCard();
   updatePrivacy('names');
-  announceStatus('alternatesReady', String(result.alternatives.length));
+  if (result.alternatives.length === 0) {
+    announceStatus('alternatesEmptyBody');
+  } else {
+    announceStatus('alternatesReady', String(result.alternatives.length));
+  }
 };
 
 const onAlternates = async (intent: AlternateIntent): Promise<void> => {
@@ -2267,6 +2315,11 @@ const onAlternates = async (intent: AlternateIntent): Promise<void> => {
     await runAlternates(intent);
   } catch {
     alternatesLoading = null;
+    alternatesError = {
+      intent,
+      titleKey: ALTERNATES_ERROR_FALLBACK[0],
+      bodyKey: ALTERNATES_ERROR_FALLBACK[1],
+    };
     await refreshResultCard();
     announceAlert('alternatesFail');
   }

@@ -88,6 +88,8 @@ describe('trip-card', () => {
       alternates: {
         state: 'ready',
         intent: 'cheaper',
+        grounded: true,
+        sources: [],
         cards: [{ name: 'Fira, Greece', why: 'Same caldera.', bestMonth: 'May' }],
       },
     });
@@ -358,6 +360,8 @@ describe('trip-card', () => {
       alternates: {
         state: 'ready',
         intent: 'cheaper',
+        grounded: false,
+        sources: [],
         cards: [
           {
             name: 'Fira, Greece',
@@ -376,6 +380,100 @@ describe('trip-card', () => {
     expect(name.target).toBe('_blank');
     expect(root.querySelector('.alternate-why')?.textContent).toBe('Same caldera, lower prices.');
     expect(root.querySelector('.alternate-month')?.textContent).toBe('alternatesBestMonth(May)');
+    expect(root.querySelector('.alternates-provenance')?.textContent).toBe('alternatesUngrounded');
+  });
+
+  it('renders alternates errors with a contextual retry', () => {
+    const onAlternates = vi.fn();
+
+    const root = renderCard(
+      {
+        view: 'result',
+        place: PLACE,
+        lowConfidence: false,
+        canReanalyze: true,
+        confidence: CONF,
+        sourceHost: 'example.com',
+        destination: null,
+        runCost: null,
+        cached: false,
+        alternates: {
+          state: 'error',
+          intent: 'quieter',
+          title: 'Network down',
+          body: 'Check the connection.',
+        },
+      },
+      { onAlternates }
+    ).container;
+
+    expect(root.querySelector('h2')?.textContent).toBe('Oia');
+    expect(root.querySelector('.alternates-error-title')?.textContent).toBe('Network down');
+    expect(root.querySelector('.alternates-error-body')?.textContent).toBe('Check the connection.');
+
+    const retry = root.querySelector('.alternates button') as HTMLButtonElement;
+    expect(retry.textContent).toBe('retryButton');
+    clickEl(retry);
+    expect(onAlternates).toHaveBeenCalledWith('quieter');
+  });
+
+  it('renders empty alternates with a retry', () => {
+    const onAlternates = vi.fn();
+
+    const root = renderCard(
+      {
+        view: 'result',
+        place: PLACE,
+        lowConfidence: false,
+        canReanalyze: true,
+        confidence: CONF,
+        sourceHost: 'example.com',
+        destination: null,
+        runCost: null,
+        cached: false,
+        alternates: { state: 'empty', intent: 'similar' },
+      },
+      { onAlternates }
+    ).container;
+
+    expect(root.querySelector('.alternates-error-title')?.textContent).toBe('alternatesEmptyTitle');
+    expect(root.querySelector('.alternates-error-body')?.textContent).toBe('alternatesEmptyBody');
+
+    const retry = root.querySelector('.alternates button') as HTMLButtonElement;
+    clickEl(retry);
+    expect(onAlternates).toHaveBeenCalledWith('similar');
+  });
+
+  it('renders grounded provenance with source links', () => {
+    const root = renderCard({
+      view: 'result',
+      place: PLACE,
+      lowConfidence: false,
+      canReanalyze: true,
+      confidence: CONF,
+      sourceHost: 'example.com',
+      destination: null,
+      runCost: null,
+      cached: false,
+      alternates: {
+        state: 'ready',
+        intent: 'similar',
+        grounded: true,
+        sources: [
+          { title: 'Caldera guide', url: 'https://example.com/caldera' },
+          { title: 'example.org', url: 'https://example.org/ferries' },
+        ],
+        cards: [{ name: 'Fira, Greece', why: 'Same caldera.', bestMonth: 'May' }],
+      },
+    }).container;
+
+    expect(root.querySelector('.alternates-provenance')?.textContent).toBe('alternatesGrounded');
+
+    const links = root.querySelectorAll('.alternates-sources a');
+    expect(links).toHaveLength(2);
+    expect((links[0] as HTMLAnchorElement).href).toBe('https://example.com/caldera');
+    expect(links[0].textContent).toContain('Caldera guide');
+    expect((links[1] as HTMLAnchorElement).target).toBe('_blank');
   });
 
   it('renders no-place cards with escapes', () => {

@@ -322,8 +322,13 @@ describe('prompt builders', () => {
     const parsed = parseAlternatesContent(valid);
     expect(parsed).toHaveLength(3);
     expect(parsed?.[0]?.placeName).toBe('Fira');
-    expect(parseAlternatesContent({ alternatives: [] })).toBeUndefined();
+    expect(parseAlternatesContent({ alternatives: [] })).toEqual([]);
     expect(parseAlternatesContent({})).toBeUndefined();
+    expect(
+      parseAlternatesContent({
+        alternatives: [{ placeName: '', country: '', why: '', bestMonth: '' }],
+      })
+    ).toBeUndefined();
   });
 
   it('extracts chat JSON and rejects malformed envelopes', () => {
@@ -354,6 +359,7 @@ describe('prompt builders', () => {
     const extracted = extractResponsesStructured(data);
     expect(extracted?.json).toEqual({ verdict: 'v' });
     expect(extracted?.searchCount).toBe(2);
+    expect(extracted?.sources).toEqual([]);
     expect(extracted?.inputTokens).toBe(200);
     expect(extracted?.outputTokens).toBe(80);
     expect(extractResponsesStructured({})).toBeUndefined();
@@ -365,6 +371,43 @@ describe('prompt builders', () => {
         output: [{ type: 'message', content: [{ type: 'output_text', text: 'nope' }] }],
       })
     ).toBeUndefined();
+  });
+
+  it('collects citation sources and drops unsafe ones', () => {
+    const data = {
+      output: [
+        {
+          type: 'message',
+          content: [
+            {
+              type: 'output_text',
+              text: '{"verdict":"v"}',
+              annotations: [
+                {
+                  type: 'url_citation',
+                  url: 'https://example.com/caldera',
+                  title: 'Caldera guide',
+                },
+                {
+                  type: 'url_citation',
+                  url: 'https://example.com/caldera',
+                  title: 'Caldera guide repeat',
+                },
+                { type: 'url_citation', url: 'https://example.org/ferries' },
+                { type: 'url_citation', url: 'http://example.net/plain', title: 'Plain' },
+                { type: 'other', url: 'https://example.com/other', title: 'Other' },
+              ],
+            },
+          ],
+        },
+      ],
+      usage: { input_tokens: 10, output_tokens: 5 },
+    };
+
+    expect(extractResponsesStructured(data)?.sources).toEqual([
+      { title: 'Caldera guide', url: 'https://example.com/caldera' },
+      { title: 'example.org', url: 'https://example.org/ferries' },
+    ]);
   });
 
   it('extracts raw response text for token-grammar answers', () => {

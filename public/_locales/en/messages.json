@@ -794,5 +794,25 @@
   "paidActionsNote": {
     "message": "Analyze again and alternatives each run a new paid analysis.",
     "description": "Paid-action disclosure above correction controls."
+  },
+  "alternatesEmptyTitle": {
+    "message": "No alternatives found.",
+    "description": "Empty alternates heading."
+  },
+  "alternatesEmptyBody": {
+    "message": "Muse found no alternatives for this place. You can try again.",
+    "description": "Empty alternates explanation."
+  },
+  "alternatesGrounded": {
+    "message": "Checked against live web results.",
+    "description": "Grounded alternates provenance."
+  },
+  "alternatesUngrounded": {
+    "message": "Generated without web search.",
+    "description": "Ungrounded alternates provenance."
+  },
+  "alternatesSources": {
+    "message": "Sources",
+    "description": "Alternates sources label."
   }
 }

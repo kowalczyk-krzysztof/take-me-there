@@ -82,7 +82,11 @@ export const ResultView = ({
           </div>
         ) : null}
         <ChipsRow alternates={alternates} onAlternates={callbacks.onAlternates} />
-        <AlternatesList alternates={alternates} onCancel={callbacks.onCancelAlternates} />
+        <AlternatesList
+          alternates={alternates}
+          onCancel={callbacks.onCancelAlternates}
+          onRetry={callbacks.onAlternates}
+        />
       </section>
     </>
   );

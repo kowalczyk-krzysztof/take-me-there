@@ -3,16 +3,41 @@ import { msg } from '../../utils/i18n';
 import { mapsSearchUrl } from '../../deep_links';
 import { ExternalLink } from '../external_link/external_link';
 import { Monogram } from '../thumb_image/monogram';
-import type { AlternatesView as AlternatesState } from './trip_card';
+import type { AlternatesView as AlternatesState, AlternateIntentView } from './trip_card';
 
 interface Props {
   alternates: AlternatesState;
   onCancel: () => void;
+  onRetry: (intent: AlternateIntentView) => void;
 }
 
-export const AlternatesView = ({ alternates, onCancel }: Props) => {
+export const AlternatesView = ({ alternates, onCancel, onRetry }: Props) => {
   if (alternates.state === 'idle') {
     return null;
+  }
+
+  if (alternates.state === 'error') {
+    return (
+      <div className={styles.alternates}>
+        <p className={styles['alternates-error-title']}>{alternates.title}</p>
+        <p className={styles['alternates-error-body']}>{alternates.body}</p>
+        <button type="button" onClick={() => onRetry(alternates.intent)}>
+          {msg('retryButton')}
+        </button>
+      </div>
+    );
+  }
+
+  if (alternates.state === 'empty') {
+    return (
+      <div className={styles.alternates}>
+        <p className={styles['alternates-error-title']}>{msg('alternatesEmptyTitle')}</p>
+        <p className={styles['alternates-error-body']}>{msg('alternatesEmptyBody')}</p>
+        <button type="button" onClick={() => onRetry(alternates.intent)}>
+          {msg('retryButton')}
+        </button>
+      </div>
+    );
   }
 
   if (alternates.state === 'loading') {
@@ -32,6 +57,9 @@ export const AlternatesView = ({ alternates, onCancel }: Props) => {
 
   return (
     <div className={styles.alternates}>
+      <p className={styles['alternates-provenance']}>
+        {msg(alternates.grounded ? 'alternatesGrounded' : 'alternatesUngrounded')}
+      </p>
       {alternates.cards.map((card) => (
         <div key={card.name} className={styles['alternate-card']}>
           <div className={styles['alternate-head']}>
@@ -44,6 +72,17 @@ export const AlternatesView = ({ alternates, onCancel }: Props) => {
           <p className={styles['alternate-month']}>{msg('alternatesBestMonth', card.bestMonth)}</p>
         </div>
       ))}
+      {alternates.sources.length > 0 ? (
+        <p className={styles['alternates-sources']}>
+          <span>{msg('alternatesSources')}: </span>
+          {alternates.sources.map((source, index) => (
+            <span key={source.url}>
+              {index > 0 ? <span aria-hidden="true"> · </span> : null}
+              <ExternalLink href={source.url}>{source.title}</ExternalLink>
+            </span>
+          ))}
+        </p>
+      ) : null}
     </div>
   );
 };

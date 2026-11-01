@@ -385,6 +385,8 @@ describe('muse findAlternates', () => {
     const result = await provider.findAlternates('LLM_key', alternatesInput());
     expect(result.alternatives).toHaveLength(2);
     expect(result.alternatives[0]?.bestMonth).toBe('May');
+    expect(result.grounded).toBe(true);
+    expect(result.sources).toEqual([]);
 
     const body = requestBody();
     expect(body.text.format.name).toBe('alternates');
@@ -404,6 +406,57 @@ describe('muse findAlternates', () => {
 
     const result = await provider.findAlternates('LLM_key', alternatesInput());
     expect(result.alternatives).toHaveLength(2);
+    expect(result.grounded).toBe(false);
+    expect(result.sources).toEqual([]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('carries citation sources from grounded alternates', async () => {
+    await consented();
+
+    const cited = new Response(
+      JSON.stringify({
+        output: [
+          { type: 'web_search_call' },
+          {
+            type: 'message',
+            content: [
+              {
+                type: 'output_text',
+                text: JSON.stringify(VALID_ALTERNATES),
+                annotations: [
+                  {
+                    type: 'url_citation',
+                    url: 'https://example.com/caldera',
+                    title: 'Caldera guide',
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+        usage: { input_tokens: 200, output_tokens: 80 },
+      }),
+      { status: 200 }
+    );
+    fetchMock.mockResolvedValue(cited);
+
+    const result = await provider.findAlternates('LLM_key', alternatesInput());
+    expect(result.grounded).toBe(true);
+    expect(result.sources).toEqual([
+      { title: 'Caldera guide', url: 'https://example.com/caldera' },
+    ]);
+  });
+
+  it('returns an empty result when both alternates passes agree', async () => {
+    await consented();
+    fetchMock
+      .mockResolvedValueOnce(groundedResponse({ alternatives: [] }))
+      .mockResolvedValueOnce(chatResponse({ alternatives: [] }));
+
+    const result = await provider.findAlternates('LLM_key', alternatesInput());
+    expect(result.alternatives).toEqual([]);
+    expect(result.grounded).toBe(true);
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 

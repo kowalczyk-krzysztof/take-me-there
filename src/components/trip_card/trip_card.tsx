@@ -20,10 +20,23 @@ export interface AlternateCardView {
   bestMonth: string;
 }
 
+export interface AlternateSourceView {
+  title: string;
+  url: string;
+}
+
 export type AlternatesView =
   | { state: 'idle' }
   | { state: 'loading'; intent: AlternateIntentView }
-  | { state: 'ready'; intent: AlternateIntentView; cards: AlternateCardView[] };
+  | {
+      state: 'ready';
+      intent: AlternateIntentView;
+      grounded: boolean;
+      sources: AlternateSourceView[];
+      cards: AlternateCardView[];
+    }
+  | { state: 'empty'; intent: AlternateIntentView }
+  | { state: 'error'; intent: AlternateIntentView; title: string; body: string };
 
 export type LoadingPhase = 'collecting' | 'identifying';
 

@@ -265,6 +265,8 @@ export interface AlternatesInput {
 
 export interface AlternatesResult {
   alternatives: PlaceAlternate[];
+  grounded: boolean;
+  sources: SourceLink[];
   usage: Usage;
 }
 
@@ -475,6 +477,10 @@ export const parseAlternatesContent = (json: unknown): PlaceAlternate[] | undefi
     return undefined;
   }
 
+  if (raw.alternatives.length === 0) {
+    return [];
+  }
+
   const alternatives: PlaceAlternate[] = [];
 
   const seen = new Set<string>();
@@ -548,9 +554,15 @@ export interface SegmentResult {
   usage: Usage;
 }
 
+export interface SourceLink {
+  title: string;
+  url: string;
+}
+
 export interface ResponsesStructured {
   json: unknown;
   searchCount: number;
+  sources: SourceLink[];
   inputTokens: number;
   outputTokens: number;
   cachedInputTokens: number;
@@ -635,6 +647,10 @@ export const extractResponsesStructured = (data: unknown): ResponsesStructured |
 
   let searchCount = 0;
 
+  const sources: SourceLink[] = [];
+
+  const seenSources = new Set<string>();
+
   for (const item of root.output) {
     const entry = (item ?? {}) as {
       type?: unknown;
@@ -660,6 +676,41 @@ export const extractResponsesStructured = (data: unknown): ResponsesStructured |
         continue;
       }
       text ??= block.text;
+
+      if (!Array.isArray(block.annotations)) {
+        continue;
+      }
+
+      for (const note of block.annotations) {
+        if (note?.type !== 'url_citation' || typeof note.url !== 'string') {
+          continue;
+        }
+
+        let host = '';
+
+        try {
+          const parsed = new URL(note.url);
+
+          if (parsed.protocol !== 'https:') {
+            continue;
+          }
+          host = parsed.host;
+        } catch {
+          continue;
+        }
+
+        if (seenSources.has(note.url)) {
+          continue;
+        }
+        seenSources.add(note.url);
+
+        const title =
+          typeof note.title === 'string' && note.title.trim() !== ''
+            ? note.title.trim().slice(0, 120)
+            : host;
+
+        sources.push({ title, url: note.url });
+      }
     }
   }
 
@@ -680,6 +731,7 @@ export const extractResponsesStructured = (data: unknown): ResponsesStructured |
   return {
     json,
     searchCount,
+    sources,
     inputTokens: typeof root.usage?.input_tokens === 'number' ? root.usage.input_tokens : 0,
     outputTokens: typeof root.usage?.output_tokens === 'number' ? root.usage.output_tokens : 0,
     cachedInputTokens: typeof cached === 'number' && cached > 0 ? cached : 0,
