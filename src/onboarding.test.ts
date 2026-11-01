@@ -28,6 +28,7 @@ vi.mock('idb-keyval', () => {
 
 import type { ChromeMock } from './test/chrome_mock';
 import {
+  clickEl,
   cover,
   dispatchEl,
   readShell,
@@ -111,5 +112,46 @@ describe('onboarding', () => {
       expect(document.querySelector('#status-region')?.textContent).toBe('statusKeySaved');
     });
     expect(mock.local.data.has('apiKey:muse')).toBe(true);
+  });
+
+  it('confirms the saved key with replace and clear actions', async () => {
+    const mock = await setup();
+    fetchMock.mockResolvedValue(new Response('[]', { status: 200 }));
+    (document.querySelector('#key-input') as HTMLInputElement).value = 'LLM_new';
+    dispatchEl(
+      document.querySelector('#key-host form') as HTMLFormElement,
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
+    await waitFor(() => {
+      expect(document.querySelector('#key-saved-status')?.textContent).toBe('keySavedStatus');
+    });
+    expect(document.querySelector('#key-host form')).toBeNull();
+
+    const actions = [...document.querySelectorAll('#key-host .confirm-actions button')];
+    expect(actions.map((button) => button.textContent)).toEqual([
+      'keyReplaceButton',
+      'clearKeyButton',
+    ]);
+
+    clickEl(actions[0] as HTMLButtonElement);
+    await waitFor(() => {
+      expect(document.querySelector('#key-host #key-input')).not.toBeNull();
+    });
+
+    (document.querySelector('#key-input') as HTMLInputElement).value = 'LLM_again';
+    dispatchEl(
+      document.querySelector('#key-host form') as HTMLFormElement,
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
+    await waitFor(() => {
+      expect(document.querySelector('#key-saved-status')).not.toBeNull();
+    });
+
+    const again = [...document.querySelectorAll('#key-host .confirm-actions button')];
+    clickEl(again[1] as HTMLButtonElement);
+    await waitFor(() => {
+      expect(document.querySelector('#key-host #key-input')).not.toBeNull();
+    });
+    expect(mock.local.data.has('apiKey:muse')).toBe(false);
   });
 });

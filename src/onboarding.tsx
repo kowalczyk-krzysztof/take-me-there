@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import { KeySetup } from './components/key_setup/key_setup';
-import { saveKey, setKeyMode } from './key_vault';
+import { clearKey, saveKey, setKeyMode } from './key_vault';
 import { ProviderError, getActiveProvider, loadSettings, saveSettings } from './providers/index';
 import { ErrorBoundary } from './components/error_boundary/error_boundary';
 import { msg } from './utils/i18n';
@@ -16,6 +16,7 @@ interface OnboardingState {
   keyError: string | null;
   sessionOnly: boolean;
   keyReset: number;
+  keySaved: boolean;
 }
 
 const store = createStore<OnboardingState>({
@@ -24,6 +25,7 @@ const store = createStore<OnboardingState>({
   keyError: null,
   sessionOnly: false,
   keyReset: 0,
+  keySaved: false,
 });
 
 const onSaveKey = (key: string): void => {
@@ -69,7 +71,26 @@ const onSaveKey = (key: string): void => {
       keyPending: false,
       keyError: null,
       keyReset: store.get().keyReset + 1,
+      keySaved: true,
       status: msg('statusKeySaved'),
+    });
+  })();
+};
+
+const onClearKey = (): void => {
+  void (async () => {
+    try {
+      await clearKey('muse');
+    } catch {
+      store.set({ keyError: msg('settingsSaveFailed') });
+
+      return;
+    }
+
+    store.set({
+      keyError: null,
+      keyReset: store.get().keyReset + 1,
+      keySaved: false,
     });
   })();
 };
@@ -87,44 +108,69 @@ const OnboardingApp = () => {
         <p id="howto">{msg('onboardingHowto')}</p>
       </div>
       <div id="key-host">
-        <KeySetup
-          mode="setup"
-          pending={state.keyPending}
-          error={state.keyError}
-          sessionOnly={state.sessionOnly}
-          resetKey={state.keyReset}
-          laterNote={msg('onboardingKeyLater')}
-          callbacks={{
-            onSave: onSaveKey,
-            onError: (text) => store.set({ keyError: text }),
-            onSessionOnlyChange: (checked) => {
-              store.set({ sessionOnly: checked });
-              void (async () => {
-                const { provider, settings } = await getActiveProvider();
+        <h2>{msg('settingsKeyHeading')}</h2>
+        {!state.keySaved ? (
+          <KeySetup
+            mode="setup"
+            pending={state.keyPending}
+            error={state.keyError}
+            sessionOnly={state.sessionOnly}
+            resetKey={state.keyReset}
+            laterNote={msg('onboardingKeyLater')}
+            callbacks={{
+              onSave: onSaveKey,
+              onError: (text) => store.set({ keyError: text }),
+              onSessionOnlyChange: (checked) => {
+                store.set({ sessionOnly: checked });
+                void (async () => {
+                  const { provider, settings } = await getActiveProvider();
 
-                let result;
+                  let result;
 
-                try {
-                  result = await setKeyMode(provider.id, checked);
-                } catch {
+                  try {
+                    result = await setKeyMode(provider.id, checked);
+                  } catch {
+                    store.set({
+                      sessionOnly: settings.sessionOnly,
+                      status: msg('settingsSaveFailed'),
+                    });
+
+                    return;
+                  }
+
+                  store.set({ sessionOnly: result.sessionOnly });
+
+                  if (result.error) {
+                    store.set({ status: msg('settingsSaveFailed') });
+                  }
+                })();
+              },
+              onConsentDecision: () => {},
+            }}
+          />
+        ) : (
+          <>
+            <p id="key-saved-status">{msg('keySavedStatus')}</p>
+            {state.keyError === null ? null : <p id="key-saved-error">{state.keyError}</p>}
+            <div className="confirm-actions">
+              <button
+                type="button"
+                onClick={() =>
                   store.set({
-                    sessionOnly: settings.sessionOnly,
-                    status: msg('settingsSaveFailed'),
-                  });
-
-                  return;
+                    keyError: null,
+                    keyReset: state.keyReset + 1,
+                    keySaved: false,
+                  })
                 }
-
-                store.set({ sessionOnly: result.sessionOnly });
-
-                if (result.error) {
-                  store.set({ status: msg('settingsSaveFailed') });
-                }
-              })();
-            },
-            onConsentDecision: () => {},
-          }}
-        />
+              >
+                {msg('keyReplaceButton')}
+              </button>
+              <button type="button" onClick={onClearKey}>
+                {msg('clearKeyButton')}
+              </button>
+            </div>
+          </>
+        )}
       </div>
       <div id="status-region" role="status" className="visually-hidden">
         {state.status}
