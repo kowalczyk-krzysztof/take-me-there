@@ -1,6 +1,8 @@
 // Temporary host permissions for image byte-fetching: a per-origin
 // grant is borrowed for seconds. Temp grants ledger in session storage
 // so a worker restart can reconcile abandoned ones.
+import { createMutex, type Mutex } from './utils/mutex';
+
 export const TEMP_GRANT_KEY = 'tempGrants';
 
 // A byte fetch never holds a grant this long: older ledger entries belong
@@ -59,6 +61,24 @@ export const removeGrant = async (origin: string): Promise<void> => {
   }
 };
 
+// One mutex per origin: concurrent borrowers for the same host queue
+// instead of racing, so the first finisher cannot revoke the grant out
+// from under a task that is still fetching.
+const originMutexes = new Map<string, Mutex>();
+
+const mutexForOrigin = (origin: string): Mutex => {
+  const existing = originMutexes.get(origin);
+
+  if (existing) {
+    return existing;
+  }
+
+  const fresh = createMutex();
+  originMutexes.set(origin, fresh);
+
+  return fresh;
+};
+
 // One origin grant with guaranteed cleanup. Loopback http skips the grant
 // entirely: the fetch goes direct instead. Pre-existing user approvals
 // are used but never revoked; only a grant this call created is removed
@@ -72,35 +92,37 @@ export const withTempGrant = async <T>(
     return { granted: true, result: await task() };
   }
 
-  if (await containsGrant(origin)) {
-    return { granted: true, result: await task() };
-  }
+  return mutexForOrigin(origin)(async () => {
+    if (await containsGrant(origin)) {
+      return { granted: true, result: await task() };
+    }
 
-  let granted = false;
+    let granted = false;
 
-  try {
-    granted = await chrome.permissions.request({ origins: [`${origin}/*`] });
-  } catch {
-    granted = false;
-  }
+    try {
+      granted = await chrome.permissions.request({ origins: [`${origin}/*`] });
+    } catch {
+      granted = false;
+    }
 
-  if (!granted) {
-    return { granted: false };
-  }
+    if (!granted) {
+      return { granted: false };
+    }
 
-  const ledger = await readLedger();
-  ledger[origin] = Date.now();
-  await writeLedger(ledger);
+    const ledger = await readLedger();
+    ledger[origin] = Date.now();
+    await writeLedger(ledger);
 
-  try {
-    return { granted: true, result: await task() };
-  } finally {
-    const next = await readLedger();
-    delete next[origin];
-    await writeLedger(next);
+    try {
+      return { granted: true, result: await task() };
+    } finally {
+      const next = await readLedger();
+      delete next[origin];
+      await writeLedger(next);
 
-    await removeGrant(origin);
-  }
+      await removeGrant(origin);
+    }
+  });
 };
 
 // Worker startup sweep: revoke abandoned temp grants. Fresh entries may

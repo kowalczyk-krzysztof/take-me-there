@@ -63,6 +63,40 @@ describe('temp grants', () => {
     expect(permsRemove).not.toHaveBeenCalled();
   });
 
+  it('serializes concurrent borrowers for one origin', async () => {
+    permsRequest.mockResolvedValue(true);
+
+    const events: string[] = [];
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    const first = withTempGrant('https://cdn.example.com', false, async () => {
+      events.push('first-start');
+
+      await gate;
+      events.push('first-end');
+
+      return 'one';
+    });
+    const second = withTempGrant('https://cdn.example.com', false, async () => {
+      events.push('second-start');
+
+      return 'two';
+    });
+
+    for (let i = 0; i < 100 && events.length === 0; i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    expect(events).toEqual(['first-start']);
+
+    release();
+    await expect(first).resolves.toEqual({ granted: true, result: 'one' });
+    await expect(second).resolves.toEqual({ granted: true, result: 'two' });
+    expect(events).toEqual(['first-start', 'first-end', 'second-start']);
+  });
+
   it('skips permission calls for loopback fetches', async () => {
     const task = vi.fn().mockResolvedValue('bytes');
 
