@@ -249,14 +249,14 @@ export const chatResponse = (
     }
   );
 
-export const groundedResponse = (json: unknown, annotations: unknown[] = []): Response =>
+export const groundedResponse = (json: unknown): Response =>
   new Response(
     JSON.stringify({
       output: [
         { type: 'web_search_call' },
         {
           type: 'message',
-          content: [{ type: 'output_text', text: JSON.stringify(json), annotations }],
+          content: [{ type: 'output_text', text: JSON.stringify(json) }],
         },
       ],
       usage: { input_tokens: 200, output_tokens: 80 },

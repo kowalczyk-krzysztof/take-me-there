@@ -10,7 +10,6 @@ const validEntry = () => ({
     confidence: 0.9,
     oneLiner: 'Blue domes over the caldera.',
   },
-  sources: [],
   usage: { inputTokens: 10, outputTokens: 5, searchCount: 0, flatFeesUsd: 0 },
 });
 
@@ -34,14 +33,8 @@ describe('cache entry validation', () => {
     expect(unwrapEntry({ v: CACHE_ENTRY_VERSION })).toBeUndefined();
   });
 
-  it('rejects excess citations and schema violations', () => {
-    const many = {
-      ...validEntry(),
-      sources: Array.from({ length: 33 }, (_, index) => ({
-        title: `T${index}`,
-        url: `https://example.com/${index}`,
-      })),
-    };
+  it('rejects unknown fields and schema violations', () => {
+    const many = { ...validEntry(), sources: [] };
     expect(unwrapEntry(wrapped(many))).toBeUndefined();
 
     const { oneLiner: _dropped, ...shortPlace } = validEntry().place;

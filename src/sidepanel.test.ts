@@ -172,8 +172,6 @@ describe('sidepanel', () => {
     await setup();
     expect(document.querySelector('#booking-heading')?.textContent).toBe('bookingHeading');
     expect(document.querySelector('#links-slot .slot-empty')?.textContent).toBe('bookingEmpty');
-    expect(document.querySelector('#sources-heading')?.textContent).toBe('sourcesHeading');
-    expect(document.querySelector('#sources-slot .slot-empty')?.textContent).toBe('sourcesEmpty');
   });
 
   it('keeps settings in key, modes, and cost cards', async () => {
@@ -578,7 +576,6 @@ describe('sidepanel', () => {
     await settleWrite(
       setCacheEntry(identify, {
         place: VALID_PLACE,
-        sources: [],
         usage: emptyUsage,
       })
     );

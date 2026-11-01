@@ -267,11 +267,6 @@ export interface IdentifyResult {
   textFallback: boolean;
 }
 
-export interface GuideSource {
-  title: string;
-  url: string;
-}
-
 export interface ItineraryPin {
   name: string;
   host: string;
@@ -312,7 +307,6 @@ export interface AlternatesInput {
 
 export interface AlternatesResult {
   alternatives: PlaceAlternate[];
-  sources: GuideSource[];
   usage: Usage;
 }
 
@@ -718,7 +712,6 @@ export interface SegmentResult {
 
 export interface ResponsesStructured {
   json: unknown;
-  sources: GuideSource[];
   searchCount: number;
   inputTokens: number;
   outputTokens: number;
@@ -787,10 +780,6 @@ export const extractResponsesStructured = (data: unknown): ResponsesStructured |
 
   let text: string | undefined;
 
-  const sources: GuideSource[] = [];
-
-  const seenUrls = new Set<string>();
-
   let searchCount = 0;
 
   for (const item of root.output) {
@@ -818,34 +807,6 @@ export const extractResponsesStructured = (data: unknown): ResponsesStructured |
         continue;
       }
       text ??= block.text;
-
-      for (const annotation of block.annotations ?? []) {
-        if (
-          annotation?.type !== 'url_citation' ||
-          typeof annotation.url !== 'string' ||
-          !annotation.url ||
-          seenUrls.has(annotation.url)
-        ) {
-          continue;
-        }
-
-        let scheme = '';
-
-        try {
-          scheme = new URL(annotation.url).protocol;
-        } catch {
-          continue;
-        }
-
-        if (scheme !== 'http:' && scheme !== 'https:') {
-          continue;
-        }
-        seenUrls.add(annotation.url);
-        sources.push({
-          title: typeof annotation.title === 'string' ? annotation.title : '',
-          url: annotation.url,
-        });
-      }
     }
   }
 
@@ -865,7 +826,6 @@ export const extractResponsesStructured = (data: unknown): ResponsesStructured |
 
   return {
     json,
-    sources,
     searchCount,
     inputTokens: typeof root.usage?.input_tokens === 'number' ? root.usage.input_tokens : 0,
     outputTokens: typeof root.usage?.output_tokens === 'number' ? root.usage.output_tokens : 0,

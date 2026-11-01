@@ -580,7 +580,7 @@ describe('prompt builders', () => {
     expect(extractChatJson({ choices: [] })).toBeUndefined();
   });
 
-  it('extracts grounded structured output with citations and usage', () => {
+  it('extracts grounded structured output with usage', () => {
     const data = {
       output: [
         { type: 'web_search_call' },
@@ -591,12 +591,6 @@ describe('prompt builders', () => {
             {
               type: 'output_text',
               text: '{"verdict":"v"}',
-              annotations: [
-                { type: 'url_citation', url: 'https://example.com/a', title: 'A' },
-                { type: 'url_citation', url: 'https://example.com/a', title: 'A again' },
-                { type: 'url_citation', url: 'javascript:alert(1)', title: 'Evil' },
-                { type: 'other', url: 'https://example.com/b' },
-              ],
             },
           ],
         },
@@ -606,7 +600,6 @@ describe('prompt builders', () => {
 
     const extracted = extractResponsesStructured(data);
     expect(extracted?.json).toEqual({ verdict: 'v' });
-    expect(extracted?.sources).toEqual([{ title: 'A', url: 'https://example.com/a' }]);
     expect(extracted?.searchCount).toBe(2);
     expect(extracted?.inputTokens).toBe(200);
     expect(extracted?.outputTokens).toBe(80);

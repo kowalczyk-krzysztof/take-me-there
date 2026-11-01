@@ -113,23 +113,8 @@
   margin: 8px 0 0;
 }
 .root .result-actions .pin-button,
-.root .result-actions .plan-trip-button,
 .root .result-actions .cancel-button {
   margin: 0;
-}
-.root .plan-trip-button {
-  background: var(--action);
-  color: var(--on-action);
-  border-color: transparent;
-}
-.root .plan-trip-button:hover {
-  background: var(--action-hover);
-}
-.root .start-again-hint {
-  margin: 4px 0 0;
-  font-size: 0.75rem;
-  line-height: 1.5;
-  color: var(--muted);
 }
 .root .pin-button[aria-pressed='true'] {
   border-color: var(--link);

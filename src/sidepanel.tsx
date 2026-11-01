@@ -14,7 +14,6 @@ import type {
 } from './components/trip_card/trip_card';
 import { TripCard } from './components/trip_card/trip_card';
 import { KeySetup } from './components/key_setup/key_setup';
-import { SourceChips } from './components/source_chips/source_chips';
 import type {
   BoardItemView,
   TripMovePinDetail,
@@ -101,7 +100,6 @@ import {
   SETTINGS_STORAGE_KEY,
   type AlternateIntent,
   type ExtensionSettings,
-  type GuideSource,
   type Provider,
   type Usage,
 } from './providers/index';
@@ -225,7 +223,6 @@ interface PanelState {
   result: ResultSlotState;
   resultBusy: boolean;
   links: string | null;
-  sources: GuideSource[];
   boardItems: BoardItemView[];
   boardCanPlan: boolean;
   boardPlanStale: boolean;
@@ -267,7 +264,6 @@ const store = createStore<PanelState>({
   result: blankResultSlot(),
   resultBusy: false,
   links: null,
-  sources: [],
   boardItems: [],
   boardCanPlan: false,
   boardPlanStale: false,
@@ -633,16 +629,11 @@ const setPreviewIdentified = (placeName: string): void => {
 const clearContentSlots = (): void => {
   store.set({
     links: null,
-    sources: [],
   });
 };
 
 const showLinks = (destination: string): void => {
   store.set({ links: destination });
-};
-
-const showSources = (sources: GuideSource[]): void => {
-  store.set({ sources: [...sources] });
 };
 
 type PrivacyMode =
@@ -1385,7 +1376,6 @@ const runIdentify = async (args: IdentifyArgs): Promise<RunOutcome> => {
   run.place = identify.place;
   await setCacheEntry(run.cacheKey, {
     place: identify.place,
-    sources: [],
     usage: { ...run.usage },
   });
 
@@ -2444,7 +2434,6 @@ const runAlternates = async (intent: AlternateIntent): Promise<void> => {
   currentAlternates = { intent, alternatives: result.alternatives };
   alternatesLoading = null;
   await refreshResultCard();
-  showSources(result.sources);
   await priceAndRecord(bucket, 'alternates');
   updatePrivacy('names');
   announceStatus('alternatesReady', String(result.alternatives.length));
@@ -3263,14 +3252,6 @@ const SidepanelApp = () => {
             <BookingGrid destination={state.links} />
           ) : (
             <p className="slot-empty">{msg('bookingEmpty')}</p>
-          )}
-        </div>
-        <div id="sources-slot">
-          <h2 id="sources-heading">{msg('sourcesHeading')}</h2>
-          {state.sources.length === 0 ? (
-            <p className="slot-empty">{msg('sourcesEmpty')}</p>
-          ) : (
-            <SourceChips sources={state.sources} />
           )}
         </div>
       </section>

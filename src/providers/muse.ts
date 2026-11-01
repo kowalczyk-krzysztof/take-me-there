@@ -42,7 +42,6 @@ import {
   type AlternatesInput,
   type AlternatesResult,
   type ChatMessage,
-  type GuideSource,
   type IdentifyInput,
   type IdentifyRequest,
   type IdentifyResult,
@@ -373,7 +372,7 @@ export class MuseProvider implements Provider {
     schema: Record<string, unknown>,
     prompt: string,
     parse: (json: unknown) => T | undefined
-  ): Promise<{ value: T; sources: GuideSource[] } | null> {
+  ): Promise<T | null> {
     let res: Response;
 
     try {
@@ -426,7 +425,7 @@ export class MuseProvider implements Provider {
 
     const value = parse(extracted.json);
 
-    return value ? { value, sources: extracted.sources } : null;
+    return value ?? null;
   }
 
   private async chatStructured<T>(
@@ -437,7 +436,7 @@ export class MuseProvider implements Provider {
     schema: Record<string, unknown>,
     messages: (strictReminder: boolean) => ChatMessage[],
     parse: (json: unknown) => T | undefined
-  ): Promise<{ value: T; sources: GuideSource[] } | null> {
+  ): Promise<T | null> {
     for (const strictReminder of [false, true]) {
       const data = await fetchChatCompletion(
         `${API_BASE}/chat/completions`,
@@ -460,7 +459,7 @@ export class MuseProvider implements Provider {
       const value = parse(extractChatJson(data));
 
       if (value) {
-        return { value, sources: [] };
+        return value;
       }
     }
 
@@ -490,7 +489,7 @@ export class MuseProvider implements Provider {
         );
 
     if (grounded) {
-      return { alternatives: grounded.value, sources: grounded.sources, usage: { ...usage } };
+      return { alternatives: grounded, usage: { ...usage } };
     }
 
     const chat = await this.chatStructured(
@@ -505,7 +504,7 @@ export class MuseProvider implements Provider {
     );
 
     if (chat) {
-      return { alternatives: chat.value, sources: chat.sources, usage: { ...usage } };
+      return { alternatives: chat, usage: { ...usage } };
     }
 
     throw invalidResponse(usage, 'model output failed validation');

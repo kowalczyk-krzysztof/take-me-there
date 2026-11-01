@@ -62,7 +62,6 @@ const place = (name: string, country = 'Greece'): PlaceResult => ({
 
 const entry = (name: string): CacheEntry => ({
   place: place(name),
-  sources: [],
   usage: { inputTokens: 10, outputTokens: 5, searchCount: 0, flatFeesUsd: 0 },
 });
 

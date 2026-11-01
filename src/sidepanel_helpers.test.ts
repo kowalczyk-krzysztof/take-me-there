@@ -43,7 +43,6 @@ const entry = (name: string): CacheEntry => ({
     confidence: 1,
     oneLiner: '',
   },
-  sources: [],
   usage: { inputTokens: 1, outputTokens: 1, searchCount: 0, flatFeesUsd: 0 },
 });
 

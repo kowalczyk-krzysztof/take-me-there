@@ -126,8 +126,6 @@ main {
 }
 
 #booking-heading,
-#guide-heading,
-#sources-heading,
 #settings-panel h2 {
   font-size: 1rem;
   line-height: 1.4;
@@ -154,76 +152,11 @@ main {
   color: var(--muted);
 }
 
-#guide-content[hidden] {
-  display: none;
-}
-
-#guide-content {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  height: 320px;
-  overflow-y: auto;
-  overflow-wrap: break-word;
-  scrollbar-gutter: stable;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  box-shadow: var(--shadow);
-  padding: 12px;
-  background: var(--card);
-}
-
-/* A styled scrollbar opts out of macOS overlay auto-hide, so the fixed
-   box never looks like it holds the whole guide when it scrolls. */
-#guide-content::-webkit-scrollbar {
-  width: 10px;
-}
-
-#guide-content::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-#guide-content::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: 8px;
-  border: 2px solid var(--card);
-}
-
-.guide-skeleton {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.guide-loading {
-  color: var(--muted);
-  font-size: 0.75rem;
-  line-height: 1.5;
-  margin: 8px 0 0;
-}
-
-#guide-content h3,
-#guide-content h4,
-#guide-content p,
-#guide-content ul {
-  margin: 0;
-}
-
-#guide-content ul {
-  padding-inline-start: 20px;
-}
-
 #search-line {
   color: var(--muted);
   font-size: 0.75rem;
   line-height: 1.5;
   margin: 0 0 8px;
-}
-
-.guide-interrupted {
-  color: var(--muted);
-  font-size: 0.75rem;
-  line-height: 1.5;
 }
 
 .key-notice {

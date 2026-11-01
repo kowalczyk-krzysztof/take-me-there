@@ -266,7 +266,7 @@ export class OpenAiCompatProvider implements Provider {
       parseAlternatesContent
     );
 
-    return { alternatives, sources: [], usage: { ...usage } };
+    return { alternatives, usage: { ...usage } };
   }
 
   async segmentLandmark(key: string, _input: SegmentInput): Promise<SegmentResult> {

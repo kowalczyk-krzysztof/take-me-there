@@ -576,7 +576,6 @@ describe('muse findAlternates', () => {
       skipWebSearch: true,
     });
     expect(result.alternatives).toHaveLength(2);
-    expect(result.sources).toEqual([]);
     expect(result.usage.searchCount).toBe(0);
     expect(fetchMock).toHaveBeenCalledTimes(1);
 

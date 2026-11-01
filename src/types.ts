@@ -24,18 +24,9 @@ export type PlaceResult = z.infer<typeof PLACE_SCHEMA>;
 export const PROMPT_VERSION = 1;
 
 // Bounded cache entry: validates stored results on read and outbound
-// writes through the storage commands. Guide text and citations match
-// the transport bounds so a conforming run can never fail validation.
+// writes through the storage commands.
 export const CACHE_ENTRY_SCHEMA = z.strictObject({
   place: PLACE_SCHEMA,
-  sources: z
-    .array(
-      z.strictObject({
-        title: z.string().check(z.maxLength(300)),
-        url: z.string().check(z.maxLength(4000)),
-      })
-    )
-    .check(z.maxLength(32)),
   usage: z.strictObject({
     inputTokens: z.number(),
     outputTokens: z.number(),
