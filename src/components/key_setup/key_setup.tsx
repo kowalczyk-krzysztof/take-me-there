@@ -78,7 +78,12 @@ export const KeySetup = ({
           <h2 tabIndex={-1}>{msg('consentTitle')}</h2>
           {context?.media ? <p className={styles.context}>{context.media}</p> : null}
           {context?.page ? <p className={styles.context}>{context.page}</p> : null}
-          <p className={styles['consent-body']}>{msg('consentBody')}</p>
+          <p className={styles['consent-body']}>{msg('consentBodyLead')}</p>
+          <ul className={styles['consent-points']}>
+            <li>{msg('consentPointImage')}</li>
+            <li>{msg('consentPointPrivate')}</li>
+            <li>{msg('consentPointTerms')}</li>
+          </ul>
           {error === null ? null : (
             <p className={styles.error} role="alert">
               {error}

@@ -8,12 +8,14 @@ export const TEMP_GRANT_TTL_MS = 10 * 60 * 1000;
 
 export const GRANT_RETRY_ALARM = 'take-me-there-grant-reconcile';
 
-const GRANT_RETRY_DELAY_MS = 60 * 1000;
+export const GRANT_RETRY_DELAY_MS = 60 * 1000;
 
 // Newly observed unjournaled origins wait out this quarantine before the
 // sweep may revoke them: an in-flight acquisition journals within seconds,
 // while a genuine leak is still cleaned shortly after.
 export const GRANT_QUARANTINE_MS = 60 * 1000;
+
+export const QUARANTINE_KEY = 'tempGrantQuarantine';
 
 export interface GrantEntry {
   count: number;
@@ -26,9 +28,58 @@ type TempLedger = Record<string, GrantEntry>;
 // a read-modify-write can never interleave with another and drop a live borrower.
 const journalMutex = createMutex();
 
-// First-seen timestamps for held-but-unjournaled origins. Worker memory is
-// enough: a restart only extends quarantine for a genuine leak.
-const unjournaledFirstSeen = new Map<string, number>();
+// Retry eligibility per held-but-unjournaled origin. Persisted: workers die
+// after 30 idle seconds, so memory alone would restart every quarantine.
+type QuarantineMap = Record<string, number>;
+
+const readQuarantine = async (): Promise<QuarantineMap> => {
+  const stored = (await chrome.storage.local.get(QUARANTINE_KEY)) as Record<string, unknown>;
+
+  const value = stored[QUARANTINE_KEY];
+
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {};
+  }
+
+  const quarantined: QuarantineMap = {};
+
+  for (const [origin, eligibleAt] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof eligibleAt === 'number' && Number.isFinite(eligibleAt)) {
+      quarantined[origin] = eligibleAt;
+    }
+  }
+
+  return quarantined;
+};
+
+const writeQuarantine = async (quarantined: QuarantineMap): Promise<void> => {
+  await chrome.storage.local.set({ [QUARANTINE_KEY]: quarantined });
+};
+
+// Standing manifest hosts are required access, never temporary grants.
+const standingOrigins = (): Set<string> => {
+  try {
+    const manifest = (
+      chrome as unknown as { runtime?: { getManifest?: () => unknown } }
+    ).runtime?.getManifest?.() as { host_permissions?: unknown } | undefined;
+
+    const hosts = manifest?.host_permissions;
+
+    if (Array.isArray(hosts)) {
+      const origins = hosts
+        .filter((entry): entry is string => typeof entry === 'string')
+        .map((pattern) => (pattern.endsWith('/*') ? pattern.slice(0, -2) : pattern));
+
+      if (origins.length > 0) {
+        return new Set(origins);
+      }
+    }
+  } catch {
+    // Fall through to the known API host below.
+  }
+
+  return new Set(['https://api.meta.ai']);
+};
 
 const readLedger = async (): Promise<TempLedger> => {
   const stored = (await chrome.storage.local.get(TEMP_GRANT_KEY)) as Record<string, unknown>;
@@ -226,8 +277,18 @@ const updateGrantAlarm = async (now: number): Promise<void> => {
     return;
   }
 
-  for (const firstSeen of unjournaledFirstSeen.values()) {
-    const candidate = Math.max(0, firstSeen + GRANT_QUARANTINE_MS - now);
+  let quarantined: QuarantineMap;
+
+  try {
+    quarantined = await readQuarantine();
+  } catch {
+    scheduleGrantRetry(GRANT_RETRY_DELAY_MS);
+
+    return;
+  }
+
+  for (const eligibleAt of Object.values(quarantined)) {
+    const candidate = Math.max(0, eligibleAt - now);
 
     delay = delay === null ? candidate : Math.min(delay, candidate);
   }
@@ -270,40 +331,52 @@ const reconcileInner = async (now: number): Promise<void> => {
     return;
   }
 
+  const quarantined = await readQuarantine();
+  const standing = standingOrigins();
   const heldOrigins = new Set<string>();
 
   for (const pattern of held) {
     const origin = pattern.endsWith('/*') ? pattern.slice(0, -2) : pattern;
     heldOrigins.add(origin);
 
+    if (standing.has(origin)) {
+      delete quarantined[origin];
+
+      continue;
+    }
+
     if (ledger[origin]) {
-      unjournaledFirstSeen.delete(origin);
+      delete quarantined[origin];
 
       continue;
     }
 
-    const firstSeen = unjournaledFirstSeen.get(origin);
+    const eligibleAt = quarantined[origin];
 
-    if (firstSeen === undefined) {
-      unjournaledFirstSeen.set(origin, now);
+    if (eligibleAt === undefined) {
+      quarantined[origin] = now + GRANT_QUARANTINE_MS;
 
       continue;
     }
 
-    if (now - firstSeen < GRANT_QUARANTINE_MS) {
+    if (now < eligibleAt) {
       continue;
     }
 
     if (await removeGrantVerified(origin)) {
-      unjournaledFirstSeen.delete(origin);
+      delete quarantined[origin];
+    } else {
+      quarantined[origin] = now + GRANT_RETRY_DELAY_MS;
     }
   }
 
-  for (const origin of unjournaledFirstSeen.keys()) {
+  for (const origin of Object.keys(quarantined)) {
     if (!heldOrigins.has(origin)) {
-      unjournaledFirstSeen.delete(origin);
+      delete quarantined[origin];
     }
   }
+
+  await writeQuarantine(quarantined);
 };
 
 // Never throws: cleanup must not break the run that triggered it. Fresh

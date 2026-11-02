@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   GRANT_QUARANTINE_MS,
   GRANT_RETRY_ALARM,
+  GRANT_RETRY_DELAY_MS,
+  QUARANTINE_KEY,
   TEMP_GRANT_KEY,
   TEMP_GRANT_TTL_MS,
   addGrantJournal,
@@ -50,6 +52,11 @@ const readJournal = async (): Promise<Record<string, { count: number; at: number
       Record<string, { count: number; at: number }>
     >
   )[TEMP_GRANT_KEY] ?? {};
+
+const readQuarantine = async (): Promise<Record<string, number>> =>
+  ((await mock.local.get(QUARANTINE_KEY)) as Record<string, Record<string, number>>)[
+    QUARANTINE_KEY
+  ] ?? {};
 
 describe('requestHostAccess', () => {
   it('maps an approval to granted', async () => {
@@ -202,6 +209,71 @@ describe('reconcileTempGrants', () => {
     expect(permsRemove).toHaveBeenCalledTimes(1);
     expect(permsRemove).toHaveBeenCalledWith({ origins: ['https://leak.example/*'] });
     expect((await readJournal())[ORIGIN]?.count).toBe(1);
+  });
+
+  it('preserves quarantine elapsed time across a worker restart', async () => {
+    const LEAK = 'https://gone.example.com';
+    permsGetAll.mockResolvedValue({ origins: [`${LEAK}/*`] });
+
+    await reconcileTempGrants(Date.now());
+    expect(permsRemove).not.toHaveBeenCalled();
+
+    vi.resetModules();
+    const fresh = await import('./grants');
+
+    await fresh.reconcileTempGrants(Date.now() + GRANT_QUARANTINE_MS + 1);
+
+    expect(permsRemove).toHaveBeenCalledWith({ origins: [`${LEAK}/*`] });
+  });
+
+  it('leaves standing manifest hosts alone with no alarm', async () => {
+    const alarmsCreate = vi.fn();
+    const alarmsClear = vi.fn();
+    (chrome as unknown as { alarms: unknown }).alarms = {
+      create: alarmsCreate,
+      clear: alarmsClear,
+    };
+    (chrome as unknown as { runtime: unknown }).runtime = {
+      ...((chrome as unknown as { runtime: object }).runtime as object),
+      getManifest: () => ({ host_permissions: ['https://api.meta.ai/*'] }),
+    };
+    permsGetAll.mockResolvedValue({ origins: ['https://api.meta.ai/*'] });
+
+    await reconcileTempGrants();
+
+    expect(permsRemove).not.toHaveBeenCalled();
+    expect(alarmsCreate).not.toHaveBeenCalled();
+    expect(alarmsClear).toHaveBeenCalledWith(GRANT_RETRY_ALARM);
+    expect(await readQuarantine()).toEqual({});
+
+    delete (chrome as unknown as { alarms?: unknown }).alarms;
+  });
+
+  it('backs off failed optional revocations with a future persisted deadline', async () => {
+    const alarmsCreate = vi.fn();
+    (chrome as unknown as { alarms: unknown }).alarms = {
+      create: alarmsCreate,
+      clear: vi.fn(),
+    };
+    permsGetAll.mockResolvedValue({ origins: [`${ORIGIN}/*`] });
+    permsContains.mockResolvedValue(true);
+
+    const started = Date.now();
+    await reconcileTempGrants(started);
+    expect(permsRemove).not.toHaveBeenCalled();
+
+    const retryAt = started + GRANT_QUARANTINE_MS + 1;
+    await reconcileTempGrants(retryAt);
+    expect(permsRemove).toHaveBeenCalledTimes(1);
+
+    expect(await readQuarantine()).toEqual({ [ORIGIN]: retryAt + GRANT_RETRY_DELAY_MS });
+    const last = alarmsCreate.mock.calls[alarmsCreate.mock.calls.length - 1];
+    expect(last[0]).toBe(GRANT_RETRY_ALARM);
+    expect(
+      Math.abs((last[1] as { when: number }).when - Date.now() - GRANT_RETRY_DELAY_MS)
+    ).toBeLessThan(5000);
+
+    delete (chrome as unknown as { alarms?: unknown }).alarms;
   });
 
   it('holds an acquisition granted while reconciliation is pending', async () => {

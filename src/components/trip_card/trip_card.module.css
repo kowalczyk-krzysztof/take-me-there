@@ -35,6 +35,26 @@
   margin-inline-start: 8px;
   vertical-align: middle;
 }
+.root .meta-badge {
+  display: inline-block;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--meta-surface);
+  color: var(--meta);
+  margin-inline-start: 8px;
+  vertical-align: middle;
+}
+.root .idle-mark {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--brand-accent);
+  margin-inline-end: 8px;
+  vertical-align: baseline;
+}
 .root .hint {
   margin: 0 0 4px;
 }
@@ -109,6 +129,22 @@
   line-height: 1.5;
   color: var(--muted);
 }
+.root .details {
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--muted);
+  margin: 4px 0 0;
+}
+.root .details summary {
+  cursor: pointer;
+  color: var(--link);
+}
+.root .alternates-heading {
+  font-size: 1rem;
+  line-height: 1.4;
+  font-weight: 600;
+  margin: 0;
+}
 .root .source {
   margin: 4px 0 0;
   font-size: 0.75rem;
@@ -152,6 +188,10 @@
   padding: 8px 12px;
   font-size: 0.75rem;
   line-height: 1.5;
+}
+.root .chip-active {
+  border-color: var(--brand-accent);
+  background: color-mix(in srgb, var(--brand-accent) 14%, var(--card));
 }
 .root .alternates {
   display: flex;

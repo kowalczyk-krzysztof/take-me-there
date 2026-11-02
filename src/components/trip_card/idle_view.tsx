@@ -6,6 +6,7 @@ interface Props {
 
 export const IdleView = ({ hint }: Props) => (
   <p id="idle-hint" className={styles.hint}>
+    <span className={styles['idle-mark']} aria-hidden="true" />
     {hint}
   </p>
 );

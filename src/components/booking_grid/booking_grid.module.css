@@ -29,3 +29,19 @@
     var(--shadow),
     0 0 0 1px var(--link);
 }
+
+.root .tile.primary {
+  background: var(--action);
+  border-color: transparent;
+  color: var(--on-action);
+  box-shadow: var(--shadow);
+  font-weight: 600;
+}
+
+.root .tile.primary:hover {
+  background: var(--action-hover);
+  border-color: transparent;
+  box-shadow:
+    var(--shadow),
+    0 0 0 1px var(--action-hover);
+}

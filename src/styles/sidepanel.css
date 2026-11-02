@@ -42,6 +42,7 @@ main {
   color: var(--muted);
   border: none;
   border-bottom: 2px solid transparent;
+  border-radius: 0;
   margin-bottom: -1px;
   cursor: pointer;
   transition: color 120ms ease;
@@ -87,9 +88,8 @@ main {
   align-items: center;
   justify-content: center;
   position: relative;
-  width: fit-content;
-  max-width: 100%;
-  margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
   min-height: 96px;
   border: 1px solid var(--border);
   border-radius: 12px;

@@ -135,7 +135,7 @@ interface PreviewOverlay {
 }
 
 type PreviewState =
-  | { kind: 'placeholder' }
+  | { kind: 'placeholder'; waiting?: boolean }
   | {
       kind: 'image';
       src: string;
@@ -576,7 +576,7 @@ const updatePreview = (
   }
 
   if (!consented) {
-    showPreviewPlaceholder();
+    showPreviewWaiting();
 
     return;
   }
@@ -615,6 +615,35 @@ const updatePreview = (
 const showPreviewPlaceholder = (): void => {
   revokePreviewObjectUrl();
   store.set({ preview: { kind: 'placeholder' } });
+};
+
+const showPreviewWaiting = (): void => {
+  revokePreviewObjectUrl();
+  store.set({ preview: { kind: 'placeholder', waiting: true } });
+};
+
+// Arrival preview without fetching: data addresses render at once, remote
+// addresses wait for consent state, and the gated analysis loads the bytes.
+const previewForArrival = async (srcUrl: string | null): Promise<void> => {
+  if (!srcUrl || !isAllowedPreviewUrl(srcUrl)) {
+    showPreviewPlaceholder();
+
+    return;
+  }
+
+  if (srcUrl.startsWith('data:image/') || srcUrl.startsWith('blob:')) {
+    updatePreview(srcUrl);
+
+    return;
+  }
+
+  const consented = await hasConsented().catch(() => false);
+
+  if (consented) {
+    showPreviewPlaceholder();
+  } else {
+    showPreviewWaiting();
+  }
 };
 
 const setPreviewIdentified = (placeName: string): void => {
@@ -845,6 +874,17 @@ const applyGateBlock = (
     showOnboarding(gate.orphaned);
   } else if (gate.reason === 'consent') {
     showConsent(false);
+
+    const src = request.srcUrl || null;
+
+    if (
+      src &&
+      !src.startsWith('data:image/') &&
+      !src.startsWith('blob:') &&
+      isAllowedPreviewUrl(src)
+    ) {
+      showPreviewWaiting();
+    }
   }
 
   announceGate(gate.reason);
@@ -1688,7 +1728,7 @@ const handle = async (value: unknown): Promise<void> => {
     updatePrivacy('idle');
     return;
   }
-  updatePreview(request.srcUrl || null);
+  void previewForArrival(request.srcUrl || null);
   if (request.status === 'collecting') {
     collectingSeq = request.seq;
     announceStatus('statusAnalyzing');
@@ -2662,7 +2702,13 @@ const onKeySave = async (key: string): Promise<void> => {
     return;
   }
   selectTab('main');
-  if (!(await hasConsented())) {
+  const consented = await hasConsented();
+
+  if (ticket !== runTicket) {
+    return;
+  }
+
+  if (!consented) {
     showConsent(true);
     return;
   }
@@ -2737,7 +2783,7 @@ interface PreviewFrameProps {
 
 const PreviewFrame = ({ preview }: PreviewFrameProps) => {
   if (preview.kind === 'placeholder') {
-    return <span>{msg('previewUnavailable')}</span>;
+    return <span>{msg(preview.waiting ? 'previewPausedUntilAgree' : 'previewUnavailable')}</span>;
   }
   if (preview.kind === 'crop') {
     return (

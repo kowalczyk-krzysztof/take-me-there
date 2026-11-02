@@ -3,16 +3,24 @@ import { msg } from '../../utils/i18n';
 import { mapsSearchUrl } from '../../deep_links';
 import { ExternalLink } from '../external_link/external_link';
 import { Monogram } from '../thumb_image/monogram';
+import { INTENT_KEYS } from './chips_row';
 import type { AlternatesView as AlternatesState, AlternateIntentView } from './trip_card';
 
 interface Props {
   alternates: AlternatesState;
+  placeName: string;
   onCancel: () => void;
   onRetry: (intent: AlternateIntentView) => void;
   onUpdateKey: (intent: AlternateIntentView) => void;
 }
 
-export const AlternatesView = ({ alternates, onCancel, onRetry, onUpdateKey }: Props) => {
+export const AlternatesView = ({
+  alternates,
+  placeName,
+  onCancel,
+  onRetry,
+  onUpdateKey,
+}: Props) => {
   if (alternates.state === 'idle') {
     return null;
   }
@@ -64,6 +72,9 @@ export const AlternatesView = ({ alternates, onCancel, onRetry, onUpdateKey }: P
 
   return (
     <div className={styles.alternates}>
+      <h3 className={styles['alternates-heading']}>
+        {msg('alternatesHeading', [msg(INTENT_KEYS[alternates.intent]), placeName])}
+      </h3>
       <p className={styles['alternates-provenance']}>
         {msg(alternates.grounded ? 'alternatesGrounded' : 'alternatesUngrounded')}
       </p>

@@ -567,7 +567,7 @@ describe('sidepanel', () => {
         'costLine($0.00)'
       );
     });
-    expect(document.querySelector('#result-slot .run-cost .badge')?.textContent).toBe(
+    expect(document.querySelector('#result-slot .run-cost .meta-badge')?.textContent).toBe(
       'cacheFreeBadge'
     );
     expect(document.querySelector('#status-region')?.textContent).toBe('statusCacheHit(Oia)');
@@ -592,7 +592,7 @@ describe('sidepanel', () => {
     await waitFor(() => {
       expect(document.querySelector('#result-slot .run-cost')?.textContent).toContain('costLine(');
     });
-    expect(document.querySelector('#result-slot .run-cost .badge')).toBeNull();
+    expect(document.querySelector('#result-slot .run-cost .meta-badge')).toBeNull();
     expect(fetchMock).toHaveBeenCalledTimes(2);
     mock.session.fault = () => undefined;
   });
@@ -861,6 +861,9 @@ describe('sidepanel', () => {
     });
     await sleep(50);
     expect(fetchMock).not.toHaveBeenCalled();
+    expect(document.querySelector('#preview-frame')?.textContent).toContain(
+      'previewPausedUntilAgree'
+    );
   });
 
   it('runs exactly once after consent is granted', async () => {
@@ -1560,6 +1563,76 @@ describe('sidepanel', () => {
     expect(document.querySelectorAll('#result-slot .alternate-card')).toHaveLength(0);
     expect(document.querySelector('#tab-settings')?.getAttribute('aria-selected')).toBe('true');
     expect(fetchMock).toHaveBeenCalledTimes(7);
+
+    const { loadKey } = await settleWrite(import('./key_vault'));
+    await expect(settleWrite(loadKey('muse'))).resolves.toMatchObject({ state: 'ok' });
+  });
+
+  it('drops a stale post-save consent read that resolves after a newer result', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    fetchMock
+      .mockResolvedValueOnce(previewMiss())
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
+      .mockResolvedValueOnce(new Response('[]', { status: 200 }))
+      .mockResolvedValueOnce(previewMiss())
+      .mockResolvedValueOnce(chatResponse(PLACE_B));
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
+    await waitForHeading('Oia');
+
+    const realGet = mock.local.get.bind(mock.local);
+    let resolveStale!: (value: Record<string, unknown>) => void;
+    let gatedRead = false;
+    vi.spyOn(mock.local, 'get').mockImplementation(async (keys) => {
+      const list = keys === null || keys === undefined ? [] : Array.isArray(keys) ? keys : [keys];
+
+      if (!gatedRead && list.includes('consentGiven')) {
+        gatedRead = true;
+
+        return new Promise<Record<string, unknown>>((resolve) => {
+          resolveStale = resolve;
+        });
+      }
+
+      return realGet(keys);
+    });
+
+    clickEl(document.querySelector('#tab-settings') as HTMLButtonElement);
+    await waitFor(() => {
+      expect(document.querySelector('#settings-panel')).not.toBeNull();
+    });
+    const replace = [...document.querySelectorAll('#settings-panel button')].find(
+      (button) => button.textContent === 'keyReplaceButton'
+    ) as HTMLButtonElement;
+    clickEl(replace);
+    await waitFor(() => {
+      expect(document.querySelector('#settings-panel #key-input')).not.toBeNull();
+    });
+    (document.querySelector('#settings-panel #key-input') as HTMLInputElement).value = 'LLM_new';
+    dispatchEl(
+      document.querySelector('#settings-panel form') as HTMLFormElement,
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
+    await waitFor(() => {
+      expect(gatedRead).toBe(true);
+    });
+
+    await settleWrite(
+      mock.session.set({
+        [SLOT]: READY({ requestId: 'B-1', srcUrl: 'https://cdn.example.com/fira.jpg' }),
+      })
+    );
+    await waitForHeading('Fira');
+
+    await settleWrite(
+      (async () => {
+        resolveStale({});
+      })()
+    );
+    await sleep(50);
+
+    expect(document.querySelector('#result-slot h2')?.textContent).toBe('Fira');
+    expect(fetchMock).toHaveBeenCalledTimes(5);
 
     const { loadKey } = await settleWrite(import('./key_vault'));
     await expect(settleWrite(loadKey('muse'))).resolves.toMatchObject({ state: 'ok' });

@@ -247,10 +247,6 @@
     "message": "Before the first analysis",
     "description": "Consent gate heading."
   },
-  "consentBody": {
-    "message": "Analyzing sends the clicked image (its web address or, for inline images, captured frames, and on-demand retries, its pixels), nearby page text (title, captions, metadata) to Meta's Muse API using your key. For private images, the image's address itself can grant access to it. Meta may run web searches while finding alternatives. Per Meta's API terms, standard (non-contributor) models are not trained on your content. The panel also loads a small preview of the image from its host without cookies.",
-    "description": "Canonical data-transmission disclosure."
-  },
   "onboardingHowto": {
     "message": "Right-click any image on any page and choose Take me there. Muse AI identifies the place.",
     "description": "Onboarding how-it-works line."
@@ -320,7 +316,7 @@
     }
   },
   "privacyImage": {
-    "message": "Your search is sent to $1 with your key: this image's address and nearby page text",
+    "message": "Sent to $1 with your key: this image's address and nearby page text",
     "description": "Privacy footer for image analyses.",
     "placeholders": {
       "destination": {
@@ -330,7 +326,7 @@
     }
   },
   "privacyImageOnly": {
-    "message": "Your search is sent to $1 with your key: this image's address only",
+    "message": "Sent to $1 with your key: this image's address only",
     "description": "Privacy footer for image-only analyses.",
     "placeholders": {
       "destination": {
@@ -440,7 +436,7 @@
     "description": "Alert announcement for video failures."
   },
   "privacyVideoFrame": {
-    "message": "Your search is sent to $1 with your key: this captured video frame and nearby page text.",
+    "message": "Sent to $1 with your key: this captured video frame and nearby page text.",
     "description": "Privacy footer for frame analysis.",
     "placeholders": {
       "destination": {
@@ -450,7 +446,7 @@
     }
   },
   "privacyVideoUrl": {
-    "message": "Your search is sent to $1 with your key: this video, its soundtrack, and nearby page text.",
+    "message": "Sent to $1 with your key: this video, its soundtrack, and nearby page text.",
     "description": "Privacy footer for full-video analysis.",
     "placeholders": {
       "destination": {
@@ -520,7 +516,7 @@
     }
   },
   "privacyNames": {
-    "message": "Your search is sent to $1 with your key: place names only.",
+    "message": "Sent to $1 with your key: place names only.",
     "description": "Privacy footer for alternates.",
     "placeholders": {
       "destination": {
@@ -574,7 +570,7 @@
     "description": "Settings button revealing the key form for replacement."
   },
   "privacyImagePixels": {
-    "message": "Your search is sent to $1 with your key: this image's pixels and nearby page text.",
+    "message": "Sent to $1 with your key: this image's pixels and nearby page text.",
     "description": "Privacy footer when image bytes are uploaded.",
     "placeholders": {
       "destination": {
@@ -642,7 +638,7 @@
     "description": "First-video confirm note when image-only mode is on."
   },
   "privacyImagePixelsOnly": {
-    "message": "Your search is sent to $1 with your key: this image's pixels only.",
+    "message": "Sent to $1 with your key: this image's pixels only.",
     "description": "Privacy line for inline images with image-only mode on.",
     "placeholders": {
       "destination": {
@@ -652,7 +648,7 @@
     }
   },
   "privacyVideoFrameOnly": {
-    "message": "Your search is sent to $1 with your key: this captured video frame only.",
+    "message": "Sent to $1 with your key: this captured video frame only.",
     "description": "Privacy line for a video frame with image-only mode on.",
     "placeholders": {
       "destination": {
@@ -662,7 +658,7 @@
     }
   },
   "privacyVideoUrlOnly": {
-    "message": "Your search is sent to $1 with your key: this video and its soundtrack only.",
+    "message": "Sent to $1 with your key: this video and its soundtrack only.",
     "description": "Privacy line for full-video analysis with image-only mode on.",
     "placeholders": {
       "destination": {
@@ -876,5 +872,33 @@
         "example": "example.com"
       }
     }
+  },
+  "previewPausedUntilAgree": {
+    "message": "Preview is paused until you agree.",
+    "description": "Placeholder while preview waits for consent."
+  },
+  "confidenceDetailsLabel": {
+    "message": "What this score means",
+    "description": "Disclosure label for the confidence scale."
+  },
+  "alternatesHeading": {
+    "message": "$1 alternatives to $2",
+    "description": "Heading above alternatives results."
+  },
+  "consentBodyLead": {
+    "message": "Analyzing sends this image and nearby page text to Meta's Muse API using your key.",
+    "description": "Consent lead sentence."
+  },
+  "consentPointImage": {
+    "message": "Sent: the image's web address (its pixels on retries, captured frames for video), plus page title, captions, and metadata.",
+    "description": "Consent bullet: what is sent."
+  },
+  "consentPointPrivate": {
+    "message": "For private images, the address itself can grant access to it.",
+    "description": "Consent bullet: private address warning."
+  },
+  "consentPointTerms": {
+    "message": "Meta may run web searches while finding alternatives. Per Meta's API terms, standard models are not trained on your content. The panel also loads a small cookieless preview.",
+    "description": "Consent bullet: searches, training, preview."
   }
 }

@@ -47,7 +47,10 @@ export const ResultView = ({
       {subtitle ? <p className={styles.subtitle}>{subtitle}</p> : null}
       <p className={styles.confidence}>{confidence.line}</p>
       {confidence.showScale ? (
-        <p className={styles['confidence-scale']}>{msg('confidenceScale')}</p>
+        <details className={styles.details}>
+          <summary>{msg('confidenceDetailsLabel')}</summary>
+          <p className={styles['confidence-scale']}>{msg('confidenceScale')}</p>
+        </details>
       ) : null}
       {sourceHost ? <p className={styles.source}>{msg('sourceLine', sourceHost)}</p> : null}
       {place.oneLiner ? (
@@ -66,7 +69,7 @@ export const ResultView = ({
           {cached ? (
             <>
               {' '}
-              <span className={styles.badge}>{msg('cacheFreeBadge')}</span>
+              <span className={styles['meta-badge']}>{msg('cacheFreeBadge')}</span>
             </>
           ) : null}
         </p>
@@ -84,6 +87,7 @@ export const ResultView = ({
         <ChipsRow alternates={alternates} onAlternates={callbacks.onAlternates} />
         <AlternatesList
           alternates={alternates}
+          placeName={place.placeName}
           onCancel={callbacks.onCancelAlternates}
           onRetry={callbacks.onAlternates}
           onUpdateKey={callbacks.onAlternatesKey}

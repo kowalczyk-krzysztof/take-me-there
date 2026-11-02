@@ -80,6 +80,33 @@ describe('shared_styles contrast', () => {
     expect(ratio(token('--error', block), token('--card', block))).toBeGreaterThanOrEqual(4.5);
   });
 
+  it.each([
+    ['light', light],
+    ['dark', dark],
+  ])('keeps essential control boundaries at 3:1 or better in %s mode', (_mode, block) => {
+    expect(ratio(token('--border-control', block), token('--card', block))).toBeGreaterThanOrEqual(
+      3
+    );
+  });
+
+  it.each([
+    ['light', light],
+    ['dark', dark],
+  ])('keeps neutral metadata text at 4.5:1 or better in %s mode', (_mode, block) => {
+    expect(ratio(token('--meta', block), token('--meta-surface', block))).toBeGreaterThanOrEqual(
+      4.5
+    );
+  });
+
+  it.each([
+    ['light', light],
+    ['dark', dark],
+  ])('keeps brand-accent foreground at 4.5:1 or better in %s mode', (_mode, block) => {
+    expect(
+      ratio(token('--on-brand-accent', block), token('--brand-accent', block))
+    ).toBeGreaterThanOrEqual(4.5);
+  });
+
   it('pins placeholder text to the muted token at full opacity', () => {
     expect(css).toContain('::placeholder');
 

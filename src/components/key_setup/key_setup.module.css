@@ -20,7 +20,7 @@
   width: 100%;
   box-sizing: border-box;
   padding: 8px 12px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-control);
   border-radius: 8px;
   background: var(--card);
   color: var(--text);
@@ -56,6 +56,9 @@
   align-items: center;
   font-size: 0.75rem;
   line-height: 1.5;
+}
+.root .checkbox-row input[type='checkbox'] {
+  accent-color: var(--action);
 }
 .root .button-row {
   display: flex;
@@ -106,7 +109,14 @@
   margin: 0 0 8px;
 }
 .root .consent-body {
+  margin: 0 0 8px;
+}
+.root .consent-points {
   margin: 0 0 12px;
+  padding-inline-start: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 .root .context {
   margin: 0 0 4px;

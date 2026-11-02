@@ -5,13 +5,18 @@ import { ExternalLink } from '../external_link/external_link';
 
 interface Props {
   destination: string;
+  primaryId?: string;
 }
 
-export const BookingGrid = ({ destination }: Props) => (
+export const BookingGrid = ({ destination, primaryId = 'maps' }: Props) => (
   <div className={styles.root}>
     {destination
       ? buildLinks(destination).map((link) => (
-          <ExternalLink key={link.id} href={link.href} className={styles.tile}>
+          <ExternalLink
+            key={link.id}
+            href={link.href}
+            className={link.id === primaryId ? `${styles.tile} ${styles.primary}` : styles.tile}
+          >
             {msg(`bookingLink_${link.id}`) || link.id}
           </ExternalLink>
         ))

@@ -245,7 +245,12 @@ describe('key-setup', () => {
 
     const root = renderSetup({ mode: 'consent' }, { onConsentDecision }).container;
     expect(root.querySelector('h2')?.textContent).toBe('consentTitle');
-    expect(root.querySelector('.consent-body')?.textContent).toBe('consentBody');
+    expect(root.querySelector('.consent-body')?.textContent).toBe('consentBodyLead');
+    expect([...root.querySelectorAll('.consent-points li')].map((li) => li.textContent)).toEqual([
+      'consentPointImage',
+      'consentPointPrivate',
+      'consentPointTerms',
+    ]);
 
     const buttons = [...root.querySelectorAll('.button-row button')];
     expect(buttons.map((button) => button.textContent)).toEqual(['agreeButton', 'declineButton']);

@@ -1,3 +1,8 @@
+/* Roles: action (primary blue); brand-accent (mint, selection and identity
+   cues only, never verification); border (decorative) vs border-control
+   (essential field boundaries, 3:1); badge (amber uncertainty); meta
+   (neutral cached/local metadata); error; focus. Tabs use a flat underline;
+   chips and badges use pills; cards and controls use 12px/8px radii. */
 :root {
   --focus-color: #0b64dd;
   --text: #1a1c21;
@@ -6,13 +11,18 @@
   --card: #ffffff;
   --surface: #eef1f6;
   --border: #d3dae6;
+  --border-control: #7c8598;
   --link: #0b64dd;
   --link-hover: #0957c2;
   --action: #0b64dd;
   --action-hover: #0957c2;
   --on-action: #ffffff;
+  --brand-accent: #21e6b1;
+  --on-brand-accent: #06281f;
   --badge: #7a5100;
   --badge-surface: #fef0d0;
+  --meta: #4b5563;
+  --meta-surface: #eceff4;
   --error: #bd271e;
   --shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
   color-scheme: light dark;
@@ -27,13 +37,18 @@
     --card: #26272f;
     --surface: #2e303a;
     --border: #3f4250;
+    --border-control: #7c8296;
     --link: #6eadff;
     --link-hover: #8ab4ff;
     --action: #6eadff;
     --action-hover: #8ab4ff;
     --on-action: #1d1e24;
+    --brand-accent: #21e6b1;
+    --on-brand-accent: #06281f;
     --badge: #f2c94c;
     --badge-surface: #423303;
+    --meta: #a6adba;
+    --meta-surface: #33353f;
     --error: #f86a63;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
   }
@@ -131,6 +146,10 @@ input:disabled {
   margin: 8px 0;
 }
 
+.checkbox-row input[type='checkbox'] {
+  accent-color: var(--action);
+}
+
 .field-row {
   display: flex;
   flex-direction: column;
@@ -142,7 +161,7 @@ input:disabled {
   font: inherit;
   padding: 8px 12px;
   border-radius: 8px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-control);
   background: var(--card);
   color: var(--text);
 }
@@ -179,8 +198,8 @@ input:disabled {
   align-items: center;
   justify-content: center;
   border-radius: 8px;
-  background: var(--badge-surface);
-  color: var(--badge);
+  background: var(--meta-surface);
+  color: var(--meta);
   font-size: 1.25rem;
   font-weight: 700;
 }

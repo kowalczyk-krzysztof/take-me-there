@@ -164,9 +164,12 @@ describe('trip-card', () => {
     const texts = [...(root.querySelectorAll('.root > p') ?? [])].map((el) => el.textContent);
     expect(texts[0]).toBe('Oia, Greece');
     expect(texts[1]).toBe('Confidence: High (0.90).');
-    expect(texts[2]).toBe('confidenceScale');
-    expect(texts[3]).toBe('sourceLine(example.com)');
-    expect(texts[4]).toBe('Blue domes.');
+    expect(texts[2]).toBe('sourceLine(example.com)');
+    expect(texts[3]).toBe('Blue domes.');
+
+    const details = root.querySelector('.root > details.details') as HTMLElement;
+    expect(details?.querySelector('summary')?.textContent).toBe('confidenceDetailsLabel');
+    expect(details?.querySelector('.confidence-scale')?.textContent).toBe('confidenceScale');
 
     const secondary = root.querySelector('section.secondary') as HTMLElement;
     expect(secondary?.getAttribute('aria-label')).toBe('secondaryHeading');
@@ -315,6 +318,36 @@ describe('trip-card', () => {
     expect(chips[0]?.hasAttribute('aria-pressed')).toBe(false);
     clickEl(chips[1] as HTMLButtonElement);
     expect(onAlternates).toHaveBeenCalledWith('quieter');
+  });
+
+  it('heads results with the intent and marks its chip active', () => {
+    const root = renderCard({
+      view: 'result',
+      place: PLACE,
+      lowConfidence: false,
+      canReanalyze: true,
+      confidence: CONF,
+      sourceHost: 'example.com',
+      destination: null,
+      runCost: null,
+      cached: false,
+      alternates: {
+        state: 'ready',
+        intent: 'quieter',
+        grounded: true,
+        sources: [],
+        cards: [{ name: 'Fira', why: 'Calm.', bestMonth: 'May' }],
+      },
+    }).container;
+
+    expect(root.querySelector('.alternates-heading')?.textContent).toBe(
+      'alternatesHeading(alternatesQuieter | Oia)'
+    );
+
+    const chips = root.querySelectorAll('.chips-row .chip');
+    expect(chips[1]?.classList.contains('chip-active')).toBe(true);
+    expect(chips[0]?.classList.contains('chip-active')).toBe(false);
+    expect(chips[1]?.hasAttribute('aria-pressed')).toBe(false);
   });
 
   it('marks the pressed chip aria-disabled with skeleton cards while loading', () => {

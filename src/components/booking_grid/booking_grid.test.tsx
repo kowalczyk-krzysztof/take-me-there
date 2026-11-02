@@ -25,6 +25,8 @@ describe('booking-grid', () => {
     ]);
     expect(tiles[0].href).toContain('https://www.google.com/maps/search/');
     expect(tiles[0].href).toContain(encodeURIComponent('Oia, Greece'));
+    expect(tiles[0].classList.contains('primary')).toBe(true);
+    expect(tiles[1].classList.contains('primary')).toBe(false);
 
     for (const tile of tiles) {
       expect(tile.target).toBe('_blank');
