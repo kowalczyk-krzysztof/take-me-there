@@ -3306,6 +3306,183 @@ describe('sidepanel', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it.each([true, false])(
+    'keeps a newer preview when a stale arrival read resolves %s',
+    async (resolveTrue) => {
+      const mock = await setup();
+      await plantKeyAndConsent();
+      const stored = (await mock.local.get('consentGiven')) as Record<string, unknown>;
+
+      const realGet = mock.local.get.bind(mock.local);
+      let resolveStale!: (value: Record<string, unknown>) => void;
+      let gatedRead = false;
+      vi.spyOn(mock.local, 'get').mockImplementation(async (keys) => {
+        const list = keys === null || keys === undefined ? [] : Array.isArray(keys) ? keys : [keys];
+
+        if (!gatedRead && list.includes('consentGiven')) {
+          gatedRead = true;
+
+          return new Promise<Record<string, unknown>>((resolve) => {
+            resolveStale = resolve;
+          });
+        }
+
+        return realGet(keys);
+      });
+
+      fetchMock
+        .mockResolvedValueOnce(
+          new Response(new Uint8Array([1, 2, 3]), {
+            headers: { 'content-type': 'image/jpeg' },
+          })
+        )
+        .mockResolvedValueOnce(chatResponse(PLACE_B));
+
+      await settleWrite(
+        mock.session.set({
+          [SLOT]: READY({
+            status: 'collecting',
+            srcUrl: 'https://cdn.example.com/oia.jpg',
+          }),
+        })
+      );
+      await waitFor(() => {
+        expect(gatedRead).toBe(true);
+      });
+
+      await settleWrite(
+        mock.session.set({
+          [SLOT]: READY({ requestId: 'B-1', srcUrl: 'https://cdn.example.com/fira.jpg' }),
+        })
+      );
+      await waitForHeading('Fira');
+      await waitFor(() => {
+        expect(document.querySelector('#preview-frame img')).not.toBeNull();
+      });
+      const before = (document.querySelector('#preview-frame img') as HTMLImageElement).src;
+      expect(before).toMatch(/^blob:/);
+      const revokes = vi.spyOn(URL, 'revokeObjectURL');
+
+      await settleWrite(
+        (async () => {
+          resolveStale(resolveTrue ? stored : {});
+        })()
+      );
+      await sleep(50);
+
+      expect(document.querySelector('#result-slot h2')?.textContent).toBe('Fira');
+      expect((document.querySelector('#preview-frame img') as HTMLImageElement).src).toBe(before);
+      expect(revokes).not.toHaveBeenCalled();
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    }
+  );
+
+  it('keeps same-request pixels when a delayed arrival hint resolves', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    const stored = (await mock.local.get('consentGiven')) as Record<string, unknown>;
+
+    const realGet = mock.local.get.bind(mock.local);
+    let resolveStale!: (value: Record<string, unknown>) => void;
+    let gatedRead = false;
+    vi.spyOn(mock.local, 'get').mockImplementation(async (keys) => {
+      const list = keys === null || keys === undefined ? [] : Array.isArray(keys) ? keys : [keys];
+
+      if (!gatedRead && list.includes('consentGiven')) {
+        gatedRead = true;
+
+        return new Promise<Record<string, unknown>>((resolve) => {
+          resolveStale = resolve;
+        });
+      }
+
+      return realGet(keys);
+    });
+
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(new Uint8Array([1, 2, 3]), { headers: { 'content-type': 'image/jpeg' } })
+      )
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE));
+
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
+    await waitFor(() => {
+      expect(gatedRead).toBe(true);
+    });
+    await waitForHeading('Oia');
+    await waitFor(() => {
+      expect(document.querySelector('#preview-frame img')).not.toBeNull();
+    });
+    const before = (document.querySelector('#preview-frame img') as HTMLImageElement).src;
+    expect(before).toMatch(/^blob:/);
+    const revokes = vi.spyOn(URL, 'revokeObjectURL');
+
+    await settleWrite(
+      (async () => {
+        resolveStale(stored);
+      })()
+    );
+    await sleep(50);
+
+    expect(document.querySelector('#result-slot h2')?.textContent).toBe('Oia');
+    expect((document.querySelector('#preview-frame img') as HTMLImageElement).src).toBe(before);
+    expect(revokes).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('drops a stale arrival read that resolves after cancel', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+
+    const realGet = mock.local.get.bind(mock.local);
+    let resolveStale!: (value: Record<string, unknown>) => void;
+    let gatedRead = false;
+    vi.spyOn(mock.local, 'get').mockImplementation(async (keys) => {
+      const list = keys === null || keys === undefined ? [] : Array.isArray(keys) ? keys : [keys];
+
+      if (!gatedRead && list.includes('consentGiven')) {
+        gatedRead = true;
+
+        return new Promise<Record<string, unknown>>((resolve) => {
+          resolveStale = resolve;
+        });
+      }
+
+      return realGet(keys);
+    });
+
+    await settleWrite(
+      mock.session.set({
+        [SLOT]: READY({
+          status: 'collecting',
+          srcUrl: 'https://cdn.example.com/oia.jpg',
+        }),
+      })
+    );
+    await waitFor(() => {
+      expect(gatedRead).toBe(true);
+      expect(document.querySelector('#result-slot .cancel-button')?.textContent).toBe(
+        'cancelButton'
+      );
+    });
+
+    clickEl(document.querySelector('#result-slot .cancel-button') as HTMLButtonElement);
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot .hint')?.textContent).toBe('panelIdle');
+    });
+
+    await settleWrite(
+      (async () => {
+        resolveStale({});
+      })()
+    );
+    await sleep(50);
+
+    expect(document.querySelector('#result-slot .hint')?.textContent).toBe('panelIdle');
+    expect(document.querySelector('#preview-frame')?.textContent).toBe('previewUnavailable');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('clears loading while the body stalls and settles the late body quietly', async () => {
     const mock = await setup();
     await plantKeyAndConsent();

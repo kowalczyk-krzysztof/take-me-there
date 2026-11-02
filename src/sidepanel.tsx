@@ -624,7 +624,11 @@ const showPreviewWaiting = (): void => {
 
 // Arrival preview without fetching: data addresses render at once, remote
 // addresses wait for consent state, and the gated analysis loads the bytes.
-const previewForArrival = async (srcUrl: string | null): Promise<void> => {
+// The consent read is ownership-checked before publishing: a newer arrival
+// wins by sequence, and any newer preview publication (analysis pixels,
+// cancel, reset) wins by preview token, so a stale read can neither
+// replace newer pixels nor revoke their object URL.
+const previewForArrival = async (srcUrl: string | null, seq: number): Promise<void> => {
   if (!srcUrl || !isAllowedPreviewUrl(srcUrl)) {
     showPreviewPlaceholder();
 
@@ -637,7 +641,12 @@ const previewForArrival = async (srcUrl: string | null): Promise<void> => {
     return;
   }
 
+  const token = previewToken;
   const consented = await hasConsented().catch(() => false);
+
+  if (seq !== lastSeenSeq || token !== previewToken) {
+    return;
+  }
 
   if (consented) {
     showPreviewPlaceholder();
@@ -1728,7 +1737,7 @@ const handle = async (value: unknown): Promise<void> => {
     updatePrivacy('idle');
     return;
   }
-  void previewForArrival(request.srcUrl || null);
+  void previewForArrival(request.srcUrl || null, request.seq);
   if (request.status === 'collecting') {
     collectingSeq = request.seq;
     announceStatus('statusAnalyzing');
