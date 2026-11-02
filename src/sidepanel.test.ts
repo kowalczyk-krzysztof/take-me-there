@@ -763,7 +763,9 @@ describe('sidepanel', () => {
     await settleWrite(mock.session.set({ [SLOT]: READY() }));
     await waitFor(() => {
       expect(document.querySelector('#result-slot h2')?.textContent).toBe('noPlaceTitle');
+      expect(fetchMock).toHaveBeenCalledTimes(3);
     });
+    await sleep(50);
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
