@@ -103,7 +103,6 @@ const main = async () => {
     jsonLd: [],
   });
 
-  // Strict: unknown signal keys or missing case fields fail the preflight.
   const normalizeCase = (entry) => {
     for (const field of ['id', 'label', 'imageUrl', 'signals', 'expect']) {
       if (entry[field] === undefined) throw new Error(`case is missing ${field}`);
@@ -161,7 +160,6 @@ const main = async () => {
     check(`preflight ${entry.id} serves ${want === 200 ? 'an image' : want}`, false, last);
   };
 
-  // Each distinct URL once; cases share landmark images.
   const seen = new Set();
   for (const item of normalized) {
     if (item.entry.preflight?.skip || seen.has(item.entry.imageUrl)) continue;

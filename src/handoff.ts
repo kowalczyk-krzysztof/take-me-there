@@ -1,4 +1,4 @@
-// One session slot per window, sequence-ordered; timestamps only expire. Acks clear the slot only on sequence match.
+// One session slot per window, sequence-ordered; timestamps only expire.
 import * as z from 'zod/mini';
 import { createMutex } from './utils/mutex';
 import { isExtensionPageSender } from './storage_commands';

@@ -103,7 +103,7 @@ const EMPTY_SIGNALS: PageSignals = {
   jsonLd: [],
 };
 
-type PendingRun = { kind: 'request'; request: TripRequest };
+type PendingRun = { kind: 'request'; request: TripRequest; ticket: number };
 
 let initialized = false;
 
@@ -804,19 +804,18 @@ const onVideoConfirmCancel = (): void => {
 
 type GateResult =
   | { ready: true; provider: Provider; settings: ExtensionSettings; key: string }
-  | { ready: false; reason: 'key' | 'consent' | 'settings' };
+  | { ready: false; reason: 'key'; orphaned: boolean }
+  | { ready: false; reason: 'consent' | 'settings' };
 
-const gateRun = async (pending: PendingRun | null): Promise<GateResult> => {
+// Pure reads: reports readiness without touching pending state or the UI,
+// so a stale caller can abandon the result before it commits anything.
+const gateRun = async (): Promise<GateResult> => {
   let provider: Provider;
   let settings: ExtensionSettings;
 
   try {
     ({ provider, settings } = await getActiveProviderStrict());
   } catch {
-    if (pending) {
-      pendingRun = pending;
-    }
-
     return { ready: false, reason: 'settings' };
   }
 
@@ -825,24 +824,30 @@ const gateRun = async (pending: PendingRun | null): Promise<GateResult> => {
   const keyStatus = await loadKey(provider.id);
 
   if (keyStatus.state !== 'ok') {
-    if (pending) {
-      pendingRun = pending;
-      showOnboarding(keyStatus.orphaned);
-    }
-
-    return { ready: false, reason: 'key' };
+    return { ready: false, reason: 'key', orphaned: keyStatus.orphaned };
   }
 
   if (!(await hasConsented())) {
-    if (pending) {
-      pendingRun = pending;
-      showConsent(false);
-    }
-
     return { ready: false, reason: 'consent' };
   }
 
   return { ready: true, provider, settings, key: keyStatus.key };
+};
+
+// The caller must own the UI.
+const applyGateBlock = (
+  gate: Extract<GateResult, { ready: false }>,
+  request: TripRequest
+): void => {
+  pendingRun = { kind: 'request', request, ticket: runTicket };
+
+  if (gate.reason === 'key') {
+    showOnboarding(gate.orphaned);
+  } else if (gate.reason === 'consent') {
+    showConsent(false);
+  }
+
+  announceGate(gate.reason);
 };
 
 const announceGate = (reason: 'key' | 'consent' | 'settings'): void => {
@@ -1209,19 +1214,19 @@ const showProviderError = (
     return;
   }
   if (err.code === 'consent_required') {
-    pendingRun = request ? { kind: 'request', request } : pendingRun;
+    pendingRun = request ? { kind: 'request', request, ticket: runTicket } : pendingRun;
     showConsent(false);
     announceStatus('statusConsentNeeded');
     return;
   }
   if (err.code === 'no_key') {
-    pendingRun = request ? { kind: 'request', request } : pendingRun;
+    pendingRun = request ? { kind: 'request', request, ticket: runTicket } : pendingRun;
     showOnboarding(false);
     announceStatus('statusKeyNeeded');
     return;
   }
   if (err.code === 'auth') {
-    pendingRun = request != null ? { kind: 'request', request } : pendingRun;
+    pendingRun = request != null ? { kind: 'request', request, ticket: runTicket } : pendingRun;
     renderErrorCard('errorAuthTitle', 'errorAuthBody', false, true);
     alert('alertAuth');
     updatePrivacy(privacy);
@@ -1548,7 +1553,7 @@ const runVideoAnalysis = async (
       return;
     }
 
-    pendingRun = { kind: 'request', request };
+    pendingRun = { kind: 'request', request, ticket: runTicket };
     pendingVideoFull = full;
     updatePreview(request.frame?.dataUrl ?? null, request.frame ? 'frame' : 'image');
     showVideoConfirm(full, run.settings.imageOnly, origin === 'panel');
@@ -1577,19 +1582,19 @@ const runAnalysis = async (request: TripRequest, origin: 'gesture' | 'panel'): P
   lastAnalysisTicket = ticket;
   cancelAllWork();
   clearStaleTimer();
-  lastRun = { kind: 'request', request };
+  lastRun = { kind: 'request', request, ticket };
   pendingRun = null;
   pendingLookAgain = null;
   updatePreview(null);
   clearCost();
-  const gate = await gateRun({ kind: 'request', request });
+  const gate = await gateRun();
 
   if (ticket !== runTicket) {
     return;
   }
 
   if (!gate.ready) {
-    announceGate(gate.reason);
+    applyGateBlock(gate, request);
     return;
   }
   const { provider, settings, key } = gate;
@@ -1667,8 +1672,17 @@ const handle = async (value: unknown): Promise<void> => {
   lastSeenRank = rank;
   if (request.status === 'error') {
     collectingSeq = null;
+    // Same terminal ownership as ready handoffs: a cancel or a newer
+    // request during the ack must not render this old error card.
+    const ownedSeq = request.seq;
+    const ownedTicket = runTicket;
+    ackSeq = ownedSeq;
+    await ackRequest(request.windowId, ownedSeq);
+    ackSeq = null;
+    if (canceledSeqs.has(ownedSeq) || ownedTicket !== runTicket || ownedSeq !== lastSeenSeq) {
+      return;
+    }
     pendingLookAgain = null;
-    await ackRequest(request.windowId, request.seq);
     renderErrorCard('handoffFailedTitle', 'handoffFailedBody', false, false);
     announceAlert('handoffFailedBody');
     updatePrivacy('idle');
@@ -1822,7 +1836,12 @@ const samCropAttempt = async (
     const dataUrl = await cropToSamBox(bitmap, box);
     showSamCrop(dataUrl);
     return { dataUrl, box, width: bitmap.width, height: bitmap.height };
-  } catch {
+  } catch (err) {
+    // A failed segmentation still reports its spend: absorb it before the
+    // full-image fallback so settlement stays exact.
+    if (err instanceof ProviderError && err.usage) {
+      absorbRunUsage(run, err.usage);
+    }
     return null;
   } finally {
     bitmap.close();
@@ -1882,14 +1901,14 @@ const startPanelRun = async (
   runId: string,
   cacheKey: string
 ): Promise<{ run: RunContext; provider: Provider } | null> => {
-  const gate = await gateRun({ kind: 'request', request });
+  const gate = await gateRun();
 
   if (ticket !== runTicket) {
     return null;
   }
 
   if (!gate.ready) {
-    announceGate(gate.reason);
+    applyGateBlock(gate, request);
 
     return null;
   }
@@ -2064,8 +2083,7 @@ const retry = async (): Promise<void> => {
   await netPanelRun(() => runAnalysis(target.request, 'panel'), target.request);
 };
 
-// Tab fetch first (no prompt); permission-gated direct fetch only on its
-// failure. Resolves true when a replacement run started.
+// Resolves true when a replacement run started.
 const fetchRetry = async (signal?: AbortSignal): Promise<boolean> => {
   const target =
     lastRun?.kind === 'request'
@@ -2183,16 +2201,16 @@ const onAllowHost = (host: string): void => {
       return;
     }
 
-    // Journal before acquiring: the worker entry exists before the permission
-    // does, so no racing reconcile can mistake the new grant for a leak. This
-    // promise is created, not awaited: the request below stays the first
-    // await, keeping the click gesture.
+    // Queue the reservation before acquiring: it usually commits first, and
+    // the worker quarantines newly seen unjournaled origins, so no racing
+    // reconcile mistakes the new grant for a leak. This promise is created,
+    // not awaited: the request below stays the first await, keeping the
+    // click gesture.
     const journaling = addHostGrant(origin).then(
       () => true,
       () => false
     );
 
-    // First await: the request itself, so the browser prompt keeps the click gesture.
     const decision = await requestHostAccess(origin);
     const journaled = await journaling;
 
@@ -2222,6 +2240,10 @@ const onAllowHost = (host: string): void => {
         await cancelHostGrant(origin).catch(() => undefined);
       }
 
+      if (ticket !== runTicket) {
+        return;
+      }
+
       showGrantCard('denied', host, target);
 
       return;
@@ -2229,6 +2251,11 @@ const onAllowHost = (host: string): void => {
 
     if (decision !== 'granted') {
       await releaseHostAccess(origin).catch(() => undefined);
+
+      if (ticket !== runTicket) {
+        return;
+      }
+
       showGrantCard('error', host, target);
 
       return;
@@ -2236,6 +2263,11 @@ const onAllowHost = (host: string): void => {
 
     if (!journaled) {
       await releaseHostAccess(origin).catch(() => undefined);
+
+      if (ticket !== runTicket) {
+        return;
+      }
+
       showGrantCard('error', host, target);
 
       return;
@@ -2366,7 +2398,7 @@ const sourceHostFor = (request: TripRequest | null): string => {
     try {
       return new URL(request.pageUrl).host;
     } catch {
-      // Fall through to the scraped host.
+      // Fall through below.
     }
   }
   return request?.signals?.pageHost ?? '';
@@ -2438,7 +2470,7 @@ const runAlternates = async (intent: AlternateIntent): Promise<void> => {
   await refreshResultCard();
   announceStatus(FINDING_KEYS[intent]);
   const host = activeRun();
-  const gate = await gateRun(null);
+  const gate = await gateRun();
   if (!gate.ready) {
     if (mine !== alternatesRunId || (host && activeRun() !== host)) {
       return;
@@ -2533,10 +2565,15 @@ const onAlternates = async (intent: AlternateIntent): Promise<void> => {
   }
 };
 
-// Alternates run waiting on a key repair: the destination pins it to the
-// displayed result so a newer analysis drops the stale resumption.
-let pendingAlternates: { intent: AlternateIntent; placeName: string; destination: string } | null =
-  null;
+// Alternates run waiting on a key repair: the ticket pins it to the task
+// generation that requested it, so a newer analysis drops the stale
+// resumption even when the destination text matches.
+let pendingAlternates: {
+  intent: AlternateIntent;
+  placeName: string;
+  destination: string;
+  ticket: number;
+} | null = null;
 
 const onAlternatesKey = (intent: AlternateIntent): void => {
   if (!currentPlace) {
@@ -2546,6 +2583,7 @@ const onAlternatesKey = (intent: AlternateIntent): void => {
     intent,
     placeName: currentPlace.placeName,
     destination: currentDestination,
+    ticket: runTicket,
   };
   store.set({ replacing: true, showOrphaned: false });
   setKeyForm({ sessionOnly: runSettings?.sessionOnly ?? false });
@@ -2567,25 +2605,43 @@ const resumePending = async (): Promise<void> => {
   pendingRun = null;
   const alternates = pendingAlternates;
   pendingAlternates = null;
-  if (!pending) {
-    if (
-      alternates &&
-      currentPlace &&
-      currentPlace.placeName === alternates.placeName &&
-      currentDestination === alternates.destination
-    ) {
-      selectTab('main');
-      await runAlternates(alternates.intent);
-      return;
-    }
-    showIdle();
+
+  // Only the owning generation resumes: anything staged before a newer task
+  // is dropped silently, never replayed or navigated to.
+  if (pending && pending.ticket === runTicket) {
+    await netPanelRun(() => runAnalysis(pending.request, 'panel'), pending.request);
+
     return;
   }
-  await netPanelRun(() => runAnalysis(pending.request, 'panel'), pending.request);
+
+  if (
+    alternates &&
+    alternates.ticket === runTicket &&
+    currentPlace &&
+    currentPlace.placeName === alternates.placeName &&
+    currentDestination === alternates.destination
+  ) {
+    selectTab('main');
+    await runAlternates(alternates.intent);
+
+    return;
+  }
+
+  // Nothing current to resume: clear only gate-owned views. Task UI
+  // (results, errors, loading) belongs to its own flow and is left alone.
+  if (
+    currentView === 'idle' ||
+    currentView === 'consent' ||
+    currentView === 'video-confirm' ||
+    currentView === 'onboarding'
+  ) {
+    showIdle();
+  }
 };
 
 const onKeySave = async (key: string): Promise<void> => {
   const sessionOnly = store.get().keyForm.sessionOnly;
+  const ticket = runTicket;
   setKeyForm({ pending: true, error: null });
   announceStatus('statusValidatingKey');
   const outcome = await validateAndSaveKey(key, sessionOnly);
@@ -2599,8 +2655,13 @@ const onKeySave = async (key: string): Promise<void> => {
   runSettings = outcome.settings;
   setKeyForm({ pending: false, error: null, resetKey: store.get().keyForm.resetKey + 1 });
   store.set({ keySaved: true, replacing: false, showOrphaned: false });
-  selectTab('main');
   announceStatus('statusKeySaved');
+  if (ticket !== runTicket) {
+    // A newer task committed during validation: the key stays saved, but
+    // this completion must not navigate, gate, or resume anything stale.
+    return;
+  }
+  selectTab('main');
   if (!(await hasConsented())) {
     showConsent(true);
     return;

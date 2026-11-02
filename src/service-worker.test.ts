@@ -230,6 +230,25 @@ describe('service-worker', () => {
     expect(record['frameError']).toBeUndefined();
   });
 
+  it('skips capture when a video click carries no source URL', async () => {
+    const mock = await setup();
+    const info = { ...IMAGE_INFO, mediaType: 'video' };
+    delete (info as { srcUrl?: string }).srcUrl;
+    fireClick(mock, info, { ...TAB });
+    await flush();
+
+    const record = await storedRequest(mock);
+    expect(TRIP_REQUEST_SCHEMA.safeParse(record).success).toBe(true);
+    expect(record['srcUrl']).toBe('');
+    expect(record['frame']).toBeUndefined();
+    expect(record['frameError']).toBe('no-match');
+    expect(
+      mock.worker.scriptingCalls.filter(
+        (call) => (call.func as { name?: string }).name === 'captureVideoFrame'
+      )
+    ).toHaveLength(0);
+  });
+
   it('marks video clicks when the frame capture misses', async () => {
     const mock = await setup();
     fireClick(

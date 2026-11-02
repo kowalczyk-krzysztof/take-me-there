@@ -417,7 +417,7 @@ describe('muse findAlternates', () => {
     const cited = new Response(
       JSON.stringify({
         output: [
-          { type: 'web_search_call' },
+          { type: 'web_search_call', status: 'completed' },
           {
             type: 'message',
             content: [
@@ -472,6 +472,32 @@ describe('muse findAlternates', () => {
     expect(result.usage.searchCount).toBe(0);
   });
 
+  it('labels failed-search-only output as generated without search', async () => {
+    await consented();
+
+    const failed = new Response(
+      JSON.stringify({
+        output: [
+          { type: 'web_search_call', status: 'failed' },
+          { type: 'web_search_call' },
+          {
+            type: 'message',
+            content: [{ type: 'output_text', text: JSON.stringify(VALID_ALTERNATES) }],
+          },
+        ],
+        usage: { input_tokens: 200, output_tokens: 80 },
+      }),
+      { status: 200 }
+    );
+    fetchMock.mockResolvedValue(failed);
+
+    const result = await provider.findAlternates('LLM_key', alternatesInput());
+    expect(result.alternatives).toHaveLength(2);
+    expect(result.grounded).toBe(false);
+    expect(result.sources).toEqual([]);
+    expect(result.usage.searchCount).toBe(2);
+  });
+
   it('returns an empty result when both alternates passes agree', async () => {
     await consented();
     fetchMock
@@ -490,7 +516,7 @@ describe('muse findAlternates', () => {
     const malformed = new Response(
       JSON.stringify({
         output: [
-          { type: 'web_search_call' },
+          { type: 'web_search_call', status: 'completed' },
           { type: 'message', content: [{ type: 'output_text', text: '{broken' }] },
         ],
         usage: { input_tokens: 200, output_tokens: 80 },

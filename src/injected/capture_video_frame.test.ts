@@ -111,6 +111,30 @@ describe('captureVideoFrame', () => {
     expect(out.ok).toBe(true);
   });
 
+  it('matches nothing for an empty target among source-less streams', () => {
+    addVideo({ currentSrc: '', src: '' });
+    addVideo({ currentSrc: '', src: '' });
+
+    for (const target of ['', '   ']) {
+      const out = captureVideoFrame(target);
+
+      expect(out).toEqual({ ok: false, reason: 'no-match' });
+    }
+
+    expect(drawImage).not.toHaveBeenCalled();
+    expect(toDataURL).not.toHaveBeenCalled();
+  });
+
+  it('never resolves empty candidate fields against a URL target', () => {
+    addVideo({ currentSrc: '', src: '' });
+
+    const out = captureVideoFrame('https://cdn.example.com/trip.mp4');
+
+    expect(out).toEqual({ ok: false, reason: 'no-match' });
+    expect(drawImage).not.toHaveBeenCalled();
+    expect(toDataURL).not.toHaveBeenCalled();
+  });
+
   it('returns no-match when only an unrelated video is playing', () => {
     addVideo({
       currentSrc: 'blob:https://example.com/other',

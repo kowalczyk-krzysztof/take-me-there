@@ -363,6 +363,7 @@ describe('prompt builders', () => {
     const extracted = extractResponsesStructured(data);
     expect(extracted?.json).toEqual({ verdict: 'v' });
     expect(extracted?.searchCount).toBe(2);
+    expect(extracted?.completedSearchCount).toBe(0);
     expect(extracted?.sources).toEqual([]);
     expect(extracted?.inputTokens).toBe(200);
     expect(extracted?.outputTokens).toBe(80);
@@ -375,6 +376,25 @@ describe('prompt builders', () => {
         output: [{ type: 'message', content: [{ type: 'output_text', text: 'nope' }] }],
       })
     ).toBeUndefined();
+  });
+
+  it('counts completed searches separately from attempts', () => {
+    const data = {
+      output: [
+        { type: 'web_search_call', status: 'completed' },
+        { type: 'web_search_call', status: 'failed' },
+        { type: 'web_search_call' },
+        {
+          type: 'message',
+          content: [{ type: 'output_text', text: '{"verdict":"v"}' }],
+        },
+      ],
+      usage: { input_tokens: 200, output_tokens: 80 },
+    };
+
+    const extracted = extractResponsesStructured(data);
+    expect(extracted?.searchCount).toBe(3);
+    expect(extracted?.completedSearchCount).toBe(1);
   });
 
   it('collects citation sources and drops unsafe ones', () => {

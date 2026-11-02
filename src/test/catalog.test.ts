@@ -52,7 +52,6 @@ interface KeyUse {
 
 const KEY = '[A-Za-z0-9_]+';
 
-// Counts substitutions after msg('key': absent -> 0, [...] -> elements, anything else -> 1.
 const parseSubs = (text: string, from: number): number | null => {
   let at = from;
 

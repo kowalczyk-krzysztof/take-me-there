@@ -128,7 +128,7 @@ describe('handoff schemas', () => {
       TRIP_REQUEST_SCHEMA.safeParse({ ...collecting, status: 'ready', signals: validSignals() })
         .success
     ).toBe(true);
-    // Every record shape the worker writes must parse.
+
     expect(TRIP_REQUEST_SCHEMA.safeParse({ ...collecting, status: 'ready' }).success).toBe(true);
     expect(
       TRIP_REQUEST_SCHEMA.safeParse({ ...collecting, status: 'ready', windowId: 2 }).success

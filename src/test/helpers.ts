@@ -202,7 +202,7 @@ export const groundedResponse = (json: unknown): Response =>
   new Response(
     JSON.stringify({
       output: [
-        { type: 'web_search_call' },
+        { type: 'web_search_call', status: 'completed' },
         {
           type: 'message',
           content: [{ type: 'output_text', text: JSON.stringify(json) }],

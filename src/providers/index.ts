@@ -562,6 +562,7 @@ export interface SourceLink {
 export interface ResponsesStructured {
   json: unknown;
   searchCount: number;
+  completedSearchCount: number;
   sources: SourceLink[];
   inputTokens: number;
   outputTokens: number;
@@ -647,6 +648,8 @@ export const extractResponsesStructured = (data: unknown): ResponsesStructured |
 
   let searchCount = 0;
 
+  let completedSearchCount = 0;
+
   const sources: SourceLink[] = [];
 
   const seenSources = new Set<string>();
@@ -654,6 +657,7 @@ export const extractResponsesStructured = (data: unknown): ResponsesStructured |
   for (const item of root.output) {
     const entry = (item ?? {}) as {
       type?: unknown;
+      status?: unknown;
       content?: Array<{
         type?: unknown;
         text?: unknown;
@@ -663,6 +667,10 @@ export const extractResponsesStructured = (data: unknown): ResponsesStructured |
 
     if (entry.type === 'web_search_call') {
       searchCount += 1;
+
+      if (entry.status === 'completed') {
+        completedSearchCount += 1;
+      }
 
       continue;
     }
@@ -731,6 +739,7 @@ export const extractResponsesStructured = (data: unknown): ResponsesStructured |
   return {
     json,
     searchCount,
+    completedSearchCount,
     sources,
     inputTokens: typeof root.usage?.input_tokens === 'number' ? root.usage.input_tokens : 0,
     outputTokens: typeof root.usage?.output_tokens === 'number' ? root.usage.output_tokens : 0,

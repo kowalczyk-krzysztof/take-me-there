@@ -206,7 +206,6 @@ describe('storage service concurrency', () => {
       }
     };
 
-    // Capture the expected warning instead of printing it.
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     try {

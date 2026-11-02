@@ -63,7 +63,7 @@ export const cancelRun = (run: RunContext): void => {
   try {
     run.controller.abort();
   } catch {
-    // Already aborted; the flag above is what guards follow-ups.
+    // Defensive: the cancelled flag above is what guards follow-ups.
   }
 
   if (active === run) {

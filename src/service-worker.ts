@@ -243,10 +243,10 @@ const handleVideoClick = async (
   if (!collecting) {
     return;
   }
-  // Race side by side: sequential injections would double the worst case.
+  // An absent source URL identifies nothing, so no capture is attempted.
   const [signals, captured] = await Promise.all([
     scrapeWithTimeout(tabId, frameId, srcUrl),
-    captureWithTimeout(tabId, frameId, srcUrl),
+    srcUrl ? captureWithTimeout(tabId, frameId, srcUrl) : Promise.resolve(null),
   ]);
 
   const frame =

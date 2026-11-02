@@ -1490,6 +1490,81 @@ describe('sidepanel', () => {
     expect(document.querySelectorAll('#result-slot .alternate-card')).toHaveLength(1);
   });
 
+  it('ignores a key repair that completes after a newer same-destination result', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    fetchMock
+      .mockResolvedValueOnce(previewMiss())
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE))
+      .mockResolvedValueOnce(new Response('nope', { status: 401 }))
+      .mockResolvedValueOnce(new Response('nope', { status: 401 }));
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
+    await waitForHeading('Oia');
+
+    const card = document.querySelector('#result-slot') as HTMLElement;
+    clickEl(card.querySelectorAll('.chips-row .chip')[0] as HTMLButtonElement);
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot .alternates-error-title')?.textContent).toBe(
+        'errorAuthTitle'
+      );
+    });
+
+    const repair = document.querySelector('#result-slot .alternates button') as HTMLButtonElement;
+    clickEl(repair);
+    await waitFor(() => {
+      expect(document.querySelector('#settings-panel #key-input')).not.toBeNull();
+    });
+
+    let releaseValidation!: (value: Response) => void;
+    fetchMock.mockImplementationOnce(
+      () =>
+        new Promise<Response>((resolve) => {
+          releaseValidation = resolve;
+        })
+    );
+    (document.querySelector('#settings-panel #key-input') as HTMLInputElement).value = 'LLM_new';
+    dispatchEl(
+      document.querySelector('#settings-panel form') as HTMLFormElement,
+      new Event('submit', { bubbles: true, cancelable: true })
+    );
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(5);
+    });
+
+    fetchMock.mockResolvedValueOnce(previewMiss()).mockResolvedValueOnce(chatResponse(VALID_PLACE));
+    await settleWrite(
+      mock.session.set({
+        [SLOT]: READY({ requestId: 'B-1', srcUrl: 'https://cdn.example.com/oia2.jpg' }),
+      })
+    );
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(7);
+    });
+    expect(document.querySelector('#result-slot h2')?.textContent).toBe('Oia');
+    expect(document.querySelector('#result-slot .alternates-error-title')).toBeNull();
+
+    clickEl(document.querySelector('#tab-settings') as HTMLButtonElement);
+    await waitFor(() => {
+      expect(document.querySelector('#tab-settings')?.getAttribute('aria-selected')).toBe('true');
+    });
+
+    await settleWrite(
+      (async () => {
+        releaseValidation(new Response('[]', { status: 200 }));
+      })()
+    );
+    await sleep(100);
+
+    expect(document.querySelector('#result-slot h2')?.textContent).toBe('Oia');
+    expect(document.querySelector('#result-slot .alternates-error-title')).toBeNull();
+    expect(document.querySelectorAll('#result-slot .alternate-card')).toHaveLength(0);
+    expect(document.querySelector('#tab-settings')?.getAttribute('aria-selected')).toBe('true');
+    expect(fetchMock).toHaveBeenCalledTimes(7);
+
+    const { loadKey } = await settleWrite(import('./key_vault'));
+    await expect(settleWrite(loadKey('muse'))).resolves.toMatchObject({ state: 'ok' });
+  });
+
   it('settles grounded alternates usage when the fallback is canceled', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
@@ -2086,6 +2161,71 @@ describe('sidepanel', () => {
     expect(mock.local.data.get('tempGrants')).toEqual({});
   });
 
+  it('drops a denial whose cleanup completes after a newer result', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    (chrome as unknown as { permissions: unknown }).permissions = {
+      request: vi.fn().mockResolvedValue(false),
+      remove: vi.fn().mockResolvedValue(undefined),
+      contains: vi.fn().mockResolvedValue(false),
+      getAll: vi.fn().mockResolvedValue({ origins: [] }),
+    };
+    fetchMock
+      .mockResolvedValueOnce(previewMiss())
+      .mockResolvedValueOnce(new Response('bad image', { status: 400 }))
+      .mockResolvedValueOnce(new Response('boom', { status: 500 }))
+      .mockResolvedValueOnce(previewMiss())
+      .mockResolvedValueOnce(chatResponse(PLACE_B));
+
+    const realImpl = mock.runtime.impl;
+    let releaseCancel!: () => void;
+    const cancelGate = new Promise<void>((resolve) => {
+      releaseCancel = resolve;
+    });
+    let cancelCaptured = false;
+    mock.runtime.impl = async (message: unknown) => {
+      const command = (message as { command?: { kind?: string } }).command;
+
+      if (command?.kind === 'grant.cancel' && !cancelCaptured) {
+        cancelCaptured = true;
+        await cancelGate;
+      }
+
+      return realImpl(message);
+    };
+
+    await settleWrite(mock.session.set({ [SLOT]: READY({ requestId: 'A-1' }) }));
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot h2')?.textContent).toBe('grantAllowTitle');
+    });
+
+    const allow = [...document.querySelectorAll('#result-slot button')].find(
+      (button) => button.textContent === 'grantAllowButton(cdn.example.com)'
+    ) as HTMLButtonElement;
+    clickEl(allow);
+    await waitFor(() => {
+      expect(cancelCaptured).toBe(true);
+    });
+
+    await settleWrite(
+      mock.session.set({
+        [SLOT]: READY({ requestId: 'B-1', srcUrl: 'https://cdn.example.com/fira.jpg' }),
+      })
+    );
+    await waitForHeading('Fira');
+
+    await settleWrite(
+      (async () => {
+        releaseCancel();
+      })()
+    );
+    await sleep(50);
+
+    expect(document.querySelector('#result-slot h2')?.textContent).toBe('Fira');
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(mock.local.data.get('tempGrants')).toEqual({});
+  });
+
   it('looks again through a SAM crop', async () => {
     const mock = await setup();
     await plantKeyAndConsent();
@@ -2270,6 +2410,81 @@ describe('sidepanel', () => {
     });
     expect(imageOf(9)).toBe('https://cdn.example.com/fira.jpg');
     expect(fetchMock).toHaveBeenCalledTimes(10);
+  });
+
+  it('charges reported segmentation usage when look-again falls back', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    (chrome as unknown as { permissions: unknown }).permissions = {
+      request: vi.fn().mockResolvedValue(true),
+      remove: vi.fn().mockResolvedValue(undefined),
+      contains: vi.fn().mockResolvedValue(false),
+      getAll: vi.fn().mockResolvedValue({ origins: [] }),
+    };
+    vi.stubGlobal(
+      'createImageBitmap',
+      vi.fn().mockResolvedValue({ width: 400, height: 300, close: vi.fn() })
+    );
+    vi.stubGlobal(
+      'OffscreenCanvas',
+      vi.fn().mockImplementation(function (this: unknown) {
+        return {
+          getContext: () => ({ drawImage: vi.fn() }),
+          convertToBlob: async () => new Blob(['pixels']),
+        };
+      })
+    );
+    const GUESS = { ...VALID_PLACE, confidence: 0.2 };
+    fetchMock
+      .mockResolvedValueOnce(previewMiss())
+      .mockResolvedValueOnce(chatResponse(GUESS))
+      .mockResolvedValueOnce(
+        new Response(new Uint8Array([1, 2, 3]), { headers: { 'content-type': 'image/jpeg' } })
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ output: [], usage: { input_tokens: 900, output_tokens: 40 } }),
+          {
+            status: 200,
+          }
+        )
+      )
+      .mockResolvedValueOnce(chatResponse(VALID_PLACE));
+    await settleWrite(mock.session.set({ [SLOT]: READY() }));
+    await waitForHeading('noPlaceTitle');
+
+    const card = document.querySelector('#result-slot') as HTMLElement;
+    clickEl(card.querySelector('.primary') as HTMLButtonElement);
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot h2')?.textContent).toBe('grantAllowTitle');
+    });
+    clickEl(
+      [...document.querySelectorAll('#result-slot button')].find(
+        (button) => button.textContent === 'grantAllowButton(cdn.example.com)'
+      ) as HTMLButtonElement
+    );
+    await waitFor(() => {
+      expect(document.querySelector('#result-slot h2')?.textContent).toBe('Oia');
+    });
+
+    const init = fetchMock.mock.calls[4][1] as RequestInit;
+    const body = JSON.parse(init.body as string) as {
+      messages: Array<{ content: Array<{ type: string; image_url?: { url: string } }> }>;
+    };
+    expect(body.messages[1].content.find((part) => part.type === 'image_url')?.image_url?.url).toBe(
+      'https://cdn.example.com/oia.jpg'
+    );
+
+    const { monthKey } = await settleWrite(import('./pricing'));
+
+    await waitFor(() => {
+      const record = mock.local.data.get('costTotals') as {
+        v: number;
+        months: Record<string, number>;
+      };
+      // Both identifies plus the failed segmentation's reported tokens.
+      expect(record.months[monthKey(new Date())]).toBeCloseTo(0.00197, 10);
+    });
   });
 
   it('renders honest cards with fallback links for unreadable video', async () => {
@@ -2918,6 +3133,102 @@ describe('sidepanel', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(document.querySelector('#result-slot h2')?.textContent).toBe('Fira');
+  });
+
+  it('drops a stale error terminal whose acknowledgement resolves late', async () => {
+    const mock = await setup();
+    await plantKeyAndConsent();
+    fetchMock.mockResolvedValueOnce(previewMiss()).mockResolvedValueOnce(chatResponse(PLACE_B));
+
+    const realImpl = mock.runtime.impl;
+    let releaseAck!: () => void;
+    const ackGate = new Promise<void>((resolve) => {
+      releaseAck = resolve;
+    });
+    let gated = false;
+    mock.runtime.impl = async (message: unknown) => {
+      if ((message as { scope?: string }).scope === 'take-me-there/handoff-v1' && !gated) {
+        gated = true;
+        await ackGate;
+      }
+
+      return realImpl(message);
+    };
+
+    await settleWrite(
+      mock.session.set({
+        [SLOT]: READY({ status: 'error', reason: 'collecting-failed', seq: 5301 }),
+      })
+    );
+    await sleep(25);
+
+    await settleWrite(
+      mock.session.set({
+        [SLOT]: READY({ requestId: 'B-1', seq: 5302, srcUrl: 'https://cdn.example.com/fira.jpg' }),
+      })
+    );
+    await waitForHeading('Fira');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    await settleWrite(
+      (async () => {
+        releaseAck();
+      })()
+    );
+    await sleep(50);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(document.querySelector('#result-slot h2')?.textContent).toBe('Fira');
+  });
+
+  it('drops a stale gate block that resolves after a newer result', async () => {
+    const mock = await setup();
+    const { persistKey } = await settleWrite(import('./key_vault'));
+    await settleWrite(persistKey('muse', 'LLM_x', false));
+
+    const realGet = mock.local.get.bind(mock.local);
+    let resolveStale!: (value: Record<string, unknown>) => void;
+    let gatedRead = false;
+    vi.spyOn(mock.local, 'get').mockImplementation(async (keys) => {
+      const list = keys === null || keys === undefined ? [] : Array.isArray(keys) ? keys : [keys];
+
+      if (!gatedRead && list.includes('consentGiven')) {
+        gatedRead = true;
+
+        return new Promise<Record<string, unknown>>((resolve) => {
+          resolveStale = resolve;
+        });
+      }
+
+      return realGet(keys);
+    });
+
+    fetchMock.mockResolvedValueOnce(previewMiss()).mockResolvedValueOnce(chatResponse(PLACE_B));
+
+    await settleWrite(mock.session.set({ [SLOT]: READY({ requestId: 'A-1' }) }));
+    await waitFor(() => {
+      expect(gatedRead).toBe(true);
+    });
+
+    const { setConsented } = await settleWrite(import('./providers/index'));
+    await settleWrite(setConsented());
+
+    await settleWrite(
+      mock.session.set({
+        [SLOT]: READY({ requestId: 'B-1', srcUrl: 'https://cdn.example.com/fira.jpg' }),
+      })
+    );
+    await waitForHeading('Fira');
+
+    await settleWrite(
+      (async () => {
+        resolveStale({});
+      })()
+    );
+    await sleep(50);
+
+    expect(document.querySelector('#result-slot h2')?.textContent).toBe('Fira');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('clears loading while the body stalls and settles the late body quietly', async () => {

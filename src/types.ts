@@ -1,7 +1,6 @@
 // Import from 'zod/mini' only: a plain 'zod' import multiplies the bundle.
 import * as z from 'zod/mini';
 
-// Strict subset for Muse: strict object, every property required.
 export const PLACE_SCHEMA = z.strictObject({
   identified: z.boolean(),
   placeName: z.string().check(z.maxLength(100)),

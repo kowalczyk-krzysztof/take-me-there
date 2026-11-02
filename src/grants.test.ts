@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  GRANT_QUARANTINE_MS,
   GRANT_RETRY_ALARM,
   TEMP_GRANT_KEY,
   TEMP_GRANT_TTL_MS,
@@ -184,17 +185,76 @@ describe('reconcileTempGrants', () => {
     expect(await mock.session.get(TEMP_GRANT_KEY)).toEqual({});
   });
 
-  it('sweeps held but unjournaled origins', async () => {
+  it('quarantines newly seen unjournaled origins before sweeping them', async () => {
     await addGrantJournal(ORIGIN);
     permsGetAll.mockResolvedValue({
       origins: [`${ORIGIN}/*`, 'https://leak.example/*'],
     });
 
-    await reconcileTempGrants();
+    const now = Date.now();
+    await reconcileTempGrants(now);
+
+    expect(permsRemove).not.toHaveBeenCalled();
+    expect((await readJournal())[ORIGIN]?.count).toBe(1);
+
+    await reconcileTempGrants(now + GRANT_QUARANTINE_MS);
 
     expect(permsRemove).toHaveBeenCalledTimes(1);
     expect(permsRemove).toHaveBeenCalledWith({ origins: ['https://leak.example/*'] });
     expect((await readJournal())[ORIGIN]?.count).toBe(1);
+  });
+
+  it('holds an acquisition granted while reconciliation is pending', async () => {
+    const OTHER = 'https://other.example.com';
+    await mock.local.set({ [TEMP_GRANT_KEY]: { [OTHER]: { count: 0, at: 0 } } });
+
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    permsRemove.mockImplementationOnce(async () => {
+      await gate;
+    });
+    // The new permission appears while reconciliation is still blocked.
+    permsGetAll.mockResolvedValue({ origins: [`${ORIGIN}/*`] });
+
+    const reconciling = reconcileTempGrants();
+    const adding = addGrantJournal(ORIGIN);
+    release();
+    await Promise.all([reconciling, adding]);
+
+    expect((await readJournal())[ORIGIN]).toEqual({ count: 1, at: expect.any(Number) });
+    expect(permsRemove).not.toHaveBeenCalledWith({ origins: [`${ORIGIN}/*`] });
+  });
+
+  it('schedules expiry when a lease is reserved after an empty reconcile', async () => {
+    const alarmsCreate = vi.fn();
+    const alarmsClear = vi.fn();
+    (chrome as unknown as { alarms: unknown }).alarms = {
+      create: alarmsCreate,
+      clear: alarmsClear,
+    };
+    permsGetAll.mockResolvedValue({ origins: [] });
+
+    await reconcileTempGrants();
+
+    expect(alarmsClear).toHaveBeenCalledWith(GRANT_RETRY_ALARM);
+    expect(alarmsCreate).not.toHaveBeenCalled();
+
+    const at = Date.now();
+    await addGrantJournal(ORIGIN);
+
+    expect(alarmsCreate).toHaveBeenCalledTimes(1);
+    expect(alarmsCreate.mock.calls[0][0]).toBe(GRANT_RETRY_ALARM);
+    const when = (alarmsCreate.mock.calls[0][1] as { when: number }).when;
+    expect(Math.abs(when - (at + TEMP_GRANT_TTL_MS))).toBeLessThan(5000);
+
+    await reconcileTempGrants(at + TEMP_GRANT_TTL_MS + 1);
+
+    expect(permsRemove).toHaveBeenCalledWith({ origins: [`${ORIGIN}/*`] });
+    expect(await readJournal()).toEqual({});
+
+    delete (chrome as unknown as { alarms?: unknown }).alarms;
   });
 
   it('never throws when storage is down', async () => {
@@ -273,7 +333,6 @@ describe('reconcileTempGrants', () => {
 
     permsContains.mockResolvedValue(false);
 
-    // The scheduled alarm fires: the worker reconciles again on its own.
     await reconcileTempGrants();
 
     expect(await readJournal()).toEqual({});

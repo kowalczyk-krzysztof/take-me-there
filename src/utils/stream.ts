@@ -1,4 +1,4 @@
-// Reads through a byte cap instead of materializing unboundedly. Injected modules keep their own loop.
+// Injected modules keep their own loop.
 export class CapExceededError extends Error {
   constructor(message: string) {
     super(message);

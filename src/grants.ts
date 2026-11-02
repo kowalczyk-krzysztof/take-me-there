@@ -1,6 +1,4 @@
-// Temporary host grants with a persistent, worker-owned journal. The panel
-// requests access from a user gesture and journals it immediately; the
-// worker serializes borrowers, revokes at zero, and sweeps strays.
+// Temporary host grants with a persistent, worker-owned journal.
 import { sendCommand } from './storage_client';
 import { createMutex } from './utils/mutex';
 
@@ -12,6 +10,11 @@ export const GRANT_RETRY_ALARM = 'take-me-there-grant-reconcile';
 
 const GRANT_RETRY_DELAY_MS = 60 * 1000;
 
+// Newly observed unjournaled origins wait out this quarantine before the
+// sweep may revoke them: an in-flight acquisition journals within seconds,
+// while a genuine leak is still cleaned shortly after.
+export const GRANT_QUARANTINE_MS = 60 * 1000;
+
 export interface GrantEntry {
   count: number;
   at: number;
@@ -22,6 +25,10 @@ type TempLedger = Record<string, GrantEntry>;
 // One writer: every journal mutation and reconciliation serializes here so
 // a read-modify-write can never interleave with another and drop a live borrower.
 const journalMutex = createMutex();
+
+// First-seen timestamps for held-but-unjournaled origins. Worker memory is
+// enough: a restart only extends quarantine for a genuine leak.
+const unjournaledFirstSeen = new Map<string, number>();
 
 const readLedger = async (): Promise<TempLedger> => {
   const stored = (await chrome.storage.local.get(TEMP_GRANT_KEY)) as Record<string, unknown>;
@@ -96,7 +103,9 @@ export const removeGrantVerified = async (origin: string): Promise<boolean> => {
 };
 
 // Worker side: journal a borrower. Throws on storage failure so the caller
-// can release instead of leaking an unjournaled grant.
+// can release instead of leaking an unjournaled grant. A successful
+// reservation establishes its own expiry wakeup, so an abandoned panel can
+// never leave a lease without a scheduled cleanup.
 export const addGrantJournal = (origin: string): Promise<void> =>
   journalMutex(async () => {
     const ledger = await readLedger();
@@ -106,6 +115,7 @@ export const addGrantJournal = (origin: string): Promise<void> =>
     ledger[origin] = { count: (existing?.count ?? 0) + 1, at: existing?.at ?? Date.now() };
 
     await writeLedger(ledger);
+    await updateGrantAlarm(Date.now());
   });
 
 // Worker side: cancel a speculative journal entry for a permission that was
@@ -197,8 +207,41 @@ const mergeLegacySessionLedger = async (): Promise<void> => {
   }
 };
 
-// Returns the entries still needing attention, so the caller can reschedule.
-const reconcileInner = async (now: number): Promise<number> => {
+// Never throws. Clears the alarm only when no journal entry or quarantined origin remains.
+const updateGrantAlarm = async (now: number): Promise<void> => {
+  let delay: number | null = null;
+
+  try {
+    const ledger = await readLedger();
+
+    for (const entry of Object.values(ledger)) {
+      const candidate =
+        entry.count > 0 ? Math.max(0, entry.at + TEMP_GRANT_TTL_MS - now) : GRANT_RETRY_DELAY_MS;
+
+      delay = delay === null ? candidate : Math.min(delay, candidate);
+    }
+  } catch {
+    scheduleGrantRetry(GRANT_RETRY_DELAY_MS);
+
+    return;
+  }
+
+  for (const firstSeen of unjournaledFirstSeen.values()) {
+    const candidate = Math.max(0, firstSeen + GRANT_QUARANTINE_MS - now);
+
+    delay = delay === null ? candidate : Math.min(delay, candidate);
+  }
+
+  if (delay === null) {
+    clearGrantRetry();
+
+    return;
+  }
+
+  scheduleGrantRetry(delay);
+};
+
+const reconcileInner = async (now: number): Promise<void> => {
   await mergeLegacySessionLedger();
 
   const ledger = await readLedger();
@@ -224,30 +267,52 @@ const reconcileInner = async (now: number): Promise<number> => {
 
     held = (all.origins ?? []).filter((pattern) => pattern.startsWith('https://'));
   } catch {
-    return Object.keys(ledger).length;
+    return;
   }
+
+  const heldOrigins = new Set<string>();
 
   for (const pattern of held) {
     const origin = pattern.endsWith('/*') ? pattern.slice(0, -2) : pattern;
+    heldOrigins.add(origin);
 
-    if (!ledger[origin]) {
-      await removeGrantVerified(origin);
+    if (ledger[origin]) {
+      unjournaledFirstSeen.delete(origin);
+
+      continue;
+    }
+
+    const firstSeen = unjournaledFirstSeen.get(origin);
+
+    if (firstSeen === undefined) {
+      unjournaledFirstSeen.set(origin, now);
+
+      continue;
+    }
+
+    if (now - firstSeen < GRANT_QUARANTINE_MS) {
+      continue;
+    }
+
+    if (await removeGrantVerified(origin)) {
+      unjournaledFirstSeen.delete(origin);
     }
   }
 
-  return Object.keys(ledger).length;
+  for (const origin of unjournaledFirstSeen.keys()) {
+    if (!heldOrigins.has(origin)) {
+      unjournaledFirstSeen.delete(origin);
+    }
+  }
 };
 
 // Never throws: cleanup must not break the run that triggered it. Fresh
-// entries may belong to a live panel and are left alone; anything held but
-// unjournaled is a leak, since this extension keeps no standing grants.
-// While entries remain, a durable alarm retries without user activity.
+// entries may belong to a live panel; anything held but unjournaled past
+// quarantine is a leak, since this extension keeps no standing grants.
 export const reconcileTempGrants = (now: number = Date.now()): Promise<void> =>
   journalMutex(async () => {
-    let remaining: number;
-
     try {
-      remaining = await reconcileInner(now);
+      await reconcileInner(now);
     } catch {
       // Storage is down; the alarm retries.
       scheduleGrantRetry(GRANT_RETRY_DELAY_MS);
@@ -255,28 +320,7 @@ export const reconcileTempGrants = (now: number = Date.now()): Promise<void> =>
       return;
     }
 
-    if (remaining === 0) {
-      clearGrantRetry();
-
-      return;
-    }
-
-    let delay: number | null = null;
-
-    try {
-      const ledger = await readLedger();
-
-      for (const entry of Object.values(ledger)) {
-        const candidate =
-          entry.count > 0 ? Math.max(0, entry.at + TEMP_GRANT_TTL_MS - now) : GRANT_RETRY_DELAY_MS;
-
-        delay = delay === null ? candidate : Math.min(delay, candidate);
-      }
-    } catch {
-      // Keep the retry delay; the next pass recomputes.
-    }
-
-    scheduleGrantRetry(delay ?? GRANT_RETRY_DELAY_MS);
+    await updateGrantAlarm(now);
   });
 
 export type HostAccessDecision = 'granted' | 'denied' | 'error';
@@ -291,7 +335,6 @@ export const requestHostAccess = async (origin: string): Promise<HostAccessDecis
   }
 };
 
-// Panel side: journal a freshly requested grant in the worker.
 export const addHostGrant = async (origin: string): Promise<void> => {
   await sendCommand<void>({ kind: 'grant.add', origin });
 };
@@ -301,7 +344,6 @@ export const releaseHostAccess = async (origin: string): Promise<void> => {
   await sendCommand<void>({ kind: 'grant.release', origin });
 };
 
-// Panel side: drop a speculative entry after a denied prompt.
 export const cancelHostGrant = async (origin: string): Promise<void> => {
   await sendCommand<void>({ kind: 'grant.cancel', origin });
 };
