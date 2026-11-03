@@ -1,0 +1,41 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Check tag matches package and manifest versions
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          pkg=$(node -p "require('./package.json').version")
+          manifest=$(node -p "require('./public/manifest.json').version")
+          test "$tag" = "$pkg" || { echo "tag v$tag != package.json $pkg"; exit 1; }
+          test "$tag" = "$manifest" || { echo "tag v$tag != manifest $manifest"; exit 1; }
+      - run: npm run typecheck
+      - run: npm test
+      - run: node scripts/verify-injected.mjs
+      - run: npm run zip
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          asset="take-me-there-${version}.zip"
+          mv take-me-there.zip "$asset"
+          gh release create "$GITHUB_REF_NAME" "$asset" \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes
