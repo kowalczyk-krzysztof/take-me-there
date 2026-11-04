@@ -28,7 +28,7 @@
     "zod": "4.6.7"
   },
   "devDependencies": {
-    "@rspack/cli": "2.2.9",
+    "@rspack/cli": "2.3.0",
     "@rspack/core": "2.2.9",
     "@types/node": "^26.6.6",
     "@types/react": "19.3.0",
