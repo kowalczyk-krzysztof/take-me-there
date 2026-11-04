@@ -33,7 +33,7 @@
     "@types/node": "^26.6.6",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
-    "chrome-types": "0.1.460",
+    "chrome-types": "0.1.461",
     "happy-dom": "21.0.4",
     "prettier": "3.9.10",
     "typescript": "7.0.2",
